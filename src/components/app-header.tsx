@@ -61,7 +61,8 @@ export default function AppHeader({ user }: AppHeaderProps) {
   }
 
   const getRoleIcon = (role: string) => {
-    switch (role) {
+    const normalizedRole = role?.toLowerCase()
+    switch (normalizedRole) {
       case 'writer':
         return <Crown className="w-3 h-3 text-gold-400" />
       case 'reader':
@@ -72,7 +73,8 @@ export default function AppHeader({ user }: AppHeaderProps) {
   }
 
   const getRoleBadgeColor = (role: string) => {
-    switch (role) {
+    const normalizedRole = role?.toLowerCase()
+    switch (normalizedRole) {
       case 'writer':
         return 'bg-gold-400/20 text-gold-300 border-gold-400/30'
       case 'reader':
@@ -115,11 +117,11 @@ export default function AppHeader({ user }: AppHeaderProps) {
                 {userProfile && (
                   <Badge 
                     variant="outline" 
-                    className={`text-xs px-2 py-0 h-4 ${getRoleBadgeColor(userProfile.role)}`}
+                    className={`text-xs px-2 py-0 h-5 font-semibold ${getRoleBadgeColor(userProfile.role)}`}
                   >
                     <span className="flex items-center space-x-1">
                       {getRoleIcon(userProfile.role)}
-                      <span className="capitalize">{userProfile.role}</span>
+                      <span className="uppercase">{userProfile.role}</span>
                     </span>
                   </Badge>
                 )}
@@ -133,11 +135,11 @@ export default function AppHeader({ user }: AppHeaderProps) {
                 {userProfile && (
                   <Badge 
                     variant="outline" 
-                    className={`text-xs w-fit ${getRoleBadgeColor(userProfile.role)}`}
+                    className={`text-xs w-fit font-semibold ${getRoleBadgeColor(userProfile.role)}`}
                   >
                     <span className="flex items-center space-x-1">
                       {getRoleIcon(userProfile.role)}
-                      <span className="capitalize">{userProfile.role}</span>
+                      <span className="uppercase">{userProfile.role}</span>
                     </span>
                   </Badge>
                 )}
