@@ -63,63 +63,47 @@ export async function POST(request: NextRequest) {
     // Ensure user has a profile record (with retry logic for auto-trigger timing)
     console.log('👤 Checking user profile...')
     let existingProfile = null
-    let attempts = 0
-    const maxAttempts = 5
     
-    while (!existingProfile && attempts < maxAttempts) {
-      attempts++
-      console.log(`👤 Profile check attempt ${attempts}/${maxAttempts}`)
-      
-      const { data: profile } = await supabaseService
+    // First attempt with regular client
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id, role, display_name')
+      .eq('id', user.id)
+      .single()
+    
+    if (profile) {
+      existingProfile = profile
+      console.log('✅ Profile found with regular client:', existingProfile)
+    } else {
+      // Fallback with service client
+      const { data: serviceProfile } = await supabaseService
         .from('profiles')
-        .select('id, role')
+        .select('id, role, display_name')
         .eq('id', user.id)
         .single()
       
-      if (profile) {
-        existingProfile = profile
-        break
-      }
-      
-      // If profile not found, wait a bit and try again (auto-trigger might still be running)
-      if (attempts < maxAttempts) {
-        console.log('⏳ Profile not found, waiting 500ms before retry...')
-        await new Promise(resolve => setTimeout(resolve, 500))
+      if (serviceProfile) {
+        existingProfile = serviceProfile
+        console.log('✅ Profile found with service client:', existingProfile)
       }
     }
 
-    console.log('🔍 Profile query result:', existingProfile)
+    console.log('🔍 Final profile result:', existingProfile)
 
     if (!existingProfile) {
-      console.log('❌ No profile found after retries - creating one manually')
-      
-      // Fallback: manually create profile if auto-trigger failed
-      const { data: newProfile, error: profileError } = await supabaseService
-        .from('profiles')
-        .insert({
-          id: user.id,
-          role: user.user_metadata?.preferred_role || 'reader',
-          display_name: user.user_metadata?.display_name || user.email?.split('@')[0] || 'User'
-        })
-        .select('id, role')
-        .single()
-      
-      if (profileError) {
-        console.error('💥 Failed to create profile:', profileError)
-        return NextResponse.json(
-          { error: 'Failed to create user profile. Please try signing out and signing in again.' },
-          { status: 500 }
-        )
-      }
-      
-      existingProfile = newProfile
-      console.log('✅ Profile created manually:', existingProfile)
-    } else {
-      console.log('✅ User profile exists')
+      console.log('❌ No profile found - this should not happen for existing users')
+      return NextResponse.json(
+        { 
+          error: 'User profile not found. Please refresh the page or contact support.',
+          details: `User ID: ${user.id}`,
+          suggestion: 'Try refreshing the page or signing out and back in.'
+        },
+        { status: 500 }
+      )
     }
     
     // Check if user has permission to create projects
-    if (existingProfile.role === 'reader') {
+    if (existingProfile.role?.toLowerCase() === 'reader') {
       return NextResponse.json(
         { 
           error: 'Permission denied', 
@@ -130,6 +114,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    console.log('✅ User profile verified - role:', existingProfile.role)
     console.log('🔍 PROFILE CHECK COMPLETE...')
 
     console.log('📥 Parsing request body...')
