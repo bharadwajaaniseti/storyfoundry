@@ -98,16 +98,18 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
       setProject(projectData)
 
       // Load project content
-      const { data: assetData } = await supabase
-        .from('project_assets')
+      const { data: contentData, error: contentError } = await supabase
+        .from('project_content')
         .select('*')
         .eq('project_id', resolvedParams.id)
         .eq('asset_type', 'content')
         .order('updated_at', { ascending: false })
         .limit(1)
 
-      if (assetData && assetData.length > 0) {
-        setContent(assetData[0].content || '')
+      if (contentError) {
+        console.log('No content found for project (this is normal for new projects):', contentError.message)
+      } else if (contentData && contentData.length > 0) {
+        setContent(contentData[0].content || '')
       }
 
     } catch (error) {
@@ -128,7 +130,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
 
       // Save/update content
       const { error } = await supabase
-        .from('project_assets')
+        .from('project_content')
         .upsert({
           project_id: project.id,
           filename: `${project.title.toLowerCase().replace(/\s+/g, '_')}.txt`,
