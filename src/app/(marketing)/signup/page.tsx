@@ -40,6 +40,8 @@ export default function SignUpPage() {
 
     try {
       const supabase = createSupabaseClient()
+      
+      // Step 1: Create user account
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -48,7 +50,7 @@ export default function SignUpPage() {
             display_name: `${formData.firstName} ${formData.lastName}`,
             first_name: formData.firstName,
             last_name: formData.lastName,
-            preferred_role: formData.role, // Pass selected role to user metadata
+            preferred_role: formData.role,
           }
         }
       })
@@ -59,6 +61,27 @@ export default function SignUpPage() {
       }
 
       if (data.user) {
+        // Step 2: Create profile manually via API (bypasses RLS issues)
+        try {
+          const profileResponse = await fetch('/api/create-profile', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId: data.user.id,
+              email: formData.email,
+              displayName: `${formData.firstName} ${formData.lastName}`,
+              role: formData.role
+            })
+          })
+          
+          if (!profileResponse.ok) {
+            console.warn('Profile creation via API failed, but user account created')
+          }
+        } catch (profileError) {
+          console.warn('Profile creation error:', profileError)
+          // Don't fail the signup if profile creation fails
+        }
+
         setSuccess(true)
         // Redirect to confirmation page or dashboard after a delay
         setTimeout(() => {

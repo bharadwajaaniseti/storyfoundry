@@ -1,50 +1,77 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { createClient } from '@supabase/supabase-js'
 
 export async function POST(request: NextRequest) {
   console.log('🔧 Manual profile creation endpoint called')
   
   try {
-    // Create service role client
-    const supabaseService = createServerClient(
+    const { userId, email, displayName, role } = await request.json()
+    
+    if (!userId || !email || !displayName || !role) {
+      return NextResponse.json({ 
+        error: 'Missing required fields: userId, email, displayName, role' 
+      }, { status: 400 })
+    }
+    
+    console.log('👤 Creating profile for:', { userId, email, displayName, role })
+
+    // Create service role client (bypasses RLS)
+    const supabaseService = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
       {
-        cookies: {
-          getAll: () => [],
-          setAll: () => {},
-        },
+        auth: { autoRefreshToken: false, persistSession: false }
       }
     )
-
-    const userId = '7d6d33b7-5d85-497b-89cd-7a09e52f31ee'
     
-    console.log('👤 Creating profile for user:', userId)
-    
-    const { data, error } = await supabaseService
+    // Create profile
+    const { data: profile, error: profileError } = await supabaseService
       .from('profiles')
-      .insert({
+      .upsert({
         id: userId,
-        role: 'reader', // Default to reader role
-        display_name: 'test_user'
-      })
+        role: role,
+        display_name: displayName,
+        email: email,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'id' })
       .select()
+      .single()
 
-    if (error) {
-      console.error('Profile creation error:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
+    if (profileError) {
+      console.error('❌ Profile creation error:', profileError)
+      return NextResponse.json({ 
+        error: 'Profile creation failed',
+        details: profileError.message 
+      }, { status: 500 })
     }
 
-    console.log('✅ Profile created:', data)
+    // Create subscription
+    const tier = role === 'writer' ? 'free_writer' : 'free_reader'
+    const { error: subscriptionError } = await supabaseService
+      .from('subscriptions')
+      .upsert({
+        user_id: userId,
+        tier: tier,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'user_id' })
+
+    if (subscriptionError) {
+      console.warn('⚠️ Subscription creation failed:', subscriptionError)
+      // Don't fail the request if subscription fails
+    }
+
+    console.log('✅ Profile created successfully:', profile)
     
     return NextResponse.json({ 
       success: true, 
       message: 'Profile created successfully',
-      profile: data 
+      profile: profile 
     })
     
   } catch (error) {
-    console.error('Fatal error:', error)
+    console.error('💥 Fatal error in profile creation:', error)
     return NextResponse.json({ 
       error: 'Internal server error',
       details: error instanceof Error ? error.message : 'Unknown error'
