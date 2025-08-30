@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API Test</title>
+</head>
+<body>
+    <h1>Project Creation Test</h1>
+    <button onclick="createProfile()">Create Profile</button>
+    <button onclick="upgradeToWriter()">Upgrade to Writer</button>
+    <button onclick="testAuth()">Test Auth</button>
+    <button onclick="testCreateProject()">Test Create Project</button>
+    <div id="result"></div>
+
+    <script>
+        async function createProfile() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Creating profile...';
+            
+            try {
+                const response = await fetch('/api/create-profile', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+
+                const data = await response.json();
+                resultDiv.innerHTML = `
+                    <h3>Profile Creation Status: ${response.status}</h3>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `<p>Error: ${error.message}</p>`;
+            }
+        }
+
+        async function upgradeToWriter() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Upgrading to Writer...';
+            
+            try {
+                const response = await fetch('/api/upgrade-role', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        targetRole: 'writer'
+                    })
+                });
+
+                const data = await response.json();
+                resultDiv.innerHTML = `
+                    <h3>Role Upgrade Status: ${response.status}</h3>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `<p>Error: ${error.message}</p>`;
+            }
+        }
+
+        async function testAuth() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Testing auth...';
+            
+            try {
+                console.log('Testing auth endpoint...');
+                const response = await fetch('/api/test-auth', {
+                    credentials: 'include'
+                });
+                
+                const result = await response.json();
+                console.log('Auth test result:', result);
+                
+                resultDiv.innerHTML = `
+                    <h3>Auth Test Result:</h3>
+                    <pre>${JSON.stringify(result, null, 2)}</pre>
+                `;
+            } catch (error) {
+                console.error('Auth test error:', error);
+                resultDiv.innerHTML = `<p>Auth test error: ${error.message}</p>`;
+            }
+        }
+
+        async function testCreateProject() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Testing project creation...';
+            
+            try {
+                console.log('Making API request...');
+                
+                const response = await fetch('/api/projects/create', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        title: 'Test Project',
+                        logline: 'A test project logline',
+                        description: 'This is a test project description',
+                        format: 'Feature Film',
+                        genre: 'Drama',
+                        visibility: 'private',
+                        ai_enabled: true,
+                        ip_protection_enabled: true
+                    }),
+                });
+
+                console.log('Response status:', response.status);
+                const result = await response.json();
+                console.log('Response data:', result);
+                
+                resultDiv.innerHTML = `
+                    <h3>Project Creation Result:</h3>
+                    <p>Status: ${response.status}</p>
+                    <pre>${JSON.stringify(result, null, 2)}</pre>
+                `;
+            } catch (error) {
+                console.error('Error:', error);
+                resultDiv.innerHTML = `<p>Error: ${error.message}</p>`;
+            }
+        }
+
+        // Auto-run test when page loads
+        window.onload = function() {
+            console.log('Page loaded, testing project creation API...');
+            testCreateProject();
+        };
+    </script>
+</body>
+</html>

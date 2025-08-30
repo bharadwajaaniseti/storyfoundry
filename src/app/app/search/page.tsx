@@ -1,0 +1,461 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import Link from 'next/link'
+import { 
+  Search,
+  Filter,
+  TrendingUp,
+  Eye,
+  Star,
+  Clock,
+  Users,
+  Shield,
+  Flame,
+  Calendar,
+  Bookmark,
+  Share2
+} from 'lucide-react'
+import { createSupabaseClient } from '@/lib/auth'
+
+interface PublicProject {
+  id: string
+  title: string
+  logline: string
+  format: string
+  genre: string | null
+  buzz_score: number
+  created_at: string
+  updated_at: string
+  owner: {
+    first_name: string
+    last_name: string
+    avatar_url?: string
+  }
+}
+
+const TRENDING_SEARCHES = [
+  'Sci-fi thriller', 'Romance comedy', 'Horror screenplay', 'Fantasy novel',
+  'Crime drama', 'Action adventure', 'Mystery thriller', 'Period drama'
+]
+
+const FEATURED_GENRES = [
+  { name: 'Action', color: 'bg-red-100 text-red-600', count: 45 },
+  { name: 'Comedy', color: 'bg-yellow-100 text-yellow-600', count: 32 },
+  { name: 'Drama', color: 'bg-blue-100 text-blue-600', count: 67 },
+  { name: 'Horror', color: 'bg-purple-100 text-purple-600', count: 28 },
+  { name: 'Romance', color: 'bg-pink-100 text-pink-600', count: 41 },
+  { name: 'Sci-Fi', color: 'bg-green-100 text-green-600', count: 35 }
+]
+
+export default function SearchPage() {
+  const [searchQuery, setSearchQuery] = useState('')
+  const [projects, setProjects] = useState<PublicProject[]>([])
+  const [featuredProjects, setFeaturedProjects] = useState<PublicProject[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [hasSearched, setHasSearched] = useState(false)
+  const [filters, setFilters] = useState({
+    format: 'all',
+    genre: 'all',
+    sortBy: 'buzz_score'
+  })
+
+  useEffect(() => {
+    loadFeaturedProjects()
+  }, [])
+
+  const loadFeaturedProjects = async () => {
+    try {
+      const supabase = createSupabaseClient()
+      
+      // Load top projects with highest buzz scores
+      const { data } = await supabase
+        .from('projects')
+        .select(`
+          id,
+          title,
+          logline,
+          format,
+          genre,
+          buzz_score,
+          created_at,
+          updated_at,
+          profiles:owner_id (
+            first_name,
+            last_name,
+            avatar_url
+          )
+        `)
+        .eq('visibility', 'public')
+        .order('buzz_score', { ascending: false })
+        .limit(6)
+
+      if (data) {
+        const formattedProjects = data.map(project => ({
+          ...project,
+          owner: project.profiles as any
+        }))
+        setFeaturedProjects(formattedProjects)
+      }
+    } catch (error) {
+      console.error('Error loading featured projects:', error)
+    }
+  }
+
+  const handleSearch = async (query = searchQuery) => {
+    if (!query.trim()) return
+
+    setIsLoading(true)
+    setHasSearched(true)
+
+    try {
+      const supabase = createSupabaseClient()
+      
+      let queryBuilder = supabase
+        .from('projects')
+        .select(`
+          id,
+          title,
+          logline,
+          format,
+          genre,
+          buzz_score,
+          created_at,
+          updated_at,
+          profiles:owner_id (
+            first_name,
+            last_name,
+            avatar_url
+          )
+        `)
+        .eq('visibility', 'public')
+
+      // Apply text search
+      if (query.trim()) {
+        queryBuilder = queryBuilder.or(
+          `title.ilike.%${query}%,logline.ilike.%${query}%,genre.ilike.%${query}%`
+        )
+      }
+
+      // Apply filters
+      if (filters.format !== 'all') {
+        queryBuilder = queryBuilder.eq('format', filters.format)
+      }
+      if (filters.genre !== 'all') {
+        queryBuilder = queryBuilder.eq('genre', filters.genre)
+      }
+
+      // Apply sorting
+      switch (filters.sortBy) {
+        case 'newest':
+          queryBuilder = queryBuilder.order('created_at', { ascending: false })
+          break
+        case 'title':
+          queryBuilder = queryBuilder.order('title', { ascending: true })
+          break
+        default:
+          queryBuilder = queryBuilder.order('buzz_score', { ascending: false })
+      }
+
+      const { data } = await queryBuilder.limit(20)
+
+      if (data) {
+        const formattedProjects = data.map(project => ({
+          ...project,
+          owner: project.profiles as any
+        }))
+        setProjects(formattedProjects)
+      }
+    } catch (error) {
+      console.error('Error searching projects:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    })
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Search Header */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="container mx-auto px-6 py-8">
+          <div className="max-w-4xl mx-auto text-center">
+            <h1 className="text-3xl font-bold text-gray-800 mb-4">
+              Discover Amazing Stories
+            </h1>
+            <p className="text-gray-600 mb-8">
+              Explore screenplays, novels, and creative works from writers around the world
+            </p>
+
+            {/* Search Bar */}
+            <div className="relative max-w-2xl mx-auto mb-6">
+              <Search className="w-5 h-5 absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search for stories, genres, or creators..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                className="w-full pl-12 pr-4 py-4 border border-gray-300 rounded-xl text-lg focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
+              />
+              <button
+                onClick={() => handleSearch()}
+                className="absolute right-2 top-1/2 transform -translate-y-1/2 btn-primary"
+              >
+                Search
+              </button>
+            </div>
+
+            {/* Quick Search Tags */}
+            <div className="flex flex-wrap justify-center gap-2">
+              {TRENDING_SEARCHES.map((term, index) => (
+                <button
+                  key={index}
+                  onClick={() => {
+                    setSearchQuery(term)
+                    handleSearch(term)
+                  }}
+                  className="px-3 py-1 text-sm text-gray-600 hover:text-orange-600 bg-gray-100 hover:bg-orange-50 rounded-full transition-colors"
+                >
+                  {term}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="container mx-auto px-6 py-8">
+        {/* Search Results */}
+        {hasSearched ? (
+          <div className="mb-8">
+            {/* Search Filters */}
+            <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+              <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+                <div className="flex items-center space-x-2">
+                  <Filter className="w-4 h-4 text-gray-500" />
+                  <span className="text-sm font-medium text-gray-700">Filters:</span>
+                </div>
+                
+                <div className="flex flex-wrap gap-3">
+                  <select
+                    value={filters.format}
+                    onChange={(e) => {
+                      setFilters({ ...filters, format: e.target.value })
+                      handleSearch()
+                    }}
+                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
+                  >
+                    <option value="all">All Formats</option>
+                    <option value="screenplay">Screenplay</option>
+                    <option value="treatment">Treatment</option>
+                    <option value="novel">Novel</option>
+                    <option value="short-story">Short Story</option>
+                    <option value="stage-play">Stage Play</option>
+                  </select>
+
+                  <select
+                    value={filters.genre}
+                    onChange={(e) => {
+                      setFilters({ ...filters, genre: e.target.value })
+                      handleSearch()
+                    }}
+                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
+                  >
+                    <option value="all">All Genres</option>
+                    {FEATURED_GENRES.map(genre => (
+                      <option key={genre.name} value={genre.name}>{genre.name}</option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={filters.sortBy}
+                    onChange={(e) => {
+                      setFilters({ ...filters, sortBy: e.target.value })
+                      handleSearch()
+                    }}
+                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
+                  >
+                    <option value="buzz_score">Most Popular</option>
+                    <option value="newest">Newest</option>
+                    <option value="title">Title A-Z</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Results */}
+            {isLoading ? (
+              <div className="text-center py-12">
+                <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                <p className="text-gray-600">Searching...</p>
+              </div>
+            ) : projects.length > 0 ? (
+              <div>
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-xl font-semibold text-gray-800">
+                    Search Results ({projects.length})
+                  </h2>
+                </div>
+                
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {projects.map((project) => (
+                    <div key={project.id} className="bg-white rounded-xl border border-gray-200 p-6 hover:border-orange-300 transition-colors">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
+                            {project.format}
+                          </span>
+                          {project.genre && (
+                            <span className="text-xs bg-orange-100 text-orange-600 px-2 py-1 rounded-full">
+                              {project.genre}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <button className="p-1 text-gray-400 hover:text-orange-500">
+                            <Bookmark className="w-4 h-4" />
+                          </button>
+                          <button className="p-1 text-gray-400 hover:text-orange-500">
+                            <Share2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <h3 className="font-semibold text-gray-800 mb-2 hover:text-orange-600">
+                        <Link href={`/projects/${project.id}`}>
+                          {project.title}
+                        </Link>
+                      </h3>
+                      
+                      <p className="text-gray-600 text-sm mb-4 line-clamp-3">
+                        {project.logline}
+                      </p>
+
+                      <div className="flex items-center justify-between text-xs text-gray-500 mb-4">
+                        <div className="flex items-center space-x-1">
+                          <TrendingUp className="w-3 h-3" />
+                          <span>{project.buzz_score} views</span>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <Clock className="w-3 h-3" />
+                          <span>{formatDate(project.created_at)}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center space-x-2">
+                        <div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center">
+                          <span className="text-xs font-medium text-gray-600">
+                            {project.owner?.first_name?.[0] || 'U'}
+                          </span>
+                        </div>
+                        <span className="text-sm text-gray-600">
+                          by {project.owner?.first_name || 'Unknown'} {project.owner?.last_name || ''}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <Search className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-xl font-medium text-gray-800 mb-2">No results found</h3>
+                <p className="text-gray-600">Try adjusting your search terms or filters</p>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-8">
+            {/* Featured Projects */}
+            <div>
+              <div className="flex items-center space-x-2 mb-6">
+                <Flame className="w-5 h-5 text-orange-500" />
+                <h2 className="text-2xl font-bold text-gray-800">Trending Stories</h2>
+              </div>
+              
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {featuredProjects.map((project) => (
+                  <div key={project.id} className="bg-white rounded-xl border border-gray-200 p-6 hover:border-orange-300 transition-colors">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
+                          {project.format}
+                        </span>
+                        {project.genre && (
+                          <span className="text-xs bg-orange-100 text-orange-600 px-2 py-1 rounded-full">
+                            {project.genre}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center space-x-1 text-orange-500">
+                        <Flame className="w-4 h-4" />
+                        <span className="text-xs font-medium">{project.buzz_score}</span>
+                      </div>
+                    </div>
+
+                    <h3 className="font-semibold text-gray-800 mb-2 hover:text-orange-600">
+                      <Link href={`/projects/${project.id}`}>
+                        {project.title}
+                      </Link>
+                    </h3>
+                    
+                    <p className="text-gray-600 text-sm mb-4 line-clamp-3">
+                      {project.logline}
+                    </p>
+
+                    <div className="flex items-center justify-between text-xs text-gray-500">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center">
+                          <span className="text-xs font-medium text-gray-600">
+                            {project.owner?.first_name?.[0] || 'U'}
+                          </span>
+                        </div>
+                        <span>
+                          {project.owner?.first_name || 'Unknown'} {project.owner?.last_name || ''}
+                        </span>
+                      </div>
+                      <span>{formatDate(project.created_at)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Browse by Genre */}
+            <div>
+              <h2 className="text-2xl font-bold text-gray-800 mb-6">Browse by Genre</h2>
+              
+              <div className="grid md:grid-cols-3 lg:grid-cols-6 gap-4">
+                {FEATURED_GENRES.map((genre) => (
+                  <button
+                    key={genre.name}
+                    onClick={() => {
+                      setSearchQuery(genre.name)
+                      setFilters({ ...filters, genre: genre.name })
+                      handleSearch(genre.name)
+                    }}
+                    className="p-4 text-center rounded-xl border border-gray-200 hover:border-orange-300 transition-colors group"
+                  >
+                    <div className={`w-12 h-12 ${genre.color} rounded-lg mx-auto mb-3 flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                      <span className="text-lg font-semibold">{genre.name[0]}</span>
+                    </div>
+                    <div className="font-medium text-gray-800 mb-1">{genre.name}</div>
+                    <div className="text-xs text-gray-500">{genre.count} stories</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
