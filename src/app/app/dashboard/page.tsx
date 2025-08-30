@@ -61,28 +61,33 @@ export default function DashboardPage() {
 
         setUser(user)
 
-        // Get user profile with role
-        const { data: profile } = await supabase
+        const { data: profile, error: profileError } = await supabase
           .from('profiles')
-          .select('id, role, display_name')
+          .select('*')
           .eq('id', user.id)
           .single()
 
-        if (profile) {
-          setUserProfile(profile)
-          console.log('✅ App Dashboard: User profile loaded', profile)
+        if (profileError) {
+          console.error('Error loading profile:', profileError)
+          return
         }
 
-        // Load user's projects
-        const { data: projectsData } = await supabase
+        setUserProfile(profile)
+
+        const { data: projectsData, error: projectsError } = await supabase
           .from('projects')
           .select('*')
           .eq('owner_id', user.id)
           .order('updated_at', { ascending: false })
 
+        if (projectsError) {
+          console.error('Error loading projects:', projectsError)
+          return
+        }
+
         setProjects(projectsData || [])
       } catch (error) {
-        console.error('Error loading user data:', error)
+        console.error('Error:', error)
       } finally {
         setIsLoading(false)
       }
@@ -262,48 +267,59 @@ export default function DashboardPage() {
                     </Link>
                   </div>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {projects.map((project) => (
                       <div
                         key={project.id}
-                        className="p-4 border border-gray-200 rounded-lg hover:border-orange-300 transition-colors"
+                        onClick={() => router.push(`/app/projects/${project.id}`)}
+                        className="group bg-white border border-gray-200 rounded-xl transition-all duration-300 hover:border-orange-300 hover:shadow-xl cursor-pointer transform hover:-translate-y-2 hover:scale-[1.02] p-6"
                       >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center space-x-3 mb-2">
-                              <h3 className="font-medium text-gray-800 hover:text-orange-600">
-                                <Link href={`/app/projects/${project.id}`}>
-                                  {project.title}
-                                </Link>
-                              </h3>
-                              {getVisibilityIcon(project.visibility)}
-                              <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
+                        <div className="h-full flex flex-col">
+                          <div className="flex items-start justify-between mb-4">
+                            <div className="flex items-center space-x-2">
+                              <div className="transform group-hover:scale-110 transition-transform duration-200">
+                                {getVisibilityIcon(project.visibility)}
+                              </div>
+                              <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full group-hover:bg-orange-50 group-hover:text-orange-700 transition-colors duration-200">
                                 {project.format}
                               </span>
                               {project.genre && (
-                                <span className="text-xs bg-orange-100 text-orange-600 px-2 py-1 rounded-full">
+                                <span className="text-xs bg-orange-100 text-orange-600 px-2 py-1 rounded-full group-hover:bg-orange-200 transition-colors duration-200">
                                   {project.genre}
                                 </span>
                               )}
                             </div>
-                            <p className="text-gray-600 text-sm mb-3 line-clamp-2">
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                router.push(`/app/projects/${project.id}/settings`)
+                              }}
+                              className="text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded-lg p-2 transition-all duration-200 transform hover:scale-110 hover:rotate-12"
+                              title="Project Settings"
+                            >
+                              <Settings className="w-4 h-4" />
+                            </button>
+                          </div>
+
+                          <div className="flex-1">
+                            <h3 className="font-semibold text-gray-800 mb-2 group-hover:text-orange-600 transition-colors duration-200">
+                              {project.title}
+                            </h3>
+                            <p className="text-gray-600 text-sm mb-4 line-clamp-3 group-hover:text-gray-700 transition-colors duration-200">
                               {project.logline}
                             </p>
-                            <div className="flex items-center space-x-4 text-xs text-gray-500">
-                              <span className="flex items-center space-x-1">
-                                <Clock className="w-3 h-3" />
-                                <span>Updated {formatDate(project.updated_at)}</span>
-                              </span>
-                              <span className="flex items-center space-x-1">
-                                <TrendingUp className="w-3 h-3" />
-                                <span>{project.buzz_score} views</span>
-                              </span>
+                          </div>
+
+                          <div className="flex items-center justify-between text-xs text-gray-500 group-hover:text-gray-600 transition-colors duration-200">
+                            <div className="flex items-center space-x-1">
+                              <Clock className="w-3 h-3 group-hover:text-orange-500 transition-colors duration-200" />
+                              <span>{formatDate(project.updated_at)}</span>
+                            </div>
+                            <div className="flex items-center space-x-1">
+                              <TrendingUp className="w-3 h-3 group-hover:text-orange-500 transition-colors duration-200" />
+                              <span>{project.buzz_score}</span>
                             </div>
                           </div>
-                          
-                          <button className="p-2 text-gray-400 hover:text-gray-600">
-                            <MoreHorizontal className="w-4 h-4" />
-                          </button>
                         </div>
                       </div>
                     ))}

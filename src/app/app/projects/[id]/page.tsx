@@ -32,8 +32,8 @@ interface Project {
   genre: string | null
   visibility: 'private' | 'preview' | 'public'
   buzz_score: number
-  ai_enabled: boolean
-  ip_protection_enabled: boolean
+  ai_enabled?: boolean
+  ip_protection_enabled?: boolean
   created_at: string
   updated_at: string
   owner_id: string
@@ -58,6 +58,8 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error' | null>(null)
   const [showShareDialog, setShowShareDialog] = useState(false)
   const [activeTab, setActiveTab] = useState('write')
+  const [editingLogline, setEditingLogline] = useState(false)
+  const [loglineValue, setLoglineValue] = useState('')
 
   // Unwrap params using React.use()
   const resolvedParams = React.use(params)
@@ -96,6 +98,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
       }
 
       setProject(projectData)
+      setLoglineValue(projectData.logline)
 
       // Load project content
       const { data: contentData, error: contentError } = await supabase
@@ -155,6 +158,30 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
       setTimeout(() => setSaveStatus(null), 3000)
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  const saveLogline = async () => {
+    if (!project || !loglineValue.trim()) return
+
+    try {
+      const supabase = createSupabaseClient()
+
+      const { error } = await supabase
+        .from('projects')
+        .update({ 
+          logline: loglineValue.trim(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', project.id)
+
+      if (error) throw error
+
+      setProject({ ...project, logline: loglineValue.trim() })
+      setEditingLogline(false)
+
+    } catch (error) {
+      console.error('Error saving logline:', error)
     }
   }
 
@@ -219,7 +246,53 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                     </span>
                   )}
                 </div>
-                <p className="text-sm text-gray-600 mt-1">{project.logline}</p>
+                {editingLogline ? (
+                  <div className="mt-2 flex items-center space-x-2">
+                    <input
+                      type="text"
+                      value={loglineValue}
+                      onChange={(e) => setLoglineValue(e.target.value)}
+                      className="text-sm text-gray-600 border border-gray-300 rounded px-2 py-1 flex-1"
+                      placeholder="Enter logline..."
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          saveLogline()
+                        }
+                        if (e.key === 'Escape') {
+                          setEditingLogline(false)
+                          setLoglineValue(project.logline)
+                        }
+                      }}
+                      autoFocus
+                    />
+                    <button
+                      onClick={saveLogline}
+                      className="text-xs px-2 py-1 bg-green-500 text-white rounded hover:bg-green-600"
+                    >
+                      Save
+                    </button>
+                    <button
+                      onClick={() => {
+                        setEditingLogline(false)
+                        setLoglineValue(project.logline)
+                      }}
+                      className="text-xs px-2 py-1 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <p 
+                    className="text-sm text-gray-600 mt-1 cursor-pointer hover:text-gray-800 hover:bg-gray-50 px-1 py-1 rounded"
+                    onClick={() => {
+                      setEditingLogline(true)
+                      setLoglineValue(project.logline)
+                    }}
+                    title="Click to edit logline"
+                  >
+                    {project.logline}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -265,7 +338,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                 <span>Share</span>
               </button>
 
-              <Link href="/app/settings">
+              <Link href={`/app/projects/${project.id}/settings`}>
                 <button className="flex items-center space-x-2 px-3 py-2 text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:border-gray-400 transition-colors">
                   <Settings className="w-4 h-4" />
                   <span>Settings</span>
