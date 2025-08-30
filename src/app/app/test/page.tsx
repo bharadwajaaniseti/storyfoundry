@@ -1,21 +1,25 @@
 "use client"
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createSupabaseClient } from '@/lib/auth'
 
 interface UserData {
   id: string
   email: string
   full_name?: string
-  role?: 'reader' | 'writer'
+  role?: 'reader' | 'writer' | string
   display_name?: string
 }
 
 export default function TestPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [loading, setLoading] = useState(true)
   const [userData, setUserData] = useState<UserData | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  // Get role from URL parameters
+  const urlRole = searchParams.get('role') as 'reader' | 'writer' | null
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -42,18 +46,65 @@ export default function TestPage() {
           .eq('id', user.id)
           .single()
 
-        // Combine auth user data with profile data
-        const combinedData: UserData = {
-          id: user.id,
-          email: user.email || 'No email',
-          full_name: user.user_metadata?.full_name || 'No full name',
-          role: profile?.role || 'No role',
-          display_name: profile?.display_name || 'No display name'
+        // If we have a role from URL but no profile, or profile role doesn't match URL role
+        if (urlRole && (!profile || profile.role !== urlRole)) {
+          console.log('🔄 Creating/updating profile with role from URL:', urlRole)
+          
+          // Try to create or update the profile with the URL role
+          const { data: updatedProfile, error: upsertError } = await supabase
+            .from('profiles')
+            .upsert({
+              id: user.id,
+              role: urlRole,
+              display_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
+              email: user.email
+            })
+            .select('*')
+            .single()
+          
+          console.log('📝 Profile upsert result:', updatedProfile, 'Error:', upsertError)
+          
+          if (updatedProfile) {
+            // Use updated profile
+            const combinedData: UserData = {
+              id: user.id,
+              email: user.email || 'No email',
+              full_name: user.user_metadata?.full_name || 'No full name',
+              role: updatedProfile.role || 'No role',
+              display_name: updatedProfile.display_name || 'No display name'
+            }
+            setUserData(combinedData)
+            
+            // Clean up URL by removing the role parameter
+            const newUrl = new URL(window.location.href)
+            newUrl.searchParams.delete('role')
+            newUrl.searchParams.delete('code')
+            newUrl.searchParams.delete('redirectTo')
+            window.history.replaceState({}, '', newUrl.pathname + newUrl.search)
+          }
+        } else if (profile) {
+          // Use existing profile
+          const combinedData: UserData = {
+            id: user.id,
+            email: user.email || 'No email',
+            full_name: user.user_metadata?.full_name || 'No full name',
+            role: profile.role || 'No role',
+            display_name: profile.display_name || 'No display name'
+          }
+          setUserData(combinedData)
+        } else {
+          // No profile and no role in URL
+          const combinedData: UserData = {
+            id: user.id,
+            email: user.email || 'No email',
+            full_name: user.user_metadata?.full_name || 'No full name',
+            role: 'No role',
+            display_name: 'No display name'
+          }
+          setUserData(combinedData)
         }
-
-        setUserData(combinedData)
         
-        if (profileError) {
+        if (profileError && profileError.code !== 'PGRST116') {
           setError(`Profile Error: ${profileError.message}`)
         }
 
@@ -65,7 +116,7 @@ export default function TestPage() {
     }
 
     fetchUserData()
-  }, [router])
+  }, [router, urlRole])
 
   if (loading) {
     return (
