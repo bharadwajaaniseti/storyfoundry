@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
+import { Badge } from '@/components/ui/badge'
 import { 
   Home,
   FileText,
@@ -13,7 +14,9 @@ import {
   User,
   LogOut,
   Plus,
-  Calendar
+  Calendar,
+  Pen,
+  BookOpen
 } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/auth'
 
@@ -44,6 +47,30 @@ const NAVIGATION_ITEMS = [
     icon: Users
   }
 ]
+
+const getRoleIcon = (role: string) => {
+  const normalizedRole = role?.toLowerCase()
+  switch (normalizedRole) {
+    case 'writer':
+      return <Pen className="w-3 h-3 text-yellow-400" />
+    case 'reader':
+      return <BookOpen className="w-3 h-3 text-purple-400" />
+    default:
+      return null
+  }
+}
+
+const getRoleBadgeColor = (role: string) => {
+  const normalizedRole = role?.toLowerCase()
+  switch (normalizedRole) {
+    case 'writer':
+      return 'bg-yellow-500/20 text-yellow-600 border-yellow-400 shadow-sm'
+    case 'reader':
+      return 'bg-purple-500/20 text-purple-600 border-purple-400 shadow-sm'
+    default:
+      return 'bg-gray-500/20 text-gray-600 border-gray-400'
+  }
+}
 
 export default function AppLayout({
   children,
@@ -136,13 +163,26 @@ export default function AppLayout({
 
               {/* User Menu */}
               <div className="relative group">
-                <button className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100 transition-colors">
+                <button className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-100 transition-colors">
                   <div className="w-8 h-8 bg-gradient-to-r from-orange-500 to-red-500 rounded-full flex items-center justify-center">
                     <User className="w-4 h-4 text-white" />
                   </div>
-                  <span className="text-sm font-medium text-gray-700 hidden sm:block">
-                    {user?.profile?.display_name || user?.email?.split('@')[0] || 'User'}
-                  </span>
+                  <div className="hidden sm:flex flex-col items-start space-y-1">
+                    <span className="text-sm font-medium text-gray-700">
+                      {user?.profile?.display_name || user?.email?.split('@')[0] || 'User'}
+                    </span>
+                    {user?.profile?.role && (
+                      <Badge 
+                        variant="outline" 
+                        className={`text-xs px-2 py-0.5 h-5 font-bold border ${getRoleBadgeColor(user.profile.role)}`}
+                      >
+                        <span className="flex items-center space-x-1">
+                          {getRoleIcon(user.profile.role)}
+                          <span className="uppercase tracking-wide">{user.profile.role}</span>
+                        </span>
+                      </Badge>
+                    )}
+                  </div>
                 </button>
 
                 {/* Dropdown Menu */}

@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Bell, Settings, LogOut, User as UserIcon, Crown, BookOpen } from 'lucide-react'
+import { Bell, Settings, LogOut, User as UserIcon, Pen, BookOpen } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/auth'
 
 interface AppHeaderProps {
@@ -65,7 +65,7 @@ export default function AppHeader({ user }: AppHeaderProps) {
     const normalizedRole = role?.toLowerCase()
     switch (normalizedRole) {
       case 'writer':
-        return <Crown className="w-3 h-3 text-gold-400" />
+        return <Pen className="w-3 h-3 text-gold-400" />
       case 'reader':
         return <BookOpen className="w-3 h-3 text-purple-400" />
       default:
@@ -115,7 +115,7 @@ export default function AppHeader({ user }: AppHeaderProps) {
               </Avatar>
               <div className="flex flex-col items-start space-y-1">
                 <div className="text-sm font-medium">{userProfile?.display_name || user.email}</div>
-                {userProfile ? (
+                {userProfile && (
                   <Badge 
                     variant="outline" 
                     className={`text-xs px-3 py-1 h-6 font-bold border-2 ${getRoleBadgeColor(userProfile.role)}`}
@@ -124,13 +124,6 @@ export default function AppHeader({ user }: AppHeaderProps) {
                       {getRoleIcon(userProfile.role)}
                       <span className="uppercase tracking-wide">{userProfile.role}</span>
                     </span>
-                  </Badge>
-                ) : (
-                  <Badge 
-                    variant="outline" 
-                    className="text-xs px-3 py-1 h-6 font-bold border-2 bg-red-500/30 text-red-200 border-red-400"
-                  >
-                    NO PROFILE
                   </Badge>
                 )}
               </div>
@@ -164,7 +157,7 @@ export default function AppHeader({ user }: AppHeaderProps) {
             </DropdownMenuItem>
             {userProfile?.role === 'reader' && (
               <DropdownMenuItem className="text-gray-300 hover:text-white hover:bg-navy-700 cursor-pointer">
-                <Crown className="w-4 h-4 mr-2 text-gold-400" />
+                <Pen className="w-4 h-4 mr-2 text-gold-400" />
                 Upgrade to Writer
               </DropdownMenuItem>
             )}
