@@ -85,6 +85,27 @@
   box-shadow: 0 8px 25px rgba(182, 181, 181, 0.4);
 }
 
+.btn-purple {
+  background: #7C3AED;
+  color: white;
+  font-weight: 600;
+  padding: 12px 24px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transform: scale(1);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 15px rgba(124, 58, 237, 0.2);
+}
+
+.btn-purple:hover {
+  background: #6D28D9;
+  transform: scale(1.05);
+  box-shadow: 0 8px 25px rgba(124, 58, 237, 0.4);
+}
+
 .btn-ghost {
   background: transparent;
   color: #212224;
