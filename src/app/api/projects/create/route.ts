@@ -24,6 +24,27 @@ export async function POST(request: NextRequest) {
 
     // Create service role client for database operations (bypasses RLS temporarily)
     console.log('🔧 Service role key present:', !!process.env.SUPABASE_SERVICE_ROLE_KEY)
+    console.log('🔧 Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL)
+    console.log('🔧 Anon key present:', !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+    console.log('🔧 Service key prefix:', process.env.SUPABASE_SERVICE_ROLE_KEY?.substring(0, 20) + '...')
+    console.log('🔧 Anon key prefix:', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.substring(0, 20) + '...')
+    
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      console.error('❌ SUPABASE_SERVICE_ROLE_KEY is missing!')
+      return NextResponse.json(
+        { error: 'Server configuration error: Missing service role key' },
+        { status: 500 }
+      )
+    }
+    
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      console.error('❌ NEXT_PUBLIC_SUPABASE_URL is missing!')
+      return NextResponse.json(
+        { error: 'Server configuration error: Missing Supabase URL' },
+        { status: 500 }
+      )
+    }
+    
     const supabaseService = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
