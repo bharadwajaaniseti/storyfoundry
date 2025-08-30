@@ -83,11 +83,23 @@ export default function DashboardPage() {
   }
 
   if (!userProfile) {
+    console.log('❌ Dashboard: No profile found, showing fallback message')
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <h2 className="text-xl font-semibold text-white mb-2">Profile not found</h2>
-          <p className="text-gray-300">Please sign out and sign in again.</p>
+        <div className="text-center max-w-md">
+          <h2 className="text-xl font-semibold text-white mb-4">Setting up your profile...</h2>
+          <p className="text-gray-300 mb-4">
+            We're preparing your personalized dashboard. This usually takes just a moment.
+          </p>
+          <div className="text-sm text-gray-400">
+            If this persists, please check the browser console for any errors.
+          </div>
+          <Button 
+            onClick={() => window.location.reload()} 
+            className="mt-4 bg-gold-400 hover:bg-gold-500 text-navy-900"
+          >
+            Refresh Page
+          </Button>
         </div>
       </div>
     )
