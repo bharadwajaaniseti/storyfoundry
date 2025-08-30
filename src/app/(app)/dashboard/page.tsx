@@ -38,22 +38,34 @@ export default function DashboardPage() {
     const supabase = createSupabaseClient()
     
     const fetchUserProfile = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
+      console.log('🔍 Dashboard: Fetching user profile...')
+      
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      
+      console.log('👤 Dashboard: Auth user:', user?.id, 'Error:', authError)
       
       if (!user) {
+        console.log('❌ Dashboard: No user found, redirecting to signin')
         router.push('/signin')
         return
       }
 
       // Fetch user profile to get role
-      const { data: profile } = await supabase
+      console.log('🔍 Dashboard: Fetching profile for user:', user.id)
+      const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('id, role, display_name')
         .eq('id', user.id)
         .single()
 
+      console.log('📋 Dashboard: Profile data:', profile)
+      console.log('❌ Dashboard: Profile error:', profileError)
+
       if (profile) {
+        console.log('✅ Dashboard: Setting user profile:', profile)
         setUserProfile(profile)
+      } else {
+        console.log('❌ Dashboard: No profile found!')
       }
       setLoading(false)
     }

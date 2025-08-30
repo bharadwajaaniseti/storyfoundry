@@ -32,15 +32,23 @@ export default function AppHeader({ user }: AppHeaderProps) {
 
   useEffect(() => {
     const fetchUserProfile = async () => {
+      console.log('🔍 Header: Fetching user profile for:', user.id)
+      
       const supabase = createSupabaseClient()
-      const { data: profile } = await supabase
+      const { data: profile, error } = await supabase
         .from('profiles')
         .select('id, role, display_name')
         .eq('id', user.id)
         .single()
 
+      console.log('📋 Header: Profile data:', profile)
+      console.log('❌ Header: Profile error:', error)
+
       if (profile) {
+        console.log('✅ Header: Setting user profile:', profile)
         setUserProfile(profile)
+      } else {
+        console.log('❌ Header: No profile found!')
       }
     }
 
