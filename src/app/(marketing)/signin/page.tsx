@@ -1,12 +1,30 @@
 'use client'
 
-import { useState, Suspense } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { ArrowRight, Eye, EyeOff, AlertCircle } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/auth'
 
 function SignInForm() {
+  // ...existing code...
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const redirectTo = searchParams.get('redirectTo') || '/app/dashboard'
+
+  // Listen for Supabase auth state changes and redirect after login
+  useEffect(() => {
+    const supabase = createSupabaseClient();
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        router.push(redirectTo);
+        router.refresh();
+      }
+    });
+    return () => {
+      authListener?.subscription.unsubscribe();
+    };
+  }, [router, redirectTo]);
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
