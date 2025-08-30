@@ -61,24 +61,38 @@ export async function POST(request: NextRequest) {
     console.log('Cookies received:', request.cookies.getAll().map(c => ({ name: c.name, hasValue: !!c.value })))
     
     // Get authenticated user
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
-    console.log('User:', user?.id)
-    console.log('Auth Error:', authError?.message)
-    console.log('Final auth status:', user ? 'Authenticated' : 'Not authenticated')
-    console.log('====================')
-    
-    if (authError || !user) {
-      console.log('❌ Auth failed:', authError?.message || 'No user')
-      const response = NextResponse.json(
-        { error: 'Unauthorized', details: authError?.message || 'No user found' },
-        { status: 401 }
-      )
-      console.log('📤 Returning 401 response')
-      return response
-    }
+    let user: any = null
+    try {
+      const { data: authData, error: authError } = await supabase.auth.getUser()
+      user = authData.user
+      
+      console.log('User:', user?.id)
+      console.log('Auth Error:', authError?.message)
+      console.log('Final auth status:', user ? 'Authenticated' : 'Not authenticated')
+      console.log('====================')
+      
+      if (authError || !user) {
+        console.log('❌ Auth failed:', authError?.message || 'No user')
+        const response = NextResponse.json(
+          { error: 'Unauthorized', details: authError?.message || 'No user found' },
+          { status: 401 }
+        )
+        console.log('📤 Returning 401 response')
+        return response
+      }
 
-    console.log('✅ Authentication successful for user:', user.id)
+      console.log('✅ Authentication successful for user:', user.id)
+    } catch (authException) {
+      console.error('🚨 Auth exception:', authException)
+      return NextResponse.json(
+        { 
+          error: 'Authentication failed', 
+          details: authException instanceof Error ? authException.message : 'Unknown auth error',
+          step: 'auth_exception'
+        },
+        { status: 500 }
+      )
+    }
     console.log('🔍 PROFILE CHECK STARTING...')
 
     // Ensure user has a profile record (with retry logic for auto-trigger timing)
@@ -235,13 +249,29 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('🚨 FATAL API ERROR:', error)
     console.error('Stack trace:', error instanceof Error ? error.stack : 'No stack trace available')
+    console.error('Error name:', error instanceof Error ? error.name : 'Unknown')
+    console.error('Error message:', error instanceof Error ? error.message : 'Unknown error')
+    
+    // Log environment variables status for debugging
+    console.error('Environment check:', {
+      supabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+      anonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      serviceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+      nodeEnv: process.env.NODE_ENV
+    })
     
     // Always return valid JSON response
     const response = NextResponse.json(
       { 
-        error: 'Internal server error', 
-        message: error instanceof Error ? error.message : 'Unknown error',
-        timestamp: new Date().toISOString()
+        error: 'Failed to create project', 
+        details: error instanceof Error ? error.message : 'Unknown error',
+        errorType: error instanceof Error ? error.name : 'Unknown',
+        timestamp: new Date().toISOString(),
+        debug: {
+          hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+          hasAnonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+          hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY
+        }
       },
       { status: 500 }
     )
