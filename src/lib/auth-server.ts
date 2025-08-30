@@ -3,7 +3,8 @@ import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { cache } from 'react'
 
-export type UserRole = 'writer' | 'pro' | 'admin'
+export type UserRole = 'reader' | 'writer'
+export type SubscriptionTier = 'free_reader' | 'reader_plus' | 'reader_pro' | 'free_writer' | 'writer_plus' | 'writer_pro'
 
 export interface Profile {
   id: string
@@ -11,16 +12,27 @@ export interface Profile {
   display_name: string | null
   bio: string | null
   avatar_url: string | null
-  verified_pro: boolean
   company: string | null
   country: string | null
   created_at: string
+  updated_at: string
+}
+
+export interface Subscription {
+  id: string
+  user_id: string
+  tier: SubscriptionTier
+  stripe_customer_id: string | null
+  stripe_sub_id: string | null
+  created_at: string
+  updated_at: string
 }
 
 export interface User {
   id: string
   email: string
   profile: Profile | null
+  subscription: Subscription | null
 }
 
 // Create Supabase client for server-side operations
@@ -89,10 +101,18 @@ export const getUser = cache(async (): Promise<User | null> => {
       .eq('id', user.id)
       .single()
 
+    // Fetch user subscription
+    const { data: subscription } = await supabase
+      .from('subscriptions')
+      .select('*')
+      .eq('user_id', user.id)
+      .single()
+
     return {
       id: user.id,
       email: user.email || '',
-      profile: profile || null
+      profile: profile || null,
+      subscription: subscription || null
     }
   } catch (error) {
     console.error('Error getting user:', error)
@@ -121,19 +141,39 @@ export async function requireRole(requiredRole: UserRole): Promise<User> {
   
   const userRole = user.profile.role
   
-  // Admin can access everything
-  if (userRole === 'admin') {
-    return user
-  }
-  
-  // Pro can access writer features
-  if (requiredRole === 'writer' && (userRole === 'pro' || userRole === 'writer')) {
-    return user
-  }
-  
   // Exact role match required
   if (userRole !== requiredRole) {
     throw new Error(`Role '${requiredRole}' required, but user has role '${userRole}'`)
+  }
+  
+  return user
+}
+
+// Require paid subscription (any tier above free)
+export async function requirePaidSubscription(): Promise<User> {
+  const user = await requireAuth()
+  
+  if (!user.subscription) {
+    throw new Error('No subscription found')
+  }
+  
+  if (user.subscription.tier === 'free_reader' || user.subscription.tier === 'free_writer') {
+    throw new Error('Paid subscription required')
+  }
+  
+  return user
+}
+
+// Require specific subscription tier
+export async function requireSubscriptionTier(requiredTier: SubscriptionTier): Promise<User> {
+  const user = await requireAuth()
+  
+  if (!user.subscription) {
+    throw new Error('No subscription found')
+  }
+  
+  if (user.subscription.tier !== requiredTier) {
+    throw new Error(`Subscription tier '${requiredTier}' required, but user has '${user.subscription.tier}'`)
   }
   
   return user
@@ -144,7 +184,7 @@ export async function requireOwner(projectId: string, userId?: string): Promise<
   const user = await requireAuth()
   const targetUserId = userId || user.id
   
-  if (user.id !== targetUserId && user.profile?.role !== 'admin') {
+  if (user.id !== targetUserId) {
     const supabase = await createSupabaseServer()
     
     const { data: project, error } = await supabase

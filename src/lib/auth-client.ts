@@ -1,6 +1,6 @@
 import { createBrowserClient } from '@supabase/ssr'
 
-export type UserRole = 'writer' | 'pro' | 'admin'
+export type UserRole = 'reader' | 'writer'
 
 export interface Profile {
   id: string

@@ -1,4 +1,4 @@
-import { createSupabaseServer, requireRole } from '@/lib/auth-server'
+import { createSupabaseServer, requirePaidSubscription } from '@/lib/auth-server'
 import { handleApiError } from '@/lib/utils'
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
@@ -13,8 +13,8 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    // Require pro role or higher
-    const user = await requireRole('pro')
+    // Require paid subscription to request access
+    const user = await requirePaidSubscription()
 
     const body = await request.json()
     const { message, nda_required } = accessRequestSchema.parse(body)
@@ -73,7 +73,7 @@ export async function POST(
       .from('access_requests')
       .insert({
         project_id: projectId,
-        pro_id: user.id,
+        pro_id: user.id,  // Keep the column name for now, but it's actually any paid user
         message,
         nda_required,
       })

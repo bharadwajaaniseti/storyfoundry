@@ -1,4 +1,4 @@
-import { createSupabaseServer, requireRole } from '@/lib/auth-server'
+import { createSupabaseServer, requireSubscriptionTier } from '@/lib/auth-server'
 import { handleApiError } from '@/lib/utils'
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
@@ -13,19 +13,11 @@ const pitchRoomSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    // Require pro role or higher for creating pitch rooms
-    const user = await requireRole('pro')
+    // Require writer pro subscription for creating pitch rooms
+    const user = await requireSubscriptionTier('writer_pro')
 
     const body = await request.json()
     const pitchRoomData = pitchRoomSchema.parse(body)
-
-    // Check if user is verified pro (unless admin)
-    if (user.profile?.role === 'pro' && !user.profile?.verified_pro) {
-      return Response.json(
-        { error: 'Only verified pro users can create pitch rooms' },
-        { status: 403 }
-      )
-    }
 
     const supabase = await createSupabaseServer()
 
@@ -64,8 +56,7 @@ export async function POST(request: NextRequest) {
         created_at,
         profiles:host_id (
           display_name,
-          avatar_url,
-          verified_pro
+          avatar_url
         )
       `)
       .single()
