@@ -468,7 +468,7 @@ export default function PricingPage() {
       <section className="py-20 bg-gradient-to-br from-gray-900 to-gray-800 text-white">
         <div className="container mx-auto px-6">
           <div className="max-w-4xl mx-auto text-center">
-            <h2 className="text-4xl md:text-5xl font-bold mb-6">
+            <h2 className="text-4xl md:text-5xl font-bold mb-6 text-white">
               Ready to Start Your <span className={`${planType === 'reader' ? 'text-purple-400' : 'text-orange-400'}`}>Creative Journey</span>?
             </h2>
             <p className="text-xl text-gray-300 mb-8 max-w-3xl mx-auto leading-relaxed">
