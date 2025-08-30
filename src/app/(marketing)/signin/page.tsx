@@ -19,6 +19,7 @@ function SignInForm() {
   
   const router = useRouter()
   const searchParams = useSearchParams()
+  // Don't use window.location in initial render to avoid SSR mismatch
   const redirectTo = searchParams.get('redirectTo') || '/app/dashboard'
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -71,16 +72,22 @@ function SignInForm() {
     
     try {
       const supabase = createSupabaseClient()
+      let redirectUrl = ''
+      if (typeof window !== 'undefined') {
+        redirectUrl = `${window.location.origin}/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}&role=${selectedRole}`
+      } else {
+        // fallback for SSR, but this should never run in SSR
+        redirectUrl = `/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}&role=${selectedRole}`
+      }
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}&role=${selectedRole}`,
+          redirectTo: redirectUrl,
           queryParams: {
             role: selectedRole // Pass role as query parameter
           }
         }
       })
-      
       if (error) {
         setError(error.message)
       }
