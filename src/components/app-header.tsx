@@ -76,11 +76,11 @@ export default function AppHeader({ user }: AppHeaderProps) {
     const normalizedRole = role?.toLowerCase()
     switch (normalizedRole) {
       case 'writer':
-        return 'bg-gold-400/20 text-gold-300 border-gold-400/30'
+        return 'bg-gold-500/30 text-gold-200 border-gold-400 shadow-lg shadow-gold-500/20'
       case 'reader':
-        return 'bg-purple-400/20 text-purple-300 border-purple-400/30'
+        return 'bg-purple-500/30 text-purple-200 border-purple-400 shadow-lg shadow-purple-500/20'
       default:
-        return 'bg-gray-400/20 text-gray-300 border-gray-400/30'
+        return 'bg-gray-500/30 text-gray-200 border-gray-400'
     }
   }
 
@@ -112,16 +112,16 @@ export default function AppHeader({ user }: AppHeaderProps) {
                   <UserIcon className="w-4 h-4 text-navy-900" />
                 </div>
               </Avatar>
-              <div className="hidden md:block text-left">
+              <div className="text-left">
                 <div className="text-sm font-medium">{userProfile?.display_name || user.email}</div>
                 {userProfile && (
                   <Badge 
                     variant="outline" 
-                    className={`text-xs px-2 py-0 h-5 font-semibold ${getRoleBadgeColor(userProfile.role)}`}
+                    className={`text-xs px-3 py-1 h-6 font-bold border-2 ${getRoleBadgeColor(userProfile.role)}`}
                   >
                     <span className="flex items-center space-x-1">
                       {getRoleIcon(userProfile.role)}
-                      <span className="uppercase">{userProfile.role}</span>
+                      <span className="uppercase tracking-wide">{userProfile.role}</span>
                     </span>
                   </Badge>
                 )}
@@ -135,11 +135,11 @@ export default function AppHeader({ user }: AppHeaderProps) {
                 {userProfile && (
                   <Badge 
                     variant="outline" 
-                    className={`text-xs w-fit font-semibold ${getRoleBadgeColor(userProfile.role)}`}
+                    className={`text-sm w-fit font-bold px-3 py-1 h-7 border-2 ${getRoleBadgeColor(userProfile.role)}`}
                   >
                     <span className="flex items-center space-x-1">
                       {getRoleIcon(userProfile.role)}
-                      <span className="uppercase">{userProfile.role}</span>
+                      <span className="uppercase tracking-wide">{userProfile.role}</span>
                     </span>
                   </Badge>
                 )}
