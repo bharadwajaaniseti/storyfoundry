@@ -53,10 +53,19 @@ export default function DashboardPage() {
           
           if (userRole === 'reader') {
             console.log('🔴 Redirecting to reader dashboard')
-            router.replace('/app/dashboard/reader')
+            // Try multiple redirect methods
+            router.push('/app/dashboard/reader')
+            // Backup redirect
+            setTimeout(() => {
+              window.location.href = '/app/dashboard/reader'
+            }, 1000)
           } else {
             console.log('🔵 Redirecting to writer dashboard')  
-            router.replace('/app/dashboard/writer')
+            router.push('/app/dashboard/writer')
+            // Backup redirect
+            setTimeout(() => {
+              window.location.href = '/app/dashboard/writer'
+            }, 1000)
           }
         } else {
           console.log('❌ No profile found')
@@ -79,6 +88,9 @@ export default function DashboardPage() {
   // Show loading state while fetching profile and redirecting
   return (
     <div className="space-y-6">
+      <div style={{backgroundColor: 'orange', color: 'white', padding: '20px', textAlign: 'center', fontSize: '24px'}}>
+        🟠 MAIN DASHBOARD ROUTER - REDIRECTING...
+      </div>
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center max-w-md">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gold-400 mx-auto mb-4"></div>
@@ -88,6 +100,23 @@ export default function DashboardPage() {
           </p>
           <div className="text-sm text-gray-500">
             Role: {userProfile?.role || 'Detecting...'}
+          </div>
+          <div className="text-sm text-gray-500 mt-2">
+            Should redirect to: {userProfile?.role?.toLowerCase() === 'reader' ? '/app/dashboard/reader' : '/app/dashboard/writer'}
+          </div>
+          <div className="mt-4 space-y-2">
+            <button 
+              onClick={() => window.location.href = '/app/dashboard/reader'}
+              className="block w-full bg-red-500 text-white p-2 rounded"
+            >
+              🔴 Manual: Go to Reader Dashboard
+            </button>
+            <button 
+              onClick={() => window.location.href = '/app/dashboard/writer'}
+              className="block w-full bg-blue-500 text-white p-2 rounded"
+            >
+              🔵 Manual: Go to Writer Dashboard
+            </button>
           </div>
         </div>
       </div>
