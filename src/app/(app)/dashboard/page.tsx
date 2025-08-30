@@ -1,3 +1,4 @@
+"use client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -13,8 +14,31 @@ import {
   Award
 } from 'lucide-react'
 import Link from 'next/link'
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { createSupabaseClient } from '@/lib/auth'
 
 export default function DashboardPage() {
+  const router = useRouter()
+  const [loading, setLoading] = useState(true)
+  useEffect(() => {
+    const supabase = createSupabaseClient()
+    supabase.auth.getUser().then(({ data }) => {
+      if (!data?.user) {
+        router.push('/signin')
+      } else {
+        setLoading(false)
+      }
+    })
+  }, [router])
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="w-8 h-8 border-4 border-gray-300 border-t-orange-500 rounded-full animate-spin mr-4"></div>
+        <span className="text-lg text-gray-600">Loading your dashboard...</span>
+      </div>
+    )
+  }
   // Mock data - in real app this would come from database
   const stats = {
     totalProjects: 8,
