@@ -40,11 +40,14 @@ export default function TestPage() {
         }
 
         // Get user profile from database
+        console.log('🔍 Fetching profile for user:', user.id)
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', user.id)
           .single()
+
+        console.log('📋 Profile fetch result:', { profile, profileError })
 
         // If we have a role from URL but no profile, or profile role doesn't match URL role
         if (urlRole && (!profile || profile.role !== urlRole)) {
@@ -57,7 +60,10 @@ export default function TestPage() {
               id: user.id,
               role: urlRole,
               display_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
-              email: user.email
+              email: user.email,
+              updated_at: new Date().toISOString()
+            }, {
+              onConflict: 'id'
             })
             .select('*')
             .single()
