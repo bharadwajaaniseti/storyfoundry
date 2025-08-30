@@ -21,9 +21,8 @@ const PROJECT_FORMATS = [
   { value: 'screenplay', label: 'Screenplay', description: 'Feature film, TV pilot, or short film script' },
   { value: 'treatment', label: 'Treatment', description: 'Story outline and treatment document' },
   { value: 'novel', label: 'Novel', description: 'Full-length novel or novella' },
-  { value: 'short-story', label: 'Short Story', description: 'Short fiction piece' },
-  { value: 'stage-play', label: 'Stage Play', description: 'Theater production script' },
-  { value: 'other', label: 'Other', description: 'Custom project type' }
+  { value: 'short_story', label: 'Short Story', description: 'Short fiction piece' },
+  { value: 'pilot', label: 'TV Pilot', description: 'Television pilot episode script' }
 ]
 
 const GENRES = [
