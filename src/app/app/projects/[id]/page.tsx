@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { 
@@ -49,7 +49,7 @@ interface ProjectAsset {
   updated_at: string
 }
 
-export default function ProjectPage({ params }: { params: { id: string } }) {
+export default function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter()
   const [project, setProject] = useState<Project | null>(null)
   const [content, setContent] = useState('')
@@ -59,9 +59,12 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
   const [showShareDialog, setShowShareDialog] = useState(false)
   const [activeTab, setActiveTab] = useState('write')
 
+  // Unwrap params using React.use()
+  const resolvedParams = React.use(params)
+
   useEffect(() => {
     loadProject()
-  }, [params.id])
+  }, [resolvedParams.id])
 
   const loadProject = async () => {
     try {
@@ -77,7 +80,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
       const { data: projectData, error: projectError } = await supabase
         .from('projects')
         .select('*')
-        .eq('id', params.id)
+        .eq('id', resolvedParams.id)
         .single()
 
       if (projectError || !projectData) {
@@ -98,7 +101,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
       const { data: assetData } = await supabase
         .from('project_assets')
         .select('*')
-        .eq('project_id', params.id)
+        .eq('project_id', resolvedParams.id)
         .eq('asset_type', 'content')
         .order('updated_at', { ascending: false })
         .limit(1)

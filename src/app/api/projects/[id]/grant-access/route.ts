@@ -11,7 +11,7 @@ const grantAccessSchema = z.object({
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Require authentication
@@ -20,7 +20,9 @@ export async function POST(
     const body = await request.json()
     const { request_id, action, scope } = grantAccessSchema.parse(body)
 
-    const projectId = params.id
+    // Await params
+    const resolvedParams = await params
+    const projectId = resolvedParams.id
 
     const supabase = await createSupabaseServer()
 

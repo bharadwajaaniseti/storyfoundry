@@ -10,7 +10,7 @@ const accessRequestSchema = z.object({
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Require paid subscription to request access
@@ -19,7 +19,9 @@ export async function POST(
     const body = await request.json()
     const { message, nda_required } = accessRequestSchema.parse(body)
 
-    const projectId = params.id
+    // Await params
+    const resolvedParams = await params
+    const projectId = resolvedParams.id
 
     const supabase = await createSupabaseServer()
 
