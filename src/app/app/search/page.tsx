@@ -192,11 +192,11 @@ export default function SearchPage() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                className="w-full pl-12 pr-4 py-4 border border-gray-300 rounded-xl text-lg focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
+                className="w-full pl-12 pr-24 py-4 border border-gray-300 rounded-xl text-lg focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
               />
               <button
                 onClick={() => handleSearch()}
-                className="absolute right-2 top-1/2 transform -translate-y-1/2 btn-primary"
+                className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-purple-500 text-white px-4 py-2 rounded-lg hover:bg-purple-600 transition-colors font-medium"
               >
                 Search
               </button>
@@ -211,7 +211,7 @@ export default function SearchPage() {
                     setSearchQuery(term)
                     handleSearch(term)
                   }}
-                  className="px-3 py-1 text-sm text-gray-600 hover:text-orange-600 bg-gray-100 hover:bg-orange-50 rounded-full transition-colors"
+                  className="px-3 py-1 text-sm text-gray-600 hover:text-purple-600 bg-gray-100 hover:bg-purple-50 rounded-full transition-colors"
                 >
                   {term}
                 </button>
