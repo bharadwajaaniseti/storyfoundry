@@ -112,7 +112,7 @@ export default function AppHeader({ user }: AppHeaderProps) {
                   <UserIcon className="w-4 h-4 text-navy-900" />
                 </div>
               </Avatar>
-              <div className="text-left">
+              <div className="flex flex-col items-start space-y-1">
                 <div className="text-sm font-medium">{userProfile?.display_name || user.email}</div>
                 {userProfile && (
                   <Badge 
