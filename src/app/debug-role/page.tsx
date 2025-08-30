@@ -55,6 +55,10 @@ export default function DebugRolePage() {
       <div className="bg-blue-100 p-4 rounded">
         <h2 className="font-semibold mb-2">Role Check:</h2>
         <p>Role: <strong>{profile?.role || 'No role found'}</strong></p>
+        <p>Role type: <strong>{typeof profile?.role}</strong></p>
+        <p>Role length: <strong>{profile?.role?.length}</strong></p>
+        <p>Role === 'reader': <strong>{String(profile?.role === 'reader')}</strong></p>
+        <p>Role === 'writer': <strong>{String(profile?.role === 'writer')}</strong></p>
         <p>Dashboard would show: <strong>{profile?.role === 'reader' ? 'ReaderDashboard' : 'WriterDashboard'}</strong></p>
       </div>
     </div>

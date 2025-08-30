@@ -25,7 +25,7 @@ import { createSupabaseClient } from '@/lib/auth'
 
 interface UserProfile {
   id: string
-  role: 'reader' | 'writer'
+  role: 'reader' | 'writer' | 'READER' | 'WRITER'
   display_name: string
 }
 
@@ -70,6 +70,12 @@ export default function DashboardPage() {
   }, [router, hydrated])
 
   console.log('🔄 Dashboard: Render state', { loading, userProfile, hydrated })
+  console.log('🎯 Dashboard: Role check', { 
+    role: userProfile?.role, 
+    roleType: typeof userProfile?.role,
+    isReader: userProfile?.role === 'reader',
+    isWriter: userProfile?.role === 'writer'
+  })
 
   // Show nothing during hydration to prevent mismatch
   if (!hydrated) {
@@ -124,9 +130,13 @@ export default function DashboardPage() {
   }
 
   // Show the appropriate dashboard based on user role
-  if (userProfile.role === 'reader') {
+  console.log('🚀 Dashboard: About to render dashboard for role:', userProfile.role)
+  const userRole = userProfile.role?.toLowerCase()
+  if (userRole === 'reader') {
+    console.log('✅ Rendering ReaderDashboard')
     return <ReaderDashboard userProfile={userProfile} />
   } else {
+    console.log('✅ Rendering WriterDashboard')
     return <WriterDashboard userProfile={userProfile} />
   }
 }
