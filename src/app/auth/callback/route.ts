@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     const { data, error } = await supabase.auth.exchangeCodeForSession(code)
     
     if (!error && data.user) {
-      // If this is a new OAuth user with a selected role, create/update their profile
+      // If this is a new OAuth user with a selected role, update metadata and profile
       if (selectedRole && ['reader', 'writer'].includes(selectedRole)) {
         try {
           // Create service role client for profile management
@@ -28,42 +28,30 @@ export async function GET(request: NextRequest) {
             }
           )
           
-          // Check if profile exists
+          // Update user metadata to store preferred role
+          await supabaseService.auth.admin.updateUserById(data.user.id, {
+            user_metadata: {
+              ...data.user.user_metadata,
+              preferred_role: selectedRole
+            }
+          })
+          
+          // Check if profile exists and update if needed
           const { data: existingProfile } = await supabaseService
             .from('profiles')
             .select('id, role')
             .eq('id', data.user.id)
             .single()
 
-          if (!existingProfile) {
-            // Create new profile with selected role
-            const { error: insertError } = await supabaseService
-              .from('profiles')
-              .insert({
-                id: data.user.id,
-                role: selectedRole,
-                display_name: data.user.user_metadata?.full_name || 
-                             data.user.email?.split('@')[0] || 
-                             'Anonymous'
-              })
-            
-            if (insertError) {
-              console.error('Profile creation error:', insertError)
-              // If insert fails, try to update instead (profile might have been created by trigger)
-              await supabaseService
-                .from('profiles')
-                .update({ role: selectedRole })
-                .eq('id', data.user.id)
-            }
-          } else if (existingProfile.role !== selectedRole) {
-            // Update existing profile if role changed
+          if (existingProfile && existingProfile.role !== selectedRole) {
+            // Update existing profile role
             await supabaseService
               .from('profiles')
               .update({ role: selectedRole })
               .eq('id', data.user.id)
           }
         } catch (profileError) {
-          console.error('Profile creation/update error:', profileError)
+          console.error('Profile update error:', profileError)
           // Don't fail the auth flow for profile issues
         }
       }

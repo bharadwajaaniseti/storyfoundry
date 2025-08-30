@@ -60,8 +60,8 @@ export async function POST(request: NextRequest) {
     console.log('✅ Authentication successful for user:', user.id)
     console.log('🔍 PROFILE CHECK STARTING...')
 
-    // Ensure user has a profile record (create if missing)
-    console.log('👤 Checking/creating user profile...')
+    // Ensure user has a profile record (should be created by trigger)
+    console.log('👤 Checking user profile...')
     const { data: existingProfile } = await supabaseService
       .from('profiles')
       .select('id, role')
@@ -71,63 +71,25 @@ export async function POST(request: NextRequest) {
     console.log('🔍 Profile query result:', existingProfile)
 
     if (!existingProfile) {
-      console.log('📝 Creating missing user profile...')
-      
-      // Check if user has a preferred role from signup
-      const { data: authUser } = await supabaseService.auth.admin.getUserById(user.id)
-      const preferredRole = authUser?.user?.user_metadata?.preferred_role || 'writer'
-      
-      const { error: profileError } = await supabaseService
-        .from('profiles')
-        .insert({
-          id: user.id,
-          role: preferredRole,
-          display_name: user.email?.split('@')[0] || 'Anonymous'
-        })
+      console.log('❌ No profile found - this should not happen with auto-trigger')
+      return NextResponse.json(
+        { error: 'User profile not found. Please try signing out and signing in again.' },
+        { status: 500 }
+      )
+    }
 
-      if (profileError) {
-        console.error('💥 Profile creation error:', profileError)
-        // If profile creation fails, try to fetch it again (might have been created by trigger)
-        const { data: retryProfile } = await supabaseService
-          .from('profiles')
-          .select('id, role')
-          .eq('id', user.id)
-          .single()
-        
-        if (!retryProfile) {
-          return NextResponse.json(
-            { error: 'Failed to create user profile', details: profileError.message },
-            { status: 500 }
-          )
-        }
-        
-        // Check if the existing profile (created by trigger) has writer role
-        if (retryProfile.role === 'reader') {
-          return NextResponse.json(
-            { 
-              error: 'Permission denied', 
-              message: 'Readers cannot create projects. Please upgrade to Writer role in settings.',
-              upgradeRequired: true
-            },
-            { status: 403 }
-          )
-        }
-      }
-      console.log('✅ User profile created successfully')
-    } else {
-      console.log('✅ User profile exists')
-      
-      // Check if user has permission to create projects
-      if (existingProfile.role === 'reader') {
-        return NextResponse.json(
-          { 
-            error: 'Permission denied', 
-            message: 'Readers cannot create projects. Please upgrade to Writer role in settings.',
-            upgradeRequired: true
-          },
-          { status: 403 }
-        )
-      }
+    console.log('✅ User profile exists')
+    
+    // Check if user has permission to create projects
+    if (existingProfile.role === 'reader') {
+      return NextResponse.json(
+        { 
+          error: 'Permission denied', 
+          message: 'Readers cannot create projects. Please upgrade to Writer role in settings.',
+          upgradeRequired: true
+        },
+        { status: 403 }
+      )
     }
 
     console.log('🔍 PROFILE CHECK COMPLETE...')

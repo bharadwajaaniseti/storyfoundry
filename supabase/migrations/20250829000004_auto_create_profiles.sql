@@ -5,7 +5,7 @@ BEGIN
   INSERT INTO public.profiles (id, role, display_name)
   VALUES (
     NEW.id,
-    'writer',
+    COALESCE(NEW.raw_user_meta_data->>'preferred_role', 'writer'),
     COALESCE(NEW.raw_user_meta_data->>'display_name', split_part(NEW.email, '@', 1))
   );
   RETURN NEW;
