@@ -27,9 +27,8 @@ interface PublicProject {
   buzz_score: number
   created_at: string
   updated_at: string
-  owner: {
-    first_name: string
-    last_name: string
+  profiles: {
+    display_name: string
     avatar_url?: string
   }
 }
@@ -81,8 +80,7 @@ export default function SearchPage() {
           created_at,
           updated_at,
           profiles:owner_id (
-            first_name,
-            last_name,
+            display_name,
             avatar_url
           )
         `)
@@ -91,11 +89,7 @@ export default function SearchPage() {
         .limit(6)
 
       if (data) {
-        const formattedProjects = data.map(project => ({
-          ...project,
-          owner: project.profiles as any
-        }))
-        setFeaturedProjects(formattedProjects)
+        setFeaturedProjects(data || [])
       }
     } catch (error) {
       console.error('Error loading featured projects:', error)
@@ -123,8 +117,7 @@ export default function SearchPage() {
           created_at,
           updated_at,
           profiles:owner_id (
-            first_name,
-            last_name,
+            display_name,
             avatar_url
           )
         `)
@@ -160,11 +153,7 @@ export default function SearchPage() {
       const { data } = await queryBuilder.limit(20)
 
       if (data) {
-        const formattedProjects = data.map(project => ({
-          ...project,
-          owner: project.profiles as any
-        }))
-        setProjects(formattedProjects)
+        setProjects(data || [])
       }
     } catch (error) {
       console.error('Error searching projects:', error)
@@ -257,8 +246,8 @@ export default function SearchPage() {
                     <option value="screenplay">Screenplay</option>
                     <option value="treatment">Treatment</option>
                     <option value="novel">Novel</option>
-                    <option value="short-story">Short Story</option>
-                    <option value="stage-play">Stage Play</option>
+                    <option value="short_story">Short Story</option>
+                    <option value="pilot">TV Pilot</option>
                   </select>
 
                   <select
@@ -353,11 +342,11 @@ export default function SearchPage() {
                       <div className="flex items-center space-x-2">
                         <div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center">
                           <span className="text-xs font-medium text-gray-600">
-                            {project.owner?.first_name?.[0] || 'U'}
+                            {project.profiles?.display_name?.[0] || 'U'}
                           </span>
                         </div>
                         <span className="text-sm text-gray-600">
-                          by {project.owner?.first_name || 'Unknown'} {project.owner?.last_name || ''}
+                          by {project.profiles?.display_name || 'Unknown Writer'}
                         </span>
                       </div>
                     </div>
@@ -415,11 +404,11 @@ export default function SearchPage() {
                       <div className="flex items-center space-x-2">
                         <div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center">
                           <span className="text-xs font-medium text-gray-600">
-                            {project.owner?.first_name?.[0] || 'U'}
+                            {project.profiles?.display_name?.[0] || 'U'}
                           </span>
                         </div>
                         <span>
-                          {project.owner?.first_name || 'Unknown'} {project.owner?.last_name || ''}
+                          {project.profiles?.display_name || 'Unknown Writer'}
                         </span>
                       </div>
                       <span>{formatDate(project.created_at)}</span>

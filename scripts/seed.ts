@@ -35,32 +35,33 @@ async function seedDatabase() {
         id: '11111111-1111-1111-1111-111111111111',
         role: 'writer',
         display_name: 'Alice Writer',
-        bio: 'Passionate screenwriter with a love for sci-fi and thriller genres.',
+        bio: 'Passionate screenwriter with a love for character-driven stories.',
+        avatar_url: null,
+        verified_pro: false,
         company: null,
-        country: 'US',
-        verified_pro: false
+        country: 'US'
       },
       {
         id: '22222222-2222-2222-2222-222222222222',
         role: 'pro',
         display_name: 'Bob Producer',
         bio: 'Hollywood producer looking for the next big hit.',
+        avatar_url: null,
+        verified_pro: true,
         company: 'Big Picture Studios',
-        country: 'US',
-        verified_pro: true
+        country: 'US'
       },
       {
         id: '33333333-3333-3333-3333-333333333333',
         role: 'admin',
         display_name: 'Carol Admin',
         bio: 'Platform administrator and industry veteran.',
+        avatar_url: null,
+        verified_pro: true,
         company: 'StoryFoundry',
-        country: 'US',
-        verified_pro: true
+        country: 'US'
       }
-    ]
-
-    // Note: In a real scenario, these users would need to be created via Supabase Auth first
+    ]    // Note: In a real scenario, these users would need to be created via Supabase Auth first
     // For demo purposes, we'll create the profiles assuming the auth users exist
     
     for (const profile of sampleProfiles) {
@@ -211,8 +212,8 @@ async function seedDatabase() {
     console.log('Creating sample subscriptions...')
     
     const subscriptions = [
-      { user_id: '11111111-1111-1111-1111-111111111111', tier: 'writer_plus' },
-      { user_id: '22222222-2222-2222-2222-222222222222', tier: 'pro_plus' },
+      { user_id: '11111111-1111-1111-1111-111111111111', tier: 'free' },
+      { user_id: '22222222-2222-2222-2222-222222222222', tier: 'writer_plus' },
       { user_id: '33333333-3333-3333-3333-333333333333', tier: 'pro_plus' }
     ]
 

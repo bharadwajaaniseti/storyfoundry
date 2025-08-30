@@ -1,3 +1,7 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,12 +16,90 @@ import {
   MessageSquare,
   Award,
   Briefcase,
-  Calendar
+  Calendar,
+  Flame,
+  Eye,
+  Clock
 } from 'lucide-react'
 
+interface Project {
+  id: string
+  title: string
+  logline: string
+  format: string
+  genre: string
+  buzz_score: number
+  created_at: string
+  profiles: {
+    display_name: string
+    verified_pro: boolean
+  }
+}
+
+interface SearchResult {
+  id: string
+  type: 'user' | 'project'
+  name?: string
+  role?: string
+  location?: string
+  rating?: number
+  reviews?: number
+  verified?: boolean
+  bio?: string
+  specialties?: string[]
+  recentProjects?: number
+  avatar?: string
+  title?: string
+  description?: string
+  owner?: string
+  genre?: string
+  format?: string
+  status?: string
+  roles?: string[]
+}
+
 export default function SearchPage() {
-  // Mock data - in real app this would come from database
-  const searchResults = [
+  const [searchQuery, setSearchQuery] = useState('')
+  const [featuredProjects, setFeaturedProjects] = useState<Project[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    loadFeaturedProjects()
+  }, [])
+
+  const loadFeaturedProjects = async () => {
+    try {
+      const response = await fetch('/api/projects/public?limit=6&sortBy=buzz_score')
+      const data = await response.json()
+      
+      if (response.ok) {
+        setFeaturedProjects(data.projects)
+      }
+    } catch (error) {
+      console.error('Error loading featured projects:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    })
+  }
+
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2)
+  }
+  // Mock data for user profiles - in real app this would come from database
+  const searchResults: SearchResult[] = [
     {
       id: '1',
       type: 'user',
@@ -47,18 +129,6 @@ export default function SearchPage() {
       avatar: 'MR'
     },
     {
-      id: '3',
-      type: 'project',
-      title: 'Urban Symphony',
-      description: 'Musical drama about street musicians in Chicago looking for a composer and sound designer.',
-      owner: 'Emily Johnson',
-      genre: 'Musical',
-      format: 'Feature Film',
-      status: 'seeking_collaborators',
-      roles: ['Composer', 'Sound Designer', 'Music Supervisor'],
-      location: 'Chicago, IL'
-    },
-    {
       id: '4',
       type: 'user',
       name: 'David Kim',
@@ -71,27 +141,24 @@ export default function SearchPage() {
       specialties: ['Thriller', 'Horror', 'Mystery'],
       recentProjects: 5,
       avatar: 'DK'
-    },
-    {
-      id: '5',
-      type: 'project',
-      title: 'The Last Light',
-      description: 'Post-apocalyptic drama series seeking writers and directors for development.',
-      owner: 'Alex Thompson',
-      genre: 'Drama',
-      format: 'TV Series',
-      status: 'in_development',
-      roles: ['Writer', 'Director', 'Executive Producer'],
-      location: 'Remote'
     }
   ]
 
   const filters = [
-    { label: 'All', count: 47, active: true },
-    { label: 'People', count: 23, active: false },
-    { label: 'Projects', count: 24, active: false },
-    { label: 'Verified', count: 15, active: false }
+    { label: 'All', count: featuredProjects.length + searchResults.length, active: true },
+    { label: 'People', count: searchResults.length, active: false },
+    { label: 'Projects', count: featuredProjects.length, active: false },
+    { label: 'Verified', count: searchResults.filter(r => r.verified).length, active: false }
   ]
+
+  const handleSearch = () => {
+    // Redirect to the main search page with search params
+    if (searchQuery.trim()) {
+      window.location.href = `/app/search?search=${encodeURIComponent(searchQuery.trim())}`
+    } else {
+      window.location.href = `/app/search`
+    }
+  }
 
   return (
     <div className="space-y-8">
@@ -110,6 +177,9 @@ export default function SearchPage() {
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                 <Input 
                   placeholder="Search for people, projects, or skills..." 
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
                   className="pl-12 h-12 bg-navy-900/50 border-navy-600 text-white placeholder-gray-400 text-lg"
                 />
               </div>
@@ -119,7 +189,10 @@ export default function SearchPage() {
                 <Filter className="w-4 h-4 mr-2" />
                 Filters
               </Button>
-              <Button className="bg-gradient-to-r from-gold-400 to-gold-600 text-navy-900 hover:from-gold-500 hover:to-gold-700 h-12 px-6">
+              <Button 
+                onClick={handleSearch}
+                className="bg-gradient-to-r from-gold-400 to-gold-600 text-navy-900 hover:from-gold-500 hover:to-gold-700 h-12 px-6"
+              >
                 Search
               </Button>
             </div>
@@ -142,6 +215,77 @@ export default function SearchPage() {
             <span className="ml-1 opacity-75">({filter.count})</span>
           </button>
         ))}
+      </div>
+
+      {/* Featured Projects Section */}
+      {featuredProjects.length > 0 && (
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold text-white">Featured Projects</h2>
+            <Button variant="outline" size="sm" asChild className="border-navy-600 text-gray-300 hover:bg-navy-700">
+              <Link href="/app/search">View All Projects</Link>
+            </Button>
+          </div>
+          
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {featuredProjects.map((project) => (
+              <Card key={project.id} className="bg-navy-800/50 border-navy-700 backdrop-blur-sm hover:border-gold-400 transition-colors group">
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center space-x-2">
+                      <Badge variant="outline" className="border-navy-600 text-gray-300 text-xs">
+                        {project.format}
+                      </Badge>
+                      {project.genre && (
+                        <Badge className="bg-gold-400/20 text-gold-400 border border-gold-400/30 text-xs">
+                          {project.genre}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center space-x-1 text-gold-400">
+                      <Flame className="w-4 h-4" />
+                      <span className="text-xs font-medium">{project.buzz_score}</span>
+                    </div>
+                  </div>
+                  
+                  <h3 className="text-lg font-semibold text-white mb-2 group-hover:text-gold-400 transition-colors">
+                    <Link href={`/projects/${project.id}`}>
+                      {project.title}
+                    </Link>
+                  </h3>
+                  <p className="text-gray-300 text-sm mb-4 line-clamp-3">
+                    {project.logline}
+                  </p>
+                  
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <Avatar className="w-8 h-8">
+                        <AvatarFallback className="bg-gradient-to-br from-gold-400 to-gold-600 text-navy-900 text-xs font-bold">
+                          {getInitials(project.profiles.display_name || 'Writer')}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="text-sm text-gray-300">{project.profiles.display_name || 'Anonymous'}</p>
+                        <p className="text-xs text-gray-400">{formatDate(project.created_at)}</p>
+                      </div>
+                    </div>
+                    
+                    <Button variant="outline" size="sm" asChild className="border-navy-600 text-gray-300 hover:bg-navy-700">
+                      <Link href={`/projects/${project.id}`}>
+                        View
+                      </Link>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Search Results Header */}
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-2xl font-bold text-white">Search Community</h2>
       </div>
 
       {/* Results */}
@@ -212,7 +356,7 @@ export default function SearchPage() {
                   </div>
                 </div>
               ) : (
-                // Project Result
+                // Project Result (static examples for now)
                 <div>
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex-1">

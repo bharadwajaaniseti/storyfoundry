@@ -18,7 +18,7 @@ import {
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: Home },
   { name: 'Projects', href: '/projects', icon: FolderOpen },
-  { name: 'Search', href: '/search', icon: Search },
+  { name: 'Discover', href: '/search', icon: Compass },
   { name: 'Collaboration', href: '/collab', icon: Users },
   { name: 'Pitch Rooms', href: '/pitch-rooms', icon: MessageSquare },
 ]
