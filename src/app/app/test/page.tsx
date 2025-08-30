@@ -1,25 +1,23 @@
 "use client"
 import { useEffect, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { createSupabaseClient } from '@/lib/auth'
 
 interface UserData {
   id: string
   email: string
   full_name?: string
-  role?: 'reader' | 'writer' | string
+  role?: string
   display_name?: string
+  subscription_tier?: string
 }
 
 export default function TestPage() {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const [loading, setLoading] = useState(true)
   const [userData, setUserData] = useState<UserData | null>(null)
   const [error, setError] = useState<string | null>(null)
-
-  // Get role from URL parameters
-  const urlRole = searchParams.get('role') as 'reader' | 'writer' | null
+  const [authUser, setAuthUser] = useState<any>(null)
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -27,94 +25,65 @@ export default function TestPage() {
         const supabase = createSupabaseClient()
         
         // Get authenticated user
+        console.log('🔍 Getting authenticated user...')
         const { data: { user }, error: authError } = await supabase.auth.getUser()
         
         if (authError) {
+          console.error('❌ Auth error:', authError)
           setError(`Auth Error: ${authError.message}`)
           return
         }
 
         if (!user) {
+          console.log('❌ No user found, redirecting to signin')
           router.push('/signin')
           return
         }
 
-        // Get user profile from database
-        console.log('🔍 Fetching profile for user:', user.id)
+        console.log('✅ User authenticated:', user.id)
+        setAuthUser(user)
+
+        // Get user profile from database - simple select without complex logic
+        console.log('🔍 Fetching profile...')
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', user.id)
-          .single()
+          .maybeSingle()
 
-        console.log('📋 Profile fetch result:', { profile, profileError })
+        console.log('📋 Profile result:', { profile, profileError })
 
-        // If we have a role from URL but no profile, or profile role doesn't match URL role
-        if (urlRole && (!profile || profile.role !== urlRole)) {
-          console.log('🔄 Creating/updating profile with role from URL:', urlRole)
-          
-          // Try to create or update the profile with the URL role
-          const { data: updatedProfile, error: upsertError } = await supabase
-            .from('profiles')
-            .upsert({
-              id: user.id,
-              role: urlRole,
-              display_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
-              email: user.email,
-              updated_at: new Date().toISOString()
-            }, {
-              onConflict: 'id'
-            })
-            .select('*')
-            .single()
-          
-          console.log('📝 Profile upsert result:', updatedProfile, 'Error:', upsertError)
-          
-          if (updatedProfile) {
-            // Use updated profile
-            const combinedData: UserData = {
-              id: user.id,
-              email: user.email || 'No email',
-              full_name: user.user_metadata?.full_name || 'No full name',
-              role: updatedProfile.role || 'No role',
-              display_name: updatedProfile.display_name || 'No display name'
-            }
-            setUserData(combinedData)
-            
-            // Clean up URL by removing the role parameter
-            const newUrl = new URL(window.location.href)
-            newUrl.searchParams.delete('role')
-            newUrl.searchParams.delete('code')
-            newUrl.searchParams.delete('redirectTo')
-            window.history.replaceState({}, '', newUrl.pathname + newUrl.search)
-          }
-        } else if (profile) {
-          // Use existing profile
-          const combinedData: UserData = {
-            id: user.id,
-            email: user.email || 'No email',
-            full_name: user.user_metadata?.full_name || 'No full name',
-            role: profile.role || 'No role',
-            display_name: profile.display_name || 'No display name'
-          }
-          setUserData(combinedData)
-        } else {
-          // No profile and no role in URL
-          const combinedData: UserData = {
-            id: user.id,
-            email: user.email || 'No email',
-            full_name: user.user_metadata?.full_name || 'No full name',
-            role: 'No role',
-            display_name: 'No display name'
-          }
-          setUserData(combinedData)
+        // Get subscription
+        console.log('� Fetching subscription...')
+        const { data: subscription, error: subError } = await supabase
+          .from('subscriptions')
+          .select('*')
+          .eq('user_id', user.id)
+          .maybeSingle()
+
+        console.log('� Subscription result:', { subscription, subError })
+
+        // Combine all data
+        const combinedData: UserData = {
+          id: user.id,
+          email: user.email || 'No email',
+          full_name: user.user_metadata?.full_name || 'No full name',
+          role: profile?.role || 'NO ROLE IN DATABASE',
+          display_name: profile?.display_name || 'No display name',
+          subscription_tier: subscription?.tier || 'No subscription'
         }
+
+        setUserData(combinedData)
         
-        if (profileError && profileError.code !== 'PGRST116') {
+        if (profileError) {
           setError(`Profile Error: ${profileError.message}`)
+        }
+        if (subError) {
+          setError(prev => prev ? `${prev} | Subscription Error: ${subError.message}` : `Subscription Error: ${subError.message}`)
         }
 
       } catch (err) {
+        console.error('❌ Unexpected error:', err)
         setError(`Unexpected Error: ${err}`)
       } finally {
         setLoading(false)
@@ -122,7 +91,7 @@ export default function TestPage() {
     }
 
     fetchUserData()
-  }, [router, urlRole])
+  }, [router])
 
   if (loading) {
     return (
@@ -137,7 +106,7 @@ export default function TestPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4">
-      <div className="max-w-2xl mx-auto">
+      <div className="max-w-3xl mx-auto">
         <div className="bg-white rounded-lg shadow-lg p-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-8 text-center">
             🔍 User Data Test Page
@@ -145,8 +114,8 @@ export default function TestPage() {
           
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-              <h3 className="text-red-800 font-semibold mb-2">Error:</h3>
-              <p className="text-red-700">{error}</p>
+              <h3 className="text-red-800 font-semibold mb-2">Errors:</h3>
+              <p className="text-red-700 text-sm">{error}</p>
             </div>
           )}
 
@@ -174,16 +143,32 @@ export default function TestPage() {
                 </div>
 
                 <div className="bg-red-50 p-4 rounded-lg">
-                  <h3 className="font-semibold text-red-800 mb-2">Role (from Profile)</h3>
-                  <p className="text-red-700 text-lg font-bold">
-                    {userData.role ? userData.role.toUpperCase() : 'NO ROLE FOUND'}
+                  <h3 className="font-semibold text-red-800 mb-2">🎭 ROLE (from Database)</h3>
+                  <p className="text-red-700 text-2xl font-bold">
+                    {userData.role === 'NO ROLE IN DATABASE' ? (
+                      <span className="text-red-600">❌ {userData.role}</span>
+                    ) : (
+                      <span className="text-green-600">✅ {userData.role?.toUpperCase()}</span>
+                    )}
                   </p>
+                </div>
+
+                <div className="bg-yellow-50 p-4 rounded-lg">
+                  <h3 className="font-semibold text-yellow-800 mb-2">Subscription Tier</h3>
+                  <p className="text-yellow-700 font-semibold">{userData.subscription_tier}</p>
                 </div>
               </div>
 
               <div className="bg-gray-50 p-4 rounded-lg">
-                <h3 className="font-semibold text-gray-800 mb-2">Raw Data (JSON)</h3>
-                <pre className="text-gray-700 text-xs overflow-auto bg-white p-3 rounded border">
+                <h3 className="font-semibold text-gray-800 mb-2">Auth User (Raw)</h3>
+                <pre className="text-gray-700 text-xs overflow-auto bg-white p-3 rounded border max-h-32">
+{JSON.stringify(authUser, null, 2)}
+                </pre>
+              </div>
+
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h3 className="font-semibold text-gray-800 mb-2">Combined Data (JSON)</h3>
+                <pre className="text-gray-700 text-xs overflow-auto bg-white p-3 rounded border max-h-32">
 {JSON.stringify(userData, null, 2)}
                 </pre>
               </div>
@@ -201,11 +186,23 @@ export default function TestPage() {
                 >
                   Refresh Data
                 </button>
+                <button
+                  onClick={() => router.push('/signin')}
+                  className="bg-red-500 text-white px-6 py-2 rounded-lg hover:bg-red-600 transition-colors"
+                >
+                  Sign Out & Test Again
+                </button>
               </div>
             </div>
           ) : (
             <div className="text-center text-gray-600">
               <p>No user data found</p>
+              <button
+                onClick={() => router.push('/signin')}
+                className="mt-4 bg-orange-500 text-white px-6 py-2 rounded-lg hover:bg-orange-600 transition-colors"
+              >
+                Go to Sign In
+              </button>
             </div>
           )}
         </div>
