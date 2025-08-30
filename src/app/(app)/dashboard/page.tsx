@@ -20,7 +20,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { createSupabaseClient } from '@/lib/auth'
 
 interface UserProfile {
@@ -31,15 +31,9 @@ interface UserProfile {
 
 export default function DashboardPage() {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const [loading, setLoading] = useState(true)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [hydrated, setHydrated] = useState(false)
-  
-  // Get role from URL parameters
-  const urlRole = searchParams.get('role') as 'reader' | 'writer' | null
-  
-  console.log('🚀 Dashboard: Component rendered', { loading, userProfile, hydrated, urlRole })
   
   // Handle hydration
   useEffect(() => {
@@ -47,73 +41,33 @@ export default function DashboardPage() {
   }, [])
   
   useEffect(() => {
-    if (!hydrated) return // Wait for hydration before fetching data
+    if (!hydrated) return
     
-    console.log('🚀 Dashboard: useEffect triggered', { urlRole })
     const supabase = createSupabaseClient()
     
     const fetchUserProfile = async () => {
-      console.log('🔍 Dashboard: Fetching user profile...')
-      
       const { data: { user }, error: authError } = await supabase.auth.getUser()
       
-      console.log('👤 Dashboard: Auth user:', user?.id, 'Error:', authError)
-      
       if (!user) {
-        console.log('❌ Dashboard: No user found, redirecting to signin')
         router.push('/signin')
         return
       }
 
-      // Fetch user profile to get role
-      console.log('🔍 Dashboard: Fetching profile for user:', user.id)
+      // Get user profile with role
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('id, role, display_name')
         .eq('id', user.id)
         .single()
 
-      console.log('📋 Dashboard: Profile data:', profile)
-      console.log('❌ Dashboard: Profile error:', profileError)
-
-      // If we have a role from URL but no profile, or profile role doesn't match URL role
-      if (urlRole && (!profile || profile.role !== urlRole)) {
-        console.log('🔄 Dashboard: Creating/updating profile with role from URL:', urlRole)
-        
-        // Try to create or update the profile with the URL role
-        const { data: updatedProfile, error: upsertError } = await supabase
-          .from('profiles')
-          .upsert({
-            id: user.id,
-            role: urlRole,
-            display_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
-            email: user.email
-          })
-          .select('id, role, display_name')
-          .single()
-        
-        console.log('📝 Dashboard: Profile upsert result:', updatedProfile, 'Error:', upsertError)
-        
-        if (updatedProfile) {
-          setUserProfile(updatedProfile)
-          // Clean up URL by removing the role parameter
-          const newUrl = new URL(window.location.href)
-          newUrl.searchParams.delete('role')
-          newUrl.searchParams.delete('code')
-          newUrl.searchParams.delete('redirectTo')
-          window.history.replaceState({}, '', newUrl.pathname + newUrl.search)
-        }
-      } else if (profile) {
-        console.log('✅ Dashboard: Using existing profile:', profile)
+      if (profile) {
         setUserProfile(profile)
-      } else {
-        console.log('❌ Dashboard: No profile found and no role in URL!')
       }
       setLoading(false)
     }
 
     fetchUserProfile()
-  }, [router, hydrated, urlRole])
+  }, [router, hydrated])
 
   console.log('🔄 Dashboard: Render state', { loading, userProfile, hydrated })
 
@@ -151,8 +105,7 @@ export default function DashboardPage() {
     )
   }
 
-    if (!userProfile) {
-    console.log('❌ Dashboard: No profile found, showing fallback message')
+  if (!userProfile) {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-center min-h-[400px]">
@@ -170,14 +123,10 @@ export default function DashboardPage() {
     )
   }
 
-  // Render different dashboards based on role
-  console.log('🎭 Dashboard: Determining which dashboard to show for role:', userProfile?.role)
-  
-  if (userProfile?.role === 'reader') {
-    console.log('📚 Dashboard: Rendering Reader Dashboard')
+  // Show the appropriate dashboard based on user role
+  if (userProfile.role === 'reader') {
     return <ReaderDashboard userProfile={userProfile} />
   } else {
-    console.log('✍️ Dashboard: Rendering Writer Dashboard for role:', userProfile?.role)
     return <WriterDashboard userProfile={userProfile} />
   }
 }
