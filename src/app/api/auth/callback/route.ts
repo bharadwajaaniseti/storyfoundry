@@ -1,4 +1,5 @@
 import { createSupabaseServer } from '@/lib/auth-server'
+import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(request: NextRequest) {
@@ -23,10 +24,22 @@ export async function GET(request: NextRequest) {
       
       console.log('🔄 Auth Callback: Creating/updating profile with role:', finalRole)
       
+      // Use service role client to bypass RLS
+      const serviceSupabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!, // Service role bypasses RLS
+        {
+          auth: {
+            autoRefreshToken: false,
+            persistSession: false
+          }
+        }
+      )
+      
       // Add a small delay to ensure any auto-triggers have completed
       await new Promise(resolve => setTimeout(resolve, 100))
       
-      const { data: profile, error: profileError } = await supabase
+      const { data: profile, error: profileError } = await serviceSupabase
         .from('profiles')
         .upsert({
           id: data.user.id,
@@ -49,7 +62,7 @@ export async function GET(request: NextRequest) {
         'writer': 'free_writer'
       }
       
-      const { error: subscriptionError } = await supabase
+      const { error: subscriptionError } = await serviceSupabase
         .from('subscriptions')
         .upsert({
           user_id: data.user.id,
