@@ -164,61 +164,81 @@ const PricingCard = ({ plan, isYearly, planType }: any) => {
   const primaryColor = planType === 'reader' ? 'purple' : 'orange'
   
   return (
-    <div className={`pricing-card ${plan.popular ? 'featured' : ''} relative`}>
+    <div className={`relative bg-white rounded-2xl border-2 p-8 shadow-lg transition-all duration-300 hover:shadow-xl hover:-translate-y-2 ${
+      plan.popular 
+        ? (planType === 'reader' 
+            ? 'border-purple-500 bg-gradient-to-br from-purple-50 to-white scale-105' 
+            : 'border-orange-500 bg-gradient-to-br from-orange-50 to-white scale-105'
+          )
+        : 'border-gray-200 hover:border-gray-300'
+    }`}>
       {plan.popular && (
-        <div className={`absolute -top-4 left-1/2 transform -translate-x-1/2 ${
+        <div className={`absolute -top-4 left-1/2 transform -translate-x-1/2 z-10 ${
           planType === 'reader' ? 'bg-purple-500' : 'bg-orange-500'
-        } text-white px-4 py-2 rounded-full text-sm font-medium`}>
+        } text-white px-6 py-2 rounded-full text-sm font-bold uppercase tracking-wide shadow-lg`}>
           Most Popular
         </div>
       )}
       
-      <div className="text-center mb-6">
-        <h3 className="text-2xl font-bold text-gray-800 mb-2">{plan.name}</h3>
-        <p className="text-gray-600 text-sm mb-4">{plan.description}</p>
+      <div className="text-center mb-8">
+        <h3 className="text-2xl font-bold text-gray-900 mb-3">{plan.name}</h3>
+        <p className="text-gray-600 mb-6 min-h-[3rem] flex items-center justify-center">{plan.description}</p>
         
         <div className="mb-6">
           {plan.price.monthly === 0 ? (
-            <span className="text-4xl font-bold text-gray-800">Free</span>
+            <div className="text-5xl font-bold text-gray-900">Free</div>
           ) : (
-            <>
-              <span className="text-4xl font-bold text-gray-800">
+            <div className="flex items-baseline justify-center">
+              <span className="text-5xl font-bold text-gray-900">
                 ${isYearly ? plan.price.yearly : plan.price.monthly}
               </span>
-              <span className="text-gray-600 ml-2">
+              <span className="text-gray-600 ml-2 text-lg">
                 {isYearly ? '/year' : '/month'}
               </span>
-            </>
+            </div>
           )}
           {isYearly && plan.price.monthly > 0 && (
-            <div className={`text-sm font-medium mt-2 ${
-              planType === 'reader' ? 'text-purple-600' : 'text-orange-600'
+            <div className={`text-sm font-semibold mt-3 px-3 py-1 rounded-full inline-block ${
+              planType === 'reader' 
+                ? 'text-purple-700 bg-purple-100' 
+                : 'text-orange-700 bg-orange-100'
             }`}>
-              Save ${(plan.price.monthly * 12) - plan.price.yearly}
+              Save ${(plan.price.monthly * 12) - plan.price.yearly}/year
             </div>
           )}
         </div>
       </div>
       
-      <ul className="space-y-3 mb-8">
-        {plan.features.map((feature: string, index: number) => (
-          <li key={index} className="flex items-start space-x-3">
-            <Check className={`w-5 h-5 mt-0.5 flex-shrink-0 ${
-              planType === 'reader' ? 'text-purple-500' : 'text-orange-500'
-            }`} />
-            <span className="text-gray-700 text-sm">{feature}</span>
-          </li>
-        ))}
-      </ul>
+      <div className="mb-8">
+        <ul className="space-y-4">
+          {plan.features.map((feature: string, index: number) => (
+            <li key={index} className="flex items-start space-x-3">
+              <div className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center mt-0.5 ${
+                planType === 'reader' ? 'bg-purple-100' : 'bg-orange-100'
+              }`}>
+                <Check className={`w-3 h-3 ${
+                  planType === 'reader' ? 'text-purple-600' : 'text-orange-600'
+                }`} />
+              </div>
+              <span className="text-gray-700 text-sm leading-relaxed">{feature}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
       
-      <button className={`w-full flex items-center justify-center space-x-2 ${
-        plan.popular 
-          ? (planType === 'reader' ? 'btn-purple' : 'btn-primary')
-          : 'btn-secondary'
-      }`}>
-        <span>{plan.cta}</span>
-        <ArrowRight className="w-4 h-4" />
-      </button>
+      <div className="mt-auto">
+        <button className={`w-full flex items-center justify-center space-x-2 py-4 px-6 rounded-xl font-semibold text-lg transition-all duration-300 ${
+          plan.popular 
+            ? (planType === 'reader' 
+                ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-lg hover:shadow-purple-200' 
+                : 'bg-orange-600 hover:bg-orange-700 text-white shadow-lg hover:shadow-orange-200'
+              )
+            : 'bg-gray-100 hover:bg-gray-200 text-gray-800 border border-gray-300'
+        }`}>
+          <span>{plan.cta}</span>
+          <ArrowRight className="w-5 h-5" />
+        </button>
+      </div>
     </div>
   )
 }
@@ -262,96 +282,92 @@ export default function PricingPage() {
   const currentPlans = planType === 'reader' ? readerPlans : writerPlans
 
   return (
-    <div className="min-h-screen pt-20">
+    <div className="min-h-screen">
       {/* Hero Section */}
-      <section className="py-20 relative overflow-hidden">
-        <div className="absolute inset-0 hero-gradient"></div>
-        
+      <section className="pt-24 pb-8 relative overflow-hidden bg-gradient-to-br from-gray-50 to-white">
         <div className="container mx-auto px-6 relative z-10">
-          <div className="max-w-4xl mx-auto text-center">
-            <div className="inline-flex items-center space-x-2 bg-orange-100 border border-orange-200 rounded-full px-4 py-2 mb-8">
-              <Crown className="w-4 h-4 text-orange-600" />
-              <span className="text-sm font-medium text-orange-800">Simple, Transparent Pricing</span>
+          <div className="max-w-5xl mx-auto text-center">
+            <div className="inline-flex items-center space-x-2 bg-orange-100 border border-orange-200 rounded-full px-6 py-3 mb-8">
+              <Crown className="w-5 h-5 text-orange-600" />
+              <span className="text-sm font-semibold text-orange-800">Simple, Transparent Pricing</span>
             </div>
             
-            <h1 className="text-5xl md:text-6xl font-bold mb-6 leading-tight text-gray-800">
+            <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold mb-8 leading-tight text-gray-900">
               Choose Your <span className="text-gradient">Creative Plan</span>
             </h1>
             
-            <p className="text-xl text-gray-600 mb-12 max-w-3xl mx-auto leading-relaxed">
+            <p className="text-xl md:text-2xl text-gray-600 mb-12 max-w-4xl mx-auto leading-relaxed">
               Whether you're a reader discovering amazing stories or a writer creating them, 
               we have the perfect plan for your creative journey.
             </p>
             
             {/* Plan Type Toggle */}
             <div className="flex items-center justify-center mb-8">
-              <div className="bg-white rounded-xl border border-gray-200 p-1 flex">
+              <div className="bg-white rounded-2xl border-2 border-gray-200 p-2 flex shadow-lg">
                 <button
                   onClick={() => setPlanType('reader')}
-                  className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+                  className={`px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-300 ${
                     planType === 'reader'
-                      ? 'bg-purple-500 text-white'
-                      : 'text-gray-600 hover:text-gray-800'
+                      ? 'bg-purple-500 text-white shadow-lg'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                   }`}
                 >
-                  Reader Plans
+                  📚 Reader Plans
                 </button>
                 <button
                   onClick={() => setPlanType('writer')}
-                  className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+                  className={`px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-300 ${
                     planType === 'writer'
-                      ? 'bg-orange-500 text-white'
-                      : 'text-gray-600 hover:text-gray-800'
+                      ? 'bg-orange-500 text-white shadow-lg'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                   }`}
                 >
-                  Writer Plans
+                  ✍️ Writer Plans
                 </button>
               </div>
             </div>
             
             {/* Billing Toggle */}
-            <div className="flex items-center justify-center mb-16">
+            <div className="flex items-center justify-center space-x-6 mb-8">
               <div className="flex items-center space-x-4">
-                <span className={`font-medium ${!isYearly ? 'text-gray-800' : 'text-gray-500'}`}>
+                <span className={`font-semibold text-lg ${!isYearly ? 'text-gray-900' : 'text-gray-500'}`}>
                   Monthly
                 </span>
                 <button
                   onClick={() => setIsYearly(!isYearly)}
-                  className={`relative w-14 h-7 rounded-full transition-colors ${
+                  className={`relative w-16 h-8 rounded-full transition-colors duration-300 ${
                     isYearly ? (planType === 'reader' ? 'bg-purple-500' : 'bg-orange-500') : 'bg-gray-300'
-                  }`}
+                  } shadow-inner`}
                 >
                   <div
-                    className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-transform ${
-                      isYearly ? 'translate-x-8' : 'translate-x-1'
+                    className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-transform duration-300 shadow-md ${
+                      isYearly ? 'translate-x-9' : 'translate-x-1'
                     }`}
                   />
                 </button>
-                <span className={`font-medium ${isYearly ? 'text-gray-800' : 'text-gray-500'}`}>
+                <span className={`font-semibold text-lg ${isYearly ? 'text-gray-900' : 'text-gray-500'}`}>
                   Yearly
                 </span>
               </div>
-              <div className="ml-4 w-24 flex justify-start">
-                {isYearly && (
-                  <span className={`text-sm font-medium px-2 py-1 rounded-full ${
-                    planType === 'reader' 
-                      ? 'text-purple-600 bg-purple-100' 
-                      : 'text-orange-600 bg-orange-100'
-                  }`}>
-                    Save up to 20%
-                  </span>
-                )}
-              </div>
+              {isYearly && (
+                <div className={`px-4 py-2 rounded-full text-sm font-bold ${
+                  planType === 'reader' 
+                    ? 'text-purple-700 bg-purple-100 border border-purple-200' 
+                    : 'text-orange-700 bg-orange-100 border border-orange-200'
+                } animate-pulse`}>
+                  💰 Save up to 20%
+                </div>
+              )}
             </div>
           </div>
         </div>
       </section>
 
       {/* Pricing Cards */}
-      <section className="py-20">
+      <section className="py-12 bg-gray-50">
         <div className="container mx-auto px-6">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-800 mb-4">
+            <h2 className="text-4xl font-bold text-gray-900 mb-6">
               {planType === 'reader' ? (
                 <>
                   <span className="text-purple-600">Reader</span> Plans
@@ -362,7 +378,7 @@ export default function PricingPage() {
                 </>
               )}
             </h2>
-            <p className="text-gray-600 max-w-2xl mx-auto">
+            <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
               {planType === 'reader' 
                 ? 'Discover amazing stories and connect with your favorite writers. Perfect for readers who want exclusive access to premium content.'
                 : 'Create, protect, and share your stories with the world. Professional tools for serious writers and creative teams.'
@@ -370,12 +386,25 @@ export default function PricingPage() {
             </p>
           </div>
           
-          <div className={`grid gap-8 max-w-6xl mx-auto ${
-            planType === 'reader' ? 'lg:grid-cols-2 justify-center' : 'lg:grid-cols-3'
+          <div className={`grid gap-8 max-w-7xl mx-auto ${
+            planType === 'reader' 
+              ? 'md:grid-cols-2 lg:max-w-4xl' 
+              : 'md:grid-cols-2 lg:grid-cols-3'
           }`}>
             {currentPlans.map((plan, index) => (
               <PricingCard key={plan.name} plan={plan} isYearly={isYearly} planType={planType} />
             ))}
+          </div>
+
+          {/* Money-back guarantee badge */}
+          <div className="text-center mt-16">
+            <div className="inline-flex items-center space-x-2 bg-green-50 border border-green-200 rounded-full px-6 py-3">
+              <Shield className="w-5 h-5 text-green-600" />
+              <span className="text-green-800 font-medium">30-day money-back guarantee</span>
+            </div>
+            <p className="text-gray-600 mt-4 max-w-2xl mx-auto">
+              Try any paid plan risk-free. If you're not completely satisfied, we'll refund your money within 30 days.
+            </p>
           </div>
         </div>
       </section>
@@ -407,14 +436,14 @@ export default function PricingPage() {
       </section>
 
       {/* FAQ Section */}
-      <section className="py-20">
+      <section className="py-20 bg-white">
         <div className="container mx-auto px-6">
-          <div className="max-w-3xl mx-auto">
+          <div className="max-w-4xl mx-auto">
             <div className="text-center mb-16">
-              <h2 className="text-4xl font-bold mb-6 text-gray-800">
+              <h2 className="text-4xl font-bold mb-6 text-gray-900">
                 Frequently Asked <span className="text-gradient">Questions</span>
               </h2>
-              <p className="text-xl text-gray-600">
+              <p className="text-xl text-gray-600 max-w-3xl mx-auto">
                 {planType === 'reader' 
                   ? 'Common questions about our reader plans and features.'
                   : 'Everything you need to know about our writer plans and features.'
@@ -422,7 +451,7 @@ export default function PricingPage() {
               </p>
             </div>
             
-            <div className="space-y-0">
+            <div className="space-y-4">
               {(planType === 'reader' ? readerFaqs : writerFaqs).map((faq, index) => (
                 <FAQItem key={index} faq={faq} index={index} />
               ))}
@@ -432,26 +461,59 @@ export default function PricingPage() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 bg-gray-50">
+      <section className="py-20 bg-gradient-to-br from-gray-900 to-gray-800 text-white">
         <div className="container mx-auto px-6">
           <div className="max-w-4xl mx-auto text-center">
-            <h2 className="text-4xl md:text-5xl font-bold mb-6 text-gray-800">
-              Ready to Start Your <span className="text-gradient">Creative Journey</span>?
+            <h2 className="text-4xl md:text-5xl font-bold mb-6">
+              Ready to Start Your <span className={`${planType === 'reader' ? 'text-purple-400' : 'text-orange-400'}`}>Creative Journey</span>?
             </h2>
-            <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
-              Join thousands of creators who trust StoryFoundry to protect and develop their stories.
+            <p className="text-xl text-gray-300 mb-8 max-w-3xl mx-auto leading-relaxed">
+              {planType === 'reader' 
+                ? 'Join thousands of readers discovering amazing stories and connecting with talented writers.'
+                : 'Join thousands of creators who trust StoryFoundry to protect and develop their stories.'
+              }
             </p>
             
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link href="/app/signup" className="btn-primary group flex items-center space-x-2 text-lg px-8 py-4 glow-effect">
+            <div className="flex flex-col sm:flex-row gap-6 justify-center items-center">
+              <Link 
+                href="/signup" 
+                className={`flex items-center space-x-3 text-lg px-8 py-4 rounded-xl font-semibold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1 ${
+                  planType === 'reader' 
+                    ? 'bg-purple-600 hover:bg-purple-700 text-white' 
+                    : 'bg-orange-600 hover:bg-orange-700 text-white'
+                }`}
+              >
                 <span>Start Free Trial</span>
-                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                <ArrowRight className="w-5 h-5" />
               </Link>
               
-              <Link href="/contact" className="btn-ghost group flex items-center space-x-2 text-lg px-8 py-4">
+              <Link 
+                href="/contact" 
+                className="flex items-center space-x-3 text-lg px-8 py-4 rounded-xl font-semibold border border-gray-400 text-gray-200 hover:bg-white hover:text-gray-900 transition-all duration-300"
+              >
                 <span>Contact Sales</span>
-                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                <ArrowRight className="w-5 h-5" />
               </Link>
+            </div>
+
+            {/* Trust indicators */}
+            <div className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+              <div>
+                <div className="text-3xl font-bold text-white mb-2">50K+</div>
+                <div className="text-gray-400 text-sm">Active Users</div>
+              </div>
+              <div>
+                <div className="text-3xl font-bold text-white mb-2">1M+</div>
+                <div className="text-gray-400 text-sm">Stories Protected</div>
+              </div>
+              <div>
+                <div className="text-3xl font-bold text-white mb-2">99.9%</div>
+                <div className="text-gray-400 text-sm">Uptime</div>
+              </div>
+              <div>
+                <div className="text-3xl font-bold text-white mb-2">24/7</div>
+                <div className="text-gray-400 text-sm">Support</div>
+              </div>
             </div>
           </div>
         </div>
