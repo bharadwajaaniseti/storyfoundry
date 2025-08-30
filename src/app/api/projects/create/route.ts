@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
       
       // Check if user has a preferred role from signup
       const { data: authUser } = await supabaseService.auth.admin.getUserById(user.id)
-      const preferredRole = authUser?.user?.user_metadata?.preferred_role || 'reader'
+      const preferredRole = authUser?.user?.user_metadata?.preferred_role || 'writer'
       
       const { error: profileError } = await supabaseService
         .from('profiles')
@@ -87,10 +87,31 @@ export async function POST(request: NextRequest) {
 
       if (profileError) {
         console.error('💥 Profile creation error:', profileError)
-        return NextResponse.json(
-          { error: 'Failed to create user profile', details: profileError.message },
-          { status: 500 }
-        )
+        // If profile creation fails, try to fetch it again (might have been created by trigger)
+        const { data: retryProfile } = await supabaseService
+          .from('profiles')
+          .select('id, role')
+          .eq('id', user.id)
+          .single()
+        
+        if (!retryProfile) {
+          return NextResponse.json(
+            { error: 'Failed to create user profile', details: profileError.message },
+            { status: 500 }
+          )
+        }
+        
+        // Check if the existing profile (created by trigger) has writer role
+        if (retryProfile.role === 'reader') {
+          return NextResponse.json(
+            { 
+              error: 'Permission denied', 
+              message: 'Readers cannot create projects. Please upgrade to Writer role in settings.',
+              upgradeRequired: true
+            },
+            { status: 403 }
+          )
+        }
       }
       console.log('✅ User profile created successfully')
     } else {

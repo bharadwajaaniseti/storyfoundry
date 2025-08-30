@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
 
           if (!existingProfile) {
             // Create new profile with selected role
-            await supabaseService
+            const { error: insertError } = await supabaseService
               .from('profiles')
               .insert({
                 id: data.user.id,
@@ -46,6 +46,15 @@ export async function GET(request: NextRequest) {
                              data.user.email?.split('@')[0] || 
                              'Anonymous'
               })
+            
+            if (insertError) {
+              console.error('Profile creation error:', insertError)
+              // If insert fails, try to update instead (profile might have been created by trigger)
+              await supabaseService
+                .from('profiles')
+                .update({ role: selectedRole })
+                .eq('id', data.user.id)
+            }
           } else if (existingProfile.role !== selectedRole) {
             // Update existing profile if role changed
             await supabaseService
