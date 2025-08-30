@@ -1,3 +1,6 @@
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { createSupabaseClient } from '@/lib/auth'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -15,6 +18,15 @@ import {
 import Link from 'next/link'
 
 export default function DashboardPage() {
+  const router = useRouter()
+  useEffect(() => {
+    const supabase = createSupabaseClient()
+    supabase.auth.getUser().then(({ data }) => {
+      if (!data?.user) {
+        router.push('/signin')
+      }
+    })
+  }, [router])
   // Mock data - in real app this would come from database
   const stats = {
     totalProjects: 8,
