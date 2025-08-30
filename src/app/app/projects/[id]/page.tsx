@@ -17,7 +17,6 @@ import {
   MessageSquare,
   History,
   Download,
-  MoreHorizontal,
   Sparkles,
   AlertCircle,
   Check
@@ -261,9 +260,12 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
                 <span>Share</span>
               </button>
 
-              <button className="p-2 text-gray-600 hover:text-gray-800">
-                <MoreHorizontal className="w-4 h-4" />
-              </button>
+              <Link href="/app/settings">
+                <button className="flex items-center space-x-2 px-3 py-2 text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:border-gray-400 transition-colors">
+                  <Settings className="w-4 h-4" />
+                  <span>Settings</span>
+                </button>
+              </Link>
             </div>
           </div>
 
