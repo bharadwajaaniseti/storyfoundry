@@ -34,7 +34,10 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   
+  console.log('🚀 Dashboard: Component rendered', { loading, userProfile })
+  
   useEffect(() => {
+    console.log('🚀 Dashboard: useEffect triggered')
     const supabase = createSupabaseClient()
     
     const fetchUserProfile = async () => {
@@ -73,6 +76,8 @@ export default function DashboardPage() {
     fetchUserProfile()
   }, [router])
 
+  console.log('🔄 Dashboard: Render state', { loading, userProfile })
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -106,9 +111,13 @@ export default function DashboardPage() {
   }
 
   // Render different dashboards based on role
-  if (userProfile.role === 'reader') {
+  console.log('🎭 Dashboard: Determining which dashboard to show for role:', userProfile?.role)
+  
+  if (userProfile?.role === 'reader') {
+    console.log('📚 Dashboard: Rendering Reader Dashboard')
     return <ReaderDashboard userProfile={userProfile} />
   } else {
+    console.log('✍️ Dashboard: Rendering Writer Dashboard for role:', userProfile?.role)
     return <WriterDashboard userProfile={userProfile} />
   }
 }
