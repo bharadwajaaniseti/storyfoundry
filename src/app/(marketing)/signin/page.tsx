@@ -12,19 +12,7 @@ function SignInForm() {
   const searchParams = useSearchParams()
   const redirectTo = searchParams.get('redirectTo') || '/app/dashboard'
 
-  // Listen for Supabase auth state changes and redirect after login
-  useEffect(() => {
-    const supabase = createSupabaseClient();
-    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' && session?.user) {
-        router.push(redirectTo);
-        router.refresh();
-      }
-    });
-    return () => {
-      authListener?.subscription.unsubscribe();
-    };
-  }, [router, redirectTo]);
+  // Removed duplicate redirect logic for faster sign-in
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
@@ -65,7 +53,6 @@ function SignInForm() {
 
       if (data.user) {
         router.push(redirectTo)
-        router.refresh()
       }
     } catch (err) {
       setError('An unexpected error occurred. Please try again.')
