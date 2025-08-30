@@ -33,10 +33,18 @@ export default function DashboardPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
+  const [hydrated, setHydrated] = useState(false)
   
-  console.log('🚀 Dashboard: Component rendered', { loading, userProfile })
+  console.log('🚀 Dashboard: Component rendered', { loading, userProfile, hydrated })
+  
+  // Handle hydration
+  useEffect(() => {
+    setHydrated(true)
+  }, [])
   
   useEffect(() => {
+    if (!hydrated) return // Wait for hydration before fetching data
+    
     console.log('🚀 Dashboard: useEffect triggered')
     const supabase = createSupabaseClient()
     
@@ -74,37 +82,58 @@ export default function DashboardPage() {
     }
 
     fetchUserProfile()
-  }, [router])
+  }, [router, hydrated])
 
-  console.log('🔄 Dashboard: Render state', { loading, userProfile })
+  console.log('🔄 Dashboard: Render state', { loading, userProfile, hydrated })
 
+  // Show nothing during hydration to prevent mismatch
+  if (!hydrated) {
+    return null
+  }
+
+  // Show loading state while fetching profile
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="w-8 h-8 border-4 border-gray-300 border-t-orange-500 rounded-full animate-spin mr-4"></div>
-        <span className="text-lg text-gray-600">Loading your dashboard...</span>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="h-8 bg-gray-200 rounded w-48 animate-pulse"></div>
+            <div className="h-4 bg-gray-200 rounded w-96 mt-2 animate-pulse"></div>
+          </div>
+        </div>
+        
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Card key={i}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <div className="h-4 bg-gray-200 rounded w-20 animate-pulse"></div>
+                <div className="h-4 w-4 bg-gray-200 rounded animate-pulse"></div>
+              </CardHeader>
+              <CardContent>
+                <div className="h-8 bg-gray-200 rounded w-16 animate-pulse"></div>
+                <div className="h-3 bg-gray-200 rounded w-24 mt-2 animate-pulse"></div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
     )
   }
 
-  if (!userProfile) {
+    if (!userProfile) {
     console.log('❌ Dashboard: No profile found, showing fallback message')
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center max-w-md">
-          <h2 className="text-xl font-semibold text-white mb-4">Setting up your profile...</h2>
-          <p className="text-gray-300 mb-4">
-            We're preparing your personalized dashboard. This usually takes just a moment.
-          </p>
-          <div className="text-sm text-gray-400">
-            If this persists, please check the browser console for any errors.
+      <div className="space-y-6">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center max-w-md">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">Setting up your profile...</h2>
+            <p className="text-gray-600 mb-4">
+              We're preparing your personalized dashboard. This usually takes just a moment.
+            </p>
+            <div className="text-sm text-gray-500">
+              If this persists, please try refreshing the page.
+            </div>
           </div>
-          <Button 
-            onClick={() => window.location.reload()} 
-            className="mt-4 bg-gold-400 hover:bg-gold-500 text-navy-900"
-          >
-            Refresh Page
-          </Button>
         </div>
       </div>
     )
