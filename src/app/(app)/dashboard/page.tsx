@@ -136,10 +136,24 @@ export default function DashboardPage() {
   
   if (userRole === 'reader') {
     console.log('✅ Rendering ReaderDashboard')
-    return <ReaderDashboard userProfile={userProfile} />
+    return (
+      <div>
+        <div style={{backgroundColor: 'red', color: 'white', padding: '10px', textAlign: 'center', fontSize: '20px'}}>
+          🔴 READER DASHBOARD - ROLE: {userProfile.role}
+        </div>
+        <ReaderDashboard userProfile={userProfile} />
+      </div>
+    )
   } else {
     console.log('✅ Rendering WriterDashboard for role:', userRole)
-    return <WriterDashboard userProfile={userProfile} />
+    return (
+      <div>
+        <div style={{backgroundColor: 'blue', color: 'white', padding: '10px', textAlign: 'center', fontSize: '20px'}}>
+          🔵 WRITER DASHBOARD - ROLE: {userProfile.role}
+        </div>
+        <WriterDashboard userProfile={userProfile} />
+      </div>
+    )
   }
 }
 
