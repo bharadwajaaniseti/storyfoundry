@@ -18,38 +18,45 @@ export async function GET(request: NextRequest) {
     if (!error && data.user) {
       console.log('✅ Auth Callback: Session created for user:', data.user.id)
       
-      // If we have a role parameter, create/update the user profile
-      if (role) {
-        console.log('🔄 Auth Callback: Creating/updating profile with role:', role)
-        
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .upsert({
-            id: data.user.id,
-            role: role,
-            display_name: data.user.user_metadata?.full_name || data.user.email?.split('@')[0] || 'User',
-            email: data.user.email
-          })
-          .select('*')
-          .single()
-        
-        console.log('📝 Auth Callback: Profile upsert result:', profile, 'Error:', profileError)
-        
-        // Also create/update subscription
-        const tierMapping = {
-          'reader': 'free_reader',
-          'writer': 'free_writer'
-        }
-        
-        const { error: subscriptionError } = await supabase
-          .from('subscriptions')
-          .upsert({
-            user_id: data.user.id,
-            tier: tierMapping[role as keyof typeof tierMapping] || 'free_reader'
-          })
-        
-        console.log('💳 Auth Callback: Subscription upsert error:', subscriptionError)
+      // Always create/update the user profile, prioritizing role parameter
+      const finalRole = role || 'reader' // Default to reader if no role specified
+      
+      console.log('🔄 Auth Callback: Creating/updating profile with role:', finalRole)
+      
+      // Add a small delay to ensure any auto-triggers have completed
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .upsert({
+          id: data.user.id,
+          role: finalRole,
+          display_name: data.user.user_metadata?.full_name || data.user.email?.split('@')[0] || 'User',
+          email: data.user.email,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'id',
+          ignoreDuplicates: false
+        })
+        .select('*')
+        .single()
+      
+      console.log('📝 Auth Callback: Profile upsert result:', profile, 'Error:', profileError)
+      
+      // Also create/update subscription
+      const tierMapping: Record<string, string> = {
+        'reader': 'free_reader',
+        'writer': 'free_writer'
       }
+      
+      const { error: subscriptionError } = await supabase
+        .from('subscriptions')
+        .upsert({
+          user_id: data.user.id,
+          tier: tierMapping[finalRole] || 'free_reader'
+        })
+      
+      console.log('💳 Auth Callback: Subscription upsert error:', subscriptionError)
       
       // Build the final redirect URL with role parameter if it exists
       let finalRedirectUrl = redirectTo
