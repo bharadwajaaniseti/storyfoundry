@@ -151,6 +151,17 @@ export default function TestPage() {
                       <span className="text-green-600">✅ {userData.role?.toUpperCase()}</span>
                     )}
                   </p>
+                  <div className="mt-2 text-sm space-y-1">
+                    <p>Raw role: "<strong>{userData.role}</strong>"</p>
+                    <p>Role type: <strong>{typeof userData.role}</strong></p>
+                    <p>Role length: <strong>{userData.role?.length}</strong></p>
+                    <p>Lowercase: "<strong>{userData.role?.toLowerCase()}</strong>"</p>
+                    <p>role === 'reader': <strong>{String(userData.role === 'reader')}</strong></p>
+                    <p>role === 'writer': <strong>{String(userData.role === 'writer')}</strong></p>
+                    <p>role.toLowerCase() === 'reader': <strong>{String(userData.role?.toLowerCase() === 'reader')}</strong></p>
+                    <p>role.toLowerCase() === 'writer': <strong>{String(userData.role?.toLowerCase() === 'writer')}</strong></p>
+                    <p>Dashboard should show: <strong>{userData.role?.toLowerCase() === 'reader' ? 'ReaderDashboard' : 'WriterDashboard'}</strong></p>
+                  </div>
                 </div>
 
                 <div className="bg-yellow-50 p-4 rounded-lg">

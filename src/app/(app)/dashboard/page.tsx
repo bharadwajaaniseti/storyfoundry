@@ -131,12 +131,14 @@ export default function DashboardPage() {
 
   // Show the appropriate dashboard based on user role
   console.log('🚀 Dashboard: About to render dashboard for role:', userProfile.role)
-  const userRole = userProfile.role?.toLowerCase()
+  const userRole = userProfile.role?.toLowerCase?.() || ''
+  console.log('🔍 Dashboard: Normalized role:', userRole)
+  
   if (userRole === 'reader') {
     console.log('✅ Rendering ReaderDashboard')
     return <ReaderDashboard userProfile={userProfile} />
   } else {
-    console.log('✅ Rendering WriterDashboard')
+    console.log('✅ Rendering WriterDashboard for role:', userRole)
     return <WriterDashboard userProfile={userProfile} />
   }
 }
