@@ -5,7 +5,7 @@ export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
   const next = searchParams.get('next') ?? '/'
-  const redirectTo = searchParams.get('redirectTo') ?? '/app/dashboard'
+  const redirectTo = searchParams.get('redirectTo') ?? '/app/test' // Changed to test page
   const role = searchParams.get('role') // Extract role from URL
 
   console.log('🔗 Auth Callback: Received params', { code: !!code, next, redirectTo, role })

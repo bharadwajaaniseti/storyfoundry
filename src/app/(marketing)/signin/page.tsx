@@ -10,7 +10,7 @@ function SignInForm() {
   // ...existing code...
   const router = useRouter()
   const searchParams = useSearchParams()
-  const redirectTo = searchParams.get('redirectTo') || '/app/dashboard'
+  const redirectTo = searchParams.get('redirectTo') || '/app/test' // Changed to test page
 
   // Removed duplicate redirect logic for faster sign-in
   const [showPassword, setShowPassword] = useState(false)
