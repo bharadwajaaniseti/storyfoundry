@@ -328,7 +328,7 @@ export default function PricingPage() {
             </div>
             
             {/* Billing Toggle */}
-            <div className="flex items-center justify-center space-x-6 mb-8">
+            <div className="flex items-center justify-center mb-4">
               <div className="flex items-center space-x-4">
                 <span className={`font-semibold text-lg ${!isYearly ? 'text-gray-900' : 'text-gray-500'}`}>
                   Monthly
@@ -349,15 +349,19 @@ export default function PricingPage() {
                   Yearly
                 </span>
               </div>
-              {isYearly && (
-                <div className={`px-4 py-2 rounded-full text-sm font-bold ${
-                  planType === 'reader' 
-                    ? 'text-purple-700 bg-purple-100 border border-purple-200' 
-                    : 'text-orange-700 bg-orange-100 border border-orange-200'
-                } animate-pulse`}>
-                  💰 Save up to 20%
-                </div>
-              )}
+            </div>
+            
+            {/* Savings Badge - Fixed height container to prevent movement */}
+            <div className="flex justify-center mb-8 h-10 items-center">
+              <div className={`px-4 py-2 rounded-full text-sm font-bold transition-all duration-300 transform ${
+                isYearly ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
+              } ${
+                planType === 'reader' 
+                  ? 'text-purple-700 bg-purple-100 border border-purple-200' 
+                  : 'text-orange-700 bg-orange-100 border border-orange-200'
+              }`}>
+                💰 Save up to 20%
+              </div>
             </div>
           </div>
         </div>
