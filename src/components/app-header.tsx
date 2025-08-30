@@ -33,6 +33,7 @@ export default function AppHeader({ user }: AppHeaderProps) {
   useEffect(() => {
     const fetchUserProfile = async () => {
       console.log('🔍 Header: Fetching user profile for:', user.id)
+      console.log('🔍 Header: User object:', user)
       
       const supabase = createSupabaseClient()
       const { data: profile, error } = await supabase
@@ -114,7 +115,7 @@ export default function AppHeader({ user }: AppHeaderProps) {
               </Avatar>
               <div className="flex flex-col items-start space-y-1">
                 <div className="text-sm font-medium">{userProfile?.display_name || user.email}</div>
-                {userProfile && (
+                {userProfile ? (
                   <Badge 
                     variant="outline" 
                     className={`text-xs px-3 py-1 h-6 font-bold border-2 ${getRoleBadgeColor(userProfile.role)}`}
@@ -123,6 +124,13 @@ export default function AppHeader({ user }: AppHeaderProps) {
                       {getRoleIcon(userProfile.role)}
                       <span className="uppercase tracking-wide">{userProfile.role}</span>
                     </span>
+                  </Badge>
+                ) : (
+                  <Badge 
+                    variant="outline" 
+                    className="text-xs px-3 py-1 h-6 font-bold border-2 bg-red-500/30 text-red-200 border-red-400"
+                  >
+                    NO PROFILE
                   </Badge>
                 )}
               </div>
