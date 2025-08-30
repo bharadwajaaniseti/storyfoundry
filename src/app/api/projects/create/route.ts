@@ -60,25 +60,63 @@ export async function POST(request: NextRequest) {
     console.log('✅ Authentication successful for user:', user.id)
     console.log('🔍 PROFILE CHECK STARTING...')
 
-    // Ensure user has a profile record (should be created by trigger)
+    // Ensure user has a profile record (with retry logic for auto-trigger timing)
     console.log('👤 Checking user profile...')
-    const { data: existingProfile } = await supabaseService
-      .from('profiles')
-      .select('id, role')
-      .eq('id', user.id)
-      .single()
+    let existingProfile = null
+    let attempts = 0
+    const maxAttempts = 5
+    
+    while (!existingProfile && attempts < maxAttempts) {
+      attempts++
+      console.log(`👤 Profile check attempt ${attempts}/${maxAttempts}`)
+      
+      const { data: profile } = await supabaseService
+        .from('profiles')
+        .select('id, role')
+        .eq('id', user.id)
+        .single()
+      
+      if (profile) {
+        existingProfile = profile
+        break
+      }
+      
+      // If profile not found, wait a bit and try again (auto-trigger might still be running)
+      if (attempts < maxAttempts) {
+        console.log('⏳ Profile not found, waiting 500ms before retry...')
+        await new Promise(resolve => setTimeout(resolve, 500))
+      }
+    }
 
     console.log('🔍 Profile query result:', existingProfile)
 
     if (!existingProfile) {
-      console.log('❌ No profile found - this should not happen with auto-trigger')
-      return NextResponse.json(
-        { error: 'User profile not found. Please try signing out and signing in again.' },
-        { status: 500 }
-      )
+      console.log('❌ No profile found after retries - creating one manually')
+      
+      // Fallback: manually create profile if auto-trigger failed
+      const { data: newProfile, error: profileError } = await supabaseService
+        .from('profiles')
+        .insert({
+          id: user.id,
+          role: user.user_metadata?.preferred_role || 'reader',
+          display_name: user.user_metadata?.display_name || user.email?.split('@')[0] || 'User'
+        })
+        .select('id, role')
+        .single()
+      
+      if (profileError) {
+        console.error('💥 Failed to create profile:', profileError)
+        return NextResponse.json(
+          { error: 'Failed to create user profile. Please try signing out and signing in again.' },
+          { status: 500 }
+        )
+      }
+      
+      existingProfile = newProfile
+      console.log('✅ Profile created manually:', existingProfile)
+    } else {
+      console.log('✅ User profile exists')
     }
-
-    console.log('✅ User profile exists')
     
     // Check if user has permission to create projects
     if (existingProfile.role === 'reader') {
