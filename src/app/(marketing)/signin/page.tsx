@@ -35,10 +35,6 @@ function SignInForm() {
     rememberMe: false
   })
   
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  // Don't use window.location in initial render to avoid SSR mismatch
-  const redirectTo = searchParams.get('redirectTo') || '/app/dashboard'
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target
