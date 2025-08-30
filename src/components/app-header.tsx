@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { User } from '@supabase/supabase-js'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   DropdownMenu,
@@ -12,18 +13,65 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Bell, Settings, LogOut, User as UserIcon } from 'lucide-react'
+import { Bell, Settings, LogOut, User as UserIcon, Crown, BookOpen } from 'lucide-react'
+import { createSupabaseClient } from '@/lib/auth'
 
 interface AppHeaderProps {
   user: User
 }
 
+interface UserProfile {
+  id: string
+  role: 'reader' | 'writer'
+  display_name: string
+}
+
 export default function AppHeader({ user }: AppHeaderProps) {
   const [notifications, setNotifications] = useState(3) // Mock notification count
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
+
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      const supabase = createSupabaseClient()
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id, role, display_name')
+        .eq('id', user.id)
+        .single()
+
+      if (profile) {
+        setUserProfile(profile)
+      }
+    }
+
+    fetchUserProfile()
+  }, [user.id])
 
   const handleSignOut = async () => {
     // This will be handled by the auth system
     window.location.href = '/auth/signout'
+  }
+
+  const getRoleIcon = (role: string) => {
+    switch (role) {
+      case 'writer':
+        return <Crown className="w-3 h-3 text-gold-400" />
+      case 'reader':
+        return <BookOpen className="w-3 h-3 text-purple-400" />
+      default:
+        return null
+    }
+  }
+
+  const getRoleBadgeColor = (role: string) => {
+    switch (role) {
+      case 'writer':
+        return 'bg-gold-400/20 text-gold-300 border-gold-400/30'
+      case 'reader':
+        return 'bg-purple-400/20 text-purple-300 border-purple-400/30'
+      default:
+        return 'bg-gray-400/20 text-gray-300 border-gray-400/30'
+    }
   }
 
   return (
@@ -48,18 +96,44 @@ export default function AppHeader({ user }: AppHeaderProps) {
         {/* User Menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="flex items-center space-x-2 text-gray-300 hover:text-white">
+            <Button variant="ghost" className="flex items-center space-x-3 text-gray-300 hover:text-white">
               <Avatar className="w-8 h-8">
                 <div className="w-full h-full bg-gradient-to-br from-gold-400 to-gold-600 rounded-full flex items-center justify-center">
                   <UserIcon className="w-4 h-4 text-navy-900" />
                 </div>
               </Avatar>
-              <span className="hidden md:block">{user.email}</span>
+              <div className="hidden md:block text-left">
+                <div className="text-sm font-medium">{userProfile?.display_name || user.email}</div>
+                {userProfile && (
+                  <Badge 
+                    variant="outline" 
+                    className={`text-xs px-2 py-0 h-4 ${getRoleBadgeColor(userProfile.role)}`}
+                  >
+                    <span className="flex items-center space-x-1">
+                      {getRoleIcon(userProfile.role)}
+                      <span className="capitalize">{userProfile.role}</span>
+                    </span>
+                  </Badge>
+                )}
+              </div>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56 bg-navy-800 border-navy-700">
             <DropdownMenuLabel className="text-white">
-              My Account
+              <div className="flex flex-col space-y-1">
+                <span>My Account</span>
+                {userProfile && (
+                  <Badge 
+                    variant="outline" 
+                    className={`text-xs w-fit ${getRoleBadgeColor(userProfile.role)}`}
+                  >
+                    <span className="flex items-center space-x-1">
+                      {getRoleIcon(userProfile.role)}
+                      <span className="capitalize">{userProfile.role}</span>
+                    </span>
+                  </Badge>
+                )}
+              </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator className="bg-navy-700" />
             <DropdownMenuItem className="text-gray-300 hover:text-white hover:bg-navy-700 cursor-pointer">
@@ -70,6 +144,12 @@ export default function AppHeader({ user }: AppHeaderProps) {
               <Settings className="w-4 h-4 mr-2" />
               Settings
             </DropdownMenuItem>
+            {userProfile?.role === 'reader' && (
+              <DropdownMenuItem className="text-gray-300 hover:text-white hover:bg-navy-700 cursor-pointer">
+                <Crown className="w-4 h-4 mr-2 text-gold-400" />
+                Upgrade to Writer
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator className="bg-navy-700" />
             <DropdownMenuItem 
               className="text-gray-300 hover:text-white hover:bg-navy-700 cursor-pointer"

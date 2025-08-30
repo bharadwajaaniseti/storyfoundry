@@ -11,26 +11,56 @@ import {
   Clock,
   Eye,
   MessageSquare,
-  Award
+  Award,
+  BookOpen,
+  Star,
+  Search,
+  UserPlus,
+  Crown
 } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createSupabaseClient } from '@/lib/auth'
 
+interface UserProfile {
+  id: string
+  role: 'reader' | 'writer'
+  display_name: string
+}
+
 export default function DashboardPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
+  
   useEffect(() => {
     const supabase = createSupabaseClient()
-    supabase.auth.getUser().then(({ data }) => {
-      if (!data?.user) {
+    
+    const fetchUserProfile = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (!user) {
         router.push('/signin')
-      } else {
-        setLoading(false)
+        return
       }
-    })
+
+      // Fetch user profile to get role
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id, role, display_name')
+        .eq('id', user.id)
+        .single()
+
+      if (profile) {
+        setUserProfile(profile)
+      }
+      setLoading(false)
+    }
+
+    fetchUserProfile()
   }, [router])
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -39,6 +69,220 @@ export default function DashboardPage() {
       </div>
     )
   }
+
+  if (!userProfile) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-white mb-2">Profile not found</h2>
+          <p className="text-gray-300">Please sign out and sign in again.</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Render different dashboards based on role
+  if (userProfile.role === 'reader') {
+    return <ReaderDashboard userProfile={userProfile} />
+  } else {
+    return <WriterDashboard userProfile={userProfile} />
+  }
+}
+
+// Reader Dashboard Component
+function ReaderDashboard({ userProfile }: { userProfile: UserProfile }) {
+  const readerStats = {
+    projectsRead: 23,
+    favoriteProjects: 8,
+    commentsLeft: 45,
+    followingWriters: 12
+  }
+
+  const discoveredProjects = [
+    {
+      id: '1',
+      title: 'The Last Chronicle',
+      writer: 'Sarah Mitchell',
+      description: 'A sci-fi thriller about time travel',
+      genre: 'Sci-Fi',
+      rating: 4.8,
+      views: 245,
+      isFavorite: true
+    },
+    {
+      id: '2', 
+      title: 'Summer Dreams',
+      writer: 'Mike Rodriguez',
+      description: 'Coming-of-age drama set in the 1980s',
+      genre: 'Drama',
+      rating: 4.5,
+      views: 189,
+      isFavorite: false
+    },
+    {
+      id: '3',
+      title: 'Urban Legends',
+      writer: 'Alex Chen',
+      description: 'Horror anthology series treatment',
+      genre: 'Horror',
+      rating: 4.7,
+      views: 156,
+      isFavorite: true
+    }
+  ]
+
+  return (
+    <div className="space-y-8">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-white">Reader Dashboard</h1>
+          <p className="text-gray-300 mt-2">Welcome back! Discover amazing stories and connect with writers.</p>
+        </div>
+        <Button asChild className="bg-gradient-to-r from-purple-500 to-purple-700 text-white hover:from-purple-600 hover:to-purple-800">
+          <Link href="/search">
+            <Search className="w-4 h-4 mr-2" />
+            Discover Stories
+          </Link>
+        </Button>
+      </div>
+
+      {/* Reader Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <Card className="bg-navy-800/50 border-navy-700 backdrop-blur-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-300">Projects Read</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center space-x-2">
+              <BookOpen className="w-5 h-5 text-purple-400" />
+              <span className="text-2xl font-bold text-white">{readerStats.projectsRead}</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-navy-800/50 border-navy-700 backdrop-blur-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-300">Favorite Projects</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center space-x-2">
+              <Star className="w-5 h-5 text-yellow-400" />
+              <span className="text-2xl font-bold text-white">{readerStats.favoriteProjects}</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-navy-800/50 border-navy-700 backdrop-blur-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-300">Comments Given</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center space-x-2">
+              <MessageSquare className="w-5 h-5 text-blue-400" />
+              <span className="text-2xl font-bold text-white">{readerStats.commentsLeft}</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-navy-800/50 border-navy-700 backdrop-blur-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-300">Following Writers</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center space-x-2">
+              <UserPlus className="w-5 h-5 text-green-400" />
+              <span className="text-2xl font-bold text-white">{readerStats.followingWriters}</span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Recently Discovered Projects */}
+      <div className="grid lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2">
+          <Card className="bg-navy-800/50 border-navy-700 backdrop-blur-sm">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-white">Recently Discovered</CardTitle>
+                <Button variant="outline" size="sm" asChild className="border-navy-600 text-gray-300 hover:bg-navy-700">
+                  <Link href="/search">Discover More</Link>
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {discoveredProjects.map((project) => (
+                <div key={project.id} className="p-4 bg-navy-900/50 rounded-lg border border-navy-700/50">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2 mb-1">
+                        <h3 className="font-semibold text-white">{project.title}</h3>
+                        {project.isFavorite && <Star className="w-4 h-4 text-yellow-400 fill-current" />}
+                      </div>
+                      <p className="text-sm text-purple-300 mb-1">by {project.writer}</p>
+                      <p className="text-sm text-gray-300 mb-2">{project.description}</p>
+                      <div className="flex items-center space-x-4 text-xs text-gray-400">
+                        <Badge variant="outline" className="border-purple-400 text-purple-300">
+                          {project.genre}
+                        </Badge>
+                        <div className="flex items-center space-x-1">
+                          <Star className="w-3 h-3 text-yellow-400" />
+                          <span>{project.rating}</span>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <Eye className="w-3 h-3" />
+                          <span>{project.views}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Reader Quick Actions */}
+        <div>
+          <Card className="bg-navy-800/50 border-navy-700 backdrop-blur-sm">
+            <CardHeader>
+              <CardTitle className="text-white">Quick Actions</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Button variant="outline" className="w-full justify-start border-navy-600 text-gray-300 hover:bg-navy-700" asChild>
+                <Link href="/search">
+                  <Search className="w-4 h-4 mr-2" />
+                  Find New Stories
+                </Link>
+              </Button>
+              <Button variant="outline" className="w-full justify-start border-navy-600 text-gray-300 hover:bg-navy-700" asChild>
+                <Link href="/projects?filter=favorites">
+                  <Star className="w-4 h-4 mr-2" />
+                  My Favorites
+                </Link>
+              </Button>
+              <Button variant="outline" className="w-full justify-start border-navy-600 text-gray-300 hover:bg-navy-700" asChild>
+                <Link href="/writers">
+                  <UserPlus className="w-4 h-4 mr-2" />
+                  Follow Writers
+                </Link>
+              </Button>
+              <Button variant="outline" className="w-full justify-start border-navy-600 text-gray-300 hover:bg-navy-700" asChild>
+                <Link href="/settings?tab=upgrade">
+                  <Crown className="w-4 h-4 mr-2" />
+                  Upgrade to Writer
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Writer Dashboard Component (original dashboard)
+function WriterDashboard({ userProfile }: { userProfile: UserProfile }) {
   // Mock data - in real app this would come from database
   const stats = {
     totalProjects: 8,
@@ -107,11 +351,11 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white">Dashboard</h1>
+          <h1 className="text-3xl font-bold text-white">Writer Dashboard</h1>
           <p className="text-gray-300 mt-2">Welcome back! Here's what's happening with your projects.</p>
         </div>
         <Button asChild className="bg-gradient-to-r from-gold-400 to-gold-600 text-navy-900 hover:from-gold-500 hover:to-gold-700">
-          <Link href="/projects/new">
+          <Link href="/app/projects/new">
             <Plus className="w-4 h-4 mr-2" />
             New Project
           </Link>
@@ -177,7 +421,7 @@ export default function DashboardPage() {
               <div className="flex items-center justify-between">
                 <CardTitle className="text-white">Recent Projects</CardTitle>
                 <Button variant="outline" size="sm" asChild className="border-navy-600 text-gray-300 hover:bg-navy-700">
-                  <Link href="/projects">View All</Link>
+                  <Link href="/app/projects">View All</Link>
                 </Button>
               </div>
             </CardHeader>
@@ -245,28 +489,28 @@ export default function DashboardPage() {
         <CardContent>
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
             <Button variant="outline" className="h-auto p-4 flex flex-col items-center space-y-2 border-navy-600 text-gray-300 hover:bg-navy-700" asChild>
-              <Link href="/projects/new">
+              <Link href="/app/projects/new">
                 <FileText className="w-6 h-6" />
                 <span>Create Project</span>
               </Link>
             </Button>
             
             <Button variant="outline" className="h-auto p-4 flex flex-col items-center space-y-2 border-navy-600 text-gray-300 hover:bg-navy-700" asChild>
-              <Link href="/search">
+              <Link href="/app/search">
                 <Users className="w-6 h-6" />
                 <span>Find Collaborators</span>
               </Link>
             </Button>
             
             <Button variant="outline" className="h-auto p-4 flex flex-col items-center space-y-2 border-navy-600 text-gray-300 hover:bg-navy-700" asChild>
-              <Link href="/pitch-rooms">
+              <Link href="/app/pitch-rooms">
                 <MessageSquare className="w-6 h-6" />
                 <span>Create Pitch Room</span>
               </Link>
             </Button>
             
             <Button variant="outline" className="h-auto p-4 flex flex-col items-center space-y-2 border-navy-600 text-gray-300 hover:bg-navy-700" asChild>
-              <Link href="/settings/profile">
+              <Link href="/app/settings">
                 <Award className="w-6 h-6" />
                 <span>Update Profile</span>
               </Link>
