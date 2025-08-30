@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
+import ReaderDashboard from '@/components/reader-dashboard'
 import { 
   Plus, 
   FileText, 
@@ -34,6 +35,7 @@ export default function DashboardPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
+  const [user, setUser] = useState<any>(null)
   const [hydrated, setHydrated] = useState(false)
   
   // Handle hydration
@@ -53,6 +55,8 @@ export default function DashboardPage() {
         router.push('/signin')
         return
       }
+
+      setUser(user)
 
       // Get user profile with role
       const { data: profile, error: profileError } = await supabase
@@ -109,14 +113,14 @@ export default function DashboardPage() {
   const userRole = userProfile.role?.toLowerCase()
   
   if (userRole === 'reader') {
-    return <ReaderDashboard userProfile={userProfile} />
+    return <ReaderDashboard user={user} userProfile={userProfile} />
   } else {
     return <WriterDashboard userProfile={userProfile} />
   }
 }
 
-// Reader Dashboard Component
-function ReaderDashboard({ userProfile }: { userProfile: UserProfile }) {
+// Simple Reader Dashboard Component (fallback)
+function SimpleReaderDashboard({ userProfile }: { userProfile: UserProfile }) {
   const readerStats = {
     projectsRead: 23,
     favoriteProjects: 8,

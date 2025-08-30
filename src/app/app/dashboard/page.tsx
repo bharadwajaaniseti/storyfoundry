@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import ReaderDashboard from '@/components/reader-dashboard'
 import { 
   Plus,
   FileText,
@@ -33,8 +34,15 @@ interface Project {
   updated_at: string
 }
 
+interface UserProfile {
+  id: string
+  role: 'reader' | 'writer' | 'READER' | 'WRITER'
+  display_name: string
+}
+
 export default function DashboardPage() {
   const [user, setUser] = useState<any>(null)
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [projects, setProjects] = useState<Project[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [filter, setFilter] = useState('all')
@@ -52,6 +60,18 @@ export default function DashboardPage() {
         }
 
         setUser(user)
+
+        // Get user profile with role
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id, role, display_name')
+          .eq('id', user.id)
+          .single()
+
+        if (profile) {
+          setUserProfile(profile)
+          console.log('✅ App Dashboard: User profile loaded', profile)
+        }
 
         // Load user's projects
         const { data: projectsData } = await supabase
@@ -105,6 +125,14 @@ export default function DashboardPage() {
       </div>
     )
   }
+
+  // Check user role and render appropriate dashboard
+  const userRole = userProfile?.role?.toLowerCase()
+  if (userRole === 'reader') {
+    return <ReaderDashboard user={user} userProfile={userProfile} />
+  }
+
+  // Continue with Writer Dashboard for writers or default users
 
   return (
     <div className="min-h-screen bg-gray-50">

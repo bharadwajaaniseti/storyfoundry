@@ -16,11 +16,12 @@ import {
   Plus,
   Calendar,
   Pen,
-  BookOpen
+  BookOpen,
+  Star
 } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/auth'
 
-const NAVIGATION_ITEMS = [
+const WRITER_NAVIGATION_ITEMS = [
   {
     name: 'Dashboard',
     href: '/app/dashboard',
@@ -45,6 +46,34 @@ const NAVIGATION_ITEMS = [
     name: 'Collaborations',
     href: '/app/collab',
     icon: Users
+  }
+]
+
+const READER_NAVIGATION_ITEMS = [
+  {
+    name: 'Dashboard',
+    href: '/app/dashboard',
+    icon: Home
+  },
+  {
+    name: 'Discover Stories',
+    href: '/app/search',
+    icon: Search
+  },
+  {
+    name: 'My Library',
+    href: '/app/library',
+    icon: BookOpen
+  },
+  {
+    name: 'Following',
+    href: '/app/following',
+    icon: Users
+  },
+  {
+    name: 'Favorites',
+    href: '/app/favorites',
+    icon: Star
   }
 ]
 
@@ -214,20 +243,30 @@ export default function AppLayout({
         {/* Sidebar */}
         <nav className="w-64 bg-white border-r border-gray-200 min-h-screen sticky top-16">
           <div className="p-6">
-            {/* Quick Actions */}
+            {/* Quick Actions - Different for Reader vs Writer */}
             <div className="mb-8">
-              <Link
-                href="/app/projects/new"
-                className="flex items-center justify-center space-x-2 w-full bg-orange-500 text-white py-2.5 px-4 rounded-lg hover:bg-orange-600 transition-colors font-medium"
-              >
-                <Plus className="w-4 h-4" />
-                <span>New Project</span>
-              </Link>
+              {user?.profile?.role?.toLowerCase() === 'reader' ? (
+                <Link
+                  href="/app/search"
+                  className="flex items-center justify-center space-x-2 w-full bg-purple-500 text-white py-2.5 px-4 rounded-lg hover:bg-purple-600 transition-colors font-medium"
+                >
+                  <Search className="w-4 h-4" />
+                  <span>Discover Stories</span>
+                </Link>
+              ) : (
+                <Link
+                  href="/app/projects/new"
+                  className="flex items-center justify-center space-x-2 w-full bg-orange-500 text-white py-2.5 px-4 rounded-lg hover:bg-orange-600 transition-colors font-medium"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>New Project</span>
+                </Link>
+              )}
             </div>
 
-            {/* Navigation Links */}
+            {/* Navigation Links - Different for Reader vs Writer */}
             <ul className="space-y-2">
-              {NAVIGATION_ITEMS.map((item) => {
+              {(user?.profile?.role?.toLowerCase() === 'reader' ? READER_NAVIGATION_ITEMS : WRITER_NAVIGATION_ITEMS).map((item) => {
                 const isActive = pathname === item.href
                 return (
                   <li key={item.name}>
@@ -235,7 +274,9 @@ export default function AppLayout({
                       href={item.href}
                       className={`flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-colors ${
                         isActive
-                          ? 'bg-orange-50 text-orange-600 border-r-2 border-orange-500'
+                          ? user?.profile?.role?.toLowerCase() === 'reader'
+                            ? 'bg-purple-50 text-purple-600 border-r-2 border-purple-500'
+                            : 'bg-orange-50 text-orange-600 border-r-2 border-orange-500'
                           : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                       }`}
                     >
