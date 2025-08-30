@@ -20,7 +20,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createSupabaseClient } from '@/lib/auth'
 
 interface UserProfile {
@@ -31,11 +31,15 @@ interface UserProfile {
 
 export default function DashboardPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [loading, setLoading] = useState(true)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [hydrated, setHydrated] = useState(false)
   
-  console.log('🚀 Dashboard: Component rendered', { loading, userProfile, hydrated })
+  // Get role from URL parameters
+  const urlRole = searchParams.get('role') as 'reader' | 'writer' | null
+  
+  console.log('🚀 Dashboard: Component rendered', { loading, userProfile, hydrated, urlRole })
   
   // Handle hydration
   useEffect(() => {
@@ -45,7 +49,7 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!hydrated) return // Wait for hydration before fetching data
     
-    console.log('🚀 Dashboard: useEffect triggered')
+    console.log('🚀 Dashboard: useEffect triggered', { urlRole })
     const supabase = createSupabaseClient()
     
     const fetchUserProfile = async () => {
@@ -72,17 +76,44 @@ export default function DashboardPage() {
       console.log('📋 Dashboard: Profile data:', profile)
       console.log('❌ Dashboard: Profile error:', profileError)
 
-      if (profile) {
-        console.log('✅ Dashboard: Setting user profile:', profile)
+      // If we have a role from URL but no profile, or profile role doesn't match URL role
+      if (urlRole && (!profile || profile.role !== urlRole)) {
+        console.log('🔄 Dashboard: Creating/updating profile with role from URL:', urlRole)
+        
+        // Try to create or update the profile with the URL role
+        const { data: updatedProfile, error: upsertError } = await supabase
+          .from('profiles')
+          .upsert({
+            id: user.id,
+            role: urlRole,
+            display_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
+            email: user.email
+          })
+          .select('id, role, display_name')
+          .single()
+        
+        console.log('📝 Dashboard: Profile upsert result:', updatedProfile, 'Error:', upsertError)
+        
+        if (updatedProfile) {
+          setUserProfile(updatedProfile)
+          // Clean up URL by removing the role parameter
+          const newUrl = new URL(window.location.href)
+          newUrl.searchParams.delete('role')
+          newUrl.searchParams.delete('code')
+          newUrl.searchParams.delete('redirectTo')
+          window.history.replaceState({}, '', newUrl.pathname + newUrl.search)
+        }
+      } else if (profile) {
+        console.log('✅ Dashboard: Using existing profile:', profile)
         setUserProfile(profile)
       } else {
-        console.log('❌ Dashboard: No profile found!')
+        console.log('❌ Dashboard: No profile found and no role in URL!')
       }
       setLoading(false)
     }
 
     fetchUserProfile()
-  }, [router, hydrated])
+  }, [router, hydrated, urlRole])
 
   console.log('🔄 Dashboard: Render state', { loading, userProfile, hydrated })
 
