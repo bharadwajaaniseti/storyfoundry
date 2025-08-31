@@ -1,8 +1,6 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { createSupabaseClient } from '@/lib/auth'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -15,29 +13,33 @@ import {
   Star,
   BookOpen,
   Calendar,
+  MoreVertical,
   UserCheck,
+  UserMinus,
   Eye,
-  MapPin,
+  MessageCircle,
+  TrendingUp,
   Clock,
-  Sparkles,
-  TrendingUp
+  MapPin,
+  Sparkles
 } from 'lucide-react'
 import Link from 'next/link'
-import { User } from '@supabase/supabase-js'
+import { createSupabaseClient } from '@/lib/auth'
+import { useRouter } from 'next/navigation'
 import ProfileModal from '@/components/profile-modal'
 
-interface Profile {
+interface WriterProfile {
   id: string
   display_name: string
-  bio: string | null
-  avatar_url: string | null
+  bio?: string
+  avatar_url?: string
   verified_pro: boolean
   role: string
   created_at: string
   followers_count?: number
+  following_count?: number
   projects_count?: number
   total_buzz_score?: number
-  country?: string | null
 }
 
 interface Following {
@@ -45,7 +47,7 @@ interface Following {
   follower_id: string
   following_id: string
   created_at: string
-  profiles: Profile | null
+  profiles: WriterProfile
 }
 
 interface FollowingStats {
@@ -57,7 +59,7 @@ interface FollowingStats {
 
 export default function ReaderFollowingPage() {
   const router = useRouter()
-  const [currentUser, setCurrentUser] = useState<User | null>(null)
+  const [currentUser, setCurrentUser] = useState<any>(null)
   const [userRole, setUserRole] = useState<string>('reader')
   const [isLoading, setIsLoading] = useState(true)
   const [following, setFollowing] = useState<Following[]>([])
@@ -75,51 +77,34 @@ export default function ReaderFollowingPage() {
     newThisMonth: 0
   })
 
-  // Color schemes based on user role - using CSS variables and specific classes
-  const getColorClasses = (role: string) => {
-    if (role === 'writer') {
-      return {
-        primary: 'bg-orange-500 text-white border-orange-500',
-        primaryHover: 'hover:bg-orange-600',
-        primaryButton: 'bg-orange-500 hover:bg-orange-600 text-white',
-        primaryText: 'text-orange-600',
-        primaryTextDark: 'text-orange-700',
-        primaryLight: 'bg-orange-50',
-        primaryMedium: 'bg-orange-100',
-        borderLight: 'border-orange-300',
-        ring: 'ring-orange-500/20',
-        accent: 'text-orange-400',
-        gradient: 'from-orange-50 to-white hover:from-orange-50',
-        cardBorder: 'border-l-orange-500',
-        iconColor: 'text-orange-500',
-        focusRing: 'focus:ring-orange-500/20 focus:border-orange-500',
-        hoverBg: 'hover:bg-orange-50',
-        hoverText: 'hover:text-orange-700'
-      }
-    } else {
-      // Readers use purple theme
-      return {
-        primary: 'bg-purple-500 text-white border-purple-500',
-        primaryHover: 'hover:bg-purple-600',
-        primaryButton: 'bg-purple-500 hover:bg-purple-600 text-white',
-        primaryText: 'text-purple-600',
-        primaryTextDark: 'text-purple-700',
-        primaryLight: 'bg-purple-50',
-        primaryMedium: 'bg-purple-100',
-        borderLight: 'border-purple-300',
-        ring: 'ring-purple-500/20',
-        accent: 'text-purple-400',
-        gradient: 'from-purple-50 to-white hover:from-purple-50',
-        cardBorder: 'border-l-purple-500',
-        iconColor: 'text-purple-500',
-        focusRing: 'focus:ring-purple-500/20 focus:border-purple-500',
-        hoverBg: 'hover:bg-purple-50',
-        hoverText: 'hover:text-purple-700'
-      }
+  // Color schemes based on user role
+  const getColorScheme = () => {
+    return userRole === 'writer' ? {
+      primary: 'orange-500',
+      primaryHover: 'orange-600',
+      primaryLight: 'orange-50',
+      primaryMedium: 'orange-100',
+      primaryText: 'orange-600',
+      primaryTextDark: 'orange-700',
+      border: 'orange-500',
+      borderLight: 'orange-300',
+      ring: 'orange-500/20',
+      accent: 'orange-400'
+    } : {
+      primary: 'blue-500',
+      primaryHover: 'blue-600', 
+      primaryLight: 'blue-50',
+      primaryMedium: 'blue-100',
+      primaryText: 'blue-600',
+      primaryTextDark: 'blue-700',
+      border: 'blue-500',
+      borderLight: 'blue-300',
+      ring: 'blue-500/20',
+      accent: 'blue-400'
     }
   }
 
-  const colorClasses = getColorClasses(userRole)
+  const colors = getColorScheme()
 
   useEffect(() => {
     loadUserAndFollowing()
@@ -174,85 +159,51 @@ export default function ReaderFollowingPage() {
     try {
       const supabase = createSupabaseClient()
 
-      console.log('Loading following for user:', userId)
-      
-      // First, let's try without the join to see if basic query works
-      const { data: followsData, error: followsError } = await supabase
+      // Load following relationships
+      const { data: followingData, error: followingError } = await supabase
         .from('user_follows')
-        .select('*')
+        .select(`
+          *,
+          profiles!following_id (
+            id,
+            display_name,
+            bio,
+            avatar_url,
+            verified_pro,
+            role,
+            created_at
+          )
+        `)
         .eq('follower_id', userId)
         .order('created_at', { ascending: false })
 
-      console.log('Basic follows query:', { followsData, followsError })
-
-      if (followsError) {
-        console.error('Error loading follows:', followsError)
-        setFollowing([])
-        return
-      }
-
-      if (!followsData || followsData.length === 0) {
-        console.log('No follows found for user')
-        setFollowing([])
-        setStats({
-          totalFollowing: 0,
-          writers: 0,
-          verified: 0,
-          newThisMonth: 0
+      if (followingError) {
+        console.error('Error loading following:', followingError)
+        console.error('Error details:', {
+          message: followingError.message,
+          details: followingError.details,
+          hint: followingError.hint,
+          code: followingError.code
         })
-        return
-      }
-
-      // Now get the profile data separately
-      const followingIds = followsData.map(f => f.following_id)
-      console.log('Following IDs:', followingIds)
-
-      if (followingIds.length === 0) {
-        console.log('No following IDs found')
-        setFollowing([])
-        setStats({
-          totalFollowing: 0,
-          writers: 0,
-          verified: 0,
-          newThisMonth: 0
-        })
-        return
-      }
-
-      const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select('id, display_name, bio, avatar_url, verified_pro, role, created_at, country')
-        .in('id', followingIds)
-
-      console.log('Profiles query:', { profilesData, profilesError, followingIds })
-
-      if (profilesError) {
-        console.error('Error loading profiles:', profilesError)
-        console.error('Profiles error details:', JSON.stringify(profilesError, null, 2))
         setFollowing([])
         return
       }
-
-      // Combine the data
-      const enhancedFollowing = followsData.map(follow => {
-        const profile = profilesData?.find(p => p.id === follow.following_id)
-        return {
-          ...follow,
-          profiles: profile || null
-        }
-      }).filter(f => f.profiles !== null) // Only keep follows where we found the profile
-
-      console.log('Enhanced following data:', enhancedFollowing)
 
       // Enhance with additional stats for each followed user
-      if (enhancedFollowing && enhancedFollowing.length > 0) {
-        const followingIds = enhancedFollowing.map(f => f.following_id)
+      if (followingData && followingData.length > 0) {
+        const followingIds = followingData.map(f => f.following_id)
         
         // Get follower counts
         const { data: followerCounts } = await supabase
           .from('user_follows')
           .select('following_id')
           .in('following_id', followingIds)
+
+        // Get following counts
+        const { data: followingCounts } = await supabase
+          .from('user_follows')
+          .select('follower_id')
+          .in('follower_id', followingIds)
 
         // Get project counts and buzz scores
         const { data: projectsData } = await supabase
@@ -261,60 +212,58 @@ export default function ReaderFollowingPage() {
           .in('owner_id', followingIds)
 
         // Enhance the following data
-        const finalFollowingData = enhancedFollowing.map(follow => {
+        const enhancedFollowing = followingData.map(follow => {
           const userId = follow.following_id
           const followersCount = followerCounts?.filter(f => f.following_id === userId).length || 0
+          const followingCount = followingCounts?.filter(f => f.follower_id === userId).length || 0
           const userProjects = projectsData?.filter(p => p.owner_id === userId) || []
-          const projectsCount = userProjects.length
-          const totalBuzzScore = userProjects.reduce((sum, project) => sum + (project.buzz_score || 0), 0)
+          const totalBuzzScore = userProjects.reduce((sum, p) => sum + (p.buzz_score || 0), 0)
 
           return {
             ...follow,
-            profiles: follow.profiles ? {
+            profiles: {
               ...follow.profiles,
               followers_count: followersCount,
-              projects_count: projectsCount,
+              following_count: followingCount,
+              projects_count: userProjects.length,
               total_buzz_score: totalBuzzScore
-            } : null
+            }
           }
         })
 
-        setFollowing(finalFollowingData)
+        setFollowing(enhancedFollowing)
 
         // Calculate stats
         const now = new Date()
-        const oneMonthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate())
+        const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+        
+        const writers = enhancedFollowing.filter(f => 
+          f.profiles?.role?.toLowerCase() === 'writer'
+        ).length
+        
+        const verified = enhancedFollowing.filter(f => 
+          f.profiles?.verified_pro
+        ).length
+        
+        const newThisMonth = enhancedFollowing.filter(f => 
+          new Date(f.created_at) >= thisMonth
+        ).length
 
-        const statsData: FollowingStats = {
-          totalFollowing: finalFollowingData.length,
-          writers: finalFollowingData.filter(
-            f => f.profiles?.role?.toLowerCase() === 'writer'
-          ).length,
-          verified: finalFollowingData.filter(f => f.profiles?.verified_pro).length,
-          newThisMonth: finalFollowingData.filter(
-            f => new Date(f.created_at) > oneMonthAgo
-          ).length
-        }
-        setStats(statsData)
-
-      } else {
-        setFollowing([])
         setStats({
-          totalFollowing: 0,
-          writers: 0,
-          verified: 0,
-          newThisMonth: 0
+          totalFollowing: enhancedFollowing.length,
+          writers,
+          verified,
+          newThisMonth
         })
       }
 
     } catch (error) {
       console.error('Error loading following data:', error)
-      setFollowing([])
     }
   }
 
-  const handleUnfollow = async (userId: string) => {
-    if (!currentUser) return
+  const handleUnfollow = async (followingId: string) => {
+    if (!confirm('Are you sure you want to unfollow this user?')) return
 
     try {
       const supabase = createSupabaseClient()
@@ -323,99 +272,96 @@ export default function ReaderFollowingPage() {
         .from('user_follows')
         .delete()
         .eq('follower_id', currentUser.id)
-        .eq('following_id', userId)
+        .eq('following_id', followingId)
 
-      if (error) {
-        console.error('Error unfollowing user:', error)
-        return
-      }
+      if (error) throw error
 
-      // Update local state
-      setFollowing(prev => prev.filter(f => f.following_id !== userId))
+      // Remove from local state
+      setFollowing(prev => prev.filter(f => f.following_id !== followingId))
       
       // Update stats
-      setStats(prev => {
-        const unfollowedUser = following.find(f => f.following_id === userId)
-        return {
-          ...prev,
-          totalFollowing: prev.totalFollowing - 1,
-          writers: unfollowedUser?.profiles?.role?.toLowerCase() === 'writer' 
-            ? prev.writers - 1 
-            : prev.writers,
-          verified: unfollowedUser?.profiles?.verified_pro 
-            ? prev.verified - 1 
-            : prev.verified
-        }
-      })
+      setStats(prev => ({
+        ...prev,
+        totalFollowing: prev.totalFollowing - 1
+      }))
 
     } catch (error) {
       console.error('Error unfollowing user:', error)
     }
   }
 
-  const filteredFollowing = following.filter(follow => {
-    if (!follow.profiles) return false
+  const getFilteredFollowing = () => {
+    let filtered = following
 
-    // Search filter
+    // Apply search filter
     if (searchQuery) {
-      const query = searchQuery.toLowerCase()
-      const profile = follow.profiles
-      if (!profile.display_name?.toLowerCase().includes(query) &&
-          !profile.bio?.toLowerCase().includes(query) &&
-          !profile.role?.toLowerCase().includes(query)) {
-        return false
-      }
+      filtered = filtered.filter(f => 
+        f.profiles?.display_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        f.profiles?.bio?.toLowerCase().includes(searchQuery.toLowerCase())
+      )
     }
 
-    // Type filter
-    if (filter === 'writers') {
-      return follow.profiles.role?.toLowerCase() === 'writer'
-    } else if (filter === 'verified') {
-      return follow.profiles.verified_pro
+    // Apply category filter
+    switch (filter) {
+      case 'writers':
+        filtered = filtered.filter(f => f.profiles?.role?.toLowerCase() === 'writer')
+        break
+      case 'verified':
+        filtered = filtered.filter(f => f.profiles?.verified_pro)
+        break
     }
 
-    return true
-  }).sort((a, b) => {
-    if (!a.profiles || !b.profiles) return 0
-
+    // Apply sorting
     switch (sortBy) {
       case 'name':
-        return (a.profiles.display_name || '').localeCompare(b.profiles.display_name || '')
+        filtered.sort((a, b) => 
+          (a.profiles?.display_name || '').localeCompare(b.profiles?.display_name || '')
+        )
+        break
       case 'popular':
-        return (b.profiles.followers_count || 0) - (a.profiles.followers_count || 0)
+        filtered.sort((a, b) => 
+          (b.profiles?.total_buzz_score || 0) - (a.profiles?.total_buzz_score || 0)
+        )
+        break
       case 'recent':
       default:
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        filtered.sort((a, b) => 
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        )
+        break
     }
-  })
+
+    return filtered
+  }
 
   if (isLoading) {
-    const tempColorClasses = getColorClasses('reader') // Default to reader colors during loading
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className={`w-8 h-8 border-4 border-t-purple-500 border-gray-300 rounded-full animate-spin mx-auto mb-4`}></div>
+          <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-600">Loading your following...</p>
         </div>
       </div>
     )
   }
 
+  const filteredFollowing = getFilteredFollowing()
+
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="container mx-auto px-6 py-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 flex items-center">
-              <Users className={`w-8 h-8 ${colorClasses.iconColor} mr-3`} />
-              Following
+            <h1 className="text-3xl font-bold text-gray-800 flex items-center space-x-3">
+              <Users className={`w-8 h-8 text-${colors.primary}`} />
+              <span>Following</span>
             </h1>
             <p className="text-gray-600 mt-2">Writers and creators you follow for inspiration</p>
           </div>
           
-          <Button asChild className={`${colorClasses.primaryButton}`}>
-            <Link href="/app/search">
+          <Button asChild className={`bg-${colors.primary} hover:bg-${colors.primaryHover}`}>
+            <Link href="/search">
               <UserPlus className="w-4 h-4 mr-2" />
               Discover Writers
             </Link>
@@ -424,10 +370,10 @@ export default function ReaderFollowingPage() {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card className={`border-l-4 ${colorClasses.cardBorder}`}>
+          <Card className="border-l-4" style={{ borderLeftColor: `var(--${colors.primary})` }}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Following</CardTitle>
-              <Users className={`h-4 w-4 ${colorClasses.iconColor}`} />
+              <Users className={`h-4 w-4 text-${colors.primary}`} />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.totalFollowing}</div>
@@ -435,10 +381,10 @@ export default function ReaderFollowingPage() {
             </CardContent>
           </Card>
 
-          <Card className={`border-l-4 ${colorClasses.cardBorder}`}>
+          <Card className="border-l-4" style={{ borderLeftColor: `var(--${colors.primary})` }}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Writers</CardTitle>
-              <BookOpen className={`h-4 w-4 ${colorClasses.iconColor}`} />
+              <BookOpen className={`h-4 w-4 text-${colors.primary}`} />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.writers}</div>
@@ -446,10 +392,10 @@ export default function ReaderFollowingPage() {
             </CardContent>
           </Card>
 
-          <Card className={`border-l-4 ${colorClasses.cardBorder}`}>
+          <Card className="border-l-4" style={{ borderLeftColor: `var(--${colors.primary})` }}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Verified</CardTitle>
-              <Star className={`h-4 w-4 ${colorClasses.iconColor}`} />
+              <Star className={`h-4 w-4 text-${colors.primary}`} />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.verified}</div>
@@ -457,10 +403,10 @@ export default function ReaderFollowingPage() {
             </CardContent>
           </Card>
 
-          <Card className={`border-l-4 ${colorClasses.cardBorder}`}>
+          <Card className="border-l-4" style={{ borderLeftColor: `var(--${colors.primary})` }}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">New This Month</CardTitle>
-              <Calendar className={`h-4 w-4 ${colorClasses.iconColor}`} />
+              <Calendar className={`h-4 w-4 text-${colors.primary}`} />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.newThisMonth}</div>
@@ -479,7 +425,7 @@ export default function ReaderFollowingPage() {
                   onClick={() => setFilter('all')}
                   className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                     filter === 'all'
-                      ? `bg-white ${colorClasses.primaryText} shadow-sm`
+                      ? `bg-white text-${colors.primary} shadow-sm`
                       : 'text-gray-600 hover:text-gray-800'
                   }`}
                 >
@@ -489,7 +435,7 @@ export default function ReaderFollowingPage() {
                   onClick={() => setFilter('writers')}
                   className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                     filter === 'writers'
-                      ? `bg-white ${colorClasses.primaryText} shadow-sm`
+                      ? `bg-white text-${colors.primary} shadow-sm`
                       : 'text-gray-600 hover:text-gray-800'
                   }`}
                 >
@@ -499,7 +445,7 @@ export default function ReaderFollowingPage() {
                   onClick={() => setFilter('verified')}
                   className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                     filter === 'verified'
-                      ? `bg-white ${colorClasses.primaryText} shadow-sm`
+                      ? `bg-white text-${colors.primary} shadow-sm`
                       : 'text-gray-600 hover:text-gray-800'
                   }`}
                 >
@@ -516,17 +462,17 @@ export default function ReaderFollowingPage() {
                     placeholder="Search writers..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className={`pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 ${colorClasses.focusRing} w-64`}
+                    className={`pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-${colors.primary}/20 focus:border-${colors.primary} w-64`}
                   />
                 </div>
                 
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as any)}
-                  className={`px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 ${colorClasses.focusRing}`}
+                  className={`px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-${colors.primary}/20 focus:border-${colors.primary}`}
                 >
                   <option value="recent">Recently Followed</option>
-                  <option value="name">Name (A-Z)</option>
+                  <option value="name">Name A-Z</option>
                   <option value="popular">Most Popular</option>
                 </select>
               </div>
@@ -550,8 +496,8 @@ export default function ReaderFollowingPage() {
                       : 'Start following writers to see their latest work and get inspiration.'
                     }
                   </p>
-                  <Button asChild className={`${colorClasses.primaryButton}`}>
-                    <Link href="/app/search">
+                  <Button asChild className={`bg-${colors.primary} hover:bg-${colors.primaryHover}`}>
+                    <Link href="/search">
                       <UserPlus className="w-4 h-4 mr-2" />
                       Discover Writers
                     </Link>
@@ -565,88 +511,82 @@ export default function ReaderFollowingPage() {
               if (!profile) return null
 
               return (
-                <div 
+                <Card 
                   key={follow.id} 
-                  onClick={() => setSelectedProfileId(profile.id)}
-                  className="block group cursor-pointer"
+                  className={`group hover:shadow-xl transition-all duration-300 border-0 shadow-md bg-gradient-to-br from-white to-gray-50 hover:from-${colors.primaryLight} hover:to-white relative overflow-hidden`}
                 >
-                  <Card className={`w-full bg-white border-2 border-gray-200 rounded-xl p-6 transition-all duration-300 cursor-pointer hover:shadow-xl ${userRole === 'writer' ? 'hover:border-orange-400' : 'hover:border-purple-400'} hover:-translate-y-1 transform group-hover:h-auto overflow-hidden`}>
-                    {/* Header Section */}
-                    <div className="flex items-center justify-between mb-4">
+                  {/* Background Pattern */}
+                  <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-${colors.primaryLight} to-transparent opacity-50 rounded-full transform translate-x-16 -translate-y-16 group-hover:scale-150 transition-transform duration-500`}></div>
+                  
+                  <CardHeader className="relative">
+                    <div className="flex items-start justify-between">
                       <div className="flex items-center space-x-4">
                         <div className="relative">
-                          <Avatar className="w-16 h-16 ring-2 ring-gray-100 group-hover:ring-gray-200 transition-all duration-300">
+                          <Avatar className={`w-16 h-16 ring-2 ring-${colors.primaryLight} group-hover:ring-${colors.primary}/30 transition-all duration-300`}>
                             <AvatarImage src={profile.avatar_url || undefined} />
-                            <AvatarFallback className={`${colorClasses.primary} text-white text-lg font-semibold`}>
+                            <AvatarFallback className={`bg-gradient-to-br from-${colors.primary} to-${colors.accent} text-white text-lg font-semibold`}>
                               {profile.display_name?.[0] || 'U'}
                             </AvatarFallback>
                           </Avatar>
                           {profile.verified_pro && (
-                            <div className={`absolute -top-1 -right-1 w-6 h-6 ${colorClasses.primary} rounded-full flex items-center justify-center shadow-sm`}>
+                            <div className={`absolute -top-1 -right-1 w-6 h-6 bg-${colors.primary} rounded-full flex items-center justify-center`}>
                               <Star className="w-3 h-3 text-white fill-current" />
                             </div>
                           )}
                         </div>
                         
                         <div className="flex-1">
-                          <h3 className="font-bold text-xl text-gray-900 group-hover:text-gray-700 transition-colors">
-                            {profile.display_name}
-                          </h3>
-                          <div className="flex items-center space-x-2 mt-1">
-                            <Badge variant="secondary" className={`text-xs ${colorClasses.primaryMedium} ${colorClasses.primaryTextDark} border-0`}>
+                          <div className="flex items-center space-x-2 mb-2">
+                            <button 
+                              onClick={() => setSelectedProfileId(profile.id)}
+                              className={`font-bold text-lg text-gray-800 hover:text-${colors.primary} transition-colors group-hover:text-${colors.primaryTextDark} cursor-pointer`}
+                            >
+                              {profile.display_name}
+                            </button>
+                          </div>
+                          
+                          <div className="flex items-center space-x-2 mb-2">
+                            <Badge 
+                              variant="secondary" 
+                              className={`text-xs bg-gradient-to-r from-${colors.primaryMedium} to-${colors.primaryLight} text-${colors.primaryTextDark} border-0`}
+                            >
                               <Sparkles className="w-3 h-3 mr-1" />
                               {profile.role || 'Writer'}
                             </Badge>
                           </div>
-                          <div className="flex items-center text-xs text-gray-500 mt-2">
+                          
+                          <div className="flex items-center text-xs text-gray-500">
                             <Clock className="w-3 h-3 mr-1" />
                             Joined {new Date(profile.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
                           </div>
                         </div>
                       </div>
-
-                      {/* Following Status */}
-                      <div className="flex flex-col items-end space-y-2">
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault()
-                            e.stopPropagation()
-                            handleUnfollow(profile.id)
-                          }}
-                          className={`inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${colorClasses.primary} hover:opacity-80 hover:scale-105 transform`}
-                        >
-                          <UserCheck className="w-3 h-3 mr-1" />
-                          Following
-                        </button>
-                        <div className="text-xs text-gray-500">
-                          {new Date(follow.created_at).toLocaleDateString()}
-                        </div>
-                      </div>
                     </div>
+                  </CardHeader>
 
-                    {/* Bio */}
+                  <CardContent className="relative pt-0">
                     {profile.bio && (
-                      <p className="text-sm text-gray-600 mb-4 line-clamp-2 leading-relaxed group-hover:text-gray-700 transition-colors">
+                      <p className="text-sm text-gray-600 mb-4 line-clamp-2 leading-relaxed">
                         {profile.bio}
                       </p>
                     )}
 
-                    {/* Stats Section */}
-                    <div className={`grid grid-cols-3 gap-4 py-4 border-t border-gray-100 group-hover:border-gray-200 transition-colors`}>
+                    {/* Enhanced Stats */}
+                    <div className="grid grid-cols-3 gap-4 mb-4">
                       <div className="text-center">
-                        <div className={`font-bold text-lg ${colorClasses.primaryTextDark} group-hover:scale-110 transition-transform duration-200`}>
+                        <div className={`font-bold text-lg text-${colors.primaryTextDark}`}>
                           {profile.followers_count || 0}
                         </div>
                         <div className="text-xs text-gray-500 font-medium">Followers</div>
                       </div>
                       <div className="text-center">
-                        <div className={`font-bold text-lg ${colorClasses.primaryTextDark} group-hover:scale-110 transition-transform duration-200`}>
+                        <div className={`font-bold text-lg text-${colors.primaryTextDark}`}>
                           {profile.projects_count || 0}
                         </div>
                         <div className="text-xs text-gray-500 font-medium">Projects</div>
                       </div>
                       <div className="text-center">
-                        <div className={`font-bold text-lg ${colorClasses.primaryTextDark} flex items-center justify-center group-hover:scale-110 transition-transform duration-200`}>
+                        <div className={`font-bold text-lg text-${colors.primaryTextDark} flex items-center justify-center`}>
                           <TrendingUp className="w-4 h-4 mr-1" />
                           {profile.total_buzz_score || 0}
                         </div>
@@ -654,18 +594,37 @@ export default function ReaderFollowingPage() {
                       </div>
                     </div>
 
-                    {/* Footer - Dynamic Height Expansion */}
-                    <div className="transition-all duration-300 ease-in-out max-h-0 group-hover:max-h-20 overflow-hidden">
-                      <div className="pt-4 border-t border-gray-100 group-hover:border-gray-200 transition-colors">
-                        <div className="flex items-center justify-center">
-                          <div className={`text-sm ${colorClasses.primaryText} font-medium opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-2 group-hover:translate-y-0`}>
-                            Click to view profile →
-                          </div>
-                        </div>
+                    {/* Action Buttons */}
+                    <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+                      <div className="text-xs text-gray-500 flex items-center">
+                        <Calendar className="w-3 h-3 mr-1" />
+                        Followed {new Date(follow.created_at).toLocaleDateString()}
+                      </div>
+                      
+                      <div className="flex items-center space-x-2">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => setSelectedProfileId(profile.id)}
+                          className={`text-${colors.primary} hover:bg-${colors.primaryLight} hover:text-${colors.primaryTextDark} transition-all duration-200`}
+                        >
+                          <Eye className="w-4 h-4 mr-1" />
+                          View
+                        </Button>
+                        
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleUnfollow(profile.id)}
+                          className={`text-${colors.primary} border-${colors.primaryLight} hover:bg-${colors.primaryLight} hover:text-${colors.primaryTextDark} transition-all duration-200`}
+                        >
+                          <UserCheck className="w-4 h-4 mr-1" />
+                          Following
+                        </Button>
                       </div>
                     </div>
-                  </Card>
-                </div>
+                  </CardContent>
+                </Card>
               )
             })
           )}

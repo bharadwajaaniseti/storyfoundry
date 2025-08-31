@@ -22,6 +22,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import ProfileModal from '@/components/profile-modal'
+import { createSupabaseClient } from '@/lib/auth-client'
 
 interface Project {
   id: string
@@ -95,10 +97,37 @@ export default function PublicProjectsPage() {
   const [sortBy, setSortBy] = useState('buzz_score')
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [showFilters, setShowFilters] = useState(false)
+  
+  // Profile modal state
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null)
+  const [currentUserRole, setCurrentUserRole] = useState<string>('reader')
 
   useEffect(() => {
     loadProjects()
   }, [searchQuery, filterFormat, filterGenre, sortBy, pagination?.page])
+
+  useEffect(() => {
+    const getCurrentUserRole = async () => {
+      try {
+        const supabase = createSupabaseClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        
+        if (user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', user.id)
+            .single()
+          
+          setCurrentUserRole(profile?.role || 'reader')
+        }
+      } catch (error) {
+        console.error('Error getting user role:', error)
+      }
+    }
+    
+    getCurrentUserRole()
+  }, [])
 
   const loadProjects = async (page = 1) => {
     try {
@@ -371,7 +400,16 @@ export default function PublicProjectsPage() {
                             </AvatarFallback>
                           </Avatar>
                           <div>
-                            <p className="text-sm text-gray-300">{project.profiles.display_name || 'Anonymous'}</p>
+                            <button
+                              onClick={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                setSelectedProfileId(project.profiles.id)
+                              }}
+                              className="text-sm text-gray-300 hover:text-gold-400 hover:underline transition-colors"
+                            >
+                              {project.profiles.display_name || 'Anonymous'}
+                            </button>
                             <p className="text-xs text-gray-400">{formatDate(project.created_at)}</p>
                           </div>
                         </div>
@@ -420,7 +458,19 @@ export default function PublicProjectsPage() {
                           </p>
                           
                           <div className="flex items-center space-x-4 text-xs text-gray-400">
-                            <span>by {project.profiles.display_name || 'Anonymous'}</span>
+                            <span>
+                              by{' '}
+                              <button
+                                onClick={(e) => {
+                                  e.preventDefault()
+                                  e.stopPropagation()
+                                  setSelectedProfileId(project.profiles.id)
+                                }}
+                                className="text-gray-300 hover:text-gold-400 hover:underline transition-colors"
+                              >
+                                {project.profiles.display_name || 'Anonymous'}
+                              </button>
+                            </span>
                             <span>{formatDate(project.created_at)}</span>
                             <div className="flex items-center space-x-1">
                               <Flame className="w-3 h-3" />
@@ -497,6 +547,15 @@ export default function PublicProjectsPage() {
           </div>
         )}
       </div>
+
+      {/* Profile Modal */}
+      {selectedProfileId && (
+        <ProfileModal
+          profileId={selectedProfileId}
+          currentUserRole={currentUserRole}
+          onClose={() => setSelectedProfileId(null)}
+        />
+      )}
     </div>
   )
 }

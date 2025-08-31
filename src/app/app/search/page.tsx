@@ -18,6 +18,7 @@ import {
   FileText
 } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/auth'
+import ProfileModal from '@/components/profile-modal'
 import { 
   toggleProjectBookmark, 
   isProjectBookmarked,
@@ -68,6 +69,9 @@ export default function SearchPage() {
     genre: 'all',
     sortBy: 'buzz_score'
   })
+  
+  // Profile modal state
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null)
 
   useEffect(() => {
     loadFeaturedProjects()
@@ -510,7 +514,17 @@ export default function SearchPage() {
                             </span>
                           </div>
                           <span className="text-sm text-gray-600 group-hover:text-gray-700 transition-colors duration-200">
-                            by {project.profiles?.display_name || 'Unknown Writer'}
+                            by{' '}
+                            <button
+                              onClick={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                setSelectedProfileId(project.profiles?.id)
+                              }}
+                              className="hover:text-purple-600 hover:underline transition-colors"
+                            >
+                              {project.profiles?.display_name || 'Unknown Writer'}
+                            </button>
                           </span>
                         </div>
                       </div>
@@ -631,6 +645,15 @@ export default function SearchPage() {
           </div>
         )}
       </div>
+
+      {/* Profile Modal */}
+      {selectedProfileId && (
+        <ProfileModal
+          profileId={selectedProfileId}
+          currentUserRole={userRole}
+          onClose={() => setSelectedProfileId(null)}
+        />
+      )}
     </div>
   )
 }

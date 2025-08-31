@@ -40,6 +40,7 @@ import { createSupabaseClient } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import ProfileModal from '@/components/profile-modal'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -356,6 +357,10 @@ export default function PublicProjectPage() {
   const [editContent, setEditContent] = useState('')
   const [isSubmittingEdit, setIsSubmittingEdit] = useState(false)
   const [deletingComment, setDeletingComment] = useState<string | null>(null) // comment ID being deleted
+  
+  // Profile modal state
+  const [showProfileModal, setShowProfileModal] = useState(false)
+  const [selectedProfile, setSelectedProfile] = useState<string | null>(null) // Store profile ID instead of object
   
   // Reading progress tracking
   const [scrollPosition, setScrollPosition] = useState(0)
@@ -982,8 +987,29 @@ export default function PublicProjectPage() {
   }
 
   const handleBackNavigation = () => {
-    const fromParam = searchParams.get('from')
+    // First priority: Check if we came from a profile modal
+    const modalData = sessionStorage.getItem('returnToProfileModal')
+    if (modalData) {
+      try {
+        const { profileId, currentUserRole } = JSON.parse(modalData)
+        sessionStorage.removeItem('returnToProfileModal')
+        
+        // Create custom event to trigger modal reopening
+        const event = new CustomEvent('reopenProfileModal', {
+          detail: { profileId, currentUserRole }
+        })
+        window.dispatchEvent(event)
+        
+        // Navigate back to the page that had the modal
+        router.back()
+        return
+      } catch (error) {
+        console.error('Error parsing modal data:', error)
+      }
+    }
     
+    // Second priority: Check URL parameters for specific navigation
+    const fromParam = searchParams.get('from')
     if (fromParam === 'library') {
       router.push('/app/library')
     } else if (fromParam === 'search') {
@@ -1014,6 +1040,20 @@ export default function PublicProjectPage() {
         })
     } catch (error) {
       console.error('Error recording view:', error)
+    }
+  }
+
+  const handleViewProfile = () => {
+    if (project?.profiles?.id) {
+      setSelectedProfile(project.profiles.id) // Just store the profile ID
+      setShowProfileModal(true)
+    }
+  }
+
+  const handleViewCommentProfile = (profileId: string) => {
+    if (profileId) {
+      setSelectedProfile(profileId)
+      setShowProfileModal(true)
     }
   }
 
@@ -1275,9 +1315,12 @@ export default function PublicProjectPage() {
                         <div className="flex-1">
                           <div className="flex items-center justify-between mb-1">
                             <div className="flex items-center space-x-2">
-                              <span className="font-medium text-gray-800">
+                              <button
+                                onClick={() => handleViewCommentProfile(comment.profiles?.id)}
+                                className="font-medium text-gray-800 hover:text-purple-600 hover:underline transition-colors cursor-pointer"
+                              >
                                 {comment.profiles?.display_name || 'Anonymous'}
-                              </span>
+                              </button>
                               <span className="text-xs text-gray-500 flex items-center space-x-1">
                                 <Clock className="w-3 h-3" />
                                 <span>
@@ -1396,9 +1439,12 @@ export default function PublicProjectPage() {
                               <div className="flex-1">
                                 <div className="flex items-center justify-between mb-1">
                                   <div className="flex items-center space-x-2">
-                                    <span className="font-medium text-gray-800 text-sm">
+                                    <button
+                                      onClick={() => handleViewCommentProfile(reply.profiles?.id)}
+                                      className="font-medium text-gray-800 text-sm hover:text-purple-600 hover:underline transition-colors cursor-pointer"
+                                    >
                                       {reply.profiles?.display_name || 'Anonymous'}
-                                    </span>
+                                    </button>
                                     <span className="text-xs text-gray-500 flex items-center space-x-1">
                                       <Clock className="w-3 h-3" />
                                       <span>
@@ -1504,7 +1550,13 @@ export default function PublicProjectPage() {
                             </div>
                             <div className="flex-1">
                               <p className="text-xs text-gray-600 mb-2">
-                                Replying to {comment.profiles?.display_name || 'Anonymous'}
+                                Replying to{' '}
+                                <button
+                                  onClick={() => handleViewCommentProfile(comment.profiles?.id)}
+                                  className="text-purple-600 hover:text-purple-700 hover:underline font-medium"
+                                >
+                                  {comment.profiles?.display_name || 'Anonymous'}
+                                </button>
                               </p>
                               <textarea
                                 value={replyContent}
@@ -1634,13 +1686,13 @@ export default function PublicProjectPage() {
                         <span>{isWriterFavorited ? 'Following' : 'Follow'}</span>
                       </button>
                       
-                      <Link
-                        href={`/writers/${project.profiles?.id}`}
+                      <button
+                        onClick={handleViewProfile}
                         className="flex items-center space-x-1 px-3 py-1 rounded-lg text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
                       >
                         <Eye className="w-3 h-3" />
                         <span>View Profile</span>
-                      </Link>
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1712,6 +1764,18 @@ export default function PublicProjectPage() {
           </div>
         </div>
       </div>
+
+      {/* Profile Modal */}
+      {showProfileModal && selectedProfile && (
+        <ProfileModal
+          profileId={selectedProfile}
+          currentUserRole={userProfile?.role || 'reader'}
+          onClose={() => {
+            setShowProfileModal(false)
+            setSelectedProfile(null)
+          }}
+        />
+      )}
     </div>
   )
 }

@@ -23,6 +23,7 @@ import {
 import Link from 'next/link'
 import { createSupabaseClient } from '@/lib/auth'
 import { useRouter } from 'next/navigation'
+import ProfileModal from '@/components/profile-modal'
 
 interface WriterProfile {
   id: string
@@ -62,6 +63,9 @@ export default function WriterFollowingPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [filter, setFilter] = useState<'all' | 'writers' | 'verified'>('all')
   const [sortBy, setSortBy] = useState<'recent' | 'name' | 'popular'>('recent')
+  
+  // Profile modal state
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null)
   
   const [stats, setStats] = useState<FollowingStats>({
     totalFollowing: 0,
@@ -118,6 +122,20 @@ export default function WriterFollowingPage() {
 
   useEffect(() => {
     loadUserAndFollowing()
+  }, [])
+
+  // Effect to handle profile modal reopening from project pages
+  useEffect(() => {
+    const handleReopenModal = (event: any) => {
+      const { profileId, currentUserRole } = event.detail
+      setSelectedProfileId(profileId)
+    }
+
+    window.addEventListener('reopenProfileModal', handleReopenModal)
+    
+    return () => {
+      window.removeEventListener('reopenProfileModal', handleReopenModal)
+    }
   }, [])
 
   const loadUserAndFollowing = async () => {
@@ -501,10 +519,10 @@ export default function WriterFollowingPage() {
               if (!profile) return null
 
               return (
-                <Link 
+                <div 
                   key={follow.id} 
-                  href={`/writers/${profile.id}`}
-                  className="block group"
+                  onClick={() => setSelectedProfileId(profile.id)}
+                  className="block group cursor-pointer"
                 >
                   <Card className={`w-full bg-white border-2 border-gray-200 rounded-xl p-6 transition-all duration-300 cursor-pointer hover:shadow-xl ${userRole === 'writer' ? 'hover:border-orange-400' : 'hover:border-purple-400'} hover:-translate-y-1 transform group-hover:h-auto overflow-hidden`}>
                     {/* Header Section */}
@@ -601,11 +619,32 @@ export default function WriterFollowingPage() {
                       </div>
                     </div>
                   </Card>
-                </Link>
+                </div>
               )
             })
           )}
         </div>
+
+        {/* Profile Modal */}
+        {selectedProfileId && (
+          <ProfileModal
+            profileId={selectedProfileId}
+            currentUserRole={userRole}
+            onClose={() => setSelectedProfileId(null)}
+            onFollow={() => {
+              // Refresh following data after following someone
+              if (currentUser) {
+                loadFollowingData(currentUser.id)
+              }
+            }}
+            onUnfollow={() => {
+              // Refresh following data after unfollowing someone
+              if (currentUser) {
+                loadFollowingData(currentUser.id)
+              }
+            }}
+          />
+        )}
       </div>
     </div>
   )
