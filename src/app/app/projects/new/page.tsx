@@ -187,13 +187,13 @@ export default function NewProjectPage() {
         <div className="flex items-center justify-center mb-8">
           <div className="flex items-center space-x-4">
             <div className={`flex items-center justify-center w-8 h-8 rounded-full ${
-              currentStep >= 1 ? 'bg-orange-500 text-white' : 'bg-gray-200 text-gray-500'
+              currentStep >= 1 ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-500'
             }`}>
               1
             </div>
-            <div className={`w-12 h-0.5 ${currentStep >= 2 ? 'bg-orange-500' : 'bg-gray-200'}`}></div>
+            <div className={`w-12 h-0.5 ${currentStep >= 2 ? 'bg-green-500' : 'bg-gray-200'}`}></div>
             <div className={`flex items-center justify-center w-8 h-8 rounded-full ${
-              currentStep >= 2 ? 'bg-orange-500 text-white' : 'bg-gray-200 text-gray-500'
+              currentStep >= 2 ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-500'
             }`}>
               2
             </div>

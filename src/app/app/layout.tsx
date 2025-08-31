@@ -256,7 +256,7 @@ export default function AppLayout({
               ) : (
                 <Link
                   href="/app/projects/new"
-                  className="flex items-center justify-center space-x-2 w-full bg-orange-500 text-white py-2.5 px-4 rounded-lg hover:bg-orange-600 transition-colors font-medium"
+                  className="flex items-center justify-center space-x-2 w-full bg-green-500 text-white py-2.5 px-4 rounded-lg hover:bg-green-600 transition-colors font-medium"
                 >
                   <Plus className="w-4 h-4" />
                   <span>New Project</span>

@@ -40,7 +40,7 @@
 
 /* Component Classes */
 .btn-primary {
-  background: #FF6733;
+  background: #10B981;
   color: white;
   font-weight: 600;
   padding: 12px 24px;
@@ -51,13 +51,13 @@
   overflow: hidden;
   transform: scale(1);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 4px 15px rgba(255, 103, 51, 0.2);
+  box-shadow: 0 4px 15px rgba(16, 185, 129, 0.2);
 }
 
 .btn-primary:hover {
-  background: #e55a2b;
+  background: #059669;
   transform: scale(1.05);
-  box-shadow: 0 8px 25px rgba(255, 103, 51, 0.4);
+  box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
 }
 
 .btn-primary:active {

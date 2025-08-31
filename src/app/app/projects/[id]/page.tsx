@@ -68,6 +68,22 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
     loadProject()
   }, [resolvedParams.id])
 
+  // Reload project data when returning from settings or other pages
+  useEffect(() => {
+    const handleFocus = () => {
+      // Only reload if we're not currently loading and not editing logline
+      if (!isLoading && !editingLogline) {
+        loadProject()
+      }
+    }
+
+    window.addEventListener('focus', handleFocus)
+
+    return () => {
+      window.removeEventListener('focus', handleFocus)
+    }
+  }, [isLoading, editingLogline, resolvedParams.id])
+
   const loadProject = async () => {
     try {
       const supabase = createSupabaseClient()

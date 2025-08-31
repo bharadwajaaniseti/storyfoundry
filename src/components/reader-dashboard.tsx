@@ -415,7 +415,7 @@ export default function ReaderDashboard({ user, userProfile }: ReaderDashboardPr
                 <li>• Priority support</li>
               </ul>
             </div>
-            <Button className="bg-orange-600 hover:bg-orange-700 text-white">
+            <Button className="bg-green-600 hover:bg-green-700 text-white">
               Upgrade Now
             </Button>
           </div>
