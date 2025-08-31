@@ -381,15 +381,46 @@ export default function PublicProjectPage() {
   // Track reading progress
   useEffect(() => {
     const handleScroll = () => {
+      // Find the content container
+      const contentElement = document.getElementById('story-content') as HTMLElement
+      if (!contentElement) {
+        setScrollPosition(0)
+        return
+      }
+
+      const contentRect = contentElement.getBoundingClientRect()
+      const contentTop = contentElement.offsetTop
+      const contentHeight = contentElement.offsetHeight
+      
       const scrollTop = window.scrollY
       const windowHeight = window.innerHeight
-      const documentHeight = document.documentElement.scrollHeight
       
-      // Calculate progress based on how much of the content has been scrolled through
-      const scrolled = scrollTop + windowHeight
-      const percentage = Math.min((scrolled / documentHeight) * 100, 100)
+      // Check if content is in view
+      if (scrollTop + windowHeight < contentTop) {
+        // Haven't reached content yet
+        setScrollPosition(0)
+        return
+      }
       
-      setScrollPosition(percentage)
+      // Calculate how much of the content has been scrolled past
+      const contentStartPosition = contentTop
+      const contentEndPosition = contentTop + contentHeight
+      const currentScrollBottom = scrollTop + windowHeight
+      
+      // Progress calculation
+      let percentage = 0
+      
+      if (currentScrollBottom >= contentEndPosition) {
+        // Reached or passed the end of content
+        percentage = 100
+      } else if (currentScrollBottom > contentStartPosition) {
+        // In the middle of reading content
+        const scrolledThroughContent = currentScrollBottom - contentStartPosition
+        const totalContentToScroll = contentHeight
+        percentage = Math.min((scrolledThroughContent / totalContentToScroll) * 100, 100)
+      }
+      
+      setScrollPosition(Math.round(percentage))
       
       // Save progress to database every 5% increment (only if user is logged in)
       if (currentUser && content && percentage % 5 < 1) {
@@ -991,7 +1022,7 @@ export default function PublicProjectPage() {
               {/* Content */}
               <div className="p-6">
                 <div className="prose max-w-none">
-                  <div className="whitespace-pre-wrap text-gray-800 leading-relaxed text-lg">
+                  <div id="story-content" className="whitespace-pre-wrap text-gray-800 leading-relaxed text-lg">
                     {content.content}
                   </div>
                 </div>
