@@ -18,6 +18,11 @@ import {
   FileText
 } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/auth'
+import { 
+  toggleProjectBookmark, 
+  isProjectBookmarked,
+  getMultipleBookmarkStatus
+} from '@/lib/bookmarks'
 
 interface PublicProject {
   id: string
@@ -55,6 +60,9 @@ export default function SearchPage() {
   const [featuredProjects, setFeaturedProjects] = useState<PublicProject[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [hasSearched, setHasSearched] = useState(false)
+  const [userRole, setUserRole] = useState<string>('reader')
+  const [currentUser, setCurrentUser] = useState<any>(null)
+  const [bookmarkStatus, setBookmarkStatus] = useState<Record<string, boolean>>({})
   const [filters, setFilters] = useState({
     format: 'all',
     genre: 'all',
@@ -63,7 +71,56 @@ export default function SearchPage() {
 
   useEffect(() => {
     loadFeaturedProjects()
+    loadUserRole()
   }, [])
+
+  const loadUserRole = async () => {
+    try {
+      const supabase = createSupabaseClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (user) {
+        setCurrentUser(user)
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single()
+        
+        setUserRole(profile?.role?.toLowerCase() || 'reader')
+      }
+    } catch (error) {
+      console.error('Error loading user role:', error)
+      setUserRole('reader')
+    }
+  }
+
+  // Color schemes based on user role
+  const getColorScheme = () => {
+    return userRole === 'writer' ? {
+      primary: 'orange-500',
+      primaryHover: 'orange-600',
+      primaryLight: 'orange-50',
+      primaryMedium: 'orange-100',
+      primaryText: 'orange-600',
+      primaryTextDark: 'orange-700',
+      border: 'orange-500',
+      borderLight: 'orange-300',
+      ring: 'orange-500/20'
+    } : {
+      primary: 'purple-500',
+      primaryHover: 'purple-600',
+      primaryLight: 'purple-50',
+      primaryMedium: 'purple-100',
+      primaryText: 'purple-600',
+      primaryTextDark: 'purple-700',
+      border: 'purple-500',
+      borderLight: 'purple-300',
+      ring: 'purple-500/20'
+    }
+  }
+
+  const colors = getColorScheme()
 
   const loadFeaturedProjects = async () => {
     try {
@@ -92,7 +149,7 @@ export default function SearchPage() {
         .limit(6)
 
       if (data) {
-        setFeaturedProjects(data || [])
+        setFeaturedProjects(data as any || [])
       }
     } catch (error) {
       console.error('Error loading featured projects:', error)
@@ -157,7 +214,7 @@ export default function SearchPage() {
       const { data } = await queryBuilder.limit(20)
 
       if (data) {
-        setProjects(data || [])
+        setProjects(data as any || [])
       }
     } catch (error) {
       console.error('Error searching projects:', error)
@@ -173,6 +230,37 @@ export default function SearchPage() {
       year: 'numeric'
     })
   }
+
+  const handleToggleBookmark = async (projectId: string) => {
+    if (!currentUser) return
+
+    try {
+      const newBookmarkStatus = await toggleProjectBookmark(projectId, currentUser.id)
+      
+      // Update local bookmark status
+      setBookmarkStatus(prev => ({
+        ...prev,
+        [projectId]: newBookmarkStatus
+      }))
+    } catch (error) {
+      console.error('Error toggling bookmark:', error)
+    }
+  }
+
+  const loadBookmarkStatus = async (projectIds: string[]) => {
+    if (!currentUser || projectIds.length === 0) return
+    
+    const statusMap = await getMultipleBookmarkStatus(projectIds, currentUser.id)
+    setBookmarkStatus(statusMap)
+  }
+
+  // Load bookmark status when projects change
+  useEffect(() => {
+    const allProjectIds = [...projects.map(p => p.id), ...featuredProjects.map(p => p.id)]
+    if (allProjectIds.length > 0 && currentUser) {
+      loadBookmarkStatus(allProjectIds)
+    }
+  }, [projects, featuredProjects, currentUser])
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -196,11 +284,19 @@ export default function SearchPage() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                className="w-full pl-12 pr-24 py-4 border border-gray-300 rounded-xl text-lg focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
+                className={`w-full pl-12 pr-24 py-4 border border-gray-300 rounded-xl text-lg focus:outline-none transition-colors ${
+                  userRole === 'writer' 
+                    ? 'focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20' 
+                    : 'focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20'
+                }`}
               />
               <button
                 onClick={() => handleSearch()}
-                className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-purple-500 text-white px-4 py-2 rounded-lg hover:bg-purple-600 transition-colors font-medium"
+                className={`absolute right-2 top-1/2 transform -translate-y-1/2 text-white px-4 py-2 rounded-lg transition-colors font-medium ${
+                  userRole === 'writer'
+                    ? 'bg-orange-500 hover:bg-orange-600'
+                    : 'bg-purple-500 hover:bg-purple-600'
+                }`}
               >
                 Search
               </button>
@@ -215,7 +311,11 @@ export default function SearchPage() {
                     setSearchQuery(term)
                     handleSearch(term)
                   }}
-                  className="px-3 py-1 text-sm text-gray-600 hover:text-purple-600 bg-gray-100 hover:bg-purple-50 rounded-full transition-colors"
+                  className={`px-3 py-1 text-sm text-gray-600 bg-gray-100 rounded-full transition-colors ${
+                    userRole === 'writer'
+                      ? 'hover:text-orange-600 hover:bg-orange-50'
+                      : 'hover:text-purple-600 hover:bg-purple-50'
+                  }`}
                 >
                   {term}
                 </button>
@@ -287,7 +387,11 @@ export default function SearchPage() {
             {/* Results */}
             {isLoading ? (
               <div className="text-center py-12">
-                <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                <div className={`w-8 h-8 border-2 border-t-transparent rounded-full animate-spin mx-auto mb-4 ${
+                  userRole === 'writer' 
+                    ? 'border-orange-500' 
+                    : 'border-purple-500'
+                }`}></div>
                 <p className="text-gray-600">Searching...</p>
               </div>
             ) : projects.length > 0 ? (
@@ -301,14 +405,26 @@ export default function SearchPage() {
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {projects.map((project) => (
                     <Link key={project.id} href={`/projects/${project.id}?from=search`}>
-                      <div className="group bg-white rounded-xl border border-gray-200 p-6 hover:border-purple-300 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2 hover:scale-[1.02] cursor-pointer">
+                      <div className={`group bg-white rounded-xl border border-gray-200 p-6 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2 hover:scale-[1.02] cursor-pointer ${
+                        userRole === 'writer' 
+                          ? 'hover:border-orange-300' 
+                          : 'hover:border-purple-300'
+                      }`}>
                         <div className="flex items-start justify-between mb-4">
                           <div className="flex items-center space-x-2">
-                            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full group-hover:bg-purple-50 group-hover:text-purple-700 transition-colors duration-200">
+                            <span className={`text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full transition-colors duration-200 ${
+                              userRole === 'writer'
+                                ? 'group-hover:bg-orange-50 group-hover:text-orange-700'
+                                : 'group-hover:bg-purple-50 group-hover:text-purple-700'
+                            }`}>
                               {project.format}
                             </span>
                             {project.genre && (
-                              <span className="text-xs bg-purple-100 text-purple-600 px-2 py-1 rounded-full group-hover:bg-purple-200 transition-colors duration-200">
+                              <span className={`text-xs px-2 py-1 rounded-full transition-colors duration-200 ${
+                                userRole === 'writer'
+                                  ? 'bg-orange-100 text-orange-600 group-hover:bg-orange-200'
+                                  : 'bg-purple-100 text-purple-600 group-hover:bg-purple-200'
+                              }`}>
                                 {project.genre}
                               </span>
                             )}
@@ -318,11 +434,15 @@ export default function SearchPage() {
                               onClick={(e) => {
                                 e.preventDefault()
                                 e.stopPropagation()
-                                // Handle bookmark action
+                                handleToggleBookmark(project.id)
                               }}
-                              className="p-1 text-gray-400 hover:text-orange-500 transition-all duration-200 transform hover:scale-110"
+                              className={`p-1 transition-all duration-200 transform hover:scale-110 ${
+                                bookmarkStatus[project.id]
+                                  ? `text-${colors.primary} hover:text-${colors.primaryHover}`
+                                  : `text-gray-400 hover:text-${colors.primary}`
+                              }`}
                             >
-                              <Bookmark className="w-4 h-4" />
+                              <Bookmark className={`w-4 h-4 ${bookmarkStatus[project.id] ? 'fill-current' : ''}`} />
                             </button>
                             <button 
                               onClick={(e) => {
@@ -347,25 +467,45 @@ export default function SearchPage() {
 
                         <div className="flex items-center justify-between text-xs text-gray-500 mb-4 group-hover:text-gray-600 transition-colors duration-200">
                           <div className="flex items-center space-x-1">
-                            <TrendingUp className="w-3 h-3 group-hover:text-orange-500 transition-colors duration-200" />
+                            <TrendingUp className={`w-3 h-3 transition-colors duration-200 ${
+                              userRole === 'writer'
+                                ? 'group-hover:text-orange-500'
+                                : 'group-hover:text-purple-500'
+                            }`} />
                             <span>{project.buzz_score} views</span>
                           </div>
                           <div className="flex items-center space-x-1">
-                            <Clock className="w-3 h-3 group-hover:text-orange-500 transition-colors duration-200" />
+                            <Clock className={`w-3 h-3 transition-colors duration-200 ${
+                              userRole === 'writer'
+                                ? 'group-hover:text-orange-500'
+                                : 'group-hover:text-purple-500'
+                            }`} />
                             <span>{formatDate(project.created_at)}</span>
                           </div>
                         </div>
 
                         <div className="flex items-center justify-between text-xs text-gray-500 mb-4 group-hover:text-gray-600 transition-colors duration-200">
                           <div className="flex items-center space-x-1">
-                            <FileText className="w-3 h-3 group-hover:text-orange-500 transition-colors duration-200" />
+                            <FileText className={`w-3 h-3 transition-colors duration-200 ${
+                              userRole === 'writer'
+                                ? 'group-hover:text-orange-500'
+                                : 'group-hover:text-purple-500'
+                            }`} />
                             <span>{project.word_count ? `${project.word_count.toLocaleString()} words` : 'No word count'}</span>
                           </div>
                         </div>
 
                         <div className="flex items-center space-x-2">
-                          <div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center group-hover:bg-orange-100 transition-colors duration-200">
-                            <span className="text-xs font-medium text-gray-600 group-hover:text-orange-700 transition-colors duration-200">
+                          <div className={`w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center transition-colors duration-200 ${
+                            userRole === 'writer'
+                              ? 'group-hover:bg-orange-100'
+                              : 'group-hover:bg-purple-100'
+                          }`}>
+                            <span className={`text-xs font-medium text-gray-600 transition-colors duration-200 ${
+                              userRole === 'writer'
+                                ? 'group-hover:text-orange-700'
+                                : 'group-hover:text-purple-700'
+                            }`}>
                               {project.profiles?.display_name?.[0] || 'U'}
                             </span>
                           </div>
@@ -391,21 +531,35 @@ export default function SearchPage() {
             {/* Featured Projects */}
             <div>
               <div className="flex items-center space-x-2 mb-6">
-                <Flame className="w-5 h-5 text-orange-500" />
+                <Flame className={`w-5 h-5 ${
+                  userRole === 'writer' ? 'text-orange-500' : 'text-purple-500'
+                }`} />
                 <h2 className="text-2xl font-bold text-gray-800">Trending Stories</h2>
               </div>
               
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {featuredProjects.map((project) => (
                   <Link key={project.id} href={`/projects/${project.id}?from=search`}>
-                    <div className="group bg-white rounded-xl border border-gray-200 p-6 hover:border-purple-300 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2 hover:scale-[1.02] cursor-pointer">
+                    <div className={`group bg-white rounded-xl border border-gray-200 p-6 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2 hover:scale-[1.02] cursor-pointer ${
+                      userRole === 'writer' 
+                        ? 'hover:border-orange-300' 
+                        : 'hover:border-purple-300'
+                    }`}>
                       <div className="flex items-start justify-between mb-4">
                         <div className="flex items-center space-x-2">
-                          <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full group-hover:bg-purple-50 group-hover:text-purple-700 transition-colors duration-200">
+                          <span className={`text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full transition-colors duration-200 ${
+                            userRole === 'writer'
+                              ? 'group-hover:bg-orange-50 group-hover:text-orange-700'
+                              : 'group-hover:bg-purple-50 group-hover:text-purple-700'
+                          }`}>
                             {project.format}
                           </span>
                           {project.genre && (
-                            <span className="text-xs bg-purple-100 text-purple-600 px-2 py-1 rounded-full group-hover:bg-purple-200 transition-colors duration-200">
+                            <span className={`text-xs px-2 py-1 rounded-full transition-colors duration-200 ${
+                              userRole === 'writer'
+                                ? 'bg-orange-100 text-orange-600 group-hover:bg-orange-200'
+                                : 'bg-purple-100 text-purple-600 group-hover:bg-purple-200'
+                            }`}>
                               {project.genre}
                             </span>
                           )}

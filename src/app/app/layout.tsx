@@ -17,7 +17,9 @@ import {
   Calendar,
   Pen,
   BookOpen,
-  Star
+  Star,
+  Heart,
+  UserPlus
 } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/auth'
 
@@ -38,14 +40,29 @@ const WRITER_NAVIGATION_ITEMS = [
     icon: Search
   },
   {
-    name: 'Pitch Rooms',
-    href: '/app/pitch-rooms',
-    icon: Calendar
-  },
-  {
     name: 'Collaborations',
     href: '/app/collab',
     icon: Users
+  },
+  {
+    name: 'My Library',
+    href: '/app/writer/library',
+    icon: BookOpen
+  },
+  {
+    name: 'Following',
+    href: '/app/writer/following',
+    icon: UserPlus
+  },
+  {
+    name: 'Favourites',
+    href: '/app/writer/favourites',
+    icon: Heart
+  },
+  {
+    name: 'Pitch Rooms',
+    href: '/app/pitch-rooms',
+    icon: Calendar
   }
 ]
 

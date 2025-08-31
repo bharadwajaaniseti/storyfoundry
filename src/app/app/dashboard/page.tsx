@@ -74,6 +74,7 @@ export default function DashboardPage() {
 
         setUserProfile(profile)
 
+        // Load projects
         const { data: projectsData, error: projectsError } = await supabase
           .from('projects')
           .select('*')

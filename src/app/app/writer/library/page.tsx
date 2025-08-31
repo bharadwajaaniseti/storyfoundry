@@ -28,9 +28,7 @@ import { useRouter } from 'next/navigation'
 import { 
   toggleProjectBookmark, 
   isProjectBookmarked, 
-  getUserBookmarks, 
-  getUserBookmarkCount,
-  getMultipleBookmarkStatus,
+  getUserBookmarks,
   bookmarkEvents,
   type BookmarkData 
 } from '@/lib/bookmarks'
@@ -74,7 +72,7 @@ interface LibraryStats {
   totalReadingTime: number
 }
 
-export default function LibraryPage() {
+export default function WriterLibraryPage() {
   const router = useRouter()
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [userProfile, setUserProfile] = useState<any>(null)
@@ -187,7 +185,7 @@ export default function LibraryPage() {
 
       // If we have progress data, fetch the profile information separately
       if (progressData && progressData.length > 0) {
-        const ownerIds = [...new Set(progressData.map(p => (p.projects as any)?.owner_id).filter(Boolean))]
+        const ownerIds = [...new Set(progressData.map(p => p.projects?.owner_id).filter(Boolean))]
         
         if (ownerIds.length > 0) {
           const { data: profiles } = await supabase
@@ -197,8 +195,8 @@ export default function LibraryPage() {
 
           // Attach profiles to projects
           progressData.forEach(progress => {
-            if (progress.projects && (progress.projects as any).owner_id) {
-              (progress.projects as any).profiles = profiles?.find(p => p.id === (progress.projects as any).owner_id) || null
+            if (progress.projects && progress.projects.owner_id) {
+              progress.projects.profiles = profiles?.find(p => p.id === progress.projects.owner_id) || null
             }
           })
         }
@@ -220,10 +218,11 @@ export default function LibraryPage() {
         ...bookmarks.map(b => b.project_id).filter(Boolean)
       ]
       
-      if (allProjectIds.length > 0) {
-        const bookmarkStatusMap = await getMultipleBookmarkStatus([...new Set(allProjectIds)], userId)
-        setBookmarkStatus(bookmarkStatusMap)
+      const bookmarkStatusMap: Record<string, boolean> = {}
+      for (const projectId of [...new Set(allProjectIds)]) {
+        bookmarkStatusMap[projectId] = await isProjectBookmarked(projectId, userId)
       }
+      setBookmarkStatus(bookmarkStatusMap)
 
       // Calculate stats
       const totalReadingTime = progressData?.reduce((acc, p) => {
@@ -244,7 +243,6 @@ export default function LibraryPage() {
 
     } catch (error) {
       console.error('Error loading library data:', error)
-      // Set empty data as fallback
       setStats({
         totalRead: 0,
         currentlyReading: 0,
@@ -346,7 +344,7 @@ export default function LibraryPage() {
     if (activeTab === 'completed') {
       return <Badge className="bg-green-100 text-green-800">Completed</Badge>
     } else if (activeTab === 'bookmarked') {
-      return <Badge className="bg-blue-100 text-blue-800">Bookmarked</Badge>
+      return <Badge className="bg-orange-100 text-orange-800">Bookmarked</Badge>
     } else {
       const progress = project.progress_percentage || 0
       if (progress === 0) {
@@ -356,7 +354,7 @@ export default function LibraryPage() {
       } else if (progress < 75) {
         return <Badge className="bg-blue-100 text-blue-800">In Progress</Badge>
       } else {
-        return <Badge className="bg-purple-100 text-purple-800">Almost Done</Badge>
+        return <Badge className="bg-orange-100 text-orange-800">Almost Done</Badge>
       }
     }
   }
@@ -365,7 +363,7 @@ export default function LibraryPage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-600">Loading your library...</p>
         </div>
       </div>
@@ -381,13 +379,13 @@ export default function LibraryPage() {
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-800 flex items-center space-x-3">
-              <BookMarked className="w-8 h-8 text-purple-600" />
-              <span>My Library</span>
+              <BookMarked className="w-8 h-8 text-orange-600" />
+              <span>Writer's Library</span>
             </h1>
-            <p className="text-gray-600 mt-2">Your reading journey at a glance</p>
+            <p className="text-gray-600 mt-2">Your reading journey for creative inspiration</p>
           </div>
           
-          <Button asChild className="bg-purple-600 hover:bg-purple-700">
+          <Button asChild className="bg-orange-600 hover:bg-orange-700">
             <Link href="/app/search">
               <Search className="w-4 h-4 mr-2" />
               Discover Stories
@@ -400,7 +398,7 @@ export default function LibraryPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Currently Reading</CardTitle>
-              <BookOpen className="h-4 w-4 text-blue-600" />
+              <BookOpen className="h-4 w-4 text-orange-600" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.currentlyReading}</div>
@@ -422,7 +420,7 @@ export default function LibraryPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Bookmarked</CardTitle>
-              <Bookmark className="h-4 w-4 text-purple-600" />
+              <Bookmark className="h-4 w-4 text-orange-600" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.bookmarked}</div>
@@ -452,7 +450,7 @@ export default function LibraryPage() {
                   onClick={() => setActiveTab('reading')}
                   className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                     activeTab === 'reading'
-                      ? 'bg-white text-blue-600 shadow-sm'
+                      ? 'bg-white text-orange-600 shadow-sm'
                       : 'text-gray-600 hover:text-gray-800'
                   }`}
                 >
@@ -472,7 +470,7 @@ export default function LibraryPage() {
                   onClick={() => setActiveTab('bookmarked')}
                   className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                     activeTab === 'bookmarked'
-                      ? 'bg-white text-purple-600 shadow-sm'
+                      ? 'bg-white text-orange-600 shadow-sm'
                       : 'text-gray-600 hover:text-gray-800'
                   }`}
                 >
@@ -489,14 +487,14 @@ export default function LibraryPage() {
                     placeholder="Search stories..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent w-64"
+                    className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent w-64"
                   />
                 </div>
                 
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as any)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 >
                   <option value="recent">Recent</option>
                   <option value="title">Title</option>
@@ -524,7 +522,7 @@ export default function LibraryPage() {
                     {activeTab === 'completed' && 'Complete your first story to see it here.'}
                     {activeTab === 'bookmarked' && 'Bookmark stories you want to read later.'}
                   </p>
-                  <Button asChild>
+                  <Button asChild className="bg-orange-600 hover:bg-orange-700">
                     <Link href="/app/search">
                       <Search className="w-4 h-4 mr-2" />
                       Discover Stories
@@ -541,12 +539,12 @@ export default function LibraryPage() {
               return (
                 <div key={item.id} className="group relative">
                   <Link href={`/projects/${project.id}?from=library`} className="block">
-                    <Card className="hover:shadow-lg transition-all duration-300 cursor-pointer group-hover:scale-[1.02] group-hover:border-purple-300 overflow-hidden">
+                    <Card className="hover:shadow-lg transition-all duration-300 cursor-pointer group-hover:scale-[1.02] group-hover:border-orange-300 overflow-hidden">
                       <CardHeader>
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
                             <div className="flex items-center space-x-2 mb-2">
-                              <h3 className="font-semibold text-gray-800 line-clamp-2 group-hover:text-purple-700 transition-colors duration-200">
+                              <h3 className="font-semibold text-gray-800 line-clamp-2 group-hover:text-orange-700 transition-colors duration-200">
                                 {project.title}
                               </h3>
                               {getStatusBadge(item)}
@@ -625,7 +623,7 @@ export default function LibraryPage() {
                           <div className="overflow-hidden transition-all duration-300 ease-out max-h-0 group-hover:max-h-16">
                             <div className="transform translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300 ease-out delay-75 mt-3 pt-3 border-t border-gray-100">
                               <button 
-                                className="w-full flex items-center justify-center space-x-2 text-purple-700 hover:text-purple-800 hover:bg-purple-50 transition-all duration-200 py-2 rounded-lg transform hover:scale-[1.02] hover:shadow-sm"
+                                className="w-full flex items-center justify-center space-x-2 text-orange-700 hover:text-orange-800 hover:bg-orange-50 transition-all duration-200 py-2 rounded-lg transform hover:scale-[1.02] hover:shadow-sm"
                                 onClick={(e) => {
                                   e.preventDefault();
                                   e.stopPropagation();

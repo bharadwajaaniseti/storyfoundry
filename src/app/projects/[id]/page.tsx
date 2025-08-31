@@ -48,6 +48,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { 
+  toggleProjectBookmark, 
+  isProjectBookmarked
+} from '@/lib/bookmarks'
 
 // Navigation component from marketing layout
 function Navigation({ currentUser, isLoadingUser }: { currentUser: any; isLoadingUser: boolean }) {
@@ -521,22 +525,12 @@ export default function PublicProjectPage() {
     if (!currentUser) return
 
     try {
-      const supabase = createSupabaseClient()
-
-      // Check if bookmarked (use engagement_events table)
-      const { data: bookmark, error: bookmarkError } = await supabase
-        .from('engagement_events')
-        .select('id')
-        .eq('project_id', projectId)
-        .eq('actor_id', currentUser.id)
-        .eq('kind', 'save')
-        .single()
-
-      if (!bookmarkError && bookmark) {
-        setIsBookmarked(true)
-      }
+      // Load bookmark status using centralized system
+      const bookmarkStatus = await isProjectBookmarked(projectId, currentUser.id)
+      setIsBookmarked(bookmarkStatus)
 
       // Load reading progress (handle table not existing)
+      const supabase = createSupabaseClient()
       const { data: progress, error: progressError } = await supabase
         .from('reading_progress')
         .select('*')
@@ -623,29 +617,8 @@ export default function PublicProjectPage() {
     }
 
     try {
-      const supabase = createSupabaseClient()
-
-      if (isBookmarked) {
-        // Remove bookmark
-        await supabase
-          .from('engagement_events')
-          .delete()
-          .eq('project_id', projectId)
-          .eq('actor_id', currentUser.id)
-          .eq('kind', 'save')
-      } else {
-        // Add bookmark
-        await supabase
-          .from('engagement_events')
-          .insert({
-            project_id: projectId,
-            actor_id: currentUser.id,
-            kind: 'save',
-            weight: 5
-          })
-      }
-
-      setIsBookmarked(!isBookmarked)
+      const newBookmarkStatus = await toggleProjectBookmark(projectId, currentUser.id)
+      setIsBookmarked(newBookmarkStatus)
     } catch (error) {
       console.error('Error toggling bookmark:', error)
     }
