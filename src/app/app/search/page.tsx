@@ -14,7 +14,8 @@ import {
   Flame,
   Calendar,
   Bookmark,
-  Share2
+  Share2,
+  FileText
 } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/auth'
 
@@ -25,12 +26,13 @@ interface PublicProject {
   format: string
   genre: string | null
   buzz_score: number
+  word_count: number | null
   created_at: string
   updated_at: string
   profiles: {
     display_name: string
     avatar_url?: string
-  }
+  } | null
 }
 
 const TRENDING_SEARCHES = [
@@ -77,9 +79,10 @@ export default function SearchPage() {
           format,
           genre,
           buzz_score,
+          word_count,
           created_at,
           updated_at,
-          profiles:owner_id (
+          profiles!owner_id (
             display_name,
             avatar_url
           )
@@ -114,9 +117,10 @@ export default function SearchPage() {
           format,
           genre,
           buzz_score,
+          word_count,
           created_at,
           updated_at,
-          profiles:owner_id (
+          profiles!owner_id (
             display_name,
             avatar_url
           )
@@ -296,7 +300,7 @@ export default function SearchPage() {
                 
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {projects.map((project) => (
-                    <Link key={project.id} href={`/projects/${project.id}`}>
+                    <Link key={project.id} href={`/projects/${project.id}?from=search`}>
                       <div className="group bg-white rounded-xl border border-gray-200 p-6 hover:border-purple-300 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2 hover:scale-[1.02] cursor-pointer">
                         <div className="flex items-start justify-between mb-4">
                           <div className="flex items-center space-x-2">
@@ -352,6 +356,13 @@ export default function SearchPage() {
                           </div>
                         </div>
 
+                        <div className="flex items-center justify-between text-xs text-gray-500 mb-4 group-hover:text-gray-600 transition-colors duration-200">
+                          <div className="flex items-center space-x-1">
+                            <FileText className="w-3 h-3 group-hover:text-orange-500 transition-colors duration-200" />
+                            <span>{project.word_count ? `${project.word_count.toLocaleString()} words` : 'No word count'}</span>
+                          </div>
+                        </div>
+
                         <div className="flex items-center space-x-2">
                           <div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center group-hover:bg-orange-100 transition-colors duration-200">
                             <span className="text-xs font-medium text-gray-600 group-hover:text-orange-700 transition-colors duration-200">
@@ -386,7 +397,7 @@ export default function SearchPage() {
               
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {featuredProjects.map((project) => (
-                  <Link key={project.id} href={`/projects/${project.id}`}>
+                  <Link key={project.id} href={`/projects/${project.id}?from=search`}>
                     <div className="group bg-white rounded-xl border border-gray-200 p-6 hover:border-purple-300 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2 hover:scale-[1.02] cursor-pointer">
                       <div className="flex items-start justify-between mb-4">
                         <div className="flex items-center space-x-2">
@@ -412,6 +423,13 @@ export default function SearchPage() {
                       <p className="text-gray-600 text-sm mb-4 line-clamp-3 group-hover:text-gray-700 transition-colors duration-200">
                         {project.logline}
                       </p>
+
+                      <div className="flex items-center justify-between text-xs text-gray-500 mb-4 group-hover:text-gray-600 transition-colors duration-200">
+                        <div className="flex items-center space-x-1">
+                          <FileText className="w-3 h-3 group-hover:text-purple-500 transition-colors duration-200" />
+                          <span>{project.word_count ? `${project.word_count.toLocaleString()} words` : 'No word count'}</span>
+                        </div>
+                      </div>
 
                       <div className="flex items-center justify-between text-xs text-gray-500 group-hover:text-gray-600 transition-colors duration-200">
                         <div className="flex items-center space-x-2">

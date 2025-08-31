@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { User } from '@supabase/supabase-js'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -18,7 +19,8 @@ import {
   Bookmark,
   Filter,
   SortDesc,
-  Crown
+  Crown,
+  BookMarked
 } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/auth'
 
@@ -215,10 +217,20 @@ export default function ReaderDashboard({ user, userProfile }: ReaderDashboardPr
             Welcome back, {userProfile?.display_name || user.email}! Ready to dive into some great stories?
           </p>
         </div>
-        <Button className="bg-purple-600 hover:bg-purple-700 text-white">
-          <Search className="w-4 h-4 mr-2" />
-          Discover Stories
-        </Button>
+        <div className="flex items-center space-x-3">
+          <Button variant="outline" asChild>
+            <Link href="/app/library">
+              <BookMarked className="w-4 h-4 mr-2" />
+              My Library
+            </Link>
+          </Button>
+          <Button className="bg-purple-600 hover:bg-purple-700 text-white" asChild>
+            <Link href="/app/search">
+              <Search className="w-4 h-4 mr-2" />
+              Discover Stories
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}

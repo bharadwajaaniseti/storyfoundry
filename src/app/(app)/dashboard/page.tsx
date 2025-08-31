@@ -286,13 +286,19 @@ function SimpleReaderDashboard({ userProfile }: { userProfile: UserProfile }) {
             </CardHeader>
             <CardContent className="space-y-3">
               <Button variant="outline" className="w-full justify-start border-navy-600 text-gray-300 hover:bg-navy-700" asChild>
-                <Link href="/search">
+                <Link href="/app/library">
+                  <BookOpen className="w-4 h-4 mr-2" />
+                  My Library
+                </Link>
+              </Button>
+              <Button variant="outline" className="w-full justify-start border-navy-600 text-gray-300 hover:bg-navy-700" asChild>
+                <Link href="/app/search">
                   <Search className="w-4 h-4 mr-2" />
                   Find New Stories
                 </Link>
               </Button>
               <Button variant="outline" className="w-full justify-start border-navy-600 text-gray-300 hover:bg-navy-700" asChild>
-                <Link href="/projects?filter=favorites">
+                <Link href="/app/projects?filter=favorites">
                   <Star className="w-4 h-4 mr-2" />
                   My Favorites
                 </Link>
@@ -304,7 +310,7 @@ function SimpleReaderDashboard({ userProfile }: { userProfile: UserProfile }) {
                 </Link>
               </Button>
               <Button variant="outline" className="w-full justify-start border-navy-600 text-gray-300 hover:bg-navy-700" asChild>
-                <Link href="/settings?tab=upgrade">
+                <Link href="/app/settings?tab=upgrade">
                   <Crown className="w-4 h-4 mr-2" />
                   Upgrade to Writer
                 </Link>

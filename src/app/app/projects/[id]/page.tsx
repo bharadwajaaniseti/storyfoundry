@@ -32,6 +32,7 @@ interface Project {
   genre: string | null
   visibility: 'private' | 'preview' | 'public'
   buzz_score: number
+  word_count?: number
   ai_enabled?: boolean
   ip_protection_enabled?: boolean
   created_at: string
@@ -63,6 +64,38 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
 
   // Unwrap params using React.use()
   const resolvedParams = React.use(params)
+
+  // Handle browser history for proper back navigation
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search)
+      const from = urlParams.get('from')
+      
+      // Replace the current history entry to set up proper back navigation
+      if (from) {
+        const backUrl = from === 'library' ? '/app/library' : from === 'search' ? '/app/search' : '/app/dashboard'
+        
+        // Push the back URL to history so browser back button works correctly
+        window.history.replaceState(null, '', window.location.pathname + window.location.search)
+        window.history.pushState({ backUrl }, '', window.location.pathname + window.location.search)
+        
+        // Handle browser back button
+        const handlePopState = (event: PopStateEvent) => {
+          if (event.state && event.state.backUrl) {
+            router.push(event.state.backUrl)
+          } else {
+            router.push(backUrl)
+          }
+        }
+        
+        window.addEventListener('popstate', handlePopState)
+        
+        return () => {
+          window.removeEventListener('popstate', handlePopState)
+        }
+      }
+    }
+  }, [])
 
   useEffect(() => {
     loadProject()
@@ -147,6 +180,9 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
     try {
       const supabase = createSupabaseClient()
 
+      // Calculate word count using the same method as the frontend display
+      const wordCount = content.trim().split(/\s+/).filter(word => word.length > 0).length
+
       // Save/update content
       const { error } = await supabase
         .from('project_content')
@@ -159,11 +195,17 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
 
       if (error) throw error
 
-      // Update project updated_at
+      // Update project with new word count and updated_at
       await supabase
         .from('projects')
-        .update({ updated_at: new Date().toISOString() })
+        .update({ 
+          word_count: wordCount,
+          updated_at: new Date().toISOString() 
+        })
         .eq('id', project.id)
+
+      // Update local project state to reflect the new word count
+      setProject({ ...project, word_count: wordCount })
 
       setSaveStatus('saved')
       setTimeout(() => setSaveStatus(null), 2000)
@@ -227,9 +269,21 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         <div className="text-center">
           <h2 className="text-xl font-semibold text-gray-800 mb-2">Project not found</h2>
           <p className="text-gray-600 mb-4">The project you're looking for doesn't exist or you don't have access to it.</p>
-          <Link href="/app/dashboard" className="btn-primary">
-            Back to Dashboard
-          </Link>
+          <button 
+            onClick={() => {
+              const urlParams = new URLSearchParams(window.location.search)
+              const from = urlParams.get('from')
+              const backUrl = from === 'library' ? '/app/library' : from === 'search' ? '/app/search' : '/app/dashboard'
+              router.push(backUrl)
+            }}
+            className="btn-primary"
+          >
+            Back to {(() => {
+              const urlParams = new URLSearchParams(window.location.search)
+              const from = urlParams.get('from')
+              return from === 'library' ? 'Library' : from === 'search' ? 'Search' : 'Dashboard'
+            })()}
+          </button>
         </div>
       </div>
     )
@@ -242,12 +296,31 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <Link
-                href="/app/dashboard"
+              <button
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  
+                  // Get the from parameter from the current URL
+                  const currentUrl = new URL(window.location.href)
+                  const from = currentUrl.searchParams.get('from')
+                  console.log('App back button clicked. Current URL:', window.location.href)
+                  console.log('From parameter:', from)
+                  
+                  let backUrl = '/app/dashboard' // default
+                  if (from === 'library') {
+                    backUrl = '/app/library'
+                  } else if (from === 'search') {
+                    backUrl = '/app/search'
+                  }
+                  
+                  console.log('Navigating to:', backUrl)
+                  router.push(backUrl)
+                }}
                 className="text-gray-600 hover:text-gray-800"
               >
                 <ArrowLeft className="w-5 h-5" />
-              </Link>
+              </button>
               
               <div>
                 <div className="flex items-center space-x-3">

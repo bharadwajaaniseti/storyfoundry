@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
-import { useRouter, useParams } from 'next/navigation'
+import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { 
   ArrowLeft,
@@ -50,7 +50,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 
 // Navigation component from marketing layout
-function Navigation({ currentUser }: { currentUser: any }) {
+function Navigation({ currentUser, isLoadingUser }: { currentUser: any; isLoadingUser: boolean }) {
   const [isOpen, setIsOpen] = useState(false)
   const [isScrolled, setIsScrolled] = useState(false)
   const [notifications, setNotifications] = useState(3) // Mock notification count
@@ -116,7 +116,7 @@ function Navigation({ currentUser }: { currentUser: any }) {
       <div className="container mx-auto px-6">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link href="/" className="flex items-center space-x-3 group">
+          <Link href={!isLoadingUser && currentUser ? "/app/dashboard" : "/"} className="flex items-center space-x-3 group">
             <div className="w-8 h-8 bg-gradient-to-r from-orange-500 to-red-500 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-sm">SF</span>
             </div>
@@ -322,12 +322,14 @@ interface ReadingProgress {
 export default function PublicProjectPage() {
   const router = useRouter()
   const params = useParams()
+  const searchParams = useSearchParams()
   const projectId = params.id as string
   
   const [project, setProject] = useState<Project | null>(null)
   const [content, setContent] = useState<ProjectContent | null>(null)
   const [comments, setComments] = useState<Comment[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingUser, setIsLoadingUser] = useState(true)
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [userProfile, setUserProfile] = useState<any>(null)
   
@@ -400,6 +402,7 @@ export default function PublicProjectPage() {
 
   const loadProjectAndUser = async () => {
     console.log('Loading project:', projectId)
+    setIsLoadingUser(true)
     try {
       const supabase = createSupabaseClient()
       
@@ -407,6 +410,7 @@ export default function PublicProjectPage() {
       const { data: { user } } = await supabase.auth.getUser()
       console.log('Current user:', user?.id || 'No user')
       setCurrentUser(user)
+      setIsLoadingUser(false)
 
       if (user) {
         // Get user profile
@@ -494,6 +498,7 @@ export default function PublicProjectPage() {
 
     } catch (error) {
       console.error('Error loading project:', error)
+      setIsLoadingUser(false)
       // Still try to set a fallback content before redirecting
       if (project && !content) {
         const emergencyContent = {
@@ -844,6 +849,23 @@ export default function PublicProjectPage() {
     }
   }
 
+  const handleBackNavigation = () => {
+    const fromParam = searchParams.get('from')
+    
+    if (fromParam === 'library') {
+      router.push('/app/library')
+    } else if (fromParam === 'search') {
+      router.push('/app/search')
+    } else {
+      // Default fallback - check if there's browser history to go back to
+      if (window.history.length > 1) {
+        router.back()
+      } else {
+        router.push('/app/search')
+      }
+    }
+  }
+
   const recordView = async () => {
     if (!currentUser) return
 
@@ -897,19 +919,19 @@ export default function PublicProjectPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Navigation Header */}
-      <Navigation currentUser={currentUser} />
+      <Navigation currentUser={currentUser} isLoadingUser={isLoadingUser} />
       
       {/* Project Header */}
       <header className="bg-white border-b border-gray-200 sticky top-16 z-40 mt-16">
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <Link
-                href="/app/search"
+              <button
+                onClick={handleBackNavigation}
                 className="text-gray-600 hover:text-gray-800"
               >
                 <ArrowLeft className="w-5 h-5" />
-              </Link>
+              </button>
               
               <div>
                 <h1 className="text-xl font-semibold text-gray-800">{project.title}</h1>
