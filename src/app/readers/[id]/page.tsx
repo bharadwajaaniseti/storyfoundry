@@ -677,64 +677,6 @@ export default function ReaderProfilePage() {
             )}
           </div>
         </div>
-                <h3 className="text-lg font-semibold text-gray-800 mb-2">No Reading Activity Yet</h3>
-                <p className="text-gray-600 max-w-md mx-auto">
-                  This reader's literary journey is just beginning. Every great reader starts with a single page!
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {readingActivity.map((activity, index) => (
-                  <Link key={activity.id} href={`/projects/${activity.project_id}`} className="group block">
-                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 hover:bg-gray-100 hover:border-gray-300 transition-all duration-200 h-full">
-                      <div className="flex items-start justify-between mb-4">
-                        <div className={`w-3 h-3 rounded-full ${
-                          index % 4 === 0 ? 'bg-purple-400' :
-                          index % 4 === 1 ? 'bg-indigo-400' :
-                          index % 4 === 2 ? 'bg-pink-400' : 'bg-emerald-400'
-                        }`}></div>
-                        <div className="text-xs text-gray-500 bg-white px-2 py-1 rounded-full border border-gray-200">
-                          {new Date(activity.last_read).toLocaleDateString()}
-                        </div>
-                      </div>
-                      
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4 group-hover:text-purple-600 transition-colors line-clamp-2">
-                        {activity.project_title}
-                      </h3>
-                      
-                      <div className="mb-4">
-                        <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
-                          <span>Reading Progress</span>
-                          <span className="text-purple-600 font-medium">
-                            {Math.round(activity.completion_percentage)}%
-                          </span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div 
-                            className="bg-gradient-to-r from-purple-500 to-purple-600 h-2 rounded-full transition-all duration-300"
-                            style={{ width: `${Math.min(activity.completion_percentage, 100)}%` }}
-                          ></div>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center justify-between pt-4 border-t border-gray-200">
-                        <div className="flex items-center space-x-2 text-purple-600">
-                          <Heart className="w-4 h-4" />
-                          <span className="font-medium text-sm">
-                            {activity.completion_percentage >= 100 ? 'Completed' : 'Reading'}
-                          </span>
-                        </div>
-                        <div className="text-gray-500 text-sm group-hover:text-gray-700 transition-colors">
-                          Continue →
-                        </div>
-                      </div>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
       </div>
     </div>
   )
