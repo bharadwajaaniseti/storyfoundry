@@ -267,6 +267,7 @@ function Footer() {
                 type="email"
                 placeholder="Enter your email"
                 className="flex-1 px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-800 placeholder-gray-500 focus:outline-none focus:border-orange-500 transition-colors"
+                suppressHydrationWarning={true}
               />
               <button className="btn-primary px-6">
                 Subscribe

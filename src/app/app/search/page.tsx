@@ -296,60 +296,74 @@ export default function SearchPage() {
                 
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {projects.map((project) => (
-                    <div key={project.id} className="group bg-white rounded-xl border border-gray-200 p-6 hover:border-purple-300 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2 hover:scale-[1.02] cursor-pointer">
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="flex items-center space-x-2">
-                          <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full group-hover:bg-purple-50 group-hover:text-purple-700 transition-colors duration-200">
-                            {project.format}
-                          </span>
-                          {project.genre && (
-                            <span className="text-xs bg-purple-100 text-purple-600 px-2 py-1 rounded-full group-hover:bg-purple-200 transition-colors duration-200">
-                              {project.genre}
+                    <Link key={project.id} href={`/projects/${project.id}`}>
+                      <div className="group bg-white rounded-xl border border-gray-200 p-6 hover:border-purple-300 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2 hover:scale-[1.02] cursor-pointer">
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="flex items-center space-x-2">
+                            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full group-hover:bg-purple-50 group-hover:text-purple-700 transition-colors duration-200">
+                              {project.format}
                             </span>
-                          )}
+                            {project.genre && (
+                              <span className="text-xs bg-purple-100 text-purple-600 px-2 py-1 rounded-full group-hover:bg-purple-200 transition-colors duration-200">
+                                {project.genre}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center space-x-1">
+                            <button 
+                              onClick={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                // Handle bookmark action
+                              }}
+                              className="p-1 text-gray-400 hover:text-orange-500 transition-all duration-200 transform hover:scale-110"
+                            >
+                              <Bookmark className="w-4 h-4" />
+                            </button>
+                            <button 
+                              onClick={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                // Handle share action
+                              }}
+                              className="p-1 text-gray-400 hover:text-orange-500 transition-all duration-200 transform hover:scale-110"
+                            >
+                              <Share2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
-                        <div className="flex items-center space-x-1">
-                          <button className="p-1 text-gray-400 hover:text-orange-500 transition-all duration-200 transform hover:scale-110">
-                            <Bookmark className="w-4 h-4" />
-                          </button>
-                          <button className="p-1 text-gray-400 hover:text-orange-500 transition-all duration-200 transform hover:scale-110">
-                            <Share2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
 
-                      <h3 className="font-semibold text-gray-800 mb-2 group-hover:text-purple-600 transition-colors duration-200">
-                        <Link href={`/projects/${project.id}`}>
+                        <h3 className="font-semibold text-gray-800 mb-2 group-hover:text-purple-600 transition-colors duration-200">
                           {project.title}
-                        </Link>
-                      </h3>
-                      
-                      <p className="text-gray-600 text-sm mb-4 line-clamp-3 group-hover:text-gray-700 transition-colors duration-200">
-                        {project.logline}
-                      </p>
+                        </h3>
+                        
+                        <p className="text-gray-600 text-sm mb-4 line-clamp-3 group-hover:text-gray-700 transition-colors duration-200">
+                          {project.logline}
+                        </p>
 
-                      <div className="flex items-center justify-between text-xs text-gray-500 mb-4 group-hover:text-gray-600 transition-colors duration-200">
-                        <div className="flex items-center space-x-1">
-                          <TrendingUp className="w-3 h-3 group-hover:text-orange-500 transition-colors duration-200" />
-                          <span>{project.buzz_score} views</span>
+                        <div className="flex items-center justify-between text-xs text-gray-500 mb-4 group-hover:text-gray-600 transition-colors duration-200">
+                          <div className="flex items-center space-x-1">
+                            <TrendingUp className="w-3 h-3 group-hover:text-orange-500 transition-colors duration-200" />
+                            <span>{project.buzz_score} views</span>
+                          </div>
+                          <div className="flex items-center space-x-1">
+                            <Clock className="w-3 h-3 group-hover:text-orange-500 transition-colors duration-200" />
+                            <span>{formatDate(project.created_at)}</span>
+                          </div>
                         </div>
-                        <div className="flex items-center space-x-1">
-                          <Clock className="w-3 h-3 group-hover:text-orange-500 transition-colors duration-200" />
-                          <span>{formatDate(project.created_at)}</span>
-                        </div>
-                      </div>
 
-                      <div className="flex items-center space-x-2">
-                        <div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center group-hover:bg-orange-100 transition-colors duration-200">
-                          <span className="text-xs font-medium text-gray-600 group-hover:text-orange-700 transition-colors duration-200">
-                            {project.profiles?.display_name?.[0] || 'U'}
+                        <div className="flex items-center space-x-2">
+                          <div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center group-hover:bg-orange-100 transition-colors duration-200">
+                            <span className="text-xs font-medium text-gray-600 group-hover:text-orange-700 transition-colors duration-200">
+                              {project.profiles?.display_name?.[0] || 'U'}
+                            </span>
+                          </div>
+                          <span className="text-sm text-gray-600 group-hover:text-gray-700 transition-colors duration-200">
+                            by {project.profiles?.display_name || 'Unknown Writer'}
                           </span>
                         </div>
-                        <span className="text-sm text-gray-600 group-hover:text-gray-700 transition-colors duration-200">
-                          by {project.profiles?.display_name || 'Unknown Writer'}
-                        </span>
                       </div>
-                    </div>
+                    </Link>
                   ))}
                 </div>
               </div>
@@ -372,48 +386,48 @@ export default function SearchPage() {
               
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {featuredProjects.map((project) => (
-                  <div key={project.id} className="group bg-white rounded-xl border border-gray-200 p-6 hover:border-purple-300 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2 hover:scale-[1.02] cursor-pointer">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center space-x-2">
-                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full group-hover:bg-purple-50 group-hover:text-purple-700 transition-colors duration-200">
-                          {project.format}
-                        </span>
-                        {project.genre && (
-                          <span className="text-xs bg-purple-100 text-purple-600 px-2 py-1 rounded-full group-hover:bg-purple-200 transition-colors duration-200">
-                            {project.genre}
+                  <Link key={project.id} href={`/projects/${project.id}`}>
+                    <div className="group bg-white rounded-xl border border-gray-200 p-6 hover:border-purple-300 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2 hover:scale-[1.02] cursor-pointer">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full group-hover:bg-purple-50 group-hover:text-purple-700 transition-colors duration-200">
+                            {project.format}
                           </span>
-                        )}
+                          {project.genre && (
+                            <span className="text-xs bg-purple-100 text-purple-600 px-2 py-1 rounded-full group-hover:bg-purple-200 transition-colors duration-200">
+                              {project.genre}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center space-x-1 text-purple-500 group-hover:text-purple-600 transition-colors duration-200">
+                          <Flame className="w-4 h-4 transform group-hover:scale-110 transition-transform duration-200" />
+                          <span className="text-xs font-medium">{project.buzz_score}</span>
+                        </div>
                       </div>
-                      <div className="flex items-center space-x-1 text-purple-500 group-hover:text-purple-600 transition-colors duration-200">
-                        <Flame className="w-4 h-4 transform group-hover:scale-110 transition-transform duration-200" />
-                        <span className="text-xs font-medium">{project.buzz_score}</span>
-                      </div>
-                    </div>
 
-                    <h3 className="font-semibold text-gray-800 mb-2 group-hover:text-purple-600 transition-colors duration-200">
-                      <Link href={`/projects/${project.id}`}>
+                      <h3 className="font-semibold text-gray-800 mb-2 group-hover:text-purple-600 transition-colors duration-200">
                         {project.title}
-                      </Link>
-                    </h3>
-                    
-                    <p className="text-gray-600 text-sm mb-4 line-clamp-3 group-hover:text-gray-700 transition-colors duration-200">
-                      {project.logline}
-                    </p>
+                      </h3>
+                      
+                      <p className="text-gray-600 text-sm mb-4 line-clamp-3 group-hover:text-gray-700 transition-colors duration-200">
+                        {project.logline}
+                      </p>
 
-                    <div className="flex items-center justify-between text-xs text-gray-500 group-hover:text-gray-600 transition-colors duration-200">
-                      <div className="flex items-center space-x-2">
-                        <div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center group-hover:bg-purple-100 transition-colors duration-200">
-                          <span className="text-xs font-medium text-gray-600 group-hover:text-purple-700 transition-colors duration-200">
-                            {project.profiles?.display_name?.[0] || 'U'}
+                      <div className="flex items-center justify-between text-xs text-gray-500 group-hover:text-gray-600 transition-colors duration-200">
+                        <div className="flex items-center space-x-2">
+                          <div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center group-hover:bg-purple-100 transition-colors duration-200">
+                            <span className="text-xs font-medium text-gray-600 group-hover:text-purple-700 transition-colors duration-200">
+                              {project.profiles?.display_name?.[0] || 'U'}
+                            </span>
+                          </div>
+                          <span className="group-hover:text-gray-700 transition-colors duration-200">
+                            {project.profiles?.display_name || 'Unknown Writer'}
                           </span>
                         </div>
-                        <span className="group-hover:text-gray-700 transition-colors duration-200">
-                          {project.profiles?.display_name || 'Unknown Writer'}
-                        </span>
+                        <span className="group-hover:text-gray-700 transition-colors duration-200">{formatDate(project.created_at)}</span>
                       </div>
-                      <span className="group-hover:text-gray-700 transition-colors duration-200">{formatDate(project.created_at)}</span>
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             </div>
