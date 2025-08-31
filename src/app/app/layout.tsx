@@ -86,11 +86,6 @@ const READER_NAVIGATION_ITEMS = [
     name: 'Following',
     href: '/app/following',
     icon: Users
-  },
-  {
-    name: 'Favorites',
-    href: '/app/favorites',
-    icon: Star
   }
 ]
 

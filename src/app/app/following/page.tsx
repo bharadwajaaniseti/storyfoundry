@@ -1,6 +1,8 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { createSupabaseClient } from '@/lib/auth'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -21,21 +23,20 @@ import {
   TrendingUp
 } from 'lucide-react'
 import Link from 'next/link'
-import { createSupabaseClient } from '@/lib/auth'
-import { useRouter } from 'next/navigation'
+import { User } from '@supabase/supabase-js'
 
-interface WriterProfile {
+interface Profile {
   id: string
   display_name: string
-  bio?: string
-  avatar_url?: string
+  bio: string | null
+  avatar_url: string | null
   verified_pro: boolean
   role: string
   created_at: string
   followers_count?: number
-  following_count?: number
   projects_count?: number
   total_buzz_score?: number
+  country?: string | null
 }
 
 interface Following {
@@ -43,7 +44,7 @@ interface Following {
   follower_id: string
   following_id: string
   created_at: string
-  profiles: WriterProfile
+  profiles: Profile | null
 }
 
 interface FollowingStats {
@@ -53,10 +54,10 @@ interface FollowingStats {
   newThisMonth: number
 }
 
-export default function WriterFollowingPage() {
+export default function ReaderFollowingPage() {
   const router = useRouter()
-  const [currentUser, setCurrentUser] = useState<any>(null)
-  const [userRole, setUserRole] = useState<string>('writer') // Writers always have writer role
+  const [currentUser, setCurrentUser] = useState<User | null>(null)
+  const [userRole, setUserRole] = useState<string>('reader')
   const [isLoading, setIsLoading] = useState(true)
   const [following, setFollowing] = useState<Following[]>([])
   const [searchQuery, setSearchQuery] = useState('')
@@ -132,6 +133,15 @@ export default function WriterFollowingPage() {
       }
       setCurrentUser(user)
 
+      // Get user role
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single()
+      
+      setUserRole(profile?.role?.toLowerCase() || 'reader')
+
       // Load following data
       await loadFollowingData(user.id)
       
@@ -146,51 +156,85 @@ export default function WriterFollowingPage() {
     try {
       const supabase = createSupabaseClient()
 
-      // Load following relationships
-      const { data: followingData, error: followingError } = await supabase
+      console.log('Loading following for user:', userId)
+      
+      // First, let's try without the join to see if basic query works
+      const { data: followsData, error: followsError } = await supabase
         .from('user_follows')
-        .select(`
-          *,
-          profiles!following_id (
-            id,
-            display_name,
-            bio,
-            avatar_url,
-            verified_pro,
-            role,
-            created_at
-          )
-        `)
+        .select('*')
         .eq('follower_id', userId)
         .order('created_at', { ascending: false })
 
-      if (followingError) {
-        console.error('Error loading following:', followingError)
-        console.error('Error details:', {
-          message: followingError.message,
-          details: followingError.details,
-          hint: followingError.hint,
-          code: followingError.code
-        })
+      console.log('Basic follows query:', { followsData, followsError })
+
+      if (followsError) {
+        console.error('Error loading follows:', followsError)
         setFollowing([])
         return
       }
 
+      if (!followsData || followsData.length === 0) {
+        console.log('No follows found for user')
+        setFollowing([])
+        setStats({
+          totalFollowing: 0,
+          writers: 0,
+          verified: 0,
+          newThisMonth: 0
+        })
+        return
+      }
+
+      // Now get the profile data separately
+      const followingIds = followsData.map(f => f.following_id)
+      console.log('Following IDs:', followingIds)
+
+      if (followingIds.length === 0) {
+        console.log('No following IDs found')
+        setFollowing([])
+        setStats({
+          totalFollowing: 0,
+          writers: 0,
+          verified: 0,
+          newThisMonth: 0
+        })
+        return
+      }
+
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, display_name, bio, avatar_url, verified_pro, role, created_at, country')
+        .in('id', followingIds)
+
+      console.log('Profiles query:', { profilesData, profilesError, followingIds })
+
+      if (profilesError) {
+        console.error('Error loading profiles:', profilesError)
+        console.error('Profiles error details:', JSON.stringify(profilesError, null, 2))
+        setFollowing([])
+        return
+      }
+
+      // Combine the data
+      const enhancedFollowing = followsData.map(follow => {
+        const profile = profilesData?.find(p => p.id === follow.following_id)
+        return {
+          ...follow,
+          profiles: profile || null
+        }
+      }).filter(f => f.profiles !== null) // Only keep follows where we found the profile
+
+      console.log('Enhanced following data:', enhancedFollowing)
+
       // Enhance with additional stats for each followed user
-      if (followingData && followingData.length > 0) {
-        const followingIds = followingData.map(f => f.following_id)
+      if (enhancedFollowing && enhancedFollowing.length > 0) {
+        const followingIds = enhancedFollowing.map(f => f.following_id)
         
         // Get follower counts
         const { data: followerCounts } = await supabase
           .from('user_follows')
           .select('following_id')
           .in('following_id', followingIds)
-
-        // Get following counts
-        const { data: followingCounts } = await supabase
-          .from('user_follows')
-          .select('follower_id')
-          .in('follower_id', followingIds)
 
         // Get project counts and buzz scores
         const { data: projectsData } = await supabase
@@ -199,53 +243,55 @@ export default function WriterFollowingPage() {
           .in('owner_id', followingIds)
 
         // Enhance the following data
-        const enhancedFollowing = followingData.map(follow => {
+        const finalFollowingData = enhancedFollowing.map(follow => {
           const userId = follow.following_id
           const followersCount = followerCounts?.filter(f => f.following_id === userId).length || 0
-          const followingCount = followingCounts?.filter(f => f.follower_id === userId).length || 0
           const userProjects = projectsData?.filter(p => p.owner_id === userId) || []
-          const totalBuzzScore = userProjects.reduce((sum, p) => sum + (p.buzz_score || 0), 0)
+          const projectsCount = userProjects.length
+          const totalBuzzScore = userProjects.reduce((sum, project) => sum + (project.buzz_score || 0), 0)
 
           return {
             ...follow,
-            profiles: {
+            profiles: follow.profiles ? {
               ...follow.profiles,
               followers_count: followersCount,
-              following_count: followingCount,
-              projects_count: userProjects.length,
+              projects_count: projectsCount,
               total_buzz_score: totalBuzzScore
-            }
+            } : null
           }
         })
 
-        setFollowing(enhancedFollowing)
+        setFollowing(finalFollowingData)
 
         // Calculate stats
         const now = new Date()
-        const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-        
-        const writers = enhancedFollowing.filter(f => 
-          f.profiles?.role?.toLowerCase() === 'writer'
-        ).length
-        
-        const verified = enhancedFollowing.filter(f => 
-          f.profiles?.verified_pro
-        ).length
-        
-        const newThisMonth = enhancedFollowing.filter(f => 
-          new Date(f.created_at) >= thisMonth
-        ).length
+        const oneMonthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate())
 
+        const statsData: FollowingStats = {
+          totalFollowing: finalFollowingData.length,
+          writers: finalFollowingData.filter(
+            f => f.profiles?.role?.toLowerCase() === 'writer'
+          ).length,
+          verified: finalFollowingData.filter(f => f.profiles?.verified_pro).length,
+          newThisMonth: finalFollowingData.filter(
+            f => new Date(f.created_at) > oneMonthAgo
+          ).length
+        }
+        setStats(statsData)
+
+      } else {
+        setFollowing([])
         setStats({
-          totalFollowing: enhancedFollowing.length,
-          writers,
-          verified,
-          newThisMonth
+          totalFollowing: 0,
+          writers: 0,
+          verified: 0,
+          newThisMonth: 0
         })
       }
 
     } catch (error) {
       console.error('Error loading following data:', error)
+      setFollowing([])
     }
   }
 
@@ -326,11 +372,11 @@ export default function WriterFollowingPage() {
   })
 
   if (isLoading) {
-    const tempColorClasses = getColorClasses('writer') // Default to writer colors during loading
+    const tempColorClasses = getColorClasses('reader') // Default to reader colors during loading
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className={`w-8 h-8 border-4 border-t-orange-500 border-gray-300 rounded-full animate-spin mx-auto mb-4`}></div>
+          <div className={`w-8 h-8 border-4 border-t-purple-500 border-gray-300 rounded-full animate-spin mx-auto mb-4`}></div>
           <p className="text-gray-600">Loading your following...</p>
         </div>
       </div>

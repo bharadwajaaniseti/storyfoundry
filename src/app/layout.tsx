@@ -27,6 +27,7 @@ export default function RootLayout({
     <html lang="en">
       <body
         className={`${inter.variable} ${zenDots.variable} antialiased bg-gray-50`}
+        suppressHydrationWarning={true}
       >
         {children}
       </body>

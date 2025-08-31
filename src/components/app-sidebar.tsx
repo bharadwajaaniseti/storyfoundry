@@ -23,6 +23,7 @@ import {
 const readerNavigation = [
   { name: 'Dashboard', href: '/app/dashboard', icon: Home },
   { name: 'My Library', href: '/app/library', icon: BookMarked },
+  { name: 'Following', href: '/app/following', icon: UserPlus },
   { name: 'Discover', href: '/app/search', icon: Compass },
   { name: 'Pitch Rooms', href: '/app/pitch-rooms', icon: MessageSquare },
 ]

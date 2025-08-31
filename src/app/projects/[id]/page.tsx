@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { 
@@ -320,6 +320,8 @@ interface Comment {
 interface ReadingProgress {
   progress_percentage: number
   last_position: number
+  is_completed: boolean
+  completed_at?: string
   updated_at: string
 }
 
@@ -358,6 +360,11 @@ export default function PublicProjectPage() {
   // Reading progress tracking
   const [scrollPosition, setScrollPosition] = useState(0)
   const [contentLength, setContentLength] = useState(0)
+  const [isCompleted, setIsCompleted] = useState(false)
+  const [maxProgressReached, setMaxProgressReached] = useState(0)
+  const [readingStartTime, setReadingStartTime] = useState<number | null>(null)
+  const [timeSpentReading, setTimeSpentReading] = useState(0)
+  const [progressMilestones, setProgressMilestones] = useState<Set<number>>(new Set())
 
   // Check if current user is the project owner
   const isProjectOwner = currentUser && project && currentUser.id === project.owner_id
@@ -367,10 +374,10 @@ export default function PublicProjectPage() {
   }, [projectId])
 
   useEffect(() => {
-    if (currentUser && content) {
+    if (currentUser && content && project) {
       loadUserInteractions()
     }
-  }, [currentUser, content])
+  }, [currentUser, content, project])
 
   useEffect(() => {
     if (project) {
@@ -402,6 +409,11 @@ export default function PublicProjectPage() {
         return
       }
       
+      // Start tracking reading time when user first reaches content
+      if (readingStartTime === null) {
+        setReadingStartTime(Date.now())
+      }
+      
       // Calculate how much of the content has been scrolled past
       const contentStartPosition = contentTop
       const contentEndPosition = contentTop + contentHeight
@@ -422,6 +434,38 @@ export default function PublicProjectPage() {
       
       setScrollPosition(Math.round(percentage))
       
+      // Track progress milestones (every 10% increment)
+      const milestone = Math.floor(percentage / 10) * 10
+      if (milestone > 0 && !progressMilestones.has(milestone)) {
+        setProgressMilestones(prev => new Set(prev).add(milestone))
+      }
+      
+      // Track maximum progress reached (only if moving forward)
+      if (percentage > maxProgressReached) {
+        setMaxProgressReached(percentage)
+      }
+      
+      // Update time spent reading
+      if (readingStartTime) {
+        setTimeSpentReading(Date.now() - readingStartTime)
+      }
+      
+      // Smart completion detection
+      if (percentage >= 100 && !isCompleted && currentUser) {
+        const timeSpentMinutes = timeSpentReading / (1000 * 60)
+        const milestonesReached = progressMilestones.size
+        const estimatedReadingTime = (contentLength / 1000) * 2 // ~2 minutes per 1000 characters
+        
+        // Conditions for marking as completed:
+        // 1. Must have spent reasonable time reading (at least 30% of estimated time)
+        // 2. Must have hit at least 5 progress milestones (50% of content)
+        // 3. Must have actually reached 100%
+        if (timeSpentMinutes >= estimatedReadingTime * 0.3 && milestonesReached >= 5) {
+          setIsCompleted(true)
+          markStoryCompleted(percentage, scrollTop, timeSpentMinutes, milestonesReached)
+        }
+      }
+      
       // Save progress to database every 5% increment (only if user is logged in)
       if (currentUser && content && percentage % 5 < 1) {
         saveReadingProgress(percentage, scrollTop)
@@ -433,7 +477,7 @@ export default function PublicProjectPage() {
     
     window.addEventListener('scroll', handleScroll)
     return () => window.removeEventListener('scroll', handleScroll)
-  }, [content, currentUser])
+  }, [content, currentUser, contentLength])
 
   const loadProjectAndUser = async () => {
     console.log('Loading project:', projectId)
@@ -560,6 +604,21 @@ export default function PublicProjectPage() {
       const bookmarkStatus = await isProjectBookmarked(projectId, currentUser.id)
       setIsBookmarked(bookmarkStatus)
 
+      // Check if user is following the writer
+      if (project?.profiles?.id) {
+        const supabase = createSupabaseClient()
+        const { data: followData, error: followError } = await supabase
+          .from('user_follows')
+          .select('id')
+          .eq('follower_id', currentUser.id)
+          .eq('following_id', project.profiles.id)
+          .maybeSingle()
+
+        if (!followError) {
+          setIsWriterFavorited(!!followData)
+        }
+      }
+
       // Load reading progress (handle table not existing)
       const supabase = createSupabaseClient()
       const { data: progress, error: progressError } = await supabase
@@ -571,6 +630,14 @@ export default function PublicProjectPage() {
 
       if (!progressError && progress) {
         setReadingProgress(progress)
+        
+        // Set completion status and max progress from database
+        if (progress.is_completed) {
+          setIsCompleted(true)
+          setMaxProgressReached(100)
+        } else {
+          setMaxProgressReached(progress.progress_percentage || 0)
+        }
       }
 
     } catch (error) {
@@ -661,9 +728,42 @@ export default function PublicProjectPage() {
       return
     }
 
-    // This would require a writer_favorites table
-    // For now, we'll implement as placeholder
-    setIsWriterFavorited(!isWriterFavorited)
+    try {
+      const supabase = createSupabaseClient()
+      
+      if (isWriterFavorited) {
+        // Unfollow the writer
+        const { error } = await supabase
+          .from('user_follows')
+          .delete()
+          .eq('follower_id', currentUser.id)
+          .eq('following_id', project.profiles?.id)
+
+        if (error) {
+          console.error('Error unfollowing writer:', error)
+          return
+        }
+        
+        setIsWriterFavorited(false)
+      } else {
+        // Follow the writer
+        const { error } = await supabase
+          .from('user_follows')
+          .insert({
+            follower_id: currentUser.id,
+            following_id: project.profiles?.id
+          })
+
+        if (error) {
+          console.error('Error following writer:', error)
+          return
+        }
+        
+        setIsWriterFavorited(true)
+      }
+    } catch (error) {
+      console.error('Error toggling writer follow:', error)
+    }
   }
 
   const saveReadingProgress = async (percentage: number, position: number) => {
@@ -684,6 +784,34 @@ export default function PublicProjectPage() {
 
     } catch (error) {
       console.error('Error saving reading progress:', error)
+    }
+  }
+
+  const markStoryCompleted = async (percentage: number, position: number, readingTimeMinutes?: number, milestones?: number) => {
+    if (!currentUser) return
+
+    try {
+      const supabase = createSupabaseClient()
+
+      // Mark story as completed with additional metadata
+      await supabase
+        .from('reading_progress')
+        .upsert({
+          project_id: projectId,
+          user_id: currentUser.id,
+          progress_percentage: percentage,
+          last_position: position,
+          is_completed: true,
+          completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          reading_time_minutes: readingTimeMinutes || 0,
+          milestones_reached: milestones || 0
+        })
+
+      console.log(`Story marked as completed! Reading time: ${readingTimeMinutes?.toFixed(1)}min, Milestones: ${milestones}`)
+
+    } catch (error) {
+      console.error('Error marking story as completed:', error)
     }
   }
 
@@ -946,9 +1074,23 @@ export default function PublicProjectPage() {
             <div className="flex items-center space-x-3">
               {/* Reading Progress */}
               {currentUser && (
-                <div className="hidden md:flex items-center space-x-2 text-sm text-gray-600">
-                  <BookOpen className="w-4 h-4" />
-                  <span>{Math.round(scrollPosition)}% read</span>
+                <div className="hidden md:flex items-center space-x-2 text-sm">
+                  {isCompleted ? (
+                    <div className="flex items-center space-x-2 text-green-600">
+                      <CheckCircle className="w-4 h-4" />
+                      <span>Completed</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center space-x-2 text-gray-600">
+                      <BookOpen className="w-4 h-4" />
+                      <span>{Math.round(scrollPosition)}% read</span>
+                      {scrollPosition >= 100 && (
+                        <span className="text-xs text-amber-600 ml-1">
+                          (Keep reading to complete)
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -977,8 +1119,10 @@ export default function PublicProjectPage() {
           {/* Progress Bar */}
           <div className="w-full bg-gray-200 rounded-full h-1 mt-3">
             <div 
-              className="bg-purple-600 h-1 rounded-full transition-all duration-300"
-              style={{ width: `${scrollPosition}%` }}
+              className={`h-1 rounded-full transition-all duration-300 ${
+                isCompleted ? 'bg-green-600' : 'bg-purple-600'
+              }`}
+              style={{ width: `${isCompleted ? 100 : scrollPosition}%` }}
             ></div>
           </div>
         </div>
