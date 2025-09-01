@@ -38,6 +38,8 @@ interface Story {
   category: string
   updatedAt: string
   progress: number
+  projectId?: string
+  profiles?: any
 }
 
 interface TrendingStory {
@@ -47,6 +49,8 @@ interface TrendingStory {
   likes: number
   views: number
   category: string
+  projectId?: string
+  profiles?: any
 }
 
 interface Writer {
@@ -59,6 +63,24 @@ interface Writer {
 }
 
 export default function ReaderDashboard({ user, userProfile }: ReaderDashboardProps) {
+  // Helper function to determine what to display for author
+  const getAuthorDisplay = (profile: any) => {
+    if (!profile) return 'Unknown Writer'
+    
+    // If profile is private, show "Account is Private"
+    if (profile.profile_visibility === 'private') {
+      return 'Account is Private'
+    }
+    
+    // Otherwise show display name or fallback
+    return profile.display_name || 'Unknown Writer'
+  }
+
+  // Helper function to check if profile interactions should be disabled
+  const isProfileInteractionDisabled = (profile: any) => {
+    return profile?.profile_visibility === 'private'
+  }
+
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState({
     storiesRead: 0,
@@ -79,77 +101,103 @@ export default function ReaderDashboard({ user, userProfile }: ReaderDashboardPr
     try {
       const supabase = createSupabaseClient()
       
-      // Mock data for now - you can replace with actual database queries
+      console.log('🔍 Loading reader dashboard data...')
+
+      // Load real projects for recent stories
+      const { data: recentProjects, error: recentError } = await supabase
+        .from('projects')
+        .select(`
+          id,
+          title,
+          logline,
+          genre,
+          word_count,
+          created_at,
+          profiles!owner_id!inner (
+            id,
+            display_name,
+            avatar_url,
+            profile_visibility,
+            discoverable
+          )
+        `)
+        .eq('visibility', 'public')
+        .eq('profiles.discoverable', true)
+        .order('created_at', { ascending: false })
+        .limit(3)
+
+      console.log('📚 Recent projects response:', { recentProjects, recentError })
+
+      // Load trending projects  
+      const { data: trendingProjects, error: trendingError } = await supabase
+        .from('projects')
+        .select(`
+          id,
+          title,
+          logline,
+          genre,
+          buzz_score,
+          word_count,
+          profiles!owner_id!inner (
+            id,
+            display_name,
+            avatar_url,
+            profile_visibility,
+            discoverable
+          )
+        `)
+        .eq('visibility', 'public')
+        .eq('profiles.discoverable', true)
+        .order('buzz_score', { ascending: false })
+        .limit(3)
+
+      console.log('🔥 Trending projects response:', { trendingProjects, trendingError })
+
+      if (recentError || trendingError) {
+        console.error('❌ Error loading projects:', { recentError, trendingError })
+      }
+
+      // Transform recent projects to match Story interface
+      if (recentProjects) {
+        const transformedRecentStories = recentProjects.map((project: any, index: number) => ({
+          id: index + 1,
+          title: project.title,
+          author: getAuthorDisplay(project.profiles),
+          excerpt: project.logline || 'No description available',
+          readTime: project.word_count ? `${Math.ceil(project.word_count / 200)} min` : 'Unknown',
+          category: project.genre,
+          updatedAt: new Date(project.created_at).toLocaleDateString(),
+          progress: 0, // Could be real reading progress if you track it
+          projectId: project.id,
+          profiles: project.profiles
+        }))
+        setRecentStories(transformedRecentStories)
+      }
+
+      // Transform trending projects to match TrendingStory interface
+      if (trendingProjects) {
+        const transformedTrendingStories = trendingProjects.map((project: any, index: number) => ({
+          id: index + 4,
+          title: project.title,
+          author: getAuthorDisplay(project.profiles),
+          likes: Math.floor(project.buzz_score || 0),
+          views: Math.floor((project.buzz_score || 0) * 10),
+          category: project.genre,
+          projectId: project.id,
+          profiles: project.profiles
+        }))
+        setTrendingStories(transformedTrendingStories)
+      }
+
+      // Keep mock stats for now (could be replaced with real data later)
       setStats({
         storiesRead: 24,
         favoriteStories: 8,
-        readingTime: 45, // hours
+        readingTime: 45,
         followingWriters: 12
       })
 
-      // Mock recent stories
-      setRecentStories([
-        {
-          id: 1,
-          title: "The Chronicles of Tomorrow",
-          author: "Sarah Chen",
-          excerpt: "In a world where technology has merged with magic...",
-          readTime: "12 min",
-          category: "Sci-Fi",
-          updatedAt: "2 hours ago",
-          progress: 75
-        },
-        {
-          id: 2,
-          title: "Mysteries of the Old Library",
-          author: "Marcus Rivera",
-          excerpt: "Deep within the ancient archives lay secrets that...",
-          readTime: "8 min",
-          category: "Mystery",
-          updatedAt: "1 day ago",
-          progress: 100
-        },
-        {
-          id: 3,
-          title: "Love in the Digital Age",
-          author: "Emma Thompson",
-          excerpt: "When virtual reality becomes more real than...",
-          readTime: "15 min",
-          category: "Romance",
-          updatedAt: "3 days ago",
-          progress: 45
-        }
-      ])
-
-      // Mock trending stories
-      setTrendingStories([
-        {
-          id: 4,
-          title: "The Last Phoenix",
-          author: "David Park",
-          likes: 1234,
-          views: 15678,
-          category: "Fantasy"
-        },
-        {
-          id: 5,
-          title: "Corporate Shadows",
-          author: "Lisa Wang",
-          likes: 987,
-          views: 12456,
-          category: "Thriller"
-        },
-        {
-          id: 6,
-          title: "Ocean's Memory",
-          author: "Alex Rodriguez",
-          likes: 756,
-          views: 9876,
-          category: "Drama"
-        }
-      ])
-
-      // Mock recommended writers
+      // Mock recommended writers (could be replaced with real data later)
       setRecommendedWriters([
         {
           id: 1,

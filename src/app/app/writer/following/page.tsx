@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import UserAvatar from '@/components/user-avatar'
 import { Badge } from '@/components/ui/badge'
 import { 
   Users, 
@@ -28,6 +29,8 @@ import ProfileModal from '@/components/profile-modal'
 interface WriterProfile {
   id: string
   display_name: string
+  first_name?: string | null
+  last_name?: string | null
   bio?: string
   avatar_url?: string
   verified_pro: boolean
@@ -172,6 +175,8 @@ export default function WriterFollowingPage() {
           profiles!following_id (
             id,
             display_name,
+            first_name,
+            last_name,
             bio,
             avatar_url,
             verified_pro,
@@ -529,12 +534,17 @@ export default function WriterFollowingPage() {
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center space-x-4">
                         <div className="relative">
-                          <Avatar className="w-16 h-16 ring-2 ring-gray-100 group-hover:ring-gray-200 transition-all duration-300">
-                            <AvatarImage src={profile.avatar_url || undefined} />
-                            <AvatarFallback className={`${colorClasses.primary} text-white text-lg font-semibold`}>
-                              {profile.display_name?.[0] || 'U'}
-                            </AvatarFallback>
-                          </Avatar>
+                          <UserAvatar 
+                            user={{
+                              avatar_url: profile.avatar_url,
+                              display_name: profile.display_name,
+                              first_name: profile.first_name,
+                              last_name: profile.last_name
+                            }}
+                            size="custom"
+                            className="w-16 h-16 ring-2 ring-gray-100 group-hover:ring-gray-200 transition-all duration-300"
+                            fallbackClassName={`${colorClasses.primary} text-white text-lg font-semibold`}
+                          />
                           {profile.verified_pro && (
                             <div className={`absolute -top-1 -right-1 w-6 h-6 ${colorClasses.primary} rounded-full flex items-center justify-center shadow-sm`}>
                               <Star className="w-3 h-3 text-white fill-current" />

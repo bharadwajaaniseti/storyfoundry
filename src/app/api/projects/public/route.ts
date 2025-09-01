@@ -29,14 +29,17 @@ export async function GET(request: NextRequest) {
         word_count,
         created_at,
         updated_at,
-        profiles:owner_id (
+        profiles:owner_id!inner (
           id,
           display_name,
           avatar_url,
-          verified_pro
+          verified_pro,
+          profile_visibility,
+          discoverable
         )
       `)
       .eq('visibility', 'public')
+      .eq('profiles.discoverable', true)
 
     // Apply filters
     if (format && format !== 'all') {
@@ -69,8 +72,9 @@ export async function GET(request: NextRequest) {
     // Get total count for pagination
     const { count } = await supabase
       .from('projects')
-      .select('*', { count: 'exact', head: true })
+      .select('*, profiles:owner_id!inner(discoverable)', { count: 'exact', head: true })
       .eq('visibility', 'public')
+      .eq('profiles.discoverable', true)
 
     // Apply pagination
     const { data: projects, error } = await query

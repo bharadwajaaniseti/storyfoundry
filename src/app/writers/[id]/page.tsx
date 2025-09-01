@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
+import UserAvatar from '@/components/user-avatar'
 import { 
   Users, 
   UserPlus, 
@@ -323,12 +324,12 @@ export default function WriterProfilePage() {
               {/* Enhanced Avatar & Status */}
               <div className="relative group">
                 <div className={`w-36 h-36 ${colorClasses.bgGradient} rounded-3xl p-1.5 shadow-xl relative`}>
-                  <Avatar className="w-full h-full rounded-2xl">
-                    <AvatarImage src={profile.avatar_url || undefined} className="rounded-2xl object-cover" />
-                    <AvatarFallback className={`${colorClasses.bgGradient} text-white text-4xl font-bold rounded-2xl`}>
-                      {profile.display_name?.[0] || 'U'}
-                    </AvatarFallback>
-                  </Avatar>
+                  <UserAvatar 
+                    user={profile}
+                    size="custom"
+                    className="w-full h-full rounded-2xl"
+                    fallbackClassName={`${colorClasses.bgGradient} text-white text-4xl font-bold rounded-2xl`}
+                  />
                   
                   {/* Enhanced Pro Badge */}
                   {profile.verified_pro && (

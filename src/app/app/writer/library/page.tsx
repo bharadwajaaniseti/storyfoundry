@@ -103,6 +103,24 @@ export default function WriterLibraryPage() {
   const [sortBy, setSortBy] = useState<'recent' | 'title' | 'progress'>('recent')
   const [searchQuery, setSearchQuery] = useState('')
   
+  // Helper function to determine what to display for author
+  const getAuthorDisplay = (profile: any) => {
+    if (!profile) return 'Unknown Author'
+    
+    // If profile is private, show "Account is Private"
+    if (profile.profile_visibility === 'private') {
+      return 'Account is Private'
+    }
+    
+    // Otherwise show display name or fallback
+    return profile.display_name || 'Unknown Author'
+  }
+
+  // Helper function to check if profile interactions should be disabled
+  const isProfileInteractionDisabled = (profile: any) => {
+    return profile?.profile_visibility === 'private'
+  }
+  
   // Progress management state
   const [selectedProjects, setSelectedProjects] = useState<Set<string>>(new Set())
   const [isManagingProgress, setIsManagingProgress] = useState(false)
@@ -212,7 +230,7 @@ export default function WriterLibraryPage() {
         if (ownerIds.length > 0) {
           const { data: profiles } = await supabase
             .from('profiles')
-            .select('id, display_name, avatar_url, verified_pro')
+            .select('id, display_name, avatar_url, verified_pro, profile_visibility, discoverable')
             .in('id', ownerIds)
 
           // Attach profiles to projects
@@ -938,7 +956,7 @@ export default function WriterLibraryPage() {
                               {getStatusBadge(item)}
                             </div>
                             <p className="text-sm text-gray-600 mb-1">
-                              by {project.profiles?.display_name || 'Unknown Author'}
+                              by {getAuthorDisplay(project.profiles)}
                             </p>
                             <p className="text-sm text-gray-500 line-clamp-2">{project.logline}</p>
                           </div>

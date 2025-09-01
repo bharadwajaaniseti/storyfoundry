@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
+import UserAvatar from '@/components/user-avatar'
 import { 
   Users, 
   UserPlus, 
@@ -49,6 +50,7 @@ interface ProfileData {
   twitter: string | null
   instagram: string | null
   github: string | null
+  profile_visibility: 'public' | 'members' | 'private'
   followers_count?: number
   following_count?: number
   projects_count?: number
@@ -148,6 +150,21 @@ export default function ProfileModal({ profileId, currentUserRole, onClose, onFo
 
       if (profileError) {
         console.error('Error loading profile:', profileError)
+        return
+      }
+
+      // Check privacy settings
+      if (profileData.profile_visibility === 'private' && (!user || user.id !== profileId)) {
+        // Profile is private and viewer is not the owner
+        setProfile(null) // This will trigger the "Profile Not Found" state
+        setIsLoading(false)
+        return
+      }
+
+      if (profileData.profile_visibility === 'members' && !user) {
+        // Profile is members-only and viewer is not authenticated
+        setProfile(null) // This will trigger the "Profile Not Found" state  
+        setIsLoading(false)
         return
       }
 
@@ -308,11 +325,16 @@ export default function ProfileModal({ profileId, currentUserRole, onClose, onFo
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
         <div className="bg-white rounded-2xl p-8 max-w-md w-full mx-4">
           <div className="text-center">
-            <h2 className="text-xl font-bold text-gray-800 mb-4">Profile Not Found</h2>
-            <p className="text-gray-600 mb-6">The profile you're looking for doesn't exist.</p>
+            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Eye className="w-8 h-8 text-gray-400" />
+            </div>
+            <h2 className="text-xl font-bold text-gray-800 mb-4">Profile is Private</h2>
+            <p className="text-gray-600 mb-6">
+              This user has set their profile to private. Only they can view their profile information.
+            </p>
             <Button onClick={onClose} className={colorClasses.primaryButton}>
               <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Following
+              Go Back
             </Button>
           </div>
         </div>
@@ -339,12 +361,12 @@ export default function ProfileModal({ profileId, currentUserRole, onClose, onFo
           <div className="flex flex-col md:flex-row md:items-center md:justify-between">
             <div className="flex items-center space-x-4 mb-4 md:mb-0">
               <div className="relative">
-                <Avatar className="w-20 h-20 rounded-2xl">
-                  <AvatarImage src={profile.avatar_url || undefined} />
-                  <AvatarFallback className={`text-2xl font-bold ${colorClasses.bgGradient} text-white rounded-2xl`}>
-                    {profile.display_name?.[0] || 'U'}
-                  </AvatarFallback>
-                </Avatar>
+                <UserAvatar 
+                  user={profile}
+                  size="custom" 
+                  className="w-20 h-20 rounded-2xl"
+                  fallbackClassName={`text-2xl font-bold ${colorClasses.bgGradient} text-white rounded-2xl`}
+                />
                 {profile.verified_pro && (
                   <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
                     <div className="w-3 h-3 bg-white rounded-full"></div>

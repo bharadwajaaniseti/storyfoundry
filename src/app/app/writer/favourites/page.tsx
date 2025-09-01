@@ -72,6 +72,24 @@ export default function WriterFavouritesPage() {
   const [filter, setFilter] = useState<'all' | 'screenplay' | 'novel' | 'treatment'>('all')
   const [sortBy, setSortBy] = useState<'recent' | 'title' | 'popular' | 'oldest'>('recent')
   
+  // Helper function to determine what to display for author
+  const getAuthorDisplay = (profile: any) => {
+    if (!profile) return 'Unknown Author'
+    
+    // If profile is private, show "Account is Private"
+    if (profile.profile_visibility === 'private') {
+      return 'Account is Private'
+    }
+    
+    // Otherwise show display name or fallback
+    return profile.display_name || 'Unknown Author'
+  }
+
+  // Helper function to check if profile interactions should be disabled
+  const isProfileInteractionDisabled = (profile: any) => {
+    return profile?.profile_visibility === 'private'
+  }
+  
   const [stats, setStats] = useState<FavouritesStats>({
     totalFavourites: 0,
     screenplays: 0,
@@ -145,7 +163,7 @@ export default function WriterFavouritesPage() {
         if (ownerIds.length > 0) {
           const { data: profiles } = await supabase
             .from('profiles')
-            .select('id, display_name, avatar_url, verified_pro')
+            .select('id, display_name, avatar_url, verified_pro, profile_visibility, discoverable')
             .in('id', ownerIds)
 
           // Attach profiles to projects
@@ -452,7 +470,7 @@ export default function WriterFavouritesPage() {
                               <Heart className="w-4 h-4 text-orange-500 fill-current flex-shrink-0" />
                             </div>
                             <p className="text-sm text-gray-600 mb-1">
-                              by {project.profiles?.display_name || 'Unknown Author'}
+                              by {getAuthorDisplay(project.profiles)}
                             </p>
                             <p className="text-sm text-gray-500 line-clamp-2">{project.logline}</p>
                           </div>

@@ -19,7 +19,18 @@ export interface Database {
           verified_pro: boolean
           company: string | null
           country: string | null
+          first_name: string | null
+          last_name: string | null
+          website: string | null
+          twitter_handle: string | null
+          email_notifications: boolean
+          marketing_emails: boolean
+          project_updates: boolean
+          collaboration_invites: boolean
+          profile_visibility: 'public' | 'members' | 'private'
+          discoverable: boolean
           created_at: string
+          updated_at: string
         }
         Insert: {
           id: string
@@ -30,7 +41,18 @@ export interface Database {
           verified_pro?: boolean
           company?: string | null
           country?: string | null
+          first_name?: string | null
+          last_name?: string | null
+          website?: string | null
+          twitter_handle?: string | null
+          email_notifications?: boolean
+          marketing_emails?: boolean
+          project_updates?: boolean
+          collaboration_invites?: boolean
+          profile_visibility?: 'public' | 'members' | 'private'
+          discoverable?: boolean
           created_at?: string
+          updated_at?: string
         }
         Update: {
           id?: string
@@ -41,7 +63,18 @@ export interface Database {
           verified_pro?: boolean
           company?: string | null
           country?: string | null
+          first_name?: string | null
+          last_name?: string | null
+          website?: string | null
+          twitter_handle?: string | null
+          email_notifications?: boolean
+          marketing_emails?: boolean
+          project_updates?: boolean
+          collaboration_invites?: boolean
+          profile_visibility?: 'public' | 'members' | 'private'
+          discoverable?: boolean
           created_at?: string
+          updated_at?: string
         }
       }
       projects: {

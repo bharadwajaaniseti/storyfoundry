@@ -40,6 +40,7 @@ import { createSupabaseClient } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import UserAvatar from '@/components/user-avatar'
 import ProfileModal from '@/components/profile-modal'
 import {
   DropdownMenu,
@@ -289,6 +290,8 @@ interface Project {
   profiles: {
     id: string
     display_name: string
+    first_name?: string | null
+    last_name?: string | null
     avatar_url?: string
     bio?: string
     verified_pro: boolean
@@ -308,8 +311,11 @@ interface Comment {
   user_id: string
   parent_id?: string | null
   profiles: {
+    id: string
     display_name: string
     avatar_url?: string
+    first_name?: string
+    last_name?: string
   }
   replies?: Comment[]
   like_count?: number
@@ -373,6 +379,28 @@ export default function PublicProjectPage() {
 
   // Check if current user is the project owner
   const isProjectOwner = currentUser && project && currentUser.id === project.owner_id
+
+  // Helper function to determine what to display for author
+  const getAuthorDisplay = (profile: any) => {
+    console.log('Profile data in getAuthorDisplay:', profile)
+    if (!profile) return 'Unknown Author'
+    
+    // If profile is private, show "Account is Private"
+    if (profile.profile_visibility === 'private') {
+      return 'Account is Private'
+    }
+    
+    // Otherwise show display name or fallback
+    return profile.display_name || 'Unknown Author'
+  }
+
+  // Helper function to check if profile interactions should be disabled
+  const isProfileInteractionDisabled = (profile: any) => {
+    console.log('Checking profile interactions for:', profile)
+    const disabled = profile?.profile_visibility === 'private'
+    console.log('Profile interactions disabled:', disabled)
+    return disabled
+  }
 
   useEffect(() => {
     loadProjectAndUser()
@@ -514,9 +542,13 @@ export default function PublicProjectPage() {
           profiles:owner_id (
             id,
             display_name,
+            first_name,
+            last_name,
             avatar_url,
             bio,
-            verified_pro
+            verified_pro,
+            profile_visibility,
+            discoverable
           )
         `)
         .eq('id', projectId)
@@ -660,8 +692,13 @@ export default function PublicProjectPage() {
         .select(`
           *,
           profiles:user_id (
+            id,
             display_name,
-            avatar_url
+            avatar_url,
+            first_name,
+            last_name,
+            profile_visibility,
+            discoverable
           ),
           comment_likes (
             user_id,
@@ -1051,9 +1088,13 @@ export default function PublicProjectPage() {
   }
 
   const handleViewCommentProfile = (profileId: string) => {
+    console.log('Profile ID clicked:', profileId)
     if (profileId) {
+      console.log('Setting selected profile and showing modal')
       setSelectedProfile(profileId)
       setShowProfileModal(true)
+    } else {
+      console.log('No profile ID provided')
     }
   }
 
@@ -1307,19 +1348,37 @@ export default function PublicProjectPage() {
                     <div key={comment.id}>
                       {/* Parent Comment */}
                       <div className="flex space-x-3 p-4 rounded-lg hover:bg-gray-50 transition-colors">
-                        <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
-                          <span className="text-white text-xs font-medium">
-                            {comment.profiles?.display_name?.[0] || 'U'}
-                          </span>
-                        </div>
+                        <UserAvatar 
+                          user={{
+                            avatar_url: comment.profiles?.avatar_url,
+                            display_name: comment.profiles?.display_name,
+                            first_name: comment.profiles?.first_name,
+                            last_name: comment.profiles?.last_name
+                          }}
+                          size="sm"
+                          fallbackClassName="bg-gradient-to-br from-purple-500 to-blue-600 text-white text-xs"
+                        />
                         <div className="flex-1">
                           <div className="flex items-center justify-between mb-1">
                             <div className="flex items-center space-x-2">
                               <button
-                                onClick={() => handleViewCommentProfile(comment.profiles?.id)}
-                                className="font-medium text-gray-800 hover:text-purple-600 hover:underline transition-colors cursor-pointer"
+                                onClick={() => {
+                                  console.log('Comment clicked:', comment)
+                                  console.log('Profile data:', comment.profiles)
+                                  console.log('Profile ID:', comment.profiles?.id)
+                                  console.log('User ID:', comment.user_id)
+                                  const profileId = comment.profiles?.id || comment.user_id
+                                  console.log('Using profile ID:', profileId)
+                                  handleViewCommentProfile(profileId)
+                                }}
+                                disabled={isProfileInteractionDisabled(comment.profiles)}
+                                className={`font-medium transition-colors ${
+                                  isProfileInteractionDisabled(comment.profiles)
+                                    ? 'text-gray-800 cursor-default'
+                                    : 'text-gray-800 hover:text-purple-600 hover:underline cursor-pointer'
+                                }`}
                               >
-                                {comment.profiles?.display_name || 'Anonymous'}
+                                {getAuthorDisplay(comment.profiles)}
                               </button>
                               <span className="text-xs text-gray-500 flex items-center space-x-1">
                                 <Clock className="w-3 h-3" />
@@ -1431,19 +1490,32 @@ export default function PublicProjectPage() {
                         <div className="ml-11 mt-2 space-y-3">
                           {comment.replies.map((reply) => (
                             <div key={reply.id} className="flex space-x-3 p-3 rounded-lg bg-gray-50 border-l-2 border-purple-200">
-                              <div className="w-6 h-6 bg-gradient-to-br from-purple-400 to-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
-                                <span className="text-white text-xs font-medium">
-                                  {reply.profiles?.display_name?.[0] || 'U'}
-                                </span>
-                              </div>
+                              <UserAvatar 
+                                user={{
+                                  avatar_url: reply.profiles?.avatar_url,
+                                  display_name: reply.profiles?.display_name,
+                                  first_name: reply.profiles?.first_name,
+                                  last_name: reply.profiles?.last_name
+                                }}
+                                size="sm"
+                                fallbackClassName="bg-gradient-to-br from-purple-400 to-blue-500 text-white text-xs"
+                              />
                               <div className="flex-1">
                                 <div className="flex items-center justify-between mb-1">
                                   <div className="flex items-center space-x-2">
                                     <button
-                                      onClick={() => handleViewCommentProfile(reply.profiles?.id)}
-                                      className="font-medium text-gray-800 text-sm hover:text-purple-600 hover:underline transition-colors cursor-pointer"
+                                      onClick={() => {
+                                        const profileId = reply.profiles?.id || reply.user_id
+                                        handleViewCommentProfile(profileId)
+                                      }}
+                                      disabled={isProfileInteractionDisabled(reply.profiles)}
+                                      className={`font-medium text-sm transition-colors ${
+                                        isProfileInteractionDisabled(reply.profiles)
+                                          ? 'text-gray-800 cursor-default'
+                                          : 'text-gray-800 hover:text-purple-600 hover:underline cursor-pointer'
+                                      }`}
                                     >
-                                      {reply.profiles?.display_name || 'Anonymous'}
+                                      {getAuthorDisplay(reply.profiles)}
                                     </button>
                                     <span className="text-xs text-gray-500 flex items-center space-x-1">
                                       <Clock className="w-3 h-3" />
@@ -1543,19 +1615,29 @@ export default function PublicProjectPage() {
                       {replyingTo === comment.id && currentUser && (
                         <div className="ml-11 mt-3 p-3 bg-gray-50 rounded-lg border-l-2 border-purple-200">
                           <div className="flex items-start space-x-2">
-                            <div className="w-6 h-6 bg-gradient-to-br from-purple-500 to-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
-                              <span className="text-white text-xs font-medium">
-                                {userProfile?.display_name?.[0] || currentUser.email?.[0] || 'U'}
-                              </span>
-                            </div>
+                            <UserAvatar 
+                              user={{
+                                avatar_url: userProfile?.avatar_url,
+                                display_name: userProfile?.display_name,
+                                first_name: userProfile?.first_name,
+                                last_name: userProfile?.last_name
+                              }}
+                              size="sm"
+                              fallbackClassName="bg-gradient-to-br from-purple-500 to-blue-600 text-white text-xs"
+                            />
                             <div className="flex-1">
                               <p className="text-xs text-gray-600 mb-2">
                                 Replying to{' '}
                                 <button
                                   onClick={() => handleViewCommentProfile(comment.profiles?.id)}
-                                  className="text-purple-600 hover:text-purple-700 hover:underline font-medium"
+                                  disabled={isProfileInteractionDisabled(comment.profiles)}
+                                  className={`font-medium ${
+                                    isProfileInteractionDisabled(comment.profiles)
+                                      ? 'text-gray-600 cursor-default'
+                                      : 'text-purple-600 hover:text-purple-700 hover:underline'
+                                  }`}
                                 >
-                                  {comment.profiles?.display_name || 'Anonymous'}
+                                  {getAuthorDisplay(comment.profiles)}
                                 </button>
                               </p>
                               <textarea
@@ -1657,27 +1739,36 @@ export default function PublicProjectPage() {
                 </h3>
                 
                 <div className="flex items-start space-x-3">
-                  <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-600 rounded-full flex items-center justify-center flex-shrink-0">
-                    <span className="text-white font-bold">
-                      {project.profiles?.display_name?.[0] || 'W'}
-                    </span>
-                  </div>
+                  <UserAvatar 
+                    user={{
+                      avatar_url: project.profiles?.avatar_url,
+                      display_name: project.profiles?.display_name,
+                      first_name: project.profiles?.first_name,
+                      last_name: project.profiles?.last_name
+                    }}
+                    size="custom"
+                    className="w-12 h-12 flex-shrink-0"
+                    fallbackClassName="bg-gradient-to-br from-orange-500 to-red-600 text-white font-bold"
+                  />
                   <div className="flex-1">
                     <div className="flex items-center space-x-2 mb-1">
-                      <h4 className="font-medium text-gray-800">{project.profiles?.display_name}</h4>
-                      {project.profiles?.verified_pro && (
+                      <h4 className="font-medium text-gray-800">{getAuthorDisplay(project.profiles)}</h4>
+                      {project.profiles?.verified_pro && !isProfileInteractionDisabled(project.profiles) && (
                         <CheckCircle className="w-4 h-4 text-blue-500" />
                       )}
                     </div>
-                    {project.profiles?.bio && (
+                    {project.profiles?.bio && !isProfileInteractionDisabled(project.profiles) && (
                       <p className="text-sm text-gray-600 mb-3">{project.profiles.bio}</p>
                     )}
                     
                     <div className="flex items-center space-x-2">
                       <button
                         onClick={toggleWriterFavorite}
+                        disabled={isProfileInteractionDisabled(project.profiles)}
                         className={`flex items-center space-x-1 px-3 py-1 rounded-lg text-sm transition-colors ${
-                          isWriterFavorited
+                          isProfileInteractionDisabled(project.profiles)
+                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                            : isWriterFavorited
                             ? 'bg-purple-100 text-purple-700'
                             : 'bg-gray-100 text-gray-700 hover:bg-purple-50 hover:text-purple-700'
                         }`}
@@ -1687,8 +1778,13 @@ export default function PublicProjectPage() {
                       </button>
                       
                       <button
-                        onClick={handleViewProfile}
-                        className="flex items-center space-x-1 px-3 py-1 rounded-lg text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+                        onClick={isProfileInteractionDisabled(project.profiles) ? undefined : handleViewProfile}
+                        disabled={isProfileInteractionDisabled(project.profiles)}
+                        className={`flex items-center space-x-1 px-3 py-1 rounded-lg text-sm transition-colors ${
+                          isProfileInteractionDisabled(project.profiles)
+                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
                       >
                         <Eye className="w-3 h-3" />
                         <span>View Profile</span>

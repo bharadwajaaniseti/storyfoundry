@@ -37,6 +37,25 @@ export default function DashboardPage() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [user, setUser] = useState<any>(null)
   const [hydrated, setHydrated] = useState(false)
+  const [discoveredProjects, setDiscoveredProjects] = useState<any[]>([])
+  
+  // Helper function to determine what to display for author
+  const getAuthorDisplay = (profile: any) => {
+    if (!profile) return 'Unknown Writer'
+    
+    // If profile is private, show "Account is Private"
+    if (profile.profile_visibility === 'private') {
+      return 'Account is Private'
+    }
+    
+    // Otherwise show display name or fallback
+    return profile.display_name || 'Unknown Writer'
+  }
+
+  // Helper function to check if profile interactions should be disabled
+  const isProfileInteractionDisabled = (profile: any) => {
+    return profile?.profile_visibility === 'private'
+  }
   
   // Handle hydration
   useEffect(() => {
@@ -47,6 +66,48 @@ export default function DashboardPage() {
     if (!hydrated) return
     
     const supabase = createSupabaseClient()
+    
+    const loadDiscoveredProjects = async () => {
+      try {
+        console.log('🔍 Loading discovered projects...')
+        const { data: projects, error } = await supabase
+          .from('projects')
+          .select(`
+            id,
+            title,
+            logline,
+            genre,
+            buzz_score,
+            word_count,
+            created_at,
+            profiles!owner_id!inner (
+              id,
+              display_name,
+              avatar_url,
+              profile_visibility,
+              discoverable
+            )
+          `)
+          .eq('visibility', 'public')
+          .eq('profiles.discoverable', true)
+          .order('buzz_score', { ascending: false })
+          .limit(6)
+
+        console.log('📊 Discovered projects response:', { projects, error, count: projects?.length })
+        
+        if (error) {
+          console.error('❌ Error loading discovered projects:', error)
+          return
+        }
+
+        if (projects) {
+          console.log('✅ Setting discovered projects:', projects)
+          setDiscoveredProjects(projects)
+        }
+      } catch (error) {
+        console.error('💥 Exception loading discovered projects:', error)
+      }
+    }
     
     const fetchUserProfile = async () => {
       const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -73,6 +134,7 @@ export default function DashboardPage() {
     }
 
     fetchUserProfile()
+    loadDiscoveredProjects()
   }, [router, hydrated])
 
   // Show nothing during hydration to prevent mismatch
@@ -128,36 +190,6 @@ function SimpleReaderDashboard({ userProfile }: { userProfile: UserProfile }) {
     followingWriters: 12
   }
 
-  const discoveredProjects = [
-    {
-      id: '1',
-      title: 'The Last Chronicle',
-      writer: 'Sarah Mitchell',
-      description: 'A sci-fi thriller about time travel',
-      genre: 'Sci-Fi',
-      rating: 4.8,
-      progress: 75
-    },
-    {
-      id: '2',
-      title: 'Summer Dreams', 
-      writer: 'Marcus Chen',
-      description: 'Coming-of-age drama set in the 1980s',
-      genre: 'Drama',
-      rating: 4.6,
-      progress: 100
-    },
-    {
-      id: '3',
-      title: 'Urban Legends',
-      writer: 'Diana Ross',
-      description: 'Horror anthology series treatment',
-      genre: 'Horror',
-      rating: 4.9,
-      progress: 45
-    }
-  ]
-
   return (
     <div className="space-y-8">
       {/* Debug Banner */}
@@ -172,7 +204,7 @@ function SimpleReaderDashboard({ userProfile }: { userProfile: UserProfile }) {
           <p className="text-gray-300 mt-2">Discover amazing stories and connect with talented writers.</p>
         </div>
         <Button asChild className="bg-gradient-to-r from-purple-400 to-purple-600 text-white hover:from-purple-500 hover:to-purple-700">
-          <Link href="/search">
+          <Link href="/app/search">
             <Search className="w-4 h-4 mr-2" />
             Discover Stories
           </Link>
@@ -238,13 +270,19 @@ function SimpleReaderDashboard({ userProfile }: { userProfile: UserProfile }) {
               <div className="flex items-center justify-between">
                 <CardTitle className="text-white">Recently Discovered</CardTitle>
                 <Button variant="outline" size="sm" asChild className="border-navy-600 text-gray-300 hover:bg-navy-700">
-                  <Link href="/search">Discover More</Link>
+                  <Link href="/app/search">Discover More</Link>
                 </Button>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              {discoveredProjects.map((project) => (
-                <div key={project.id} className="p-4 bg-navy-900/50 rounded-lg border border-navy-700/50">
+              {discoveredProjects.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="text-gray-400 mb-2">Loading amazing stories...</div>
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-400 mx-auto"></div>
+                </div>
+              ) : (
+                discoveredProjects.map((project) => (
+                  <div key={project.id} className="p-4 bg-navy-900/50 rounded-lg border border-navy-700/50">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
                       <div className="flex items-center space-x-2 mb-1">
@@ -253,27 +291,45 @@ function SimpleReaderDashboard({ userProfile }: { userProfile: UserProfile }) {
                           {project.genre}
                         </Badge>
                       </div>
-                      <p className="text-sm text-gray-400 mb-1">by {project.writer}</p>
-                      <p className="text-sm text-gray-300 mb-3">{project.description}</p>
+                      <p className="text-sm text-gray-400 mb-1">
+                        by{' '}
+                        <button
+                          className={`transition-colors ${
+                            isProfileInteractionDisabled(project.profiles)
+                              ? 'text-gray-500 cursor-not-allowed'
+                              : 'hover:text-purple-400 hover:underline'
+                          }`}
+                          disabled={isProfileInteractionDisabled(project.profiles)}
+                        >
+                          {getAuthorDisplay(project.profiles)}
+                        </button>
+                      </p>
+                      <p className="text-sm text-gray-300 mb-3">{project.logline}</p>
                       
-                      {/* Reading Progress */}
+                      {/* Project Stats */}
                       <div className="space-y-2">
                         <div className="flex items-center justify-between text-xs text-gray-400">
-                          <span>Reading Progress</span>
-                          <span>{project.progress}%</span>
+                          <span>Word Count</span>
+                          <span>{project.word_count ? `${project.word_count.toLocaleString()} words` : 'No word count'}</span>
                         </div>
-                        <Progress value={project.progress} className="h-1" />
+                        <div className="flex items-center justify-between text-xs text-gray-400">
+                          <span>Buzz Score</span>
+                          <span>{project.buzz_score || 0}</span>
+                        </div>
                       </div>
                     </div>
                     <div className="flex flex-col items-end space-y-2">
-                      <div className="flex items-center space-x-1">
-                        <Star className="w-4 h-4 text-gold-400 fill-current" />
-                        <span className="text-sm text-gray-300">{project.rating}</span>
-                      </div>
+                      <Link 
+                        href={`/projects/${project.id}`}
+                        className="text-xs text-purple-400 hover:text-purple-300 underline"
+                      >
+                        Read More
+                      </Link>
                     </div>
                   </div>
                 </div>
-              ))}
+                ))
+              )}
             </CardContent>
           </Card>
         </div>

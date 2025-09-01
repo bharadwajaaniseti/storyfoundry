@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/auth'
 import ProfileModal from '@/components/profile-modal'
+import UserAvatar from '@/components/user-avatar'
 import { 
   toggleProjectBookmark, 
   isProjectBookmarked,
@@ -36,7 +37,10 @@ interface PublicProject {
   created_at: string
   updated_at: string
   profiles: {
+    id: string
     display_name: string
+    first_name?: string | null
+    last_name?: string | null
     avatar_url?: string
   } | null
 }
@@ -72,6 +76,24 @@ export default function SearchPage() {
   
   // Profile modal state
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null)
+
+  // Helper function to determine what to display for author
+  const getAuthorDisplay = (profile: any) => {
+    if (!profile) return 'Unknown Writer'
+    
+    // If profile is private, show "Account is Private"
+    if (profile.profile_visibility === 'private') {
+      return 'Account is Private'
+    }
+    
+    // Otherwise show display name or fallback
+    return profile.display_name || 'Unknown Writer'
+  }
+
+  // Helper function to check if profile interactions should be disabled
+  const isProfileInteractionDisabled = (profile: any) => {
+    return profile?.profile_visibility === 'private'
+  }
 
   useEffect(() => {
     loadFeaturedProjects()
@@ -131,7 +153,7 @@ export default function SearchPage() {
       const supabase = createSupabaseClient()
       
       // Load top projects with highest buzz scores
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('projects')
         .select(`
           id,
@@ -143,14 +165,25 @@ export default function SearchPage() {
           word_count,
           created_at,
           updated_at,
-          profiles!owner_id (
+          profiles!owner_id!inner (
+            id,
             display_name,
-            avatar_url
+            first_name,
+            last_name,
+            avatar_url,
+            profile_visibility,
+            discoverable
           )
         `)
         .eq('visibility', 'public')
+        .eq('profiles.discoverable', true)
         .order('buzz_score', { ascending: false })
         .limit(6)
+
+      console.log('🔍 Featured projects query:', { data, error, count: data?.length })
+      if (data?.length > 0) {
+        console.log('🔍 First featured project:', data[0])
+      }
 
       if (data) {
         setFeaturedProjects(data as any || [])
@@ -181,12 +214,20 @@ export default function SearchPage() {
           word_count,
           created_at,
           updated_at,
-          profiles!owner_id (
+          profiles!owner_id!inner (
+            id,
             display_name,
-            avatar_url
+            first_name,
+            last_name,
+            avatar_url,
+            profile_visibility,
+            discoverable
           )
         `)
         .eq('visibility', 'public')
+
+      // Filter to only show projects from discoverable authors
+      queryBuilder = queryBuilder.eq('profiles.discoverable', true)
 
       // Apply text search
       if (query.trim()) {
@@ -215,7 +256,12 @@ export default function SearchPage() {
           queryBuilder = queryBuilder.order('buzz_score', { ascending: false })
       }
 
-      const { data } = await queryBuilder.limit(20)
+      const { data, error } = await queryBuilder.limit(20)
+
+      console.log('🔍 Search results query:', { data, error, count: data?.length })
+      if (data?.length > 0) {
+        console.log('🔍 First search result:', data[0])
+      }
 
       if (data) {
         setProjects(data as any || [])
@@ -500,30 +546,43 @@ export default function SearchPage() {
                         </div>
 
                         <div className="flex items-center space-x-2">
-                          <div className={`w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center transition-colors duration-200 ${
-                            userRole === 'writer'
-                              ? 'group-hover:bg-orange-100'
-                              : 'group-hover:bg-purple-100'
-                          }`}>
-                            <span className={`text-xs font-medium text-gray-600 transition-colors duration-200 ${
+                          <UserAvatar 
+                            user={{
+                              avatar_url: project.profiles?.avatar_url,
+                              display_name: project.profiles?.display_name,
+                              first_name: project.profiles?.first_name,
+                              last_name: project.profiles?.last_name
+                            }}
+                            size="custom"
+                            className={`w-6 h-6 transition-colors duration-200 ${
+                              userRole === 'writer'
+                                ? 'group-hover:bg-orange-100'
+                                : 'group-hover:bg-purple-100'
+                            }`}
+                            fallbackClassName={`text-xs font-medium text-gray-600 transition-colors duration-200 ${
                               userRole === 'writer'
                                 ? 'group-hover:text-orange-700'
                                 : 'group-hover:text-purple-700'
-                            }`}>
-                              {project.profiles?.display_name?.[0] || 'U'}
-                            </span>
-                          </div>
+                            }`}
+                          />
                           <span className="text-sm text-gray-600 group-hover:text-gray-700 transition-colors duration-200">
                             by{' '}
                             <button
                               onClick={(e) => {
                                 e.preventDefault()
                                 e.stopPropagation()
-                                setSelectedProfileId(project.profiles?.id)
+                                if (!isProfileInteractionDisabled(project.profiles)) {
+                                  setSelectedProfileId(project.profiles?.id || null)
+                                }
                               }}
-                              className="hover:text-purple-600 hover:underline transition-colors"
+                              disabled={isProfileInteractionDisabled(project.profiles)}
+                              className={`transition-colors ${
+                                isProfileInteractionDisabled(project.profiles)
+                                  ? 'text-gray-500 cursor-not-allowed'
+                                  : 'hover:text-purple-600 hover:underline'
+                              }`}
                             >
-                              {project.profiles?.display_name || 'Unknown Writer'}
+                              {getAuthorDisplay(project.profiles)}
                             </button>
                           </span>
                         </div>
@@ -601,13 +660,19 @@ export default function SearchPage() {
 
                       <div className="flex items-center justify-between text-xs text-gray-500 group-hover:text-gray-600 transition-colors duration-200">
                         <div className="flex items-center space-x-2">
-                          <div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center group-hover:bg-purple-100 transition-colors duration-200">
-                            <span className="text-xs font-medium text-gray-600 group-hover:text-purple-700 transition-colors duration-200">
-                              {project.profiles?.display_name?.[0] || 'U'}
-                            </span>
-                          </div>
+                          <UserAvatar 
+                            user={{
+                              avatar_url: project.profiles?.avatar_url,
+                              display_name: project.profiles?.display_name,
+                              first_name: project.profiles?.first_name,
+                              last_name: project.profiles?.last_name
+                            }}
+                            size="custom"
+                            className="w-6 h-6 group-hover:bg-purple-100 transition-colors duration-200"
+                            fallbackClassName="text-xs font-medium text-gray-600 group-hover:text-purple-700 transition-colors duration-200"
+                          />
                           <span className="group-hover:text-gray-700 transition-colors duration-200">
-                            {project.profiles?.display_name || 'Unknown Writer'}
+                            {getAuthorDisplay(project.profiles)}
                           </span>
                         </div>
                         <span className="group-hover:text-gray-700 transition-colors duration-200">{formatDate(project.created_at)}</span>

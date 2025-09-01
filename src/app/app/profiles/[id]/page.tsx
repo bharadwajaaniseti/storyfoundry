@@ -6,6 +6,7 @@ import { createSupabaseClient } from '@/lib/auth-client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import UserAvatar from '@/components/user-avatar'
 import { Badge } from '@/components/ui/badge'
 import { 
   Users, 
@@ -37,6 +38,8 @@ import { User } from '@supabase/supabase-js'
 interface Profile {
   id: string
   display_name: string
+  first_name?: string | null
+  last_name?: string | null
   bio: string | null
   avatar_url: string | null
   verified_pro: boolean
@@ -303,12 +306,17 @@ export default function ReaderViewProfilePage() {
           <div className="p-8 -mt-16 relative">
             <div className="flex flex-col md:flex-row md:items-end md:justify-between mb-6">
               <div className="flex items-end space-x-6 mb-6 md:mb-0">
-                <Avatar className="w-32 h-32 ring-4 ring-white shadow-lg">
-                  <AvatarImage src={profile.avatar_url || undefined} />
-                  <AvatarFallback className={`text-3xl font-bold ${colorClasses.bgGradient} text-white`}>
-                    {profile.display_name?.[0] || 'U'}
-                  </AvatarFallback>
-                </Avatar>
+                <UserAvatar 
+                  user={{
+                    avatar_url: profile.avatar_url,
+                    display_name: profile.display_name,
+                    first_name: profile.first_name,
+                    last_name: profile.last_name
+                  }}
+                  size="custom"
+                  className="w-32 h-32 ring-4 ring-white shadow-lg"
+                  fallbackClassName={`text-3xl font-bold ${colorClasses.bgGradient} text-white`}
+                />
                 
                 <div className="pb-4">
                   <div className="flex items-center space-x-3 mb-2">

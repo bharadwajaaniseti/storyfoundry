@@ -43,6 +43,8 @@ interface Project {
     display_name: string
     avatar_url: string | null
     verified_pro: boolean
+    profile_visibility: string
+    discoverable: boolean
   }
 }
 
@@ -88,6 +90,24 @@ const SORT_OPTIONS = [
 ]
 
 export default function PublicProjectsPage() {
+  // Helper function to determine what to display for author
+  const getAuthorDisplay = (profile: any) => {
+    if (!profile) return 'Unknown Writer'
+    
+    // If profile is private, show "Account is Private"
+    if (profile.profile_visibility === 'private') {
+      return 'Account is Private'
+    }
+    
+    // Otherwise show display name or fallback
+    return profile.display_name || 'Unknown Writer'
+  }
+
+  // Helper function to check if profile interactions should be disabled
+  const isProfileInteractionDisabled = (profile: any) => {
+    return profile?.profile_visibility === 'private'
+  }
+
   const [projects, setProjects] = useState<Project[]>([])
   const [pagination, setPagination] = useState<Pagination | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -396,7 +416,7 @@ export default function PublicProjectsPage() {
                         <div className="flex items-center space-x-2">
                           <Avatar className="w-8 h-8">
                             <AvatarFallback className="bg-gradient-to-br from-gold-400 to-gold-600 text-navy-900 text-xs font-bold">
-                              {getInitials(project.profiles.display_name || 'Writer')}
+                              {getInitials(getAuthorDisplay(project.profiles))}
                             </AvatarFallback>
                           </Avatar>
                           <div>
@@ -404,11 +424,18 @@ export default function PublicProjectsPage() {
                               onClick={(e) => {
                                 e.preventDefault()
                                 e.stopPropagation()
-                                setSelectedProfileId(project.profiles.id)
+                                if (!isProfileInteractionDisabled(project.profiles)) {
+                                  setSelectedProfileId(project.profiles.id)
+                                }
                               }}
-                              className="text-sm text-gray-300 hover:text-gold-400 hover:underline transition-colors"
+                              disabled={isProfileInteractionDisabled(project.profiles)}
+                              className={`text-sm transition-colors ${
+                                isProfileInteractionDisabled(project.profiles)
+                                  ? 'text-gray-500 cursor-not-allowed'
+                                  : 'text-gray-300 hover:text-gold-400 hover:underline'
+                              }`}
                             >
-                              {project.profiles.display_name || 'Anonymous'}
+                              {getAuthorDisplay(project.profiles)}
                             </button>
                             <p className="text-xs text-gray-400">{formatDate(project.created_at)}</p>
                           </div>
@@ -432,7 +459,7 @@ export default function PublicProjectsPage() {
                       <div className="flex-1 flex items-start space-x-4">
                         <Avatar className="w-12 h-12">
                           <AvatarFallback className="bg-gradient-to-br from-gold-400 to-gold-600 text-navy-900 font-bold">
-                            {getInitials(project.profiles.display_name || 'Writer')}
+                            {getInitials(getAuthorDisplay(project.profiles))}
                           </AvatarFallback>
                         </Avatar>
                         
@@ -464,11 +491,18 @@ export default function PublicProjectsPage() {
                                 onClick={(e) => {
                                   e.preventDefault()
                                   e.stopPropagation()
-                                  setSelectedProfileId(project.profiles.id)
+                                  if (!isProfileInteractionDisabled(project.profiles)) {
+                                    setSelectedProfileId(project.profiles.id)
+                                  }
                                 }}
-                                className="text-gray-300 hover:text-gold-400 hover:underline transition-colors"
+                                disabled={isProfileInteractionDisabled(project.profiles)}
+                                className={`transition-colors ${
+                                  isProfileInteractionDisabled(project.profiles)
+                                    ? 'text-gray-500 cursor-not-allowed'
+                                    : 'text-gray-300 hover:text-gold-400 hover:underline'
+                                }`}
                               >
-                                {project.profiles.display_name || 'Anonymous'}
+                                {getAuthorDisplay(project.profiles)}
                               </button>
                             </span>
                             <span>{formatDate(project.created_at)}</span>

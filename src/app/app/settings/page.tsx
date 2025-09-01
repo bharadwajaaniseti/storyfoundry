@@ -17,23 +17,32 @@ import {
   Globe,
   Lock,
   Mail,
-  Smartphone
+  Smartphone,
+  ChevronRight
 } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/auth'
+import AvatarUpload from '@/components/avatar-upload'
 
 interface Profile {
   id: string
-  first_name: string
-  last_name: string
+  role: 'writer' | 'pro' | 'admin'
+  display_name: string | null
+  first_name: string | null
+  last_name: string | null
   email: string
   bio: string | null
   website: string | null
   twitter_handle: string | null
   avatar_url: string | null
+  company: string | null
+  country: string | null
   email_notifications: boolean
   marketing_emails: boolean
   project_updates: boolean
   collaboration_invites: boolean
+  profile_visibility: 'public' | 'members' | 'private'
+  discoverable: boolean
+  verified_pro: boolean
 }
 
 const TABS = [
@@ -56,10 +65,14 @@ export default function SettingsPage() {
     bio: '',
     website: '',
     twitter_handle: '',
+    company: '',
+    country: '',
     email_notifications: true,
     marketing_emails: false,
     project_updates: true,
-    collaboration_invites: true
+    collaboration_invites: true,
+    profile_visibility: 'public' as 'public' | 'members' | 'private',
+    discoverable: true
   })
 
   useEffect(() => {
@@ -90,10 +103,14 @@ export default function SettingsPage() {
           bio: profileData.bio || '',
           website: profileData.website || '',
           twitter_handle: profileData.twitter_handle || '',
+          company: profileData.company || '',
+          country: profileData.country || '',
           email_notifications: profileData.email_notifications ?? true,
           marketing_emails: profileData.marketing_emails ?? false,
           project_updates: profileData.project_updates ?? true,
-          collaboration_invites: profileData.collaboration_invites ?? true
+          collaboration_invites: profileData.collaboration_invites ?? true,
+          profile_visibility: profileData.profile_visibility || 'public',
+          discoverable: profileData.discoverable ?? true
         })
       }
     } catch (error) {
@@ -115,15 +132,19 @@ export default function SettingsPage() {
       const { error } = await supabase
         .from('profiles')
         .update({
-          first_name: formData.first_name.trim(),
-          last_name: formData.last_name.trim(),
+          first_name: formData.first_name.trim() || null,
+          last_name: formData.last_name.trim() || null,
           bio: formData.bio.trim() || null,
           website: formData.website.trim() || null,
           twitter_handle: formData.twitter_handle.trim() || null,
+          company: formData.company.trim() || null,
+          country: formData.country.trim() || null,
           email_notifications: formData.email_notifications,
           marketing_emails: formData.marketing_emails,
           project_updates: formData.project_updates,
-          collaboration_invites: formData.collaboration_invites
+          collaboration_invites: formData.collaboration_invites,
+          profile_visibility: formData.profile_visibility,
+          discoverable: formData.discoverable
         })
         .eq('id', profile.id)
 
@@ -131,6 +152,20 @@ export default function SettingsPage() {
 
       setSaveStatus('saved')
       setTimeout(() => setSaveStatus(null), 2000)
+      
+      // Dispatch event to notify header and other components to refresh
+      console.log('🔥 DISPATCHING profileUpdated event from saveProfile');
+      window.dispatchEvent(new CustomEvent('profileUpdated'))
+      document.dispatchEvent(new CustomEvent('profileUpdated'))
+      
+      // Also try calling global refresh function directly
+      console.log('🔍 Checking if global refreshHeaderProfile exists:', typeof (window as any).refreshHeaderProfile);
+      if ((window as any).refreshHeaderProfile) {
+        console.log('🔄 Calling global refreshHeaderProfile function');
+        (window as any).refreshHeaderProfile();
+      } else {
+        console.log('❌ Global refreshHeaderProfile function not found');
+      }
       
       // Reload profile to get updated data
       await loadProfile()
@@ -208,26 +243,19 @@ export default function SettingsPage() {
                   
                   {/* Avatar */}
                   <div className="flex items-center space-x-6 mb-8">
-                    <div className="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center">
-                      {profile?.avatar_url ? (
-                        <img
-                          src={profile.avatar_url}
-                          alt="Profile"
-                          className="w-full h-full rounded-full object-cover"
-                        />
-                      ) : (
-                        <span className="text-2xl font-medium text-gray-600">
-                          {formData.first_name[0] || 'U'}
-                        </span>
-                      )}
-                    </div>
-                    <div>
-                      <button className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg hover:border-gray-400 transition-colors">
-                        <Camera className="w-4 h-4" />
-                        <span>Change Photo</span>
-                      </button>
-                      <p className="text-sm text-gray-500 mt-2">JPG, PNG up to 5MB</p>
-                    </div>
+                    <AvatarUpload
+                      currentAvatarUrl={profile?.avatar_url}
+                      onAvatarUpdate={async (newUrl) => {
+                        if (profile) {
+                          setProfile({ ...profile, avatar_url: newUrl })
+                          // Dispatch event to notify header and other components to refresh
+                          window.dispatchEvent(new CustomEvent('profileUpdated'))
+                          // Reload profile to ensure data is fresh
+                          await loadProfile()
+                        }
+                      }}
+                      size="lg"
+                    />
                   </div>
 
                   <div className="grid md:grid-cols-2 gap-6">
@@ -308,6 +336,34 @@ export default function SettingsPage() {
                         onChange={(e) => setFormData({ ...formData, twitter_handle: e.target.value })}
                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
                         placeholder="@username"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-6 mt-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Company
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.company}
+                        onChange={(e) => setFormData({ ...formData, company: e.target.value })}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                        placeholder="Your company or organization"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Country
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.country}
+                        onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                        placeholder="Your country"
                       />
                     </div>
                   </div>
@@ -448,10 +504,14 @@ export default function SettingsPage() {
                     <p className="text-sm text-gray-600 mb-4">
                       Control who can see your profile and project information
                     </p>
-                    <select className="w-full px-3 py-2 border border-gray-300 rounded-lg">
-                      <option>Public - Anyone can see your profile</option>
-                      <option>Members Only - Only StoryFoundry members</option>
-                      <option>Private - Only you can see your profile</option>
+                    <select 
+                      value={formData.profile_visibility}
+                      onChange={(e) => setFormData({ ...formData, profile_visibility: e.target.value as 'public' | 'members' | 'private' })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    >
+                      <option value="public">Public - Anyone can see your profile</option>
+                      <option value="members">Members Only - Only StoryFoundry members</option>
+                      <option value="private">Private - Only you can see your profile</option>
                     </select>
                   </div>
 
@@ -464,7 +524,11 @@ export default function SettingsPage() {
                       Allow your public projects to appear in search results
                     </p>
                     <label className="flex items-center space-x-2">
-                      <input type="checkbox" defaultChecked />
+                      <input 
+                        type="checkbox" 
+                        checked={formData.discoverable}
+                        onChange={(e) => setFormData({ ...formData, discoverable: e.target.checked })}
+                      />
                       <span className="text-sm text-gray-700">Enable project discovery</span>
                     </label>
                   </div>
@@ -487,6 +551,26 @@ export default function SettingsPage() {
                     </div>
                   </div>
                 </div>
+
+                <div className="flex justify-end mt-8">
+                  <button
+                    onClick={saveProfile}
+                    disabled={isSaving}
+                    className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                  >
+                    {isSaving ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <span>Saving...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4" />
+                        <span>Save Settings</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             )}
 
@@ -497,47 +581,58 @@ export default function SettingsPage() {
                 <div className="p-6 bg-gray-50 rounded-lg mb-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="font-medium text-gray-800">Free Plan</h3>
-                      <p className="text-sm text-gray-600">Basic features with limited projects</p>
+                      <h3 className="font-medium text-gray-800">
+                        {profile?.role === 'pro' ? 'Pro Plan' : profile?.role === 'admin' ? 'Admin' : 'Writer Plan'}
+                      </h3>
+                      <p className="text-sm text-gray-600">
+                        {profile?.role === 'pro' ? 'Advanced features with unlimited projects' : 
+                         profile?.role === 'admin' ? 'Full administrative access' : 
+                         'Basic features with limited projects'}
+                      </p>
                     </div>
-                    <span className="text-2xl font-bold text-gray-800">$0</span>
+                    <span className="text-2xl font-bold text-gray-800">
+                      {profile?.role === 'pro' ? '$19' : '$0'}
+                      {profile?.role === 'pro' && <span className="text-sm font-normal text-gray-600">/month</span>}
+                    </span>
                   </div>
                 </div>
 
-                <div className="space-y-4">
-                  <h3 className="font-medium text-gray-800">Upgrade to Pro</h3>
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div className="p-4 border border-gray-200 rounded-lg">
-                      <h4 className="font-medium text-gray-800 mb-2">Pro Monthly</h4>
-                      <p className="text-2xl font-bold text-gray-800 mb-2">$19<span className="text-sm font-normal text-gray-600">/month</span></p>
-                      <ul className="text-sm text-gray-600 space-y-1">
-                        <li>• Unlimited projects</li>
-                        <li>• Advanced AI features</li>
-                        <li>• Priority support</li>
-                        <li>• Export to all formats</li>
-                      </ul>
-                    </div>
-
-                    <div className="p-4 border border-orange-500 rounded-lg bg-orange-50">
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="font-medium text-gray-800">Pro Yearly</h4>
-                        <span className="text-xs bg-orange-500 text-white px-2 py-1 rounded-full">Save 20%</span>
+                {profile?.role !== 'pro' && (
+                  <div className="space-y-4">
+                    <h3 className="font-medium text-gray-800">Upgrade to Pro</h3>
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div className="p-4 border border-gray-200 rounded-lg">
+                        <h4 className="font-medium text-gray-800 mb-2">Pro Monthly</h4>
+                        <p className="text-2xl font-bold text-gray-800 mb-2">$19<span className="text-sm font-normal text-gray-600">/month</span></p>
+                        <ul className="text-sm text-gray-600 space-y-1">
+                          <li>• Unlimited projects</li>
+                          <li>• Advanced AI features</li>
+                          <li>• Priority support</li>
+                          <li>• Export to all formats</li>
+                        </ul>
                       </div>
-                      <p className="text-2xl font-bold text-gray-800 mb-2">$15<span className="text-sm font-normal text-gray-600">/month</span></p>
-                      <ul className="text-sm text-gray-600 space-y-1">
-                        <li>• Everything in Pro Monthly</li>
-                        <li>• 2 months free</li>
-                        <li>• Premium templates</li>
-                        <li>• Advanced analytics</li>
-                      </ul>
+
+                      <div className="p-4 border border-orange-500 rounded-lg bg-orange-50">
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="font-medium text-gray-800">Pro Yearly</h4>
+                          <span className="text-xs bg-orange-500 text-white px-2 py-1 rounded-full">Save 20%</span>
+                        </div>
+                        <p className="text-2xl font-bold text-gray-800 mb-2">$15<span className="text-sm font-normal text-gray-600">/month</span></p>
+                        <ul className="text-sm text-gray-600 space-y-1">
+                          <li>• Everything in Pro Monthly</li>
+                          <li>• 2 months free</li>
+                          <li>• Premium templates</li>
+                          <li>• Advanced analytics</li>
+                        </ul>
+                      </div>
+                    </div>
+
+                    <div className="flex space-x-4 mt-6">
+                      <button className="btn-primary">Upgrade to Pro Monthly</button>
+                      <button className="btn-secondary">Upgrade to Pro Yearly</button>
                     </div>
                   </div>
-
-                  <div className="flex space-x-4 mt-6">
-                    <button className="btn-primary">Upgrade to Pro Monthly</button>
-                    <button className="btn-secondary">Upgrade to Pro Yearly</button>
-                  </div>
-                </div>
+                )}
               </div>
             )}
 
