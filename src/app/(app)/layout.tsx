@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { ToastProvider } from '@/components/ui/toast'
+import AppHeader from '@/components/app-header'
 import { 
   Home,
   FileText,
@@ -102,21 +103,15 @@ export default function AppLayout({
 
   return (
     <ToastProvider>
-      <div className="flex h-screen bg-gray-50">
-        {/* Sidebar */}
-        <div className="w-64 bg-white border-r border-gray-200 flex flex-col">
-          {/* Logo */}
-          <div className="p-6 border-b border-gray-200">
-            <Link href="/app/dashboard" className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold">SF</span>
-              </div>
-              <span className="text-xl font-bold text-gray-800">StoryFoundry</span>
-            </Link>
-          </div>
-
-        {/* Navigation */}
-        <nav className="flex-1 px-4 py-6">
+      <div className="min-h-screen bg-gray-50">
+        {/* Top Navigation */}
+        <AppHeader user={user} />
+        
+        <div className="flex">
+          {/* Sidebar */}
+          <div className="w-64 bg-white border-r border-gray-200 flex flex-col min-h-screen sticky top-16">
+            {/* Navigation */}
+            <nav className="flex-1 px-4 py-6">
           <div className="space-y-2">
             {NAVIGATION_ITEMS.map((item) => {
               const Icon = item.icon
@@ -194,11 +189,10 @@ export default function AppLayout({
             </button>
           </div>
         </div>
-      </div>
+        </div>
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <main className="flex-1 overflow-x-hidden overflow-y-auto">
+        {/* Main Content */}
+        <main className="flex-1 min-h-screen">
           {children}
         </main>
       </div>

@@ -11,7 +11,9 @@ import {
   X, 
   UserPlus,
   MessageCircle,
-  Clock
+  Clock,
+  Trash2,
+  CheckCheck
 } from 'lucide-react'
 
 interface Notification {
@@ -94,6 +96,82 @@ export default function NotificationBell() {
     }
   }
 
+  const clearAllNotifications = async () => {
+    try {
+      const supabase = createSupabaseClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (!user) return
+
+      const { error } = await supabase
+        .from('notifications')
+        .delete()
+        .eq('user_id', user.id)
+
+      if (error) {
+        console.error('Error clearing all notifications:', error)
+        return
+      }
+
+      setNotifications([])
+      
+      addToast({
+        type: 'success',
+        title: 'Notifications cleared',
+        message: 'All notifications have been removed',
+        duration: 3000
+      })
+    } catch (error) {
+      console.error('Error clearing all notifications:', error)
+    }
+  }
+
+  // Helper function to create test notifications (for development)
+  const createTestNotification = async () => {
+    try {
+      const supabase = createSupabaseClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (!user) return
+
+      const testNotifications = [
+        {
+          user_id: user.id,
+          type: 'profile_access_request',
+          title: 'New Profile Access Request',
+          message: 'A reader wants to access your premium content',
+          read: false
+        },
+        {
+          user_id: user.id,
+          type: 'follow',
+          title: 'New Follower',
+          message: 'Alex Chen started following you',
+          read: false
+        },
+        {
+          user_id: user.id,
+          type: 'project_comment',
+          title: 'New Comment',
+          message: 'Someone commented on "The Last Chronicle"',
+          read: false
+        }
+      ]
+
+      const randomNotification = testNotifications[Math.floor(Math.random() * testNotifications.length)]
+      
+      const { error } = await supabase
+        .from('notifications')
+        .insert([randomNotification])
+
+      if (error) {
+        console.error('Error creating test notification:', error)
+      }
+    } catch (error) {
+      console.error('Error creating test notification:', error)
+    }
+  }
+
   useEffect(() => {
     loadNotifications()
 
@@ -170,16 +248,23 @@ export default function NotificationBell() {
         variant="ghost"
         size="sm"
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2"
+        className="relative p-2 hover:bg-gray-100 transition-colors"
+        onDoubleClick={createTestNotification} // Double-click to create test notification
+        title={unreadCount > 0 ? `${unreadCount} unread notifications` : 'No new notifications'}
       >
-        <Bell className="w-5 h-5" />
+        <Bell className={`w-5 h-5 ${unreadCount > 0 ? 'text-orange-600' : 'text-gray-600'} transition-colors`} />
         {unreadCount > 0 && (
-          <Badge 
-            variant="destructive" 
-            className="absolute -top-1 -right-1 w-5 h-5 p-0 flex items-center justify-center text-xs"
-          >
-            {unreadCount > 9 ? '9+' : unreadCount}
-          </Badge>
+          <>
+            {/* Notification Badge */}
+            <Badge 
+              variant="destructive" 
+              className="absolute -top-1 -right-1 w-5 h-5 p-0 flex items-center justify-center text-xs font-bold bg-red-500 hover:bg-red-500 animate-pulse"
+            >
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </Badge>
+            {/* Pulse Animation Ring */}
+            <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-400 rounded-full animate-ping opacity-75"></div>
+          </>
         )}
       </Button>
 
@@ -187,17 +272,40 @@ export default function NotificationBell() {
         <div className="absolute right-0 top-full mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
           <div className="p-4 border-b border-gray-200">
             <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900">Notifications</h3>
-              {unreadCount > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={markAllAsRead}
-                  className="text-xs"
-                >
-                  Mark all read
-                </Button>
-              )}
+              <h3 className="font-semibold text-gray-900 flex items-center space-x-2">
+                <Bell className="w-4 h-4" />
+                <span>Notifications</span>
+                {unreadCount > 0 && (
+                  <Badge variant="destructive" className="text-xs px-2 py-0.5">
+                    {unreadCount} new
+                  </Badge>
+                )}
+              </h3>
+              <div className="flex items-center space-x-1">
+                {unreadCount > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={markAllAsRead}
+                    className="text-xs px-2 py-1 h-7"
+                    title="Mark all as read"
+                  >
+                    <CheckCheck className="w-3 h-3 mr-1" />
+                    Read all
+                  </Button>
+                )}
+                {notifications.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={clearAllNotifications}
+                    className="text-xs px-2 py-1 h-7 text-red-600 hover:text-red-700 hover:bg-red-50"
+                    title="Clear all notifications"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
 
@@ -255,15 +363,49 @@ export default function NotificationBell() {
             )}
           </div>
 
-          <div className="p-3 border-t border-gray-200">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsOpen(false)}
-              className="w-full text-sm"
-            >
-              Close
-            </Button>
+          <div className="p-3 border-t border-gray-200 bg-gray-50">
+            <div className="flex items-center justify-between">
+              <div className="text-xs text-gray-500">
+                {notifications.length > 0 
+                  ? `${notifications.length} notification${notifications.length === 1 ? '' : 's'}`
+                  : 'No notifications'
+                }
+              </div>
+              <div className="flex items-center space-x-2">
+                {notifications.length > 0 && (
+                  <>
+                    {unreadCount > 0 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={markAllAsRead}
+                        className="text-xs px-3 py-1 h-7"
+                      >
+                        <CheckCheck className="w-3 h-3 mr-1" />
+                        Mark all read
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={clearAllNotifications}
+                      className="text-xs px-3 py-1 h-7 text-red-600 border-red-200 hover:bg-red-50"
+                    >
+                      <Trash2 className="w-3 h-3 mr-1" />
+                      Clear all
+                    </Button>
+                  </>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsOpen(false)}
+                  className="text-xs px-3 py-1 h-7"
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       )}
