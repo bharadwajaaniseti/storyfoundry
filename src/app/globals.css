@@ -28,6 +28,16 @@
     line-height: 1.2;
     color: #212224;
   }
+
+  /* Hide scrollbar but keep functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;  /* Chrome, Safari and Opera */
+  }
   
   button {
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);

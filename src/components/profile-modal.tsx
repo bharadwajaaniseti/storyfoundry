@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createSupabaseClient } from '@/lib/auth-client'
 import { useToast } from '@/components/ui/toast'
@@ -31,7 +31,8 @@ import {
   Heart,
   Bookmark,
   Award,
-  X
+  X,
+  ChevronDown
 } from 'lucide-react'
 import Link from 'next/link'
 import { User } from '@supabase/supabase-js'
@@ -93,6 +94,12 @@ export default function ProfileModal({ profileId, currentUserRole, onClose, onFo
   const [accessRequestStatus, setAccessRequestStatus] = useState<'pending' | 'approved' | 'denied' | null>(null)
   const [isLoadingAccessRequest, setIsLoadingAccessRequest] = useState(false)
   const [hasAccess, setHasAccess] = useState(false)
+  
+  // Scroll state for modal
+  const [showScrollIndicator, setShowScrollIndicator] = useState(false)
+  const [canScrollUp, setCanScrollUp] = useState(false)
+  const [canScrollDown, setCanScrollDown] = useState(false)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   // Dynamic color scheme based on viewer's role
   const getColorClasses = (role: string) => {
@@ -493,6 +500,32 @@ export default function ProfileModal({ profileId, currentUserRole, onClose, onFo
     loadProfileData()
   }, [profileId])
 
+  // Check scroll position and update indicators
+  const checkScroll = () => {
+    const container = scrollContainerRef.current
+    if (!container) return
+
+    const { scrollTop, scrollHeight, clientHeight } = container
+    setCanScrollUp(scrollTop > 10)
+    setCanScrollDown(scrollTop < scrollHeight - clientHeight - 10)
+    setShowScrollIndicator(scrollHeight > clientHeight)
+  }
+
+  useEffect(() => {
+    if (profile) {
+      setTimeout(checkScroll, 100) // Check after content loads
+      const container = scrollContainerRef.current
+      if (container) {
+        container.addEventListener('scroll', checkScroll)
+        window.addEventListener('resize', checkScroll)
+        return () => {
+          container.removeEventListener('scroll', checkScroll)
+          window.removeEventListener('resize', checkScroll)
+        }
+      }
+    }
+  }, [profile])
+
   if (isLoading) {
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -610,9 +643,38 @@ export default function ProfileModal({ profileId, currentUserRole, onClose, onFo
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-50 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="p-6 bg-white rounded-t-2xl">
+      <div className="bg-gray-50 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden relative">
+        {/* Scroll Indicator - Top */}
+        {showScrollIndicator && canScrollUp && (
+          <div className="absolute top-24 left-1/2 transform -translate-x-1/2 z-10 pointer-events-none">
+            <div className="bg-gradient-to-b from-white to-transparent h-8 w-full absolute -top-4"></div>
+            <div className="bg-white/95 backdrop-blur-sm rounded-full shadow-md px-3 py-1 text-xs text-gray-500 font-medium animate-pulse">
+              ↑ Scroll up
+            </div>
+          </div>
+        )}
+
+        {/* Scroll Indicator - Bottom */}
+        {showScrollIndicator && canScrollDown && (
+          <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-10 pointer-events-none">
+            <div className="bg-gradient-to-t from-gray-50 to-transparent h-8 w-full absolute -bottom-4"></div>
+            <div className="bg-white/95 backdrop-blur-sm rounded-full shadow-md px-3 py-1 text-xs text-gray-500 font-medium animate-pulse">
+              ↓ Scroll down
+            </div>
+          </div>
+        )}
+
+        {/* Scrollable Content */}
+        <div 
+          ref={scrollContainerRef}
+          className="overflow-y-auto scrollbar-hide"
+          style={{ 
+            maxHeight: '90vh',
+          }}
+          onScroll={checkScroll}
+        >
+          {/* Header */}
+          <div className="p-6 bg-white rounded-t-2xl">
           <div className="flex items-center justify-between mb-6">
             <Button variant="ghost" onClick={onClose} className="text-gray-600 hover:text-gray-800 flex items-center">
               <ArrowLeft className="w-4 h-4 mr-2" />
@@ -848,6 +910,7 @@ export default function ProfileModal({ profileId, currentUserRole, onClose, onFo
               </div>
             )}
           </div>
+        </div>
         </div>
       </div>
     </div>

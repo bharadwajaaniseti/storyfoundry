@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import ReaderDashboard from '@/components/reader-dashboard'
+import WriterUpgradeModal from '@/components/writer-upgrade-modal'
 import { 
   Plus,
   FileText,
@@ -56,6 +57,7 @@ export default function DashboardPage() {
   const [recentActivity, setRecentActivity] = useState<ActivityEvent[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [filter, setFilter] = useState('all')
+  const [isWriterUpgradeModalOpen, setIsWriterUpgradeModalOpen] = useState(false)
   const router = useRouter()
 
   // Function to generate recent activity from projects and engagement data
@@ -639,17 +641,23 @@ export default function DashboardPage() {
               <p className="text-sm text-white/90 mb-4">
                 Unlock advanced AI features, unlimited projects, and priority support.
               </p>
-              <Link
-                href="/pricing"
+              <button
+                onClick={() => setIsWriterUpgradeModalOpen(true)}
                 className="inline-flex items-center space-x-2 bg-white text-orange-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
               >
                 <Star className="w-4 h-4" />
                 <span>Upgrade Now</span>
-              </Link>
+              </button>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Writer Upgrade Modal */}
+      <WriterUpgradeModal
+        isOpen={isWriterUpgradeModalOpen}
+        onClose={() => setIsWriterUpgradeModalOpen(false)}
+      />
     </div>
   )
 }

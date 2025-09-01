@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import ReaderDashboard from '@/components/reader-dashboard'
+import WriterUpgradeModal from '@/components/writer-upgrade-modal'
 import { 
   Plus, 
   FileText, 
@@ -38,6 +39,7 @@ export default function DashboardPage() {
   const [user, setUser] = useState<any>(null)
   const [hydrated, setHydrated] = useState(false)
   const [discoveredProjects, setDiscoveredProjects] = useState<any[]>([])
+  const [isWriterUpgradeModalOpen, setIsWriterUpgradeModalOpen] = useState(false)
   
   // Helper function to determine what to display for author
   const getAuthorDisplay = (profile: any) => {
@@ -174,11 +176,21 @@ export default function DashboardPage() {
   // Render dashboard based on user role
   const userRole = userProfile.role?.toLowerCase()
   
-  if (userRole === 'reader') {
-    return <ReaderDashboard user={user} userProfile={userProfile} />
-  } else {
-    return <WriterDashboard userProfile={userProfile} />
-  }
+  return (
+    <>
+      {userRole === 'reader' ? (
+        <ReaderDashboard user={user} userProfile={userProfile} />
+      ) : (
+        <WriterDashboard userProfile={userProfile} onUpgradeClick={() => setIsWriterUpgradeModalOpen(true)} />
+      )}
+      
+      {/* Writer Upgrade Modal */}
+      <WriterUpgradeModal
+        isOpen={isWriterUpgradeModalOpen}
+        onClose={() => setIsWriterUpgradeModalOpen(false)}
+      />
+    </>
+  )
 }
 
 // Simple Reader Dashboard Component (fallback)
@@ -380,7 +392,7 @@ function SimpleReaderDashboard({ userProfile }: { userProfile: UserProfile }) {
 }
 
 // Writer Dashboard Component
-function WriterDashboard({ userProfile }: { userProfile: UserProfile }) {
+function WriterDashboard({ userProfile, onUpgradeClick }: { userProfile: UserProfile; onUpgradeClick: () => void }) {
   // Mock data - in real app this would come from database
   const stats = {
     totalProjects: 8,
