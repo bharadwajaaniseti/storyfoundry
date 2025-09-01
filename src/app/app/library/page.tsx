@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { 
   BookOpen, 
   Clock, 
@@ -20,7 +21,9 @@ import {
   SortDesc,
   MoreHorizontal,
   ExternalLink,
-  MessageCircle
+  MessageCircle,
+  BarChart3,
+  TrendingUp
 } from 'lucide-react'
 import Link from 'next/link'
 import { createSupabaseClient } from '@/lib/auth'
@@ -101,8 +104,16 @@ export default function LibraryPage() {
   
   // Filter and sort state
   const [activeTab, setActiveTab] = useState<'reading' | 'completed' | 'bookmarked'>('reading')
+  const [activeMainTab, setActiveMainTab] = useState<'library' | 'analytics'>('library')
   const [sortBy, setSortBy] = useState<'recent' | 'title' | 'progress'>('recent')
   const [searchQuery, setSearchQuery] = useState('')
+
+  // Refresh data when switching to analytics tab to ensure latest progress
+  useEffect(() => {
+    if (activeMainTab === 'analytics' && currentUser) {
+      loadLibraryData(currentUser.id)
+    }
+  }, [activeMainTab, currentUser])
   
   // Helper function to determine what to display for author
   const getAuthorDisplay = (profile: any) => {
@@ -509,56 +520,281 @@ export default function LibraryPage() {
           </Button>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Currently Reading</CardTitle>
-              <BookOpen className="h-4 w-4 text-blue-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.currentlyReading}</div>
-              <p className="text-xs text-muted-foreground">Active projects</p>
-            </CardContent>
-          </Card>
+        {/* Main Tabs */}
+        <Tabs value={activeMainTab} onValueChange={(value) => setActiveMainTab(value as 'library' | 'analytics')} className="space-y-6">
+          <TabsList className="grid w-full grid-cols-2 lg:w-auto lg:grid-cols-2">
+            <TabsTrigger value="library" className="flex items-center space-x-2">
+              <BookMarked className="w-4 h-4" />
+              <span>My Library</span>
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="flex items-center space-x-2">
+              <BarChart3 className="w-4 h-4" />
+              <span>Reading Analytics</span>
+            </TabsTrigger>
+          </TabsList>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Completed</CardTitle>
-              <CheckCircle className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.totalRead}</div>
-              <p className="text-xs text-muted-foreground">Stories finished</p>
-            </CardContent>
-          </Card>
+          {/* Library Tab Content */}
+          <TabsContent value="library" className="space-y-6">
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Currently Reading</CardTitle>
+                  <BookOpen className="h-4 w-4 text-blue-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{stats.currentlyReading}</div>
+                  <p className="text-xs text-muted-foreground">Active projects</p>
+                </CardContent>
+              </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Bookmarked</CardTitle>
-              <Bookmark className="h-4 w-4 text-purple-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.bookmarked}</div>
-              <p className="text-xs text-muted-foreground">Saved for later</p>
-            </CardContent>
-          </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Completed</CardTitle>
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{stats.totalRead}</div>
+                  <p className="text-xs text-muted-foreground">Stories finished</p>
+                </CardContent>
+              </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Reading Time</CardTitle>
-              <Clock className="h-4 w-4 text-orange-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{formatReadingTime(stats.totalReadingTime)}</div>
-              <p className="text-xs text-muted-foreground">Total time spent</p>
-            </CardContent>
-          </Card>
-        </div>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Bookmarked</CardTitle>
+                  <Bookmark className="h-4 w-4 text-purple-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{stats.bookmarked}</div>
+                  <p className="text-xs text-muted-foreground">Saved for later</p>
+                </CardContent>
+              </Card>
 
-        {/* Filters and Search */}
-        <Card className="mb-6">
-          <CardHeader className="py-4">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Reading Time</CardTitle>
+                  <Clock className="h-4 w-4 text-orange-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{formatReadingTime(stats.totalReadingTime)}</div>
+                  <p className="text-xs text-muted-foreground">Total time spent</p>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* Analytics Tab Content */}
+          <TabsContent value="analytics" className="space-y-6">
+            {/* Reading Statistics Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Reading Streak</CardTitle>
+                  <TrendingUp className="h-4 w-4 text-green-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-green-600">7 days</div>
+                  <p className="text-xs text-muted-foreground">Current streak</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Average Progress</CardTitle>
+                  <BarChart3 className="h-4 w-4 text-blue-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-blue-600">
+                    {currentlyReading.length > 0 
+                      ? Math.round(currentlyReading.reduce((acc, item) => acc + (item.progress_percentage || 0), 0) / currentlyReading.length)
+                      : 0}%
+                  </div>
+                  <p className="text-xs text-muted-foreground">Across all stories</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Genres Read</CardTitle>
+                  <BookMarked className="h-4 w-4 text-purple-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-purple-600">
+                    {[...new Set([...readProjects, ...currentlyReading].map(item => item.projects?.genre).filter(Boolean))].length}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Different genres</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Words Read</CardTitle>
+                  <Eye className="h-4 w-4 text-orange-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-orange-600">
+                    {Math.round([...readProjects, ...currentlyReading].reduce((acc, item) => {
+                      const wordCount = item.projects?.word_count || 0
+                      const progress = (item.progress_percentage || 0) / 100
+                      return acc + (wordCount * progress)
+                    }, 0) / 1000)}K
+                  </div>
+                  <p className="text-xs text-muted-foreground">Total words</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Reading Insights Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Genre Breakdown */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <BookMarked className="w-5 h-5 text-purple-500" />
+                    <span>Genre Breakdown</span>
+                  </CardTitle>
+                  <CardDescription>Your reading preferences</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {(() => {
+                      const genreCounts = [...readProjects, ...currentlyReading].reduce((acc, item) => {
+                        const genre = item.projects?.genre || 'Unknown'
+                        acc[genre] = (acc[genre] || 0) + 1
+                        return acc
+                      }, {} as Record<string, number>)
+                      
+                      const totalBooks = Object.values(genreCounts).reduce((a, b) => a + b, 0)
+                      
+                      return Object.entries(genreCounts)
+                        .sort(([,a], [,b]) => b - a)
+                        .slice(0, 5)
+                        .map(([genre, count]) => (
+                          <div key={genre} className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                              <Badge variant="outline">{genre}</Badge>
+                              <span className="text-sm text-gray-600">{count} stories</span>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <div className="w-20 bg-gray-200 rounded-full h-2">
+                                <div 
+                                  className="bg-purple-600 h-2 rounded-full" 
+                                  style={{ width: `${totalBooks > 0 ? (count / totalBooks) * 100 : 0}%` }}
+                                ></div>
+                              </div>
+                              <span className="text-xs text-gray-500 w-8 text-right">
+                                {totalBooks > 0 ? Math.round((count / totalBooks) * 100) : 0}%
+                              </span>
+                            </div>
+                          </div>
+                        ))
+                    })()}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Reading Habits */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Clock className="w-5 h-5 text-blue-500" />
+                    <span>Reading Habits</span>
+                  </CardTitle>
+                  <CardDescription>Your reading patterns</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Avg. Reading Session</span>
+                      <span className="text-sm font-medium">{formatReadingTime(Math.round(stats.totalReadingTime / Math.max(stats.currentlyReading + stats.totalRead, 1)))}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Completion Rate</span>
+                      <span className="text-sm font-medium">
+                        {Math.round((stats.totalRead / Math.max(stats.totalRead + stats.currentlyReading, 1)) * 100)}%
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Favorite Format</span>
+                      <span className="text-sm font-medium">
+                        {(() => {
+                          const formatCounts = [...readProjects, ...currentlyReading].reduce((acc, item) => {
+                            const format = item.projects?.format || 'Unknown'
+                            acc[format] = (acc[format] || 0) + 1
+                            return acc
+                          }, {} as Record<string, number>)
+                          
+                          const topFormat = Object.entries(formatCounts).sort(([,a], [,b]) => b - a)[0]
+                          return topFormat ? topFormat[0] : 'None'
+                        })()}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Books This Month</span>
+                      <span className="text-sm font-medium">
+                        {[...readProjects, ...currentlyReading].filter(item => {
+                          const updatedDate = new Date(item.updated_at)
+                          const now = new Date()
+                          return updatedDate.getMonth() === now.getMonth() && updatedDate.getFullYear() === now.getFullYear()
+                        }).length}
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Recent Activity */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Calendar className="w-5 h-5 text-green-500" />
+                  <span>Recent Reading Activity</span>
+                </CardTitle>
+                <CardDescription>Your latest reading progress</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {[...readProjects, ...currentlyReading]
+                    .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+                    .slice(0, 5)
+                    .map((item) => (
+                      <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div className="flex items-center space-x-3">
+                          <div className={`w-2 h-2 rounded-full ${
+                            item.progress_percentage >= 100 ? 'bg-green-500' : 'bg-blue-500'
+                          }`}></div>
+                          <div>
+                            <p className="font-medium text-sm">{item.projects?.title}</p>
+                            <p className="text-xs text-gray-500">
+                              {item.progress_percentage >= 100 ? 'Completed' : `${Math.round(item.progress_percentage || 0)}% progress`}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-xs text-gray-400">
+                          {new Date(item.updated_at).toLocaleDateString()}
+                        </div>
+                      </div>
+                    ))}
+                  
+                  {[...readProjects, ...currentlyReading].length === 0 && (
+                    <div className="text-center py-6 text-gray-500">
+                      <BookOpen className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">No reading activity yet</p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+
+        {/* Filters and Search - Only show for Library tab */}
+        {activeMainTab === 'library' && (
+          <>
+            {/* Filters and Search */}
+            <Card className="mb-6">
+              <CardHeader className="py-4">
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-3 lg:space-y-0">
               {/* Tab Navigation */}
               <div className="flex items-center space-x-3">
@@ -904,18 +1140,20 @@ export default function LibraryPage() {
           )}
         </div>
 
-        {/* Empty State for no results */}
-        {filteredProjects.length === 0 && searchQuery && (
-          <div className="text-center py-12">
-            <Search className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-gray-800 mb-2">No stories found</h3>
-            <p className="text-gray-600 mb-6">
-              Try adjusting your search terms or browse all stories.
-            </p>
-            <Button variant="outline" onClick={() => setSearchQuery('')}>
-              Clear Search
-            </Button>
-          </div>
+            {/* Empty State for no results */}
+            {filteredProjects.length === 0 && searchQuery && (
+              <div className="text-center py-12">
+                <Search className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-xl font-semibold text-gray-800 mb-2">No stories found</h3>
+                <p className="text-gray-600 mb-6">
+                  Try adjusting your search terms or browse all stories.
+                </p>
+                <Button variant="outline" onClick={() => setSearchQuery('')}>
+                  Clear Search
+                </Button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
