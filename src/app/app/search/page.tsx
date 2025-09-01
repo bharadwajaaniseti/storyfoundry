@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/auth'
 import ProfileModal from '@/components/profile-modal'
+import ProfileDiscovery from '@/components/profile-discovery'
 import UserAvatar from '@/components/user-avatar'
 import { 
   toggleProjectBookmark, 
@@ -60,7 +61,10 @@ const FEATURED_GENRES = [
 ]
 
 export default function SearchPage() {
+  const [activeTab, setActiveTab] = useState<'stories' | 'profiles'>('stories')
   const [searchQuery, setSearchQuery] = useState('')
+  const [profileSearchQuery, setProfileSearchQuery] = useState('')
+  const [profileRoleFilter, setProfileRoleFilter] = useState<'all' | 'reader' | 'writer'>('all')
   const [projects, setProjects] = useState<PublicProject[]>([])
   const [featuredProjects, setFeaturedProjects] = useState<PublicProject[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -68,6 +72,7 @@ export default function SearchPage() {
   const [userRole, setUserRole] = useState<string>('reader')
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [bookmarkStatus, setBookmarkStatus] = useState<Record<string, boolean>>({})
+  const [followingUserIds, setFollowingUserIds] = useState<string[]>([])
   const [filters, setFilters] = useState({
     format: 'all',
     genre: 'all',
@@ -92,13 +97,46 @@ export default function SearchPage() {
 
   // Helper function to check if profile interactions should be disabled
   const isProfileInteractionDisabled = (profile: any) => {
-    return profile?.profile_visibility === 'private'
+    // Allow all profile viewing now that we have request access functionality
+    // Users can view private profiles and request access if needed
+    return false
   }
 
   useEffect(() => {
     loadFeaturedProjects()
-    loadUserRole()
+    loadUserRole() // This will now also load following status
   }, [])
+
+  // Reload following status when currentUser changes
+  useEffect(() => {
+    if (currentUser) {
+      loadFollowingStatus()
+    }
+  }, [currentUser])
+
+  const loadFollowingStatus = async () => {
+    try {
+      const supabase = createSupabaseClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (user) {
+        const { data: follows, error } = await supabase
+          .from('user_follows')
+          .select('following_id')
+          .eq('follower_id', user.id)
+        
+        if (error) {
+          console.error('Error loading follows:', error)
+          return
+        }
+        
+        const followingIds = follows?.map(f => f.following_id) || []
+        setFollowingUserIds(followingIds)
+      }
+    } catch (error) {
+      console.error('Error loading following status:', error)
+    }
+  }
 
   const loadUserRole = async () => {
     try {
@@ -114,6 +152,9 @@ export default function SearchPage() {
           .single()
         
         setUserRole(profile?.role?.toLowerCase() || 'reader')
+        
+        // Also load following status when user is loaded
+        await loadFollowingStatus()
       }
     } catch (error) {
       console.error('Error loading user role:', error)
@@ -180,11 +221,6 @@ export default function SearchPage() {
         .order('buzz_score', { ascending: false })
         .limit(6)
 
-      console.log('🔍 Featured projects query:', { data, error, count: data?.length })
-      if (data?.length > 0) {
-        console.log('🔍 First featured project:', data[0])
-      }
-
       if (data) {
         setFeaturedProjects(data as any || [])
       }
@@ -196,6 +232,13 @@ export default function SearchPage() {
   const handleSearch = async (query = searchQuery) => {
     if (!query.trim()) return
 
+    // For profiles tab, update the profile search state
+    if (activeTab === 'profiles') {
+      setProfileSearchQuery(query)
+      return
+    }
+
+    // For stories tab, proceed with existing logic
     setIsLoading(true)
     setHasSearched(true)
 
@@ -257,11 +300,6 @@ export default function SearchPage() {
       }
 
       const { data, error } = await queryBuilder.limit(20)
-
-      console.log('🔍 Search results query:', { data, error, count: data?.length })
-      if (data?.length > 0) {
-        console.log('🔍 First search result:', data[0])
-      }
 
       if (data) {
         setProjects(data as any || [])
@@ -330,7 +368,7 @@ export default function SearchPage() {
               <Search className="w-5 h-5 absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search for stories, genres, or creators..."
+                placeholder={activeTab === 'stories' ? "Search for stories, genres, or creators..." : "Search for writers and readers..."}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
@@ -375,26 +413,53 @@ export default function SearchPage() {
         </div>
       </div>
 
-      <div className="container mx-auto px-6 py-8">
-        {/* Search Results */}
-        {hasSearched ? (
-          <div className="mb-8">
-            {/* Search Filters */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
-              <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-                <div className="flex items-center space-x-2">
-                  <Filter className="w-4 h-4 text-gray-500" />
-                  <span className="text-sm font-medium text-gray-700">Filters:</span>
-                </div>
-                
+      {/* Tabs with Dynamic Filters */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="container mx-auto px-6">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
+            {/* Tab Navigation */}
+            <div className="flex space-x-8">
+              <button
+                onClick={() => setActiveTab('stories')}
+                className={`py-4 px-2 border-b-2 font-medium text-sm ${
+                  activeTab === 'stories'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <FileText className="w-4 h-4 mr-2 inline" />
+                Stories
+              </button>
+              <button
+                onClick={() => setActiveTab('profiles')}
+                className={`py-4 px-2 border-b-2 font-medium text-sm ${
+                  activeTab === 'profiles'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <Users className="w-4 h-4 mr-2 inline" />
+                People
+              </button>
+            </div>
+
+            {/* Dynamic Filters in Empty Space */}
+            <div className="flex items-center space-x-4 py-4">
+              <div className="flex items-center space-x-2">
+                <Filter className="w-4 h-4 text-gray-500" />
+                <span className="text-sm font-medium text-gray-700">Filters:</span>
+              </div>
+              
+              {activeTab === 'stories' ? (
+                /* Story Filters */
                 <div className="flex flex-wrap gap-3">
                   <select
                     value={filters.format}
                     onChange={(e) => {
                       setFilters({ ...filters, format: e.target.value })
-                      handleSearch()
+                      if (hasSearched) handleSearch()
                     }}
-                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
+                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500"
                   >
                     <option value="all">All Formats</option>
                     <option value="screenplay">Screenplay</option>
@@ -408,9 +473,9 @@ export default function SearchPage() {
                     value={filters.genre}
                     onChange={(e) => {
                       setFilters({ ...filters, genre: e.target.value })
-                      handleSearch()
+                      if (hasSearched) handleSearch()
                     }}
-                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
+                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500"
                   >
                     <option value="all">All Genres</option>
                     {FEATURED_GENRES.map(genre => (
@@ -422,29 +487,63 @@ export default function SearchPage() {
                     value={filters.sortBy}
                     onChange={(e) => {
                       setFilters({ ...filters, sortBy: e.target.value })
-                      handleSearch()
+                      if (hasSearched) handleSearch()
                     }}
-                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
+                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500"
                   >
                     <option value="buzz_score">Most Popular</option>
                     <option value="newest">Newest</option>
                     <option value="title">Title A-Z</option>
                   </select>
                 </div>
-              </div>
+              ) : (
+                /* People Filters */
+                <div className="flex flex-wrap gap-3">
+                  {[
+                    { value: 'all', label: 'All People' },
+                    { value: 'reader', label: 'Readers' },
+                    { value: 'writer', label: 'Writers' }
+                  ].map((role) => (
+                    <button
+                      key={role.value}
+                      onClick={() => setProfileRoleFilter(role.value as any)}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        profileRoleFilter === role.value
+                          ? (userRole === 'writer' 
+                              ? 'bg-orange-500 text-white' 
+                              : 'bg-purple-500 text-white'
+                            )
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {role.label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
+          </div>
+        </div>
+      </div>
 
-            {/* Results */}
-            {isLoading ? (
-              <div className="text-center py-12">
-                <div className={`w-8 h-8 border-2 border-t-transparent rounded-full animate-spin mx-auto mb-4 ${
-                  userRole === 'writer' 
-                    ? 'border-orange-500' 
-                    : 'border-purple-500'
-                }`}></div>
-                <p className="text-gray-600">Searching...</p>
-              </div>
-            ) : projects.length > 0 ? (
+      <div className="container mx-auto px-6 py-8">
+        {/* Tab Content */}
+        {activeTab === 'stories' ? (
+          <>
+            {/* Search Results */}
+            {hasSearched ? (
+              <div className="mb-8">
+                {/* Results */}
+                {isLoading ? (
+                  <div className="text-center py-12">
+                    <div className={`w-8 h-8 border-2 border-t-transparent rounded-full animate-spin mx-auto mb-4 ${
+                      userRole === 'writer' 
+                        ? 'border-orange-500' 
+                        : 'border-purple-500'
+                    }`}></div>
+                    <p className="text-gray-600">Searching...</p>
+                  </div>
+                ) : projects.length > 0 ? (
               <div>
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-xl font-semibold text-gray-800">
@@ -707,6 +806,32 @@ export default function SearchPage() {
                 ))}
               </div>
             </div>
+          </div>
+        )}
+          </>
+        ) : (
+          /* Profiles Tab */
+          <div className="space-y-6">
+            <div className="text-center mb-8">
+              <h2 className="text-2xl font-bold text-gray-800 mb-2">Discover Writers & Readers</h2>
+              <p className="text-gray-600">Connect with talented creators and fellow story enthusiasts</p>
+              
+              {/* Debug info - remove this later */}
+              {process.env.NODE_ENV === 'development' && (
+                <div className="mt-4 p-2 bg-yellow-100 rounded text-sm">
+                  <p>Debug: Current user: {currentUser?.id}</p>
+                  <p>Debug: Following {followingUserIds.length} users: {JSON.stringify(followingUserIds)}</p>
+                </div>
+              )}
+            </div>
+
+            <ProfileDiscovery 
+              currentUserId={currentUser?.id} 
+              searchQuery={profileSearchQuery}
+              roleFilter={profileRoleFilter}
+              followingUserIds={followingUserIds}
+              onFollowingChange={loadFollowingStatus}
+            />
           </div>
         )}
       </div>

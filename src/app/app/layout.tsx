@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
+import { ToastProvider } from '@/components/ui/toast'
 import AppHeader from '@/components/app-header'
 import { 
   Home,
@@ -178,81 +179,83 @@ export default function AppLayout({
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Top Navigation */}
-      <AppHeader user={user} />
+    <ToastProvider>
+      <div className="min-h-screen bg-gray-50">
+        {/* Top Navigation */}
+        <AppHeader user={user} />
 
-      <div className="flex">
-        {/* Sidebar */}
-        <nav className="w-64 bg-white border-r border-gray-200 min-h-screen sticky top-16">
-          <div className="p-6">
-            {/* Quick Actions - Different for Reader vs Writer */}
-            <div className="mb-8">
-              {user?.profile?.role?.toLowerCase() === 'reader' ? (
+        <div className="flex">
+          {/* Sidebar */}
+          <nav className="w-64 bg-white border-r border-gray-200 min-h-screen sticky top-16">
+            <div className="p-6">
+              {/* Quick Actions - Different for Reader vs Writer */}
+              <div className="mb-8">
+                {user?.profile?.role?.toLowerCase() === 'reader' ? (
+                  <Link
+                    href="/app/search"
+                    className="flex items-center justify-center space-x-2 w-full bg-purple-500 text-white py-2.5 px-4 rounded-lg hover:bg-purple-600 transition-colors font-medium"
+                  >
+                    <Search className="w-4 h-4" />
+                    <span>Discover Stories</span>
+                  </Link>
+                ) : (
+                  <Link
+                    href="/app/projects/new"
+                    className="flex items-center justify-center space-x-2 w-full bg-green-500 text-white py-2.5 px-4 rounded-lg hover:bg-green-600 transition-colors font-medium"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>New Project</span>
+                  </Link>
+                )}
+              </div>
+
+              {/* Navigation Links - Different for Reader vs Writer */}
+              <ul className="space-y-2">
+                {(user?.profile?.role?.toLowerCase() === 'reader' ? READER_NAVIGATION_ITEMS : WRITER_NAVIGATION_ITEMS).map((item) => {
+                  const isActive = pathname === item.href
+                  return (
+                    <li key={item.name}>
+                      <Link
+                        href={item.href}
+                        className={`flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-colors ${
+                          isActive
+                            ? user?.profile?.role?.toLowerCase() === 'reader'
+                              ? 'bg-purple-50 text-purple-600 border-r-2 border-purple-500'
+                              : 'bg-orange-50 text-orange-600 border-r-2 border-orange-500'
+                            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                        }`}
+                      >
+                        <item.icon className="w-5 h-5" />
+                        <span className="font-medium">{item.name}</span>
+                      </Link>
+                    </li>
+                  )
+                })}
+              </ul>
+
+              {/* Settings at bottom */}
+              <div className="mt-8 pt-8 border-t border-gray-200">
                 <Link
-                  href="/app/search"
-                  className="flex items-center justify-center space-x-2 w-full bg-purple-500 text-white py-2.5 px-4 rounded-lg hover:bg-purple-600 transition-colors font-medium"
+                  href="/app/settings"
+                  className={`flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-colors ${
+                    pathname === '/app/settings'
+                      ? 'bg-orange-50 text-orange-600'
+                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  }`}
                 >
-                  <Search className="w-4 h-4" />
-                  <span>Discover Stories</span>
+                  <Settings className="w-5 h-5" />
+                  <span className="font-medium">Settings</span>
                 </Link>
-              ) : (
-                <Link
-                  href="/app/projects/new"
-                  className="flex items-center justify-center space-x-2 w-full bg-green-500 text-white py-2.5 px-4 rounded-lg hover:bg-green-600 transition-colors font-medium"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>New Project</span>
-                </Link>
-              )}
+              </div>
             </div>
+          </nav>
 
-            {/* Navigation Links - Different for Reader vs Writer */}
-            <ul className="space-y-2">
-              {(user?.profile?.role?.toLowerCase() === 'reader' ? READER_NAVIGATION_ITEMS : WRITER_NAVIGATION_ITEMS).map((item) => {
-                const isActive = pathname === item.href
-                return (
-                  <li key={item.name}>
-                    <Link
-                      href={item.href}
-                      className={`flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-colors ${
-                        isActive
-                          ? user?.profile?.role?.toLowerCase() === 'reader'
-                            ? 'bg-purple-50 text-purple-600 border-r-2 border-purple-500'
-                            : 'bg-orange-50 text-orange-600 border-r-2 border-orange-500'
-                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                      }`}
-                    >
-                      <item.icon className="w-5 h-5" />
-                      <span className="font-medium">{item.name}</span>
-                    </Link>
-                  </li>
-                )
-              })}
-            </ul>
-
-            {/* Settings at bottom */}
-            <div className="mt-8 pt-8 border-t border-gray-200">
-              <Link
-                href="/app/settings"
-                className={`flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-colors ${
-                  pathname === '/app/settings'
-                    ? 'bg-orange-50 text-orange-600'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                }`}
-              >
-                <Settings className="w-5 h-5" />
-                <span className="font-medium">Settings</span>
-              </Link>
-            </div>
-          </div>
-        </nav>
-
-        {/* Main Content */}
-        <main className="flex-1 min-h-screen">
-          {children}
-        </main>
+          {/* Main Content */}
+          <main className="flex-1 min-h-screen">
+            {children}
+          </main>
+        </div>
       </div>
-    </div>
+    </ToastProvider>
   )
 }

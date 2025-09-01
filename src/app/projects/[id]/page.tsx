@@ -397,7 +397,9 @@ export default function PublicProjectPage() {
   // Helper function to check if profile interactions should be disabled
   const isProfileInteractionDisabled = (profile: any) => {
     console.log('Checking profile interactions for:', profile)
-    const disabled = profile?.profile_visibility === 'private'
+    // Allow all profile viewing now that we have request access functionality
+    // Users can view private profiles and request access if needed
+    const disabled = false
     console.log('Profile interactions disabled:', disabled)
     return disabled
   }

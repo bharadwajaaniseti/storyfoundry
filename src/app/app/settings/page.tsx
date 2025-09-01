@@ -18,10 +18,12 @@ import {
   Lock,
   Mail,
   Smartphone,
-  ChevronRight
+  ChevronRight,
+  UserPlus
 } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/auth'
 import AvatarUpload from '@/components/avatar-upload'
+import ProfileAccessManager from '@/components/profile-access-manager'
 
 interface Profile {
   id: string
@@ -159,12 +161,8 @@ export default function SettingsPage() {
       document.dispatchEvent(new CustomEvent('profileUpdated'))
       
       // Also try calling global refresh function directly
-      console.log('🔍 Checking if global refreshHeaderProfile exists:', typeof (window as any).refreshHeaderProfile);
       if ((window as any).refreshHeaderProfile) {
-        console.log('🔄 Calling global refreshHeaderProfile function');
         (window as any).refreshHeaderProfile();
-      } else {
-        console.log('❌ Global refreshHeaderProfile function not found');
       }
       
       // Reload profile to get updated data
@@ -532,6 +530,23 @@ export default function SettingsPage() {
                       <span className="text-sm text-gray-700">Enable project discovery</span>
                     </label>
                   </div>
+
+                  {formData.profile_visibility === 'private' && (
+                    <div className="p-4 border border-gray-200 rounded-lg">
+                      <div className="flex items-center space-x-3 mb-2">
+                        <UserPlus className="w-5 h-5 text-purple-500" />
+                        <span className="font-medium text-gray-800">Profile Access Management</span>
+                      </div>
+                      <p className="text-sm text-gray-600 mb-4">
+                        Manage who can access your private profile
+                      </p>
+                      {profile?.id ? (
+                        <ProfileAccessManager userId={profile.id} />
+                      ) : (
+                        <div className="text-sm text-gray-500">Loading...</div>
+                      )}
+                    </div>
+                  )}
 
                   <div className="p-4 border border-gray-200 rounded-lg">
                     <div className="flex items-center space-x-3 mb-2">

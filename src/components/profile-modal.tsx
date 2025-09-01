@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createSupabaseClient } from '@/lib/auth-client'
+import { useToast } from '@/components/ui/toast'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -81,12 +82,17 @@ interface ProfileModalProps {
 
 export default function ProfileModal({ profileId, currentUserRole, onClose, onFollow, onUnfollow }: ProfileModalProps) {
   const router = useRouter()
+  const { addToast } = useToast()
   const [currentUser, setCurrentUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [profile, setProfile] = useState<ProfileData | null>(null)
   const [publicProjects, setPublicProjects] = useState<Project[]>([])
   const [isFollowing, setIsFollowing] = useState(false)
   const [isLoadingFollow, setIsLoadingFollow] = useState(false)
+  const [hasAccessRequest, setHasAccessRequest] = useState(false)
+  const [accessRequestStatus, setAccessRequestStatus] = useState<'pending' | 'approved' | 'denied' | null>(null)
+  const [isLoadingAccessRequest, setIsLoadingAccessRequest] = useState(false)
+  const [hasAccess, setHasAccess] = useState(false)
 
   // Dynamic color scheme based on viewer's role
   const getColorClasses = (role: string) => {
@@ -153,17 +159,59 @@ export default function ProfileModal({ profileId, currentUserRole, onClose, onFo
         return
       }
 
-      // Check privacy settings
+      // Check privacy settings and access for private profiles
       if (profileData.profile_visibility === 'private' && (!user || user.id !== profileId)) {
         // Profile is private and viewer is not the owner
-        setProfile(null) // This will trigger the "Profile Not Found" state
-        setIsLoading(false)
-        return
+        if (user) {
+          // Check if user has an existing access request or grant
+          const [accessRequestData, accessGrantData] = await Promise.all([
+            supabase
+              .from('profile_access_requests')
+              .select('status')
+              .eq('profile_id', profileId)
+              .eq('requester_id', user.id)
+              .single(),
+            supabase
+              .from('profile_access_grants')
+              .select('id')
+              .eq('profile_id', profileId)
+              .eq('granted_to_id', user.id)
+              .single()
+          ])
+
+          setHasAccess(!!accessGrantData.data)
+          if (accessRequestData.data) {
+            // If the request was approved but there's no grant, it means access was revoked
+            if (accessRequestData.data.status === 'approved' && !accessGrantData.data) {
+              // Access was revoked, reset the request state so user can request again
+              setHasAccessRequest(false)
+              setAccessRequestStatus(null)
+            } else {
+              setHasAccessRequest(true)
+              setAccessRequestStatus(accessRequestData.data.status)
+            }
+          }
+
+          // If user has access, continue loading the profile normally
+          if (accessGrantData.data) {
+            // User has access, continue with normal profile loading
+          } else {
+            // User doesn't have access, show private profile state
+            setProfile(profileData) // Set profile data for the private modal
+            setIsLoading(false)
+            return
+          }
+        } else {
+          // Not authenticated, show private profile state
+          setProfile(profileData) // Set profile data for the private modal
+          setIsLoading(false)
+          return
+        }
       }
 
       if (profileData.profile_visibility === 'members' && !user) {
         // Profile is members-only and viewer is not authenticated
-        setProfile(null) // This will trigger the "Profile Not Found" state  
+        setProfile(profileData) // Set profile data for the private modal
         setIsLoading(false)
         return
       }
@@ -303,6 +351,144 @@ export default function ProfileModal({ profileId, currentUserRole, onClose, onFo
     }
   }
 
+  const handleAccessRequest = async () => {
+    if (!currentUser || !profile || isLoadingAccessRequest) return
+
+    setIsLoadingAccessRequest(true)
+    try {
+      const supabase = createSupabaseClient()
+      
+      // Try to create access request, handle duplicate case
+      let insertData, insertError
+      
+      // First try a normal insert
+      const insertResult = await supabase
+        .from('profile_access_requests')
+        .insert({
+          profile_id: profile.id,
+          requester_id: currentUser.id,
+          message: `${currentUser.user_metadata?.display_name || 'A user'} would like to view your profile.`
+        })
+        .select()
+
+      insertData = insertResult.data
+      insertError = insertResult.error
+
+      // If duplicate key error, this means there's already a request - we need to reset it to pending
+      if (insertError && insertError.code === '23505') {
+        // First, let's check the current request status
+        const { data: currentRequest } = await supabase
+          .from('profile_access_requests')
+          .select('*')
+          .eq('profile_id', profile.id)
+          .eq('requester_id', currentUser.id)
+          .single()
+        
+        // Try to update the existing request to pending status
+        const updateResult = await supabase
+          .from('profile_access_requests')
+          .update({
+            status: 'pending',
+            message: `${currentUser.user_metadata?.display_name || 'A user'} would like to view your profile.`,
+            created_at: new Date().toISOString(),
+            decided_at: null
+          })
+          .eq('id', currentRequest?.id)  // Use ID instead of profile_id + requester_id
+          .select()
+
+        insertData = updateResult.data
+        insertError = updateResult.error
+        
+        if (insertError) {
+          throw insertError
+        }
+        
+        if (insertData && insertData.length > 0) {
+          // Successfully updated
+        } else {
+          // Alternative: Delete the old request and create a new one
+          const deleteResult = await supabase
+            .from('profile_access_requests')
+            .delete()
+            .eq('id', currentRequest?.id)
+          
+          // Now create a new request
+          const newInsertResult = await supabase
+            .from('profile_access_requests')
+            .insert({
+              profile_id: profile.id,
+              requester_id: currentUser.id,
+              message: `${currentUser.user_metadata?.display_name || 'A user'} would like to view your profile.`
+            })
+            .select()
+          
+          insertData = newInsertResult.data
+          insertError = newInsertResult.error
+          
+          if (insertError) {
+            throw insertError
+          }
+        }
+      } else {
+        // Normal insert result
+      }
+
+      if (insertError) {
+        throw insertError
+      }
+
+      // Create notification for profile owner
+      const { error: notificationError } = await supabase.rpc('create_notification', {
+        p_user_id: profile.id,
+        p_type: 'profile_access_request',
+        p_title: 'New Profile Access Request',
+        p_message: `${currentUser.user_metadata?.display_name || 'A user'} has requested access to view your profile.`,
+        p_data: {
+          requester_id: currentUser.id,
+          requester_name: currentUser.user_metadata?.display_name || 'A user'
+        }
+      })
+
+      if (notificationError) {
+        // Try manual notification creation as fallback
+        await supabase
+          .from('notifications')
+          .insert({
+            user_id: profile.id,
+            type: 'profile_access_request',
+            title: 'New Profile Access Request',
+            message: `${currentUser.user_metadata?.display_name || 'A user'} has requested access to view your profile.`,
+            data: {
+              requester_id: currentUser.id,
+              requester_name: currentUser.user_metadata?.display_name || 'A user'
+            }
+          })
+      }
+
+      setHasAccessRequest(true)
+      setAccessRequestStatus('pending')
+      
+      // Show success toast
+      addToast({
+        type: 'success',
+        title: 'Access Request Sent',
+        message: `Your request to view ${profile.display_name}'s profile has been sent.`
+      })
+      
+      // Force refresh of any access management components
+      window.dispatchEvent(new CustomEvent('profileAccessUpdated'))
+    } catch (error) {
+      console.error('Error requesting access:', error)
+      addToast({
+        type: 'error',
+        title: 'Failed to Send Request',
+        message: 'Unable to send access request. Please try again.'
+      })
+    } finally {
+      setIsLoadingAccessRequest(false)
+    }
+  }
+
   useEffect(() => {
     loadProfileData()
   }, [profileId])
@@ -320,6 +506,10 @@ export default function ProfileModal({ profileId, currentUserRole, onClose, onFo
     )
   }
 
+  // Check if profile is private and user doesn't have access
+  const isProfilePrivate = profile?.profile_visibility === 'private' && 
+    currentUser?.id !== profile?.id && !hasAccess
+
   if (!profile) {
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -328,14 +518,90 @@ export default function ProfileModal({ profileId, currentUserRole, onClose, onFo
             <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <Eye className="w-8 h-8 text-gray-400" />
             </div>
-            <h2 className="text-xl font-bold text-gray-800 mb-4">Profile is Private</h2>
+            <h2 className="text-xl font-bold text-gray-800 mb-4">Profile Not Found</h2>
             <p className="text-gray-600 mb-6">
-              This user has set their profile to private. Only they can view their profile information.
+              Sorry, we couldn't find the profile you're looking for.
             </p>
             <Button onClick={onClose} className={colorClasses.primaryButton}>
               <ArrowLeft className="w-4 h-4 mr-2" />
               Go Back
             </Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (isProfilePrivate) {
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-2xl p-8 max-w-md w-full mx-4">
+          <div className="text-center">
+            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Eye className="w-8 h-8 text-gray-400" />
+            </div>
+            <div className="mb-4">
+              <UserAvatar 
+                user={profile}
+                size="custom" 
+                className="w-16 h-16 rounded-2xl mx-auto mb-3"
+                fallbackClassName={`text-lg font-bold ${colorClasses.bgGradient} text-white rounded-2xl`}
+              />
+              <h2 className="text-xl font-bold text-gray-800 mb-2">Profile is Private</h2>
+              <p className="text-sm text-gray-500 mb-1">{profile.display_name}</p>
+            </div>
+            
+            <p className="text-gray-600 mb-6">
+              This user has set their profile to private. Only they can view their profile information.
+            </p>
+
+            {currentUser ? (
+              <div className="space-y-3">
+                {!hasAccessRequest ? (
+                  <Button 
+                    onClick={handleAccessRequest}
+                    disabled={isLoadingAccessRequest}
+                    className={colorClasses.primaryButton}
+                  >
+                    {isLoadingAccessRequest ? (
+                      <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" />
+                    ) : (
+                      <UserPlus className="w-4 h-4 mr-2" />
+                    )}
+                    Request Access
+                  </Button>
+                ) : (
+                  <div className="space-y-2">
+                    {accessRequestStatus === 'pending' && (
+                      <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <div className="flex items-center text-yellow-800">
+                          <Clock className="w-4 h-4 mr-2" />
+                          <span className="text-sm font-medium">Access request pending</span>
+                        </div>
+                      </div>
+                    )}
+                    {accessRequestStatus === 'denied' && (
+                      <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                        <div className="flex items-center text-red-800">
+                          <X className="w-4 h-4 mr-2" />
+                          <span className="text-sm font-medium">Access request denied</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                <Button variant="outline" onClick={onClose}>
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Go Back
+                </Button>
+              </div>
+            ) : (
+              <Button onClick={onClose} className={colorClasses.primaryButton}>
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Go Back
+              </Button>
+            )}
           </div>
         </div>
       </div>

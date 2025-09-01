@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
+import { ToastProvider } from '@/components/ui/toast'
 import { 
   Home,
   FileText,
@@ -100,18 +101,19 @@ export default function AppLayout({
   }
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      {/* Sidebar */}
-      <div className="w-64 bg-white border-r border-gray-200 flex flex-col">
-        {/* Logo */}
-        <div className="p-6 border-b border-gray-200">
-          <Link href="/app/dashboard" className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold">SF</span>
-            </div>
-            <span className="text-xl font-bold text-gray-800">StoryFoundry</span>
-          </Link>
-        </div>
+    <ToastProvider>
+      <div className="flex h-screen bg-gray-50">
+        {/* Sidebar */}
+        <div className="w-64 bg-white border-r border-gray-200 flex flex-col">
+          {/* Logo */}
+          <div className="p-6 border-b border-gray-200">
+            <Link href="/app/dashboard" className="flex items-center space-x-2">
+              <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold">SF</span>
+              </div>
+              <span className="text-xl font-bold text-gray-800">StoryFoundry</span>
+            </Link>
+          </div>
 
         {/* Navigation */}
         <nav className="flex-1 px-4 py-6">
@@ -201,5 +203,6 @@ export default function AppLayout({
         </main>
       </div>
     </div>
+    </ToastProvider>
   )
 }

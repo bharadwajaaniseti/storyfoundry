@@ -90,12 +90,8 @@ export default function AvatarUpload({
       document.dispatchEvent(new CustomEvent('profileUpdated'))
       
       // Also try calling global refresh function directly
-      console.log('🔍 Avatar: Checking if global refreshHeaderProfile exists:', typeof (window as any).refreshHeaderProfile);
       if ((window as any).refreshHeaderProfile) {
-        console.log('🔄 Calling global refreshHeaderProfile function from avatar upload');
         (window as any).refreshHeaderProfile();
-      } else {
-        console.log('❌ Avatar: Global refreshHeaderProfile function not found');
       }
       
       setTimeout(() => setUploadStatus(null), 2000)

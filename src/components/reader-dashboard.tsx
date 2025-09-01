@@ -78,7 +78,9 @@ export default function ReaderDashboard({ user, userProfile }: ReaderDashboardPr
 
   // Helper function to check if profile interactions should be disabled
   const isProfileInteractionDisabled = (profile: any) => {
-    return profile?.profile_visibility === 'private'
+    // Allow all profile viewing now that we have request access functionality
+    // Users can view private profiles and request access if needed
+    return false
   }
 
   const [loading, setLoading] = useState(true)
@@ -101,8 +103,6 @@ export default function ReaderDashboard({ user, userProfile }: ReaderDashboardPr
     try {
       const supabase = createSupabaseClient()
       
-      console.log('🔍 Loading reader dashboard data...')
-
       // Load real projects for recent stories
       const { data: recentProjects, error: recentError } = await supabase
         .from('projects')

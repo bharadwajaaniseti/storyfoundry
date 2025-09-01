@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Bell, Settings, LogOut, User as UserIcon, Pen, BookOpen } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/auth'
+import NotificationBell from '@/components/notification-bell'
 
 interface AppHeaderProps {
   user?: User | null
@@ -31,16 +32,13 @@ interface UserProfile {
 }
 
 export default function AppHeader({ user }: AppHeaderProps) {
-  const [notifications, setNotifications] = useState(0) // Mock notification count  
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
 
   useEffect(() => {
     const supabase = createSupabaseClient()
     
     const fetchUserProfile = async () => {
-      console.log('🔍 Header: fetchUserProfile called at', new Date().toISOString(), 'user ID:', user?.id)
       if (!user) {
-        console.log('❌ Header: No user, returning')
         return
       }
 
@@ -49,14 +47,9 @@ export default function AppHeader({ user }: AppHeaderProps) {
         .select('id, first_name, last_name, display_name, avatar_url, role')
         .eq('id', user.id)
         .single()
-
-      console.log('🗃️ Header: Profile data received at', new Date().toISOString(), ':', profile)
       
       if (profile) {
         setUserProfile(profile)
-        console.log('✅ Header: Profile set successfully:', profile)
-      } else {
-        console.log('❌ Header: No profile found!')
       }
     }
 
@@ -64,33 +57,27 @@ export default function AppHeader({ user }: AppHeaderProps) {
     
     // Make fetch function globally available for other components to call
     ;(window as any).refreshHeaderProfile = fetchUserProfile
-    console.log('✅ Header: Global refreshHeaderProfile function registered')
     
     // Test that we can dispatch events to ourselves
     setTimeout(() => {
-      console.log('🧪 Header: Testing self-dispatch of profileUpdated event')
       window.dispatchEvent(new CustomEvent('profileUpdated'))
     }, 1000)
     
     // Listen for custom events to refresh profile
     const handleProfileUpdate = () => {
-      console.log('📢 RECEIVED profileUpdated event in header!')
       fetchUserProfile()
     }
     
     // Add multiple event listeners to catch different scenarios
-    console.log('🎧 SETTING UP event listeners in header')
     window.addEventListener('profileUpdated', handleProfileUpdate)
     document.addEventListener('profileUpdated', handleProfileUpdate)
     window.addEventListener('storage', (e) => {
       if (e.key === 'avatar_updated') {
-        console.log('📢 RECEIVED storage event in header!')
         fetchUserProfile()
       }
     })
 
     return () => {
-      console.log('🧹 CLEANING UP event listeners in header')
       window.removeEventListener('profileUpdated', handleProfileUpdate)
       document.removeEventListener('profileUpdated', handleProfileUpdate)
       window.removeEventListener('storage', handleProfileUpdate)
@@ -160,14 +147,7 @@ export default function AppHeader({ user }: AppHeaderProps) {
             {user ? (
               <>
                 {/* Notifications */}
-                <button className="relative p-2 text-gray-400 hover:text-gray-600 transition-colors">
-                  <Bell className="w-5 h-5" />
-                  {notifications > 0 && (
-                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                      {notifications}
-                    </span>
-                  )}
-                </button>
+                <NotificationBell />
 
                 {/* User Menu */}
                 <div className="relative group">

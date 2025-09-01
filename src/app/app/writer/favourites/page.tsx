@@ -87,7 +87,9 @@ export default function WriterFavouritesPage() {
 
   // Helper function to check if profile interactions should be disabled
   const isProfileInteractionDisabled = (profile: any) => {
-    return profile?.profile_visibility === 'private'
+    // Allow all profile viewing now that we have request access functionality
+    // Users can view private profiles and request access if needed
+    return false
   }
   
   const [stats, setStats] = useState<FavouritesStats>({

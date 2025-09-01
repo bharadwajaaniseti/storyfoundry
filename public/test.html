@@ -1,32 +1,28 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>API Test</title>
+    <title>Reading Progress API Test</title>
 </head>
 <body>
-    <h1>Project Creation Test</h1>
-    <button onclick="createProfile()">Create Profile</button>
-    <button onclick="upgradeToWriter()">Upgrade to Writer</button>
+    <h1>Reading Progress Test</h1>
+    <button onclick="testReadingProgress()">Test Reading Progress GET</button>
+    <button onclick="createTestData()">Create Test Reading Progress Data</button>
     <button onclick="testAuth()">Test Auth</button>
-    <button onclick="testCreateProject()">Test Create Project</button>
     <div id="result"></div>
 
     <script>
-        async function createProfile() {
+        async function testReadingProgress() {
             const resultDiv = document.getElementById('result');
-            resultDiv.innerHTML = 'Creating profile...';
+            resultDiv.innerHTML = 'Testing reading progress...';
             
             try {
-                const response = await fetch('/api/create-profile', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    }
+                const response = await fetch('/api/test-reading-progress', {
+                    credentials: 'include'
                 });
 
                 const data = await response.json();
                 resultDiv.innerHTML = `
-                    <h3>Profile Creation Status: ${response.status}</h3>
+                    <h3>Reading Progress Test Status: ${response.status}</h3>
                     <pre>${JSON.stringify(data, null, 2)}</pre>
                 `;
             } catch (error) {
@@ -34,24 +30,22 @@
             }
         }
 
-        async function upgradeToWriter() {
+        async function createTestData() {
             const resultDiv = document.getElementById('result');
-            resultDiv.innerHTML = 'Upgrading to Writer...';
+            resultDiv.innerHTML = 'Creating test reading progress data...';
             
             try {
-                const response = await fetch('/api/upgrade-role', {
+                const response = await fetch('/api/test-reading-progress', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({
-                        targetRole: 'writer'
-                    })
+                    credentials: 'include'
                 });
 
                 const data = await response.json();
                 resultDiv.innerHTML = `
-                    <h3>Role Upgrade Status: ${response.status}</h3>
+                    <h3>Test Data Creation Status: ${response.status}</h3>
                     <pre>${JSON.stringify(data, null, 2)}</pre>
                 `;
             } catch (error) {
@@ -82,50 +76,10 @@
             }
         }
 
-        async function testCreateProject() {
-            const resultDiv = document.getElementById('result');
-            resultDiv.innerHTML = 'Testing project creation...';
-            
-            try {
-                console.log('Making API request...');
-                
-                const response = await fetch('/api/projects/create', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    credentials: 'include',
-                    body: JSON.stringify({
-                        title: 'Test Project',
-                        logline: 'A test project logline',
-                        description: 'This is a test project description',
-                        format: 'Feature Film',
-                        genre: 'Drama',
-                        visibility: 'private',
-                        ai_enabled: true,
-                        ip_protection_enabled: true
-                    }),
-                });
-
-                console.log('Response status:', response.status);
-                const result = await response.json();
-                console.log('Response data:', result);
-                
-                resultDiv.innerHTML = `
-                    <h3>Project Creation Result:</h3>
-                    <p>Status: ${response.status}</p>
-                    <pre>${JSON.stringify(result, null, 2)}</pre>
-                `;
-            } catch (error) {
-                console.error('Error:', error);
-                resultDiv.innerHTML = `<p>Error: ${error.message}</p>`;
-            }
-        }
-
         // Auto-run test when page loads
         window.onload = function() {
-            console.log('Page loaded, testing project creation API...');
-            testCreateProject();
+            console.log('Page loaded, testing reading progress API...');
+            testReadingProgress();
         };
     </script>
 </body>

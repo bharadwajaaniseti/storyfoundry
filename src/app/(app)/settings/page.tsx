@@ -18,11 +18,13 @@ import {
   Lock,
   Mail,
   Smartphone,
-  ChevronRight
+  ChevronRight,
+  UserPlus
 } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/auth'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import ProfileAccessManager from '@/components/profile-access-manager'
 
 interface Profile {
   id: string
@@ -54,6 +56,7 @@ const TABS = [
 ]
 
 export default function SettingsPage() {
+  console.log('🚀 Settings page component loaded!')
   const router = useRouter()
   const [activeTab, setActiveTab] = useState('profile')
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -76,6 +79,15 @@ export default function SettingsPage() {
     discoverable: true
   })
 
+  // Check URL parameters for tab switching
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const tab = urlParams.get('tab')
+    if (tab && ['profile', 'privacy', 'notifications', 'billing'].includes(tab)) {
+      setActiveTab(tab)
+    }
+  }, [])
+
   useEffect(() => {
     loadProfile()
   }, [])
@@ -97,6 +109,7 @@ export default function SettingsPage() {
         .single()
 
       if (profileData) {
+        console.log('🗃️ Settings: Profile data loaded:', profileData)
         setProfile({ ...profileData, email: user.email || '' })
         setFormData({
           first_name: profileData.first_name || '',
@@ -112,6 +125,9 @@ export default function SettingsPage() {
           collaboration_invites: profileData.collaboration_invites ?? true,
           profile_visibility: profileData.profile_visibility || 'public',
           discoverable: profileData.discoverable ?? true
+        })
+        console.log('📝 Settings: Form data set to:', {
+          profile_visibility: profileData.profile_visibility || 'public'
         })
       }
     } catch (error) {
@@ -489,6 +505,10 @@ export default function SettingsPage() {
 
           {activeTab === 'privacy' && (
             <Card className="bg-navy-800/50 border-navy-700 backdrop-blur-sm">
+              {(() => {
+                console.log('🔥 Privacy tab is rendering!')
+                return null
+              })()}
               <CardHeader>
                 <CardTitle className="text-white">Privacy Settings</CardTitle>
                 <CardDescription className="text-gray-300">
@@ -552,6 +572,48 @@ export default function SettingsPage() {
                       </button>
                     </div>
                   </div>
+
+                  {(() => {
+                    console.log('🔍 Settings Debug:', {
+                      profileVisibility: formData.profile_visibility,
+                      profileId: profile?.id,
+                      showSection: formData.profile_visibility === 'private'
+                    })
+                    return null
+                  })()}
+                  
+                  {/* Temporarily always show for debugging */}
+                  <div className="p-4 border border-navy-600 rounded-lg bg-navy-900/30">
+                    <div className="flex items-center space-x-3 mb-2">
+                      <UserPlus className="w-5 h-5 text-purple-400" />
+                      <span className="font-medium text-white">Profile Access Management (DEBUG)</span>
+                    </div>
+                    <p className="text-sm text-gray-300 mb-4">
+                      Current visibility: {formData.profile_visibility} | Profile ID: {profile?.id || 'loading...'}
+                    </p>
+                    {profile?.id ? (
+                      <ProfileAccessManager userId={profile.id} />
+                    ) : (
+                      <div className="text-sm text-gray-400">Profile not loaded yet...</div>
+                    )}
+                  </div>
+                  
+                  {formData.profile_visibility === 'private' && (
+                    <div className="p-4 border border-navy-600 rounded-lg bg-navy-900/30">
+                      <div className="flex items-center space-x-3 mb-2">
+                        <UserPlus className="w-5 h-5 text-purple-400" />
+                        <span className="font-medium text-white">Profile Access Management</span>
+                      </div>
+                      <p className="text-sm text-gray-300 mb-4">
+                        Manage who can access your private profile
+                      </p>
+                      {profile?.id ? (
+                        <ProfileAccessManager userId={profile.id} />
+                      ) : (
+                        <div className="text-sm text-gray-400">Loading...</div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex justify-end pt-4">
