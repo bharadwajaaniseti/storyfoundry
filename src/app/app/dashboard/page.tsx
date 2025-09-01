@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import ReaderDashboard from '@/components/reader-dashboard'
 import WriterUpgradeModal from '@/components/writer-upgrade-modal'
+import MessageNotifications from '@/components/message-notifications'
 import { 
   Plus,
   FileText,
@@ -543,6 +544,9 @@ export default function DashboardPage() {
                 </Link>
               </div>
             </div>
+
+            {/* Message Notifications */}
+            <MessageNotifications />
 
             {/* Recent Activity */}
             <div className="bg-white rounded-xl border border-gray-200 p-6">

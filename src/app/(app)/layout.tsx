@@ -15,7 +15,8 @@ import {
   User,
   LogOut,
   Plus,
-  Calendar
+  Calendar,
+  MessageSquare
 } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/auth'
 
@@ -34,6 +35,11 @@ const NAVIGATION_ITEMS = [
     name: 'Search',
     href: '/app/search',
     icon: Search
+  },
+  {
+    name: 'Messages',
+    href: '/app/messages',
+    icon: MessageSquare
   },
   {
     name: 'Pitch Rooms',

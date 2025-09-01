@@ -17,7 +17,8 @@ import {
   Compass,
   BookMarked,
   Heart,
-  UserPlus
+  UserPlus,
+  Calendar
 } from 'lucide-react'
 
 const readerNavigation = [
@@ -25,7 +26,8 @@ const readerNavigation = [
   { name: 'My Library', href: '/app/library', icon: BookMarked },
   { name: 'Following', href: '/app/following', icon: UserPlus },
   { name: 'Discover', href: '/app/search', icon: Compass },
-  { name: 'Pitch Rooms', href: '/app/pitch-rooms', icon: MessageSquare },
+  { name: 'Pitch Rooms', href: '/app/pitch-rooms', icon: Calendar },
+  { name: 'Messages', href: '/app/messages', icon: MessageSquare },
 ]
 
 const writerNavigation = [
@@ -36,7 +38,8 @@ const writerNavigation = [
   { name: 'My Library', href: '/app/writer/library', icon: BookMarked },
   { name: 'Following', href: '/app/writer/following', icon: UserPlus },
   { name: 'Favourites', href: '/app/writer/favourites', icon: Heart },
-  { name: 'Pitch Rooms', href: '/app/pitch-rooms', icon: MessageSquare },
+  { name: 'Pitch Rooms', href: '/app/pitch-rooms', icon: Calendar },
+  { name: 'Messages', href: '/app/messages', icon: MessageSquare },
 ]
 
 const secondaryNavigation = [
@@ -78,11 +81,10 @@ export default function AppSidebar() {
   }, [])
 
   // Choose navigation based on role
-  // Temporarily force writer navigation for testing
-  const navigation = writerNavigation  // Force writer nav for now
+  const navigation = userRole === 'writer' ? writerNavigation : readerNavigation
   
   console.log('Current userRole:', userRole) // Debug log
-  console.log('Using navigation:', 'writer (forced)') // Debug log
+  console.log('Using navigation:', userRole === 'writer' ? 'writer' : 'reader') // Debug log
   console.log('Navigation array:', navigation) // Debug log
 
   if (isLoading) {

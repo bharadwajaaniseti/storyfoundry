@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createSupabaseClient } from '@/lib/auth-client'
+import { useMessageNotifications } from '@/hooks/useMessageNotifications'
 import { useToast } from '@/components/ui/toast'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -28,6 +29,7 @@ interface Notification {
 
 export default function NotificationBell() {
   const { addToast } = useToast()
+  const { totalUnreadMessages } = useMessageNotifications()
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [isOpen, setIsOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -224,6 +226,7 @@ export default function NotificationBell() {
   }, [])
 
   const unreadCount = notifications.filter(n => !n.read).length
+  const totalNotifications = unreadCount + totalUnreadMessages
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
@@ -235,6 +238,8 @@ export default function NotificationBell() {
         return <X className="w-4 h-4 text-red-500" />
       case 'follow':
         return <UserPlus className="w-4 h-4 text-purple-500" />
+      case 'message':
+        return <MessageCircle className="w-4 h-4 text-blue-500" />
       case 'project_comment':
         return <MessageCircle className="w-4 h-4 text-orange-500" />
       default:
@@ -250,17 +255,17 @@ export default function NotificationBell() {
         onClick={() => setIsOpen(!isOpen)}
         className="relative p-2 hover:bg-gray-100 transition-colors"
         onDoubleClick={createTestNotification} // Double-click to create test notification
-        title={unreadCount > 0 ? `${unreadCount} unread notifications` : 'No new notifications'}
+        title={totalNotifications > 0 ? `${totalNotifications} unread notifications` : 'No new notifications'}
       >
-        <Bell className={`w-5 h-5 ${unreadCount > 0 ? 'text-orange-600' : 'text-gray-600'} transition-colors`} />
-        {unreadCount > 0 && (
+        <Bell className={`w-5 h-5 ${totalNotifications > 0 ? 'text-orange-600' : 'text-gray-600'} transition-colors`} />
+        {totalNotifications > 0 && (
           <>
             {/* Notification Badge */}
             <Badge 
               variant="destructive" 
               className="absolute -top-1 -right-1 w-5 h-5 p-0 flex items-center justify-center text-xs font-bold bg-red-500 hover:bg-red-500 animate-pulse"
             >
-              {unreadCount > 9 ? '9+' : unreadCount}
+              {totalNotifications > 9 ? '9+' : totalNotifications}
             </Badge>
             {/* Pulse Animation Ring */}
             <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-400 rounded-full animate-ping opacity-75"></div>
@@ -275,13 +280,13 @@ export default function NotificationBell() {
               <h3 className="font-semibold text-gray-900 flex items-center space-x-2">
                 <Bell className="w-4 h-4" />
                 <span>Notifications</span>
-                {unreadCount > 0 && (
+                {totalNotifications > 0 && (
                   <Badge variant="destructive" className="text-xs px-2 py-0.5">
-                    {unreadCount} new
+                    {totalNotifications} new
                   </Badge>
                 )}
               </h3>
-              <div className="flex items-center space-x-1">
+              <div className="flex items-center justify-between">
                 {unreadCount > 0 && (
                   <Button
                     variant="ghost"
@@ -310,7 +315,50 @@ export default function NotificationBell() {
           </div>
 
           <div className="max-h-96 overflow-y-auto">
-            {notifications.length === 0 ? (
+            {/* Message Notifications Section */}
+            {totalUnreadMessages > 0 && (
+              <>
+                <div className="px-4 py-2 bg-purple-50 border-b border-purple-100">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-purple-700 flex items-center space-x-2">
+                      <MessageCircle className="w-4 h-4" />
+                      <span>Messages ({totalUnreadMessages})</span>
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        window.location.href = '/app/messages'
+                        setIsOpen(false)
+                      }}
+                      className="text-xs px-2 py-1 h-6 text-purple-600 hover:text-purple-700 hover:bg-purple-100"
+                    >
+                      View all
+                    </Button>
+                  </div>
+                </div>
+                <div className="p-4 bg-purple-25 border-b border-gray-200">
+                  <p className="text-sm text-purple-600">
+                    You have {totalUnreadMessages} unread message{totalUnreadMessages > 1 ? 's' : ''} waiting for you.
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      window.location.href = '/app/messages'
+                      setIsOpen(false)
+                    }}
+                    className="mt-2 text-xs px-3 py-1 h-7 text-purple-600 border-purple-200 hover:bg-purple-50"
+                  >
+                    <MessageCircle className="w-3 h-3 mr-1" />
+                    Open Messages
+                  </Button>
+                </div>
+              </>
+            )}
+
+            {/* Regular Notifications */}
+            {notifications.length === 0 && totalUnreadMessages === 0 ? (
               <div className="p-6 text-center text-gray-500">
                 <Bell className="w-8 h-8 mx-auto mb-2 text-gray-300" />
                 <p className="text-sm">No notifications yet</p>
@@ -366,8 +414,8 @@ export default function NotificationBell() {
           <div className="p-3 border-t border-gray-200 bg-gray-50">
             <div className="flex items-center justify-between">
               <div className="text-xs text-gray-500">
-                {notifications.length > 0 
-                  ? `${notifications.length} notification${notifications.length === 1 ? '' : 's'}`
+                {totalNotifications > 0 
+                  ? `${notifications.length} notification${notifications.length === 1 ? '' : 's'}${totalUnreadMessages > 0 ? `, ${totalUnreadMessages} message${totalUnreadMessages === 1 ? '' : 's'}` : ''}`
                   : 'No notifications'
                 }
               </div>

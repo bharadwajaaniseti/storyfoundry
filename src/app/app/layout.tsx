@@ -21,7 +21,8 @@ import {
   BookOpen,
   Star,
   Heart,
-  UserPlus
+  UserPlus,
+  MessageSquare
 } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/auth'
 
@@ -62,6 +63,11 @@ const WRITER_NAVIGATION_ITEMS = [
     icon: Heart
   },
   {
+    name: 'Messages',
+    href: '/app/messages',
+    icon: MessageSquare
+  },
+  {
     name: 'Pitch Rooms',
     href: '/app/pitch-rooms',
     icon: Calendar
@@ -88,6 +94,16 @@ const READER_NAVIGATION_ITEMS = [
     name: 'Following',
     href: '/app/following',
     icon: Users
+  },
+  {
+    name: 'Messages',
+    href: '/app/messages',
+    icon: MessageSquare
+  },
+  {
+    name: 'Pitch Rooms',
+    href: '/app/pitch-rooms',
+    icon: Calendar
   }
 ]
 

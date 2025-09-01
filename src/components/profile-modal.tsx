@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import UserAvatar from '@/components/user-avatar'
+import SendMessageModal from '@/components/send-message-modal'
 import { 
   Users, 
   UserPlus, 
@@ -94,6 +95,7 @@ export default function ProfileModal({ profileId, currentUserRole, onClose, onFo
   const [accessRequestStatus, setAccessRequestStatus] = useState<'pending' | 'approved' | 'denied' | null>(null)
   const [isLoadingAccessRequest, setIsLoadingAccessRequest] = useState(false)
   const [hasAccess, setHasAccess] = useState(false)
+  const [showSendMessageModal, setShowSendMessageModal] = useState(false)
   
   // Scroll state for modal
   const [showScrollIndicator, setShowScrollIndicator] = useState(false)
@@ -744,7 +746,11 @@ export default function ProfileModal({ profileId, currentUserRole, onClose, onFo
                 </Button>
               )}
               
-              <Button variant="outline" className="px-6">
+              <Button 
+                variant="outline" 
+                className="px-6"
+                onClick={() => setShowSendMessageModal(true)}
+              >
                 <MessageCircle className="w-4 h-4 mr-2" />
                 Send Message
               </Button>
@@ -913,6 +919,20 @@ export default function ProfileModal({ profileId, currentUserRole, onClose, onFo
         </div>
         </div>
       </div>
+
+      {/* Send Message Modal */}
+      {profile && (
+        <SendMessageModal
+          isOpen={showSendMessageModal}
+          onClose={() => setShowSendMessageModal(false)}
+          recipient={{
+            id: profile.id,
+            display_name: profile.display_name,
+            avatar_url: profile.avatar_url,
+            role: profile.role
+          }}
+        />
+      )}
     </div>
   )
 }
