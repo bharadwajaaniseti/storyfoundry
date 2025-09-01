@@ -12,7 +12,7 @@ export interface Database {
       profiles: {
         Row: {
           id: string
-          role: 'writer' | 'pro' | 'admin'
+          role: 'reader' | 'writer'
           display_name: string | null
           bio: string | null
           avatar_url: string | null
@@ -34,7 +34,7 @@ export interface Database {
         }
         Insert: {
           id: string
-          role?: 'writer' | 'pro' | 'admin'
+          role?: 'reader' | 'writer'
           display_name?: string | null
           bio?: string | null
           avatar_url?: string | null
@@ -56,7 +56,7 @@ export interface Database {
         }
         Update: {
           id?: string
-          role?: 'writer' | 'pro' | 'admin'
+          role?: 'reader' | 'writer'
           display_name?: string | null
           bio?: string | null
           avatar_url?: string | null

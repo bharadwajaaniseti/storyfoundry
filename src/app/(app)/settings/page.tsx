@@ -28,7 +28,7 @@ import ProfileAccessManager from '@/components/profile-access-manager'
 
 interface Profile {
   id: string
-  role: 'writer' | 'pro' | 'admin'
+  role: 'reader' | 'writer'
   display_name: string | null
   first_name: string | null
   last_name: string | null
@@ -652,25 +652,23 @@ export default function SettingsPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <h3 className="font-medium text-white">
-                        {profile?.role === 'pro' ? 'Pro Plan' : profile?.role === 'admin' ? 'Admin' : 'Writer Plan'}
+                        {profile?.role === 'reader' ? 'Reader Plan' : 'Writer Plan'}
                       </h3>
                       <p className="text-sm text-gray-300">
-                        {profile?.role === 'pro' ? 'Advanced features with unlimited projects' : 
-                         profile?.role === 'admin' ? 'Full administrative access' : 
+                        {profile?.role === 'reader' ? 'Unlimited reading with personalized recommendations' : 
                          'Basic features with limited projects'}
                       </p>
                     </div>
                     <div className="text-right">
                       <span className="text-2xl font-bold text-white">
-                        {profile?.role === 'pro' ? '$19' : '$0'}
+                        $0
                       </span>
-                      {profile?.role === 'pro' && <span className="text-sm text-gray-400">/month</span>}
                     </div>
                   </div>
                 </div>
 
-                {profile?.role !== 'pro' && (
-                  <div className="space-y-4">
+                {/* Show upgrade options for both readers and writers */}
+                <div className="space-y-4">
                     <h3 className="font-medium text-white">Upgrade to Pro</h3>
                     <div className="grid md:grid-cols-2 gap-4">
                       <div className="p-4 border border-navy-600 rounded-lg bg-navy-900/30">
@@ -708,7 +706,6 @@ export default function SettingsPage() {
                       </Button>
                     </div>
                   </div>
-                )}
               </CardContent>
             </Card>
           )}

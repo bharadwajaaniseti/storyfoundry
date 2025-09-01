@@ -5,8 +5,8 @@ import { NextRequest } from 'next/server'
 
 export async function POST(request: NextRequest) {
   try {
-    // Require admin role
-    await requireRole('admin')
+    // Require writer role (since they manage content)
+    await requireRole('writer')
 
     // Recompute all buzz scores
     const result = await recomputeAllBuzzScores()

@@ -19,7 +19,9 @@ import {
   Mail,
   Smartphone,
   ChevronRight,
-  UserPlus
+  UserPlus,
+  BookOpen,
+  Edit
 } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/auth'
 import AvatarUpload from '@/components/avatar-upload'
@@ -27,32 +29,43 @@ import ProfileAccessManager from '@/components/profile-access-manager'
 
 interface Profile {
   id: string
-  role: 'writer' | 'pro' | 'admin'
+  role: 'reader' | 'writer'
   display_name: string | null
-  first_name: string | null
-  last_name: string | null
-  email: string
+  email: string | null
   bio: string | null
-  website: string | null
-  twitter_handle: string | null
   avatar_url: string | null
-  company: string | null
-  country: string | null
-  email_notifications: boolean
-  marketing_emails: boolean
-  project_updates: boolean
-  collaboration_invites: boolean
-  profile_visibility: 'public' | 'members' | 'private'
-  discoverable: boolean
-  verified_pro: boolean
+  website: string | null
+  instagram: string | null
+  twitter: string | null
+  created_at: string
+  updated_at: string
 }
 
-const TABS = [
-  { id: 'profile', label: 'Profile', icon: User },
-  { id: 'privacy', label: 'Privacy', icon: Shield },
-  { id: 'notifications', label: 'Notifications', icon: Bell },
-  { id: 'billing', label: 'Billing', icon: CreditCard }
-]
+const getTabsForRole = (role: string) => {
+  const commonTabs = [
+    { id: 'profile', label: 'Profile', icon: User },
+    { id: 'privacy', label: 'Privacy', icon: Shield },
+    { id: 'notifications', label: 'Notifications', icon: Bell }
+  ]
+
+  if (role === 'reader') {
+    return [
+      ...commonTabs,
+      { id: 'reading', label: 'Reading Preferences', icon: BookOpen },
+      { id: 'billing', label: 'Subscription', icon: CreditCard }
+    ]
+  }
+
+  if (role === 'writer') {
+    return [
+      ...commonTabs,
+      { id: 'writing', label: 'Writing Tools', icon: Edit },
+      { id: 'billing', label: 'Billing', icon: CreditCard }
+    ]
+  }
+
+  return commonTabs
+}
 
 export default function SettingsPage() {
   const router = useRouter()
@@ -212,7 +225,7 @@ export default function SettingsPage() {
           {/* Sidebar */}
           <div className="lg:w-64">
             <nav className="space-y-2">
-              {TABS.map((tab) => {
+              {getTabsForRole(profile?.role || 'reader').map((tab) => {
                 const Icon = tab.icon
                 return (
                   <button
@@ -306,7 +319,11 @@ export default function SettingsPage() {
                       onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
                       rows={4}
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-                      placeholder="Tell others about yourself and your writing..."
+                      placeholder={
+                        profile?.role === 'reader' 
+                          ? "Tell others about yourself and your reading interests..."
+                          : "Tell others about yourself and your writing..."
+                      }
                     />
                   </div>
 
@@ -591,63 +608,370 @@ export default function SettingsPage() {
 
             {activeTab === 'billing' && (
               <div className="bg-white rounded-xl border border-gray-200 p-8">
-                <h2 className="text-xl font-semibold text-gray-800 mb-6">Billing & Subscription</h2>
+                <h2 className="text-xl font-semibold text-gray-800 mb-6">
+                  {profile?.role === 'reader' ? 'Subscription' : 'Billing & Subscription'}
+                </h2>
                 
                 <div className="p-6 bg-gray-50 rounded-lg mb-6">
                   <div className="flex items-center justify-between">
                     <div>
                       <h3 className="font-medium text-gray-800">
-                        {profile?.role === 'pro' ? 'Pro Plan' : profile?.role === 'admin' ? 'Admin' : 'Writer Plan'}
+                        {profile?.role === 'reader' ? 'Reader Plan' : 'Writer Plan'}
                       </h3>
                       <p className="text-sm text-gray-600">
-                        {profile?.role === 'pro' ? 'Advanced features with unlimited projects' : 
-                         profile?.role === 'admin' ? 'Full administrative access' : 
+                        {profile?.role === 'reader' ? 'Unlimited reading with personalized recommendations' :
                          'Basic features with limited projects'}
                       </p>
                     </div>
                     <span className="text-2xl font-bold text-gray-800">
-                      {profile?.role === 'pro' ? '$19' : '$0'}
-                      {profile?.role === 'pro' && <span className="text-sm font-normal text-gray-600">/month</span>}
+                      $0
                     </span>
                   </div>
                 </div>
 
-                {profile?.role !== 'pro' && (
-                  <div className="space-y-4">
-                    <h3 className="font-medium text-gray-800">Upgrade to Pro</h3>
+                {/* Always show upgrade options for both readers and writers */}
+                <div className="space-y-4">
+                    <h3 className="font-medium text-gray-800">
+                      {profile?.role === 'reader' ? 'Upgrade to Premium Reading' : 'Upgrade to Pro'}
+                    </h3>
                     <div className="grid md:grid-cols-2 gap-4">
-                      <div className="p-4 border border-gray-200 rounded-lg">
-                        <h4 className="font-medium text-gray-800 mb-2">Pro Monthly</h4>
-                        <p className="text-2xl font-bold text-gray-800 mb-2">$19<span className="text-sm font-normal text-gray-600">/month</span></p>
-                        <ul className="text-sm text-gray-600 space-y-1">
-                          <li>• Unlimited projects</li>
-                          <li>• Advanced AI features</li>
-                          <li>• Priority support</li>
-                          <li>• Export to all formats</li>
-                        </ul>
-                      </div>
+                      {profile?.role === 'reader' ? (
+                        <>
+                          <div className="p-4 border border-gray-200 rounded-lg">
+                            <h4 className="font-medium text-gray-800 mb-2">Premium Reading Monthly</h4>
+                            <p className="text-2xl font-bold text-gray-800 mb-2">$9<span className="text-sm font-normal text-gray-600">/month</span></p>
+                            <ul className="text-sm text-gray-600 space-y-1">
+                              <li>• Unlimited story access</li>
+                              <li>• Advanced reading analytics</li>
+                              <li>• Personalized recommendations</li>
+                              <li>• Offline reading</li>
+                              <li>• Priority customer support</li>
+                            </ul>
+                          </div>
 
-                      <div className="p-4 border border-orange-500 rounded-lg bg-orange-50">
-                        <div className="flex items-center justify-between mb-2">
-                          <h4 className="font-medium text-gray-800">Pro Yearly</h4>
-                          <span className="text-xs bg-orange-500 text-white px-2 py-1 rounded-full">Save 20%</span>
-                        </div>
-                        <p className="text-2xl font-bold text-gray-800 mb-2">$15<span className="text-sm font-normal text-gray-600">/month</span></p>
-                        <ul className="text-sm text-gray-600 space-y-1">
-                          <li>• Everything in Pro Monthly</li>
-                          <li>• 2 months free</li>
-                          <li>• Premium templates</li>
-                          <li>• Advanced analytics</li>
-                        </ul>
-                      </div>
+                          <div className="p-4 border border-purple-500 rounded-lg bg-purple-50">
+                            <div className="flex items-center justify-between mb-2">
+                              <h4 className="font-medium text-gray-800">Premium Reading Yearly</h4>
+                              <span className="text-xs bg-purple-500 text-white px-2 py-1 rounded-full">Save 25%</span>
+                            </div>
+                            <p className="text-2xl font-bold text-gray-800 mb-2">$7<span className="text-sm font-normal text-gray-600">/month</span></p>
+                            <ul className="text-sm text-gray-600 space-y-1">
+                              <li>• Everything in Premium Monthly</li>
+                              <li>• 3 months free</li>
+                              <li>• Exclusive content</li>
+                              <li>• Beta features access</li>
+                            </ul>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="p-4 border border-gray-200 rounded-lg">
+                            <h4 className="font-medium text-gray-800 mb-2">Pro Monthly</h4>
+                            <p className="text-2xl font-bold text-gray-800 mb-2">$19<span className="text-sm font-normal text-gray-600">/month</span></p>
+                            <ul className="text-sm text-gray-600 space-y-1">
+                              <li>• Unlimited projects</li>
+                              <li>• Advanced AI features</li>
+                              <li>• Priority support</li>
+                              <li>• Export to all formats</li>
+                            </ul>
+                          </div>
+
+                          <div className="p-4 border border-orange-500 rounded-lg bg-orange-50">
+                            <div className="flex items-center justify-between mb-2">
+                              <h4 className="font-medium text-gray-800">Pro Yearly</h4>
+                              <span className="text-xs bg-orange-500 text-white px-2 py-1 rounded-full">Save 20%</span>
+                            </div>
+                            <p className="text-2xl font-bold text-gray-800 mb-2">$15<span className="text-sm font-normal text-gray-600">/month</span></p>
+                            <ul className="text-sm text-gray-600 space-y-1">
+                              <li>• Everything in Pro Monthly</li>
+                              <li>• 2 months free</li>
+                              <li>• Premium templates</li>
+                              <li>• Advanced analytics</li>
+                            </ul>
+                          </div>
+                        </>
+                      )}
                     </div>
 
                     <div className="flex space-x-4 mt-6">
-                      <button className="btn-primary">Upgrade to Pro Monthly</button>
-                      <button className="btn-secondary">Upgrade to Pro Yearly</button>
+                      {profile?.role === 'reader' ? (
+                        <>
+                          <button className="btn-primary">Upgrade to Premium Monthly</button>
+                          <button className="btn-secondary">Upgrade to Premium Yearly</button>
+                        </>
+                      ) : (
+                        <>
+                          <button className="btn-primary">Upgrade to Pro Monthly</button>
+                          <button className="btn-secondary">Upgrade to Pro Yearly</button>
+                        </>
+                      )}
                     </div>
                   </div>
-                )}
+              </div>
+            )}
+
+            {activeTab === 'reading' && profile?.role === 'reader' && (
+              <div className="bg-white rounded-xl border border-gray-200 p-8">
+                <h2 className="text-xl font-semibold text-gray-800 mb-6">Reading Preferences</h2>
+                
+                <div className="space-y-6">
+                  <div className="p-4 border border-gray-200 rounded-lg">
+                    <div className="flex items-center space-x-3 mb-3">
+                      <BookOpen className="w-5 h-5 text-purple-500" />
+                      <span className="font-medium text-gray-800">Reading Goals</span>
+                    </div>
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Stories per month
+                        </label>
+                        <select className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                          <option>5 stories</option>
+                          <option>10 stories</option>
+                          <option>20 stories</option>
+                          <option>Unlimited</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Reading time per day
+                        </label>
+                        <select className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                          <option>15 minutes</option>
+                          <option>30 minutes</option>
+                          <option>1 hour</option>
+                          <option>2+ hours</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-4 border border-gray-200 rounded-lg">
+                    <div className="flex items-center space-x-3 mb-3">
+                      <Globe className="w-5 h-5 text-blue-500" />
+                      <span className="font-medium text-gray-800">Genre Preferences</span>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {['Fantasy', 'Science Fiction', 'Romance', 'Mystery', 'Thriller', 'Drama', 'Comedy', 'Horror', 'Adventure', 'Literary Fiction', 'Historical', 'Contemporary'].map(genre => (
+                        <label key={genre} className="flex items-center space-x-2">
+                          <input type="checkbox" className="rounded" />
+                          <span className="text-sm text-gray-700">{genre}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="p-4 border border-gray-200 rounded-lg">
+                    <div className="flex items-center space-x-3 mb-3">
+                      <Bell className="w-5 h-5 text-green-500" />
+                      <span className="font-medium text-gray-800">Reading Reminders</span>
+                    </div>
+                    <div className="space-y-3">
+                      <label className="flex items-center space-x-2">
+                        <input type="checkbox" className="rounded" />
+                        <span className="text-sm text-gray-700">Daily reading reminders</span>
+                      </label>
+                      <label className="flex items-center space-x-2">
+                        <input type="checkbox" className="rounded" />
+                        <span className="text-sm text-gray-700">Weekly reading summary</span>
+                      </label>
+                      <label className="flex items-center space-x-2">
+                        <input type="checkbox" className="rounded" />
+                        <span className="text-sm text-gray-700">New story recommendations</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="p-4 border border-gray-200 rounded-lg">
+                    <div className="flex items-center space-x-3 mb-3">
+                      <Eye className="w-5 h-5 text-orange-500" />
+                      <span className="font-medium text-gray-800">Reading Display</span>
+                    </div>
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Font size
+                        </label>
+                        <select className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                          <option>Small</option>
+                          <option>Medium</option>
+                          <option>Large</option>
+                          <option>Extra Large</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Theme
+                        </label>
+                        <select className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                          <option>Light</option>
+                          <option>Dark</option>
+                          <option>Sepia</option>
+                          <option>Auto</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end mt-8">
+                  <button
+                    onClick={saveProfile}
+                    disabled={isSaving}
+                    className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                  >
+                    {isSaving ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <span>Saving...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4" />
+                        <span>Save Preferences</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'writing' && profile?.role === 'writer' && (
+              <div className="bg-white rounded-xl border border-gray-200 p-8">
+                <h2 className="text-xl font-semibold text-gray-800 mb-6">Writing Tools & Preferences</h2>
+                
+                <div className="space-y-6">
+                  <div className="p-4 border border-gray-200 rounded-lg">
+                    <div className="flex items-center space-x-3 mb-3">
+                      <Edit className="w-5 h-5 text-orange-500" />
+                      <span className="font-medium text-gray-800">Default Project Settings</span>
+                    </div>
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Default format
+                        </label>
+                        <select className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                          <option>Feature Film</option>
+                          <option>Short Film</option>
+                          <option>TV Pilot</option>
+                          <option>TV Episode</option>
+                          <option>Treatment</option>
+                          <option>Outline</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Default genre
+                        </label>
+                        <select className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                          <option>Select...</option>
+                          <option>Drama</option>
+                          <option>Comedy</option>
+                          <option>Thriller</option>
+                          <option>Action</option>
+                          <option>Horror</option>
+                          <option>Romance</option>
+                          <option>Fantasy</option>
+                          <option>Science Fiction</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-4 border border-gray-200 rounded-lg">
+                    <div className="flex items-center space-x-3 mb-3">
+                      <Bell className="w-5 h-5 text-green-500" />
+                      <span className="font-medium text-gray-800">Writing Reminders</span>
+                    </div>
+                    <div className="space-y-3">
+                      <label className="flex items-center space-x-2">
+                        <input type="checkbox" className="rounded" />
+                        <span className="text-sm text-gray-700">Daily writing reminders</span>
+                      </label>
+                      <label className="flex items-center space-x-2">
+                        <input type="checkbox" className="rounded" />
+                        <span className="text-sm text-gray-700">Weekly writing goals</span>
+                      </label>
+                      <label className="flex items-center space-x-2">
+                        <input type="checkbox" className="rounded" />
+                        <span className="text-sm text-gray-700">Project collaboration updates</span>
+                      </label>
+                      <label className="flex items-center space-x-2">
+                        <input type="checkbox" className="rounded" />
+                        <span className="text-sm text-gray-700">Industry news and tips</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="p-4 border border-gray-200 rounded-lg">
+                    <div className="flex items-center space-x-3 mb-3">
+                      <CreditCard className="w-5 h-5 text-blue-500" />
+                      <span className="font-medium text-gray-800">Auto-Save & Backup</span>
+                    </div>
+                    <div className="space-y-3">
+                      <label className="flex items-center space-x-2">
+                        <input type="checkbox" className="rounded" defaultChecked />
+                        <span className="text-sm text-gray-700">Auto-save every 30 seconds</span>
+                      </label>
+                      <label className="flex items-center space-x-2">
+                        <input type="checkbox" className="rounded" defaultChecked />
+                        <span className="text-sm text-gray-700">Daily backup to cloud</span>
+                      </label>
+                      <label className="flex items-center space-x-2">
+                        <input type="checkbox" className="rounded" />
+                        <span className="text-sm text-gray-700">Version history (Pro feature)</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="p-4 border border-gray-200 rounded-lg">
+                    <div className="flex items-center space-x-3 mb-3">
+                      <User className="w-5 h-5 text-purple-500" />
+                      <span className="font-medium text-gray-800">Collaboration Settings</span>
+                    </div>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Default project visibility
+                        </label>
+                        <select className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                          <option>Private</option>
+                          <option>Members Only</option>
+                          <option>Public</option>
+                        </select>
+                      </div>
+                      <label className="flex items-center space-x-2">
+                        <input type="checkbox" className="rounded" />
+                        <span className="text-sm text-gray-700">Allow others to invite me to projects</span>
+                      </label>
+                      <label className="flex items-center space-x-2">
+                        <input type="checkbox" className="rounded" />
+                        <span className="text-sm text-gray-700">Show my projects in discovery</span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end mt-8">
+                  <button
+                    onClick={saveProfile}
+                    disabled={isSaving}
+                    className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                  >
+                    {isSaving ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <span>Saving...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4" />
+                        <span>Save Preferences</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             )}
 
