@@ -33,8 +33,8 @@ const parseEnv = () => {
   try {
     return envSchema.parse(process.env);
   } catch (error) {
-    console.error("❌ Invalid environment variables:", error);
-    throw new Error("Invalid environment variables");
+    // Invalid environment variables - fallback to defaults
+    throw new Error("Environment configuration invalid");
   }
 };
 

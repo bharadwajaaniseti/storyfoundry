@@ -126,7 +126,6 @@ export default function SearchPage() {
           .eq('follower_id', user.id)
         
         if (error) {
-          console.error('Error loading follows:', error)
           return
         }
         
@@ -134,7 +133,7 @@ export default function SearchPage() {
         setFollowingUserIds(followingIds)
       }
     } catch (error) {
-      console.error('Error loading following status:', error)
+      // Error loading following status
     }
   }
 
@@ -157,7 +156,6 @@ export default function SearchPage() {
         await loadFollowingStatus()
       }
     } catch (error) {
-      console.error('Error loading user role:', error)
       setUserRole('reader')
     }
   }
@@ -225,7 +223,7 @@ export default function SearchPage() {
         setFeaturedProjects(data as any || [])
       }
     } catch (error) {
-      console.error('Error loading featured projects:', error)
+      // Error loading featured projects
     }
   }
 
@@ -305,7 +303,7 @@ export default function SearchPage() {
         setProjects(data as any || [])
       }
     } catch (error) {
-      console.error('Error searching projects:', error)
+      // Error searching projects
     } finally {
       setIsLoading(false)
     }
@@ -331,7 +329,7 @@ export default function SearchPage() {
         [projectId]: newBookmarkStatus
       }))
     } catch (error) {
-      console.error('Error toggling bookmark:', error)
+      // Error toggling bookmark
     }
   }
 
@@ -831,6 +829,7 @@ export default function SearchPage() {
               roleFilter={profileRoleFilter}
               followingUserIds={followingUserIds}
               onFollowingChange={loadFollowingStatus}
+              onProfileClick={(profileId) => setSelectedProfileId(profileId)}
             />
           </div>
         )}

@@ -272,7 +272,7 @@ export default function NovelWriter({ projectId, project }: NovelWriterProps) {
         setActiveChapter(chaptersData[0])
       }
     } catch (error) {
-      console.error('Error loading chapters:', error)
+      // Error loading chapters
     } finally {
       setIsLoading(false)
     }
@@ -304,7 +304,7 @@ export default function NovelWriter({ projectId, project }: NovelWriterProps) {
       setNewChapterTitle('')
       setShowNewChapterForm(false)
     } catch (error) {
-      console.error('Error creating chapter:', error)
+      // Error creating chapter
     }
   }
 
@@ -332,7 +332,7 @@ export default function NovelWriter({ projectId, project }: NovelWriterProps) {
       setSaveStatus('saved')
       setTimeout(() => setSaveStatus(null), 2000)
     } catch (error) {
-      console.error('Error saving chapter:', error)
+      // Error saving chapter
       setSaveStatus('error')
     } finally {
       setIsSaving(false)
@@ -379,7 +379,7 @@ export default function NovelWriter({ projectId, project }: NovelWriterProps) {
       setDeleteConfirmOpen(false)
       setChapterToDelete(null)
     } catch (error) {
-      console.error('Error deleting chapter:', error)
+      // Error deleting chapter
     }
   }
 
@@ -420,7 +420,7 @@ export default function NovelWriter({ projectId, project }: NovelWriterProps) {
 
       setEditingChapter(null)
     } catch (error) {
-      console.error('Error updating chapter:', error)
+      // Error updating chapter
     }
   }
 

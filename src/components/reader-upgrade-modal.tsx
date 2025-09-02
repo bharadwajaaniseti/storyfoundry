@@ -76,7 +76,6 @@ export default function ReaderUpgradeModal({ isOpen, onClose }: ReaderUpgradeMod
 
   const handleUpgrade = (planType: 'plus') => {
     // TODO: Implement Stripe checkout or subscription logic
-    console.log(`Upgrading to ${planType} plan with ${billingPeriod} billing`)
     // For now, just close the modal
     onClose()
   }

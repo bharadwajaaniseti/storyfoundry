@@ -48,6 +48,7 @@ interface ProfileDiscoveryProps {
   roleFilter?: 'all' | 'reader' | 'writer'
   followingUserIds?: string[]
   onFollowingChange?: () => Promise<void>
+  onProfileClick?: (profileId: string) => void
 }
 
 export default function ProfileDiscovery({ 
@@ -55,7 +56,8 @@ export default function ProfileDiscovery({
   searchQuery: externalSearchQuery = '', 
   roleFilter: externalRoleFilter = 'all',
   followingUserIds = [],
-  onFollowingChange
+  onFollowingChange,
+  onProfileClick
 }: ProfileDiscoveryProps) {
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [searchQuery, setSearchQuery] = useState('')
@@ -109,11 +111,7 @@ export default function ProfileDiscovery({
         .order('created_at', { ascending: false })
         .limit(20)
 
-      console.log('Profile query result:', { data, error, count: data?.length })
-
       if (error) {
-        console.error('Error loading profiles:', error)
-        console.error('Query details:', { roleFilter: effectiveRoleFilter, searchQuery: effectiveSearchQuery, currentUserId })
         setIsLoading(false)
         return
       }
@@ -157,7 +155,7 @@ export default function ProfileDiscovery({
 
       setProfiles(profilesWithStats)
     } catch (error) {
-      console.error('Error loading profiles:', error)
+      // Error loading profiles
     } finally {
       setIsLoading(false)
     }
@@ -339,9 +337,13 @@ export default function ProfileDiscovery({
               <div 
                 key={profile.id} 
                 onClick={() => {
-                  window.dispatchEvent(new CustomEvent('openProfileModal', {
-                    detail: { profileId: profile.id }
-                  }))
+                  if (onProfileClick) {
+                    onProfileClick(profile.id)
+                  } else {
+                    window.dispatchEvent(new CustomEvent('openProfileModal', {
+                      detail: { profileId: profile.id }
+                    }))
+                  }
                 }}
                 className="block group cursor-pointer"
               >
@@ -416,7 +418,7 @@ export default function ProfileDiscovery({
                               await onFollowingChange()
                             }
                           } catch (error) {
-                            console.error('Error toggling follow:', error)
+                            // Error toggling follow
                           }
                         }}
                         disabled={!currentUserId}
