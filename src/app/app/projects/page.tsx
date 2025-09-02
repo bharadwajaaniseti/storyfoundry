@@ -270,14 +270,49 @@ export default function ProjectsPage() {
               ? 'grid md:grid-cols-2 lg:grid-cols-3 gap-6'
               : 'space-y-4'
           }>
-            {filteredProjects.map((project) => (
-              <div
-                key={project.id}
-                onClick={() => router.push(`/app/projects/${project.id}`)}
-                className={`group bg-white border border-gray-200 rounded-xl transition-all duration-300 hover:border-orange-300 hover:shadow-xl cursor-pointer transform hover:-translate-y-2 hover:scale-[1.02] ${
-                  viewMode === 'grid' ? 'p-6' : 'p-4'
-                }`}
-              >
+            {filteredProjects.map((project) => {
+              console.log('=== PROJECT MAP FUNCTION RUNNING ===')
+              console.log('Project data:', project)
+              
+              // Enhanced novel detection logic
+              const formatIsNovel = project.format === 'Novel' || project.format === 'novel'
+              const titleHasNovel = project.title.toLowerCase().includes('novel')
+              const titleHasChapter = project.title.toLowerCase().includes('chapter')
+              const genreIsNovelLike = project.genre && (
+                project.genre.includes('Sci-Fi') || 
+                project.genre.includes('Fantasy') || 
+                project.genre.includes('Romance') ||
+                project.genre.includes('fantasy')
+              )
+              
+              const isNovel = Boolean(formatIsNovel || titleHasNovel || titleHasChapter || genreIsNovelLike)
+              
+              // Debug log to see what's being detected
+              console.log('Project:', project.title)
+              console.log('  Format:', project.format, '-> formatIsNovel:', formatIsNovel)
+              console.log('  Genre:', project.genre, '-> genreIsNovelLike:', genreIsNovelLike)
+              console.log('  Title checks - hasNovel:', titleHasNovel, 'hasChapter:', titleHasChapter)
+              console.log('  Final isNovel:', isNovel)
+              console.log('---')
+              
+              const handleClick = () => {
+                if (isNovel) {
+                  console.log('NOVEL CLICKED:', project.title)
+                  console.log('Navigating to:', `/novels/${project.id}`)
+                  router.push(`/novels/${project.id}`)
+                } else {
+                  router.push(`/app/projects/${project.id}`)
+                }
+              }
+              
+              return (
+                <div
+                  key={project.id}
+                  onClick={handleClick}
+                  className={`group bg-white border border-gray-200 rounded-xl transition-all duration-300 hover:border-orange-300 hover:shadow-xl cursor-pointer transform hover:-translate-y-2 hover:scale-[1.02] ${
+                    viewMode === 'grid' ? 'p-6' : 'p-4'
+                  }`}
+                >
                 {viewMode === 'grid' ? (
                   <div className="h-full flex flex-col">
                     <div className="flex items-start justify-between mb-4">
@@ -373,7 +408,8 @@ export default function ProjectsPage() {
                   </div>
                 )}
               </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>

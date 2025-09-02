@@ -15,8 +15,21 @@ interface Project {
   id: string
   title: string
   description: string
+  synopsis?: string
   format: string
   genre: string
+  subgenre?: string
+  word_count?: number
+  cast_size?: number
+  language?: string
+  visibility: string
+  buzz_score?: number
+  created_at: string
+  updated_at: string
+  owner?: {
+    display_name: string
+    avatar_url?: string
+  }
 }
 
 export default function NovelPage({ params }: NovelPageProps) {
@@ -29,46 +42,33 @@ export default function NovelPage({ params }: NovelPageProps) {
       try {
         const resolvedParams = await params
         
-        // Try to fetch from API first
-        try {
-          const response = await fetch(`/api/projects/${resolvedParams.id}`)
-          if (response.ok) {
-            const projectData = await response.json()
-            setProject(projectData)
-            console.log('Loaded project from API:', projectData)
+        console.log('Loading project with ID:', resolvedParams.id)
+        
+        // Fetch from API
+        const response = await fetch(`/api/projects/${resolvedParams.id}`)
+        
+        if (!response.ok) {
+          console.error('API response not ok:', response.status, response.statusText)
+          if (response.status === 404) {
+            console.log('Project not found')
+            setProject(null)
             return
           }
-        } catch (apiError) {
-          console.log('API fetch failed, using mock data')
-        }
-
-        // Fallback to mock data
-        const mockProjects: Record<string, Project> = {
-          '6463f622-6e12-4cd2-a9c6-063ab25acf9f': {
-            id: '6463f622-6e12-4cd2-a9c6-063ab25acf9f',
-            title: 'Novel Test',
-            description: 'This is the test novel that I am trying for first time',
-            format: 'novel',
-            genre: 'Sci-Fi'
-          },
-          '6f27a429-0f5b-468a-a865-83713fef733c': {
-            id: '6f27a429-0f5b-468a-a865-83713fef733c',
-            title: 'Chapter 2: Echos in the Smoke',
-            description: 'A thrilling fantasy adventure',
-            format: 'Novel',
-            genre: 'Fantasy'
+          if (response.status === 403) {
+            console.log('Access denied to project')
+            setProject(null)
+            return
           }
+          throw new Error(`HTTP error! status: ${response.status}`)
         }
-
-        const projectData = mockProjects[resolvedParams.id]
-        if (projectData) {
-          setProject(projectData)
-          console.log('Loaded project from mock data:', projectData)
-        } else {
-          console.log('Project not found in mock data, ID:', resolvedParams.id)
-        }
+        
+        const projectData = await response.json()
+        console.log('Successfully loaded project from API:', projectData)
+        setProject(projectData)
+        
       } catch (error) {
         console.error('Error loading project:', error)
+        setProject(null)
       } finally {
         setLoading(false)
       }
@@ -95,9 +95,11 @@ export default function NovelPage({ params }: NovelPageProps) {
   if (!project) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
+        <div className="text-center max-w-md">
           <h2 className="text-2xl font-semibold text-gray-800 mb-4">Novel not found</h2>
-          <p className="text-gray-600 mb-6">The novel you're looking for doesn't exist.</p>
+          <p className="text-gray-600 mb-6">
+            The novel you're looking for doesn't exist or you don't have permission to access it.
+          </p>
           <Button onClick={handleBack} className="bg-orange-500 hover:bg-orange-600 text-white">
             Back to Projects
           </Button>
@@ -134,7 +136,8 @@ export default function NovelPage({ params }: NovelPageProps) {
                     {project.title}
                   </h1>
                   <p className="text-sm text-gray-500">
-                    {project.genre} • {project.format}
+                    {project.genre}{project.subgenre ? ` • ${project.subgenre}` : ''} • {project.format}
+                    {project.word_count && ` • ${project.word_count.toLocaleString()} words`}
                   </p>
                 </div>
               </div>
@@ -171,9 +174,17 @@ export default function NovelPage({ params }: NovelPageProps) {
           <h3 className="text-2xl font-semibold text-gray-800 mb-4">
             {project.title}
           </h3>
-          <p className="text-gray-600 text-lg max-w-2xl mx-auto">
+          <p className="text-gray-600 text-lg max-w-2xl mx-auto mb-4">
             {project.description}
           </p>
+          {project.synopsis && (
+            <div className="max-w-3xl mx-auto">
+              <h4 className="text-lg font-semibold text-gray-800 mb-2">Synopsis</h4>
+              <p className="text-gray-600 text-base leading-relaxed">
+                {project.synopsis}
+              </p>
+            </div>
+          )}
         </div>
         
         {/* Feature Grid - matches StoryFoundry card design */}
