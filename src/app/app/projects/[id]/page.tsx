@@ -22,6 +22,9 @@ import {
   Check
 } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/auth'
+import NovelWriter from '@/components/novel-writer'
+import NovelOutline from '@/components/novel-outline'
+import NovelDashboard from '@/components/novel-dashboard'
 
 interface Project {
   id: string
@@ -447,8 +450,32 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                     : 'border-transparent text-gray-600 hover:text-gray-800'
                 }`}
               >
-                Write
+                {project?.format === 'novel' ? 'Chapters' : 'Write'}
               </button>
+              {project?.format === 'novel' && (
+                <>
+                  <button
+                    onClick={() => setActiveTab('outline')}
+                    className={`pb-2 border-b-2 transition-colors ${
+                      activeTab === 'outline'
+                        ? 'border-orange-500 text-orange-600'
+                        : 'border-transparent text-gray-600 hover:text-gray-800'
+                    }`}
+                  >
+                    Outline
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('dashboard')}
+                    className={`pb-2 border-b-2 transition-colors ${
+                      activeTab === 'dashboard'
+                        ? 'border-orange-500 text-orange-600'
+                        : 'border-transparent text-gray-600 hover:text-gray-800'
+                    }`}
+                  >
+                    Dashboard
+                  </button>
+                </>
+              )}
               <button
                 onClick={() => setActiveTab('overview')}
                 className={`pb-2 border-b-2 transition-colors ${
@@ -486,18 +513,33 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
 
       <div className="container mx-auto px-6 py-8">
         {activeTab === 'write' && (
-          <div className="grid lg:grid-cols-4 gap-8">
-            {/* Main Editor */}
-            <div className="lg:col-span-3">
-              <div className="bg-white rounded-xl border border-gray-200 min-h-[600px]">
-                <div className="p-6 border-b border-gray-200">
-                  <h2 className="text-lg font-semibold text-gray-800">Content</h2>
-                </div>
-                <div className="p-6">
-                  <textarea
-                    value={content}
-                    onChange={(e) => setContent(e.target.value)}
-                    className="w-full h-[500px] border-none outline-none resize-none text-gray-800 leading-relaxed"
+          <>
+            {project?.format === 'novel' ? (
+              <div className="-mx-6 -my-8 ml-[-83px]" style={{ height: 'calc(100vh - 200px)' }}>
+                <NovelWriter 
+                  projectId={project.id} 
+                  project={{
+                    id: project.id,
+                    title: project.title,
+                    word_count: project.word_count || 0,
+                    target_word_count: 80000, // Default target for novels
+                    format: project.format
+                  }}
+                />
+              </div>
+            ) : (
+              <div className="grid lg:grid-cols-4 gap-8">
+                {/* Main Editor */}
+                <div className="lg:col-span-3">
+                  <div className="bg-white rounded-xl border border-gray-200 min-h-[600px]">
+                    <div className="p-6 border-b border-gray-200">
+                      <h2 className="text-lg font-semibold text-gray-800">Content</h2>
+                    </div>
+                    <div className="p-6">
+                      <textarea
+                        value={content}
+                        onChange={(e) => setContent(e.target.value)}
+                        className="w-full h-[500px] border-none outline-none resize-none text-gray-800 leading-relaxed"
                     placeholder="Start writing your story here..."
                   />
                 </div>
@@ -561,6 +603,24 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
               </div>
             </div>
           </div>
+            )}
+          </>
+        )}
+
+        {activeTab === 'outline' && project?.format === 'novel' && (
+          <NovelOutline 
+            projectId={project.id}
+            chapters={[]} // Will be loaded within the component
+          />
+        )}
+
+        {activeTab === 'dashboard' && project?.format === 'novel' && (
+          <NovelDashboard 
+            projectId={project.id}
+            chapters={[]} // Will be loaded within the component
+            totalWordCount={project.word_count || 0}
+            targetWordCount={80000}
+          />
         )}
 
         {activeTab === 'overview' && (
