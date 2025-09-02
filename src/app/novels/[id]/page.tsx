@@ -6,7 +6,7 @@ import {
   ArrowLeft, BookOpen, Users, Save, Settings, Eye, FileText, Map, Clock, 
   Target, MapPin, User, Calendar, Search, Bookmark, Plus, Edit3, Trash2, 
   ChevronDown, ChevronRight, Folder, Edit, Palette, Globe, Shield, Heart, 
-  Brain, Zap, Upload, Crown
+  Brain, Zap, Upload, Crown, Download, Copy, ExternalLink
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -57,6 +57,7 @@ interface WorldElement {
   is_folder?: boolean
   parent_folder_id?: string
   sort_order?: number
+  icon_color?: string
 }
 
 interface Chapter {
@@ -74,6 +75,7 @@ interface Chapter {
   parent_folder_id?: string
   sort_order?: number
   category: string
+  icon_color?: string
 }
 
 // Sidebar navigation options
@@ -116,7 +118,7 @@ export default function NovelPage({ params }: NovelPageProps) {
   
   // UI state
   const [searchTerm, setSearchTerm] = useState('')
-  const [expandedCategories, setExpandedCategories] = useState<string[]>(['characters', 'chapters', 'locations'])
+  const [expandedCategories, setExpandedCategories] = useState<string[]>([])
   const [expandedFolders, setExpandedFolders] = useState<string[]>([])
   const [isCreating, setIsCreating] = useState(false)
   
@@ -147,12 +149,20 @@ export default function NovelPage({ params }: NovelPageProps) {
   const [dragOverItem, setDragOverItem] = useState<string | null>(null)
   const [dropPosition, setDropPosition] = useState<'before' | 'after' | 'inside' | null>(null)
 
+  // Color picker state
+  const [colorPickerModal, setColorPickerModal] = useState<{
+    visible: boolean
+    item: WorldElement | Chapter | null
+    type: 'element' | 'chapter'
+  } | null>(null)
+  const [selectedColor, setSelectedColor] = useState('#3B82F6')
+  const [colorInputs, setColorInputs] = useState({ hex: '4E2AE4', r: 78, g: 42, b: 228 })
+
   // Load project data
   useEffect(() => {
     const loadProjectData = async () => {
       try {
         const resolvedParams = await params
-        console.log('Loading project with ID:', resolvedParams.id)
         
         // Fetch project
         const response = await fetch(`/api/projects/${resolvedParams.id}`)
@@ -165,7 +175,6 @@ export default function NovelPage({ params }: NovelPageProps) {
         }
         
         const projectData = await response.json()
-        console.log('Successfully loaded project:', projectData)
         setProject(projectData)
         
         // Load world elements and chapters
@@ -175,7 +184,6 @@ export default function NovelPage({ params }: NovelPageProps) {
         ])
         
       } catch (error) {
-        console.error('Error loading project:', error)
         setProject(null)
       } finally {
         setLoading(false)
@@ -199,10 +207,8 @@ export default function NovelPage({ params }: NovelPageProps) {
         .order('name', { ascending: true })
 
       if (error) throw error
-      console.log('Loaded world elements:', data)
       setWorldElements(data || [])
     } catch (error) {
-      console.error('Error loading world elements:', error)
     }
   }
 
@@ -217,7 +223,6 @@ export default function NovelPage({ params }: NovelPageProps) {
         .order('sort_order', { ascending: true })
 
       if (error) throw error
-      console.log('Loaded chapters:', data)
       
       // Ensure chapters have category field
       const chaptersWithCategory = (data || []).map(chapter => ({
@@ -227,7 +232,6 @@ export default function NovelPage({ params }: NovelPageProps) {
       
       setChapters(chaptersWithCategory)
     } catch (error) {
-      console.error('Error loading chapters:', error)
     }
   }
 
@@ -260,7 +264,6 @@ export default function NovelPage({ params }: NovelPageProps) {
       setSelectedElement(data)
       setIsCreating(false)
     } catch (error) {
-      console.error('Error creating world element:', error)
     }
   }
 
@@ -281,7 +284,6 @@ export default function NovelPage({ params }: NovelPageProps) {
         setSelectedElement(data)
       }
     } catch (error) {
-      console.error('Error updating world element:', error)
     }
   }
 
@@ -300,7 +302,6 @@ export default function NovelPage({ params }: NovelPageProps) {
         setSelectedElement(null)
       }
     } catch (error) {
-      console.error('Error deleting world element:', error)
     }
   }
 
@@ -332,7 +333,6 @@ export default function NovelPage({ params }: NovelPageProps) {
       setWorldElements(prev => [...prev, data])
       setExpandedFolders(prev => [...prev, data.id])
     } catch (error) {
-      console.error('Error creating folder:', error)
     }
   }
 
@@ -370,7 +370,6 @@ export default function NovelPage({ params }: NovelPageProps) {
       setChapters(prev => [...prev, data])
       setSelectedChapter(data)
     } catch (error) {
-      console.error('Error creating chapter:', error)
     }
   }
 
@@ -397,7 +396,6 @@ export default function NovelPage({ params }: NovelPageProps) {
         setSelectedChapter(data)
       }
     } catch (error) {
-      console.error('Error updating chapter:', error)
     }
   }
 
@@ -416,8 +414,172 @@ export default function NovelPage({ params }: NovelPageProps) {
         setSelectedChapter(null)
       }
     } catch (error) {
-      console.error('Error deleting chapter:', error)
     }
+  }
+
+  // Color management functions
+  const availableColors = [
+    { name: 'Blue', value: 'blue', hex: '#3B82F6', class: 'text-blue-500' },
+    { name: 'Red', value: 'red', hex: '#EF4444', class: 'text-red-500' },
+    { name: 'Green', value: 'green', hex: '#10B981', class: 'text-green-500' },
+    { name: 'Purple', value: 'purple', hex: '#8B5CF6', class: 'text-purple-500' },
+    { name: 'Yellow', value: 'yellow', hex: '#F59E0B', class: 'text-yellow-500' },
+    { name: 'Pink', value: 'pink', hex: '#EC4899', class: 'text-pink-500' },
+    { name: 'Indigo', value: 'indigo', hex: '#6366F1', class: 'text-indigo-500' },
+    { name: 'Orange', value: 'orange', hex: '#F97316', class: 'text-orange-500' },
+    { name: 'Teal', value: 'teal', hex: '#14B8A6', class: 'text-teal-500' },
+    { name: 'Gray', value: 'gray', hex: '#6B7280', class: 'text-gray-500' },
+    { name: 'Cyan', value: 'cyan', hex: '#06B6D4', class: 'text-cyan-500' },
+    { name: 'Lime', value: 'lime', hex: '#84CC16', class: 'text-lime-500' },
+    { name: 'Rose', value: 'rose', hex: '#F43F5E', class: 'text-rose-500' },
+    { name: 'Violet', value: 'violet', hex: '#7C3AED', class: 'text-violet-500' },
+    { name: 'Amber', value: 'amber', hex: '#F59E0B', class: 'text-amber-500' },
+    { name: 'Emerald', value: 'emerald', hex: '#059669', class: 'text-emerald-500' },
+  ]
+
+  const hexToRgb = (hex: string) => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16)
+    } : null;
+  }
+
+  const rgbToHex = (r: number, g: number, b: number) => {
+    return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+  }
+
+  const updateElementColor = async (elementId: string, color: string) => {
+    try {
+      const supabase = createSupabaseClient()
+      const { data, error } = await supabase
+        .from('world_elements')
+        .update({ icon_color: color })
+        .eq('id', elementId)
+        .select()
+        .single()
+
+      if (error) throw error
+
+      setWorldElements(prev => prev.map(el => el.id === elementId ? { ...el, icon_color: color } : el))
+      if (selectedElement?.id === elementId) {
+        setSelectedElement(prev => prev ? { ...prev, icon_color: color } : null)
+      }
+    } catch (error) {
+    }
+  }
+
+  const updateChapterColor = async (chapterId: string, color: string) => {
+    try {
+      const supabase = createSupabaseClient()
+      const { data, error } = await supabase
+        .from('project_chapters')
+        .update({ icon_color: color })
+        .eq('id', chapterId)
+        .select()
+        .single()
+
+      if (error) throw error
+
+      setChapters(prev => prev.map(ch => ch.id === chapterId ? { ...ch, icon_color: color } : ch))
+      if (selectedChapter?.id === chapterId) {
+        setSelectedChapter(prev => prev ? { ...prev, icon_color: color } : null)
+      }
+    } catch (error) {
+    }
+  }
+
+  const getColorClass = (color: string) => {
+    // If it's a hex color, return a style object instead
+    if (color?.startsWith('#')) {
+      return color
+    }
+    
+    const colorMap: Record<string, string> = {
+      blue: '#3B82F6',
+      red: '#EF4444',
+      green: '#10B981',
+      purple: '#8B5CF6',
+      yellow: '#F59E0B',
+      pink: '#EC4899',
+      indigo: '#6366F1',
+      orange: '#F97316',
+      teal: '#14B8A6',
+      gray: '#6B7280',
+      cyan: '#06B6D4',
+      lime: '#84CC16',
+      rose: '#F43F5E',
+      violet: '#7C3AED',
+      amber: '#F59E0B',
+      emerald: '#059669',
+      slate: '#64748B'
+    }
+    
+    return colorMap[color] || colorMap.blue
+  }
+
+  // Handle color change for both chapters and world elements
+  const handleColorChange = async (color: string) => {
+    if (!colorPickerModal?.item) return
+    
+    try {
+      if (colorPickerModal.type === 'chapter') {
+        await updateChapterColor(colorPickerModal.item.id, color)
+      } else {
+        await updateElementColor(colorPickerModal.item.id, color)
+      }
+      
+      // Close the modal
+      setColorPickerModal(null)
+    } catch (error) {
+    }
+  }
+
+  const handleHexChange = (hex: string) => {
+    // Remove # if present
+    const cleanHex = hex.replace('#', '')
+    
+    // Only update if valid hex (6 characters, 0-9 a-f)
+    if (/^[0-9A-Fa-f]{6}$/.test(cleanHex)) {
+      const rgb = hexToRgb('#' + cleanHex)
+      if (rgb) {
+        setColorInputs({ hex: cleanHex, r: rgb.r, g: rgb.g, b: rgb.b })
+        setSelectedColor('#' + cleanHex)
+      }
+    } else if (cleanHex.length <= 6) {
+      // Allow partial input
+      setColorInputs(prev => ({ ...prev, hex: cleanHex }))
+    }
+  }
+
+  const handleRgbChange = (component: 'r' | 'g' | 'b', value: number) => {
+    const newRgb = { ...colorInputs, [component]: Math.max(0, Math.min(255, value)) }
+    const hex = rgbToHex(newRgb.r, newRgb.g, newRgb.b)
+    setColorInputs({ ...newRgb, hex: hex.slice(1) })
+    setSelectedColor(hex)
+  }
+
+  const openColorPicker = (item: WorldElement | Chapter, type: 'element' | 'chapter') => {
+    const currentColor = item.icon_color || 'blue'
+    let initialHex = '#3B82F6'
+    
+    // Check if it's already a hex color
+    if (currentColor.startsWith('#')) {
+      initialHex = currentColor
+    } else {
+      // Find predefined color
+      const colorData = availableColors.find(c => c.value === currentColor)
+      initialHex = colorData?.hex || '#3B82F6'
+    }
+    
+    const rgb = hexToRgb(initialHex)
+    if (rgb) {
+      setColorInputs({ hex: initialHex.slice(1), r: rgb.r, g: rgb.g, b: rgb.b })
+      setSelectedColor(initialHex)
+    }
+    
+    setColorPickerModal({ visible: true, item, type })
   }
 
   // Helper functions
@@ -517,9 +679,116 @@ export default function NovelPage({ params }: NovelPageProps) {
   }
 
   // Handle drag and drop
+  // Function to cleanup and normalize sort_order values
+  const normalizeSortOrders = async () => {
+    const supabase = createSupabaseClient()
+    
+    // Group chapters by parent_folder_id
+    const chapterGroups = chapters.reduce((groups, chapter) => {
+      const key = chapter.parent_folder_id || 'root'
+      if (!groups[key]) groups[key] = []
+      groups[key].push(chapter)
+      return groups
+    }, {} as Record<string, Chapter[]>)
+    
+    
+    // Normalize each group
+    for (const [groupKey, groupChapters] of Object.entries(chapterGroups)) {
+      
+      // Sort by current sort_order, then by title as fallback
+      const sorted = groupChapters.sort((a, b) => {
+        if (a.sort_order !== b.sort_order) {
+          return (a.sort_order || 0) - (b.sort_order || 0)
+        }
+        return a.title.localeCompare(b.title)
+      })
+      
+      // Assign sequential sort_order values
+      const updates: { id: string, sort_order: number, title: string }[] = []
+      sorted.forEach((chapter, index) => {
+        const newSortOrder = index + 1
+        if (chapter.sort_order !== newSortOrder) {
+          updates.push({
+            id: chapter.id,
+            sort_order: newSortOrder,
+            title: chapter.title
+          })
+        }
+      })
+      
+      if (updates.length > 0) {
+        // Update database
+        for (const update of updates) {
+          const { error } = await supabase
+            .from('project_chapters')
+            .update({ sort_order: update.sort_order })
+            .eq('id', update.id)
+            
+          if (error) {
+            console.error('Error updating sort_order for:', update.title, error)
+          }
+        }
+        
+        // Update local state
+        setChapters(prev => {
+          const updated = prev.map(ch => {
+            const update = updates.find(u => u.id === ch.id)
+            return update ? { ...ch, sort_order: update.sort_order } : ch
+          })
+          return updated.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+        })
+      } else {
+        console.log(`No updates needed for group ${groupKey}`)
+      }
+    }
+    
+  }
+
+  const handleMoveToRoot = async (categoryId: string) => {
+    if (!draggedItem) {
+      return
+    }
+
+
+    try {
+      const supabase = createSupabaseClient()
+
+      if (draggedItem.type === 'chapter') {
+        // Move chapter to root level
+        const { error } = await supabase
+          .from('project_chapters')
+          .update({ parent_folder_id: null })
+          .eq('id', draggedItem.id)
+
+        if (error) throw error
+
+        setChapters(prev => prev.map(ch => 
+          ch.id === draggedItem.id 
+            ? { ...ch, parent_folder_id: undefined }
+            : ch
+        ))
+      } else if (draggedItem.type === 'element') {
+        // Move element to root level
+        const { error } = await supabase
+          .from('world_elements')
+          .update({ parent_folder_id: null })
+          .eq('id', draggedItem.id)
+
+        if (error) throw error
+
+        setWorldElements(prev => prev.map(el => 
+          el.id === draggedItem.id 
+            ? { ...el, parent_folder_id: undefined }
+            : el
+        ))
+      }
+    } catch (error) {
+      console.error('Error moving item to root:', error)
+    }
+  }
+
   const handleDrop = async (targetId: string, targetType: 'folder' | 'element' | 'chapter') => {
     if (!draggedItem || draggedItem.id === targetId) {
-      console.log('No valid drop:', { draggedItem, targetId })
       return
     }
 
@@ -530,7 +799,6 @@ export default function NovelPage({ params }: NovelPageProps) {
 
       if (draggedItem.type === 'chapter' && targetType === 'folder') {
         // Move chapter to folder
-        console.log('Moving chapter to folder')
         const { error } = await supabase
           .from('project_chapters')
           .update({ parent_folder_id: targetId })
@@ -545,7 +813,6 @@ export default function NovelPage({ params }: NovelPageProps) {
         ))
       } else if (draggedItem.type === 'element' && targetType === 'folder') {
         // Move element to folder
-        console.log('Moving element to folder')
         const { error } = await supabase
           .from('world_elements')
           .update({ parent_folder_id: targetId })
@@ -559,74 +826,136 @@ export default function NovelPage({ params }: NovelPageProps) {
             : el
         ))
       } else if (draggedItem.type === 'chapter' && targetType === 'chapter') {
-        // Reorder chapters - swap sort_order
-        console.log('Reordering chapters')
+        // Reorder chapters - proper insertion logic
+        
         const draggedChapter = chapters.find(ch => ch.id === draggedItem.id)
         const targetChapter = chapters.find(ch => ch.id === targetId)
         
-        console.log('Dragged chapter:', draggedChapter)
-        console.log('Target chapter:', targetChapter)
         
-        if (draggedChapter && targetChapter && draggedChapter.sort_order !== targetChapter.sort_order) {
-          const draggedSortOrder = draggedChapter.sort_order
-          const targetSortOrder = targetChapter.sort_order
+        if (draggedChapter && targetChapter) {
+          // Get all chapters in the same parent context (same folder or root level)
+          const sameContext = chapters.filter(ch => 
+            ch.parent_folder_id === draggedChapter.parent_folder_id
+          ).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
           
-          console.log('Swapping sort orders:', draggedSortOrder, '<->', targetSortOrder)
+          sameContext.forEach(ch => console.log(`  ${ch.title}: sort_order ${ch.sort_order}`))
           
-          const { error: error1 } = await supabase
-            .from('project_chapters')
-            .update({ sort_order: targetSortOrder })
-            .eq('id', draggedItem.id)
-
-          const { error: error2 } = await supabase
-            .from('project_chapters')
-            .update({ sort_order: draggedSortOrder })
-            .eq('id', targetId)
-
-          if (error1 || error2) {
-            console.error('Database update errors:', error1, error2)
-            throw error1 || error2
-          }
-
-          // Update local state
-          setChapters(prev => {
-            const updated = prev.map(ch => {
-              if (ch.id === draggedItem.id) return { ...ch, sort_order: targetSortOrder }
-              if (ch.id === targetId) return { ...ch, sort_order: draggedSortOrder }
-              return ch
-            })
-            // Re-sort by sort_order to reflect the change in UI
-            return updated.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+          // Remove dragged item from list
+          const withoutDragged = sameContext.filter(ch => ch.id !== draggedItem.id)
+          withoutDragged.forEach(ch => console.log(`  ${ch.title}: sort_order ${ch.sort_order}`))
+          
+          // Find insertion point (insert BEFORE the target)
+          const targetIndex = withoutDragged.findIndex(ch => ch.id === targetId)
+          
+          // Insert dragged item BEFORE the target position
+          const newOrder = [...withoutDragged]
+          newOrder.splice(targetIndex, 0, draggedChapter)
+          
+          newOrder.forEach((ch, idx) => console.log(`  ${idx}: ${ch.title} (was sort_order ${ch.sort_order})`))
+          
+          // Calculate new sort orders
+          const updates: { id: string, sort_order: number, title: string }[] = []
+          
+          newOrder.forEach((chapter, index) => {
+            const newSortOrder = index + 1
+            if (chapter.sort_order !== newSortOrder) {
+              updates.push({ 
+                id: chapter.id, 
+                sort_order: newSortOrder,
+                title: chapter.title 
+              })
+            }
           })
           
-          console.log('Chapter reordering completed successfully')
-        } else {
-          console.log('Cannot reorder: same position or chapters not found')
+          updates.forEach(update => console.log(`  ${update.title}: ${update.sort_order}`))
+          
+          if (updates.length > 0) {
+            // Update database
+            for (const update of updates) {
+              const { error } = await supabase
+                .from('project_chapters')
+                .update({ sort_order: update.sort_order })
+                .eq('id', update.id)
+                
+              if (error) {
+                console.error('Database update error for chapter:', update.title, error)
+                throw error
+              }
+            }
+
+            // Update local state with new sort orders
+            setChapters(prev => {
+              const updated = prev.map(ch => {
+                const update = updates.find(u => u.id === ch.id)
+                return update ? { ...ch, sort_order: update.sort_order } : ch
+              })
+              // Re-sort by sort_order to reflect the change in UI
+              const sorted = updated.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+             
+              sorted.forEach(ch => console.log(`  ${ch.title}: sort_order ${ch.sort_order}`))
+              return sorted
+            })
+            
+          } else {
+            console.log('No updates needed - items already in correct order')
+          }
         }
       } else if (draggedItem.type === 'element' && targetType === 'element') {
-        // Reorder elements - swap sort_order
-        console.log('Reordering elements')
+        // Reorder elements - proper insertion logic
         const draggedElement = worldElements.find(el => el.id === draggedItem.id)
         const targetElement = worldElements.find(el => el.id === targetId)
         
-        if (draggedElement && targetElement) {
-          const { error: error1 } = await supabase
-            .from('world_elements')
-            .update({ sort_order: targetElement.sort_order })
-            .eq('id', draggedItem.id)
+        if (draggedElement && targetElement && draggedElement.category === targetElement.category) {
+          const draggedSortOrder = draggedElement.sort_order || 0
+          const targetSortOrder = targetElement.sort_order || 0
+          
+          
+          // Get all elements in the same category and parent context
+          const sameContext = worldElements.filter(el => 
+            el.category === draggedElement.category && 
+            el.parent_folder_id === draggedElement.parent_folder_id &&
+            !el.is_folder
+          ).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+          
+          // Calculate new sort orders for proper insertion
+          const updates: { id: string, sort_order: number }[] = []
+          
+          // Remove dragged item from list
+          const withoutDragged = sameContext.filter(el => el.id !== draggedItem.id)
+          
+          // Find insertion point
+          const targetIndex = withoutDragged.findIndex(el => el.id === targetId)
+          
+          // Insert dragged item at the target position
+          let newOrder = [...withoutDragged]
+          newOrder.splice(targetIndex, 0, draggedElement)
+          
+          // Assign new sort orders
+          newOrder.forEach((element, index) => {
+            const newSortOrder = index + 1
+            if (element.sort_order !== newSortOrder) {
+              updates.push({ id: element.id, sort_order: newSortOrder })
+            }
+          })
+          
+          
+          // Update database
+          for (const update of updates) {
+            const { error } = await supabase
+              .from('world_elements')
+              .update({ sort_order: update.sort_order })
+              .eq('id', update.id)
+              
+            if (error) {
+              throw error
+            }
+          }
 
-          const { error: error2 } = await supabase
-            .from('world_elements')
-            .update({ sort_order: draggedElement.sort_order })
-            .eq('id', targetId)
-
-          if (error1 || error2) throw error1 || error2
-
+          // Update local state with new sort orders
           setWorldElements(prev => {
             const updated = prev.map(el => {
-              if (el.id === draggedItem.id) return { ...el, sort_order: targetElement.sort_order }
-              if (el.id === targetId) return { ...el, sort_order: draggedElement.sort_order }
-              return el
+              const update = updates.find(u => u.id === el.id)
+              return update ? { ...el, sort_order: update.sort_order } : el
             })
             // Re-sort by sort_order to reflect the change in UI
             return updated.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
@@ -661,7 +990,6 @@ export default function NovelPage({ params }: NovelPageProps) {
                 onDrop={(e) => {
                   e.preventDefault()
                   e.stopPropagation()
-                  console.log('Drop on chapter folder:', folder.id, 'draggedItem:', draggedItem)
                   if (draggedItem) {
                     handleDrop(folder.id, 'folder')
                   }
@@ -678,7 +1006,10 @@ export default function NovelPage({ params }: NovelPageProps) {
                     <ChevronDown className="w-3 h-3" /> : 
                     <ChevronRight className="w-3 h-3" />
                   }
-                  <Folder className="w-4 h-4 flex-shrink-0" />
+                  <Folder 
+                    className="w-4 h-4 flex-shrink-0" 
+                    style={{ color: getColorClass(folder.icon_color || 'blue') }}
+                  />
                   <span className="truncate">{folder.name}</span>
                 </div>
               </button>
@@ -690,7 +1021,6 @@ export default function NovelPage({ params }: NovelPageProps) {
                       key={chapter.id}
                       draggable
                       onDragStart={() => {
-                  console.log('Drag start chapter:', chapter.id)
                   setDraggedItem({ id: chapter.id, type: 'chapter', category: categoryId })
                 }}
                       onDragEnd={() => setDraggedItem(null)}
@@ -707,7 +1037,6 @@ export default function NovelPage({ params }: NovelPageProps) {
                       onDrop={(e) => {
                         e.preventDefault()
                         e.stopPropagation()
-                        console.log('Drop on nested chapter:', chapter.id, 'draggedItem:', draggedItem)
                         if (draggedItem) {
                           handleDrop(chapter.id, 'chapter')
                         }
@@ -755,7 +1084,6 @@ export default function NovelPage({ params }: NovelPageProps) {
               onDrop={(e) => {
                 e.preventDefault()
                 e.stopPropagation()
-                console.log('Drop on root chapter:', chapter.id, 'draggedItem:', draggedItem)
                 if (draggedItem) {
                   handleDrop(chapter.id, 'chapter')
                 }
@@ -773,7 +1101,10 @@ export default function NovelPage({ params }: NovelPageProps) {
               } ${dragOverItem === chapter.id ? 'bg-blue-50 border-blue-200' : ''}`}
             >
               <div className="flex items-center gap-2">
-                <FileText className="w-4 h-4 flex-shrink-0" />
+                <FileText 
+                  className="w-4 h-4 flex-shrink-0" 
+                  style={{ color: getColorClass(chapter.icon_color || 'blue') }}
+                />
                 <span className="truncate">{chapter.title}</span>
               </div>
             </button>
@@ -801,7 +1132,6 @@ export default function NovelPage({ params }: NovelPageProps) {
                 onDrop={(e) => {
                   e.preventDefault()
                   e.stopPropagation()
-                  console.log('Drop on world element folder:', folder.id, 'draggedItem:', draggedItem)
                   if (draggedItem) {
                     handleDrop(folder.id, 'folder')
                   }
@@ -818,7 +1148,10 @@ export default function NovelPage({ params }: NovelPageProps) {
                     <ChevronDown className="w-3 h-3" /> : 
                     <ChevronRight className="w-3 h-3" />
                   }
-                  <Folder className="w-4 h-4 flex-shrink-0" />
+                  <Folder 
+                    className="w-4 h-4 flex-shrink-0" 
+                    style={{ color: getColorClass(folder.icon_color || 'blue') }}
+                  />
                   <span className="truncate">{folder.name}</span>
                 </div>
               </button>
@@ -856,7 +1189,10 @@ export default function NovelPage({ params }: NovelPageProps) {
                     >
                       <div className="flex items-center gap-2">
                         <div className="w-3 h-3" />
-                        <FileText className="w-4 h-4 flex-shrink-0" />
+                        <FileText 
+                          className="w-4 h-4 flex-shrink-0" 
+                          style={{ color: getColorClass(element.icon_color || 'blue') }}
+                        />
                         <span className="truncate">{element.name}</span>
                       </div>
                     </button>
@@ -896,7 +1232,10 @@ export default function NovelPage({ params }: NovelPageProps) {
               } ${dragOverItem === element.id ? 'bg-blue-50 border-blue-200' : ''}`}
             >
               <div className="flex items-center gap-2">
-                <FileText className="w-4 h-4 flex-shrink-0" />
+                <FileText 
+                  className="w-4 h-4 flex-shrink-0" 
+                  style={{ color: getColorClass(element.icon_color || 'blue') }}
+                />
                 <span className="truncate">{element.name}</span>
               </div>
             </button>
@@ -935,6 +1274,7 @@ export default function NovelPage({ params }: NovelPageProps) {
   const closeContextMenus = () => {
     setContextMenu(null)
     setElementContextMenu(null)
+    // Don't close color picker here - let it manage its own state
   }
 
   const handleContextMenuAction = (action: string) => {
@@ -1523,7 +1863,24 @@ export default function NovelPage({ params }: NovelPageProps) {
                 
                 {/* Category Elements */}
                 {sidebarOpen && option.hasAdd && totalItems > 0 && isExpanded && (
-                  <div className="ml-4 border-l border-gray-200 pl-2 mt-1 space-y-1">
+                  <div 
+                    className="ml-4 border-l border-gray-200 pl-2 mt-1 space-y-1 min-h-[60px] relative"
+                    onDragOver={(e) => {
+                      e.preventDefault()
+                      e.dataTransfer.dropEffect = 'move'
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      if (draggedItem && draggedItem.category === option.id) {
+                        handleMoveToRoot(option.id)
+                      }
+                      setDragOverItem(null)
+                    }}
+                  >
+                    <div className="absolute inset-0 pointer-events-none text-xs text-gray-400 italic flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                      Drop here to move out of folders
+                    </div>
                     {renderCategoryHierarchy(option.id)}
                   </div>
                 )}
@@ -1629,40 +1986,47 @@ export default function NovelPage({ params }: NovelPageProps) {
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          {elementContextMenu.type === 'chapter' ? (
+          {elementContextMenu.type === 'folder' ? (
+            // Folder context menu
             <>
               <button
                 onClick={() => {
-                  const chapter = elementContextMenu.item as Chapter
-                  setSelectedChapter(chapter)
-                  setActivePanel('chapters')
+                  const name = prompt(`Enter new ${elementContextMenu.category === 'chapters' ? 'chapter' : 'item'} name:`)
+                  if (name) {
+                    if (elementContextMenu.category === 'chapters') {
+                      createChapter()
+                    } else {
+                      createWorldElement(elementContextMenu.category, name)
+                    }
+                  }
                   closeContextMenus()
                 }}
                 className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
               >
-                <Edit3 className="w-4 h-4" />
-                Edit Chapter
+                <Plus className="w-4 h-4" />
+                New {elementContextMenu.category === 'chapters' ? 'Chapter' : 'Character'}
               </button>
+              
               <button
                 onClick={() => {
-                  const chapter = elementContextMenu.item as Chapter
-                  if (confirm(`Delete ${chapter.title}?`)) {
-                    deleteChapter(chapter.id)
+                  const name = prompt('Enter folder name:')
+                  if (name) {
+                    createFolder(elementContextMenu.category, name)
                   }
                   closeContextMenus()
                 }}
-                className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
               >
-                <Trash2 className="w-4 h-4" />
-                Delete Chapter
+                <Folder className="w-4 h-4" />
+                New Folder
               </button>
-            </>
-          ) : (
-            <>
+              
+              <hr className="my-1 border-gray-200" />
+              
               <button
                 onClick={() => {
                   const element = elementContextMenu.item as WorldElement
-                  const newName = prompt('Edit name:', element.name)
+                  const newName = prompt('Rename folder:', element.name)
                   if (newName && newName !== element.name) {
                     updateWorldElement(element.id, { name: newName })
                   }
@@ -1671,8 +2035,253 @@ export default function NovelPage({ params }: NovelPageProps) {
                 className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
               >
                 <Edit className="w-4 h-4" />
-                Rename
+                Rename Folder
               </button>
+              
+              <button
+                onClick={() => {
+                  closeContextMenus() // Close context menu first
+                  openColorPicker(elementContextMenu.item!, 'element')
+                }}
+                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+              >
+                <Palette className="w-4 h-4" />
+                Icon Color
+              </button>
+              
+              <button
+                onClick={() => {
+                  closeContextMenus()
+                  // Export functionality would go here
+                }}
+                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+              >
+                <Download className="w-4 h-4" />
+                Export Elements
+              </button>
+              
+              <hr className="my-1 border-gray-200" />
+              
+              <button
+                onClick={() => {
+                  const element = elementContextMenu.item as WorldElement
+                  if (confirm(`Delete folder "${element.name}" and all its contents?`)) {
+                    deleteWorldElement(element.id)
+                  }
+                  closeContextMenus()
+                }}
+                className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete
+              </button>
+            </>
+          ) : elementContextMenu.type === 'chapter' ? (
+            // Chapter context menu
+            <>
+              <button
+                onClick={() => {
+                  const name = prompt('Enter new chapter name:')
+                  if (name) {
+                    createChapter()
+                  }
+                  closeContextMenus()
+                }}
+                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                New Character
+              </button>
+              
+              <button
+                onClick={() => {
+                  const name = prompt('Enter folder name:')
+                  if (name) {
+                    createFolder(elementContextMenu.category, name)
+                  }
+                  closeContextMenus()
+                }}
+                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+              >
+                <Folder className="w-4 h-4" />
+                New Folder
+              </button>
+              
+              <hr className="my-1 border-gray-200" />
+              
+              <button
+                onClick={() => {
+                  const chapter = elementContextMenu.item as Chapter
+                  const newTitle = prompt('Rename chapter:', chapter.title)
+                  if (newTitle && newTitle !== chapter.title) {
+                    updateChapter(chapter.id, { title: newTitle })
+                  }
+                  closeContextMenus()
+                }}
+                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+              >
+                <Edit className="w-4 h-4" />
+                Rename Element
+              </button>
+              
+              <button
+                onClick={() => {
+                  closeContextMenus() // Close context menu first
+                  openColorPicker(elementContextMenu.item!, 'chapter')
+                }}
+                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+              >
+                <Palette className="w-4 h-4" />
+                Icon Color
+              </button>
+              
+              <button
+                onClick={() => {
+                  const chapter = elementContextMenu.item as Chapter
+                  // Duplicate chapter logic would go here
+                  closeContextMenus()
+                }}
+                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+              >
+                <Copy className="w-4 h-4" />
+                Duplicate Element
+              </button>
+              
+              <button
+                onClick={() => {
+                  closeContextMenus()
+                  // Export functionality would go here
+                }}
+                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+              >
+                <Download className="w-4 h-4" />
+                Export Element
+              </button>
+              
+              <hr className="my-1 border-gray-200" />
+              
+              <button
+                onClick={() => {
+                  const chapter = elementContextMenu.item as Chapter
+                  window.open(`/novels/${chapter.project_id}/chapters/${chapter.id}`, '_blank')
+                  closeContextMenus()
+                }}
+                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Open In New Tab
+              </button>
+              
+              <button
+                onClick={() => {
+                  const chapter = elementContextMenu.item as Chapter
+                  if (confirm(`Delete chapter "${chapter.title}"?`)) {
+                    deleteChapter(chapter.id)
+                  }
+                  closeContextMenus()
+                }}
+                className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete Element
+              </button>
+            </>
+          ) : (
+            // Element (character, location, etc.) context menu
+            <>
+              <button
+                onClick={() => {
+                  const name = prompt(`Enter new ${elementContextMenu.category.slice(0, -1)} name:`)
+                  if (name) {
+                    createWorldElement(elementContextMenu.category, name)
+                  }
+                  closeContextMenus()
+                }}
+                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                New Character
+              </button>
+              
+              <button
+                onClick={() => {
+                  const name = prompt('Enter folder name:')
+                  if (name) {
+                    createFolder(elementContextMenu.category, name)
+                  }
+                  closeContextMenus()
+                }}
+                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+              >
+                <Folder className="w-4 h-4" />
+                New Folder
+              </button>
+              
+              <hr className="my-1 border-gray-200" />
+              
+              <button
+                onClick={() => {
+                  const element = elementContextMenu.item as WorldElement
+                  const newName = prompt('Rename element:', element.name)
+                  if (newName && newName !== element.name) {
+                    updateWorldElement(element.id, { name: newName })
+                  }
+                  closeContextMenus()
+                }}
+                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+              >
+                <Edit className="w-4 h-4" />
+                Rename Element
+              </button>
+              
+              <button
+                onClick={() => {
+                  closeContextMenus() // Close context menu first
+                  openColorPicker(elementContextMenu.item!, 'element')
+                }}
+                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+              >
+                <Palette className="w-4 h-4" />
+                Icon Color
+              </button>
+              
+              <button
+                onClick={() => {
+                  const element = elementContextMenu.item as WorldElement
+                  // Duplicate element logic would go here
+                  closeContextMenus()
+                }}
+                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+              >
+                <Copy className="w-4 h-4" />
+                Duplicate Element
+              </button>
+              
+              <button
+                onClick={() => {
+                  closeContextMenus()
+                  // Export functionality would go here
+                }}
+                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+              >
+                <Download className="w-4 h-4" />
+                Export Element
+              </button>
+              
+              <hr className="my-1 border-gray-200" />
+              
+              <button
+                onClick={() => {
+                  const element = elementContextMenu.item as WorldElement
+                  window.open(`/novels/${element.project_id}/elements/${element.id}`, '_blank')
+                  closeContextMenus()
+                }}
+                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Open In New Tab
+              </button>
+              
               <button
                 onClick={() => {
                   const element = elementContextMenu.item as WorldElement
@@ -1684,10 +2293,175 @@ export default function NovelPage({ params }: NovelPageProps) {
                 className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
               >
                 <Trash2 className="w-4 h-4" />
-                Delete
+                Delete Element
               </button>
             </>
           )}
+        </div>
+      )}
+
+      {/* Color Picker Modal */}
+      {colorPickerModal?.visible && (
+        <div 
+          className="fixed inset-0 flex items-center justify-center p-4"
+          style={{ 
+            zIndex: 9999,
+            background: 'rgba(0, 0, 0, 0.4)',
+            backdropFilter: 'blur(8px)'
+          }}
+        >
+          <div className="w-full max-w-md mx-auto bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 overflow-hidden">
+            {/* Header */}
+            <div className="px-6 py-4 bg-gradient-to-r from-slate-50 to-white border-b border-gray-100">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+                  Choose Icon Color
+                </h3>
+                <button
+                  onClick={() => setColorPickerModal(null)}
+                  className="p-1 rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                  <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Color Preview */}
+              <div className="relative">
+                <div 
+                  className="w-full h-24 rounded-xl shadow-inner border border-gray-200/50 relative overflow-hidden"
+                  style={{ 
+                    background: `linear-gradient(135deg, ${selectedColor} 0%, ${selectedColor}e6 50%, ${selectedColor}cc 100%)`,
+                  }}
+                >
+                  <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-black/10"></div>
+                  <div className="absolute bottom-2 right-2 px-2 py-1 bg-black/20 backdrop-blur-sm rounded-md">
+                    <span className="text-white text-xs font-mono">{selectedColor}</span>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Color Swatches */}
+              <div>
+                <p className="text-sm font-medium text-gray-700 mb-3">Quick Colors</p>
+                <div className="grid grid-cols-8 gap-2">
+                  {availableColors.map(color => (
+                    <button
+                      key={color.value}
+                      onClick={() => {
+                        const rgb = hexToRgb(color.hex)
+                        if (rgb) {
+                          setColorInputs({ hex: color.hex.slice(1), r: rgb.r, g: rgb.g, b: rgb.b })
+                          setSelectedColor(color.hex)
+                        }
+                      }}
+                      className={`group relative w-10 h-10 rounded-xl border-2 transition-all duration-200 hover:scale-110 hover:shadow-lg ${
+                        selectedColor === color.hex 
+                          ? 'border-gray-900 shadow-lg scale-105' 
+                          : 'border-gray-200/60 hover:border-gray-300'
+                      }`}
+                      style={{ backgroundColor: color.hex }}
+                      title={color.name}
+                    >
+                      {selectedColor === color.hex && (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <svg className="w-4 h-4 text-white drop-shadow-sm" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Custom Color Inputs */}
+              <div className="space-y-4">
+                <p className="text-sm font-medium text-gray-700">Custom Color</p>
+                
+                {/* Hex Input */}
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Hex Code</label>
+                  <div className="relative">
+                    <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 font-mono">#</div>
+                    <Input
+                      type="text"
+                      value={colorInputs.hex}
+                      onChange={(e) => handleHexChange(e.target.value)}
+                      className="pl-8 font-mono uppercase bg-gray-50/50 border-gray-200 focus:bg-white transition-colors"
+                      maxLength={6}
+                      placeholder="4E2AE4"
+                    />
+                  </div>
+                </div>
+
+                {/* RGB Inputs */}
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">RGB Values</label>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <div className="text-xs text-gray-500 mb-1">Red</div>
+                      <Input
+                        type="number"
+                        value={colorInputs.r}
+                        onChange={(e) => handleRgbChange('r', parseInt(e.target.value) || 0)}
+                        min="0"
+                        max="255"
+                        className="text-center font-mono bg-red-50/50 border-red-200 focus:bg-white"
+                      />
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-500 mb-1">Green</div>
+                      <Input
+                        type="number"
+                        value={colorInputs.g}
+                        onChange={(e) => handleRgbChange('g', parseInt(e.target.value) || 0)}
+                        min="0"
+                        max="255"
+                        className="text-center font-mono bg-green-50/50 border-green-200 focus:bg-white"
+                      />
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-500 mb-1">Blue</div>
+                      <Input
+                        type="number"
+                        value={colorInputs.b}
+                        onChange={(e) => handleRgbChange('b', parseInt(e.target.value) || 0)}
+                        min="0"
+                        max="255"
+                        className="text-center font-mono bg-blue-50/50 border-blue-200 focus:bg-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 bg-gray-50/50 border-t border-gray-100 flex gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setColorPickerModal(null)}
+                className="flex-1 bg-white hover:bg-gray-50 border-gray-200"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  handleColorChange(selectedColor)
+                }}
+                className="flex-1 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-200 border-0"
+                style={{ 
+                  background: `linear-gradient(135deg, ${selectedColor} 0%, ${selectedColor}dd 100%)`,
+                }}
+              >
+                Apply Color
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>
