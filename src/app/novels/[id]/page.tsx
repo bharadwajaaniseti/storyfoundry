@@ -516,6 +516,128 @@ export default function NovelPage({ params }: NovelPageProps) {
     )
   }
 
+  // Handle drag and drop
+  const handleDrop = async (targetId: string, targetType: 'folder' | 'element' | 'chapter') => {
+    if (!draggedItem || draggedItem.id === targetId) {
+      console.log('No valid drop:', { draggedItem, targetId })
+      return
+    }
+
+    console.log('Handling drop:', { draggedItem, targetId, targetType })
+
+    try {
+      const supabase = createSupabaseClient()
+
+      if (draggedItem.type === 'chapter' && targetType === 'folder') {
+        // Move chapter to folder
+        console.log('Moving chapter to folder')
+        const { error } = await supabase
+          .from('project_chapters')
+          .update({ parent_folder_id: targetId })
+          .eq('id', draggedItem.id)
+
+        if (error) throw error
+
+        setChapters(prev => prev.map(ch => 
+          ch.id === draggedItem.id 
+            ? { ...ch, parent_folder_id: targetId }
+            : ch
+        ))
+      } else if (draggedItem.type === 'element' && targetType === 'folder') {
+        // Move element to folder
+        console.log('Moving element to folder')
+        const { error } = await supabase
+          .from('world_elements')
+          .update({ parent_folder_id: targetId })
+          .eq('id', draggedItem.id)
+
+        if (error) throw error
+
+        setWorldElements(prev => prev.map(el => 
+          el.id === draggedItem.id 
+            ? { ...el, parent_folder_id: targetId }
+            : el
+        ))
+      } else if (draggedItem.type === 'chapter' && targetType === 'chapter') {
+        // Reorder chapters - swap sort_order
+        console.log('Reordering chapters')
+        const draggedChapter = chapters.find(ch => ch.id === draggedItem.id)
+        const targetChapter = chapters.find(ch => ch.id === targetId)
+        
+        console.log('Dragged chapter:', draggedChapter)
+        console.log('Target chapter:', targetChapter)
+        
+        if (draggedChapter && targetChapter && draggedChapter.sort_order !== targetChapter.sort_order) {
+          const draggedSortOrder = draggedChapter.sort_order
+          const targetSortOrder = targetChapter.sort_order
+          
+          console.log('Swapping sort orders:', draggedSortOrder, '<->', targetSortOrder)
+          
+          const { error: error1 } = await supabase
+            .from('project_chapters')
+            .update({ sort_order: targetSortOrder })
+            .eq('id', draggedItem.id)
+
+          const { error: error2 } = await supabase
+            .from('project_chapters')
+            .update({ sort_order: draggedSortOrder })
+            .eq('id', targetId)
+
+          if (error1 || error2) {
+            console.error('Database update errors:', error1, error2)
+            throw error1 || error2
+          }
+
+          // Update local state
+          setChapters(prev => {
+            const updated = prev.map(ch => {
+              if (ch.id === draggedItem.id) return { ...ch, sort_order: targetSortOrder }
+              if (ch.id === targetId) return { ...ch, sort_order: draggedSortOrder }
+              return ch
+            })
+            // Re-sort by sort_order to reflect the change in UI
+            return updated.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+          })
+          
+          console.log('Chapter reordering completed successfully')
+        } else {
+          console.log('Cannot reorder: same position or chapters not found')
+        }
+      } else if (draggedItem.type === 'element' && targetType === 'element') {
+        // Reorder elements - swap sort_order
+        console.log('Reordering elements')
+        const draggedElement = worldElements.find(el => el.id === draggedItem.id)
+        const targetElement = worldElements.find(el => el.id === targetId)
+        
+        if (draggedElement && targetElement) {
+          const { error: error1 } = await supabase
+            .from('world_elements')
+            .update({ sort_order: targetElement.sort_order })
+            .eq('id', draggedItem.id)
+
+          const { error: error2 } = await supabase
+            .from('world_elements')
+            .update({ sort_order: draggedElement.sort_order })
+            .eq('id', targetId)
+
+          if (error1 || error2) throw error1 || error2
+
+          setWorldElements(prev => {
+            const updated = prev.map(el => {
+              if (el.id === draggedItem.id) return { ...el, sort_order: targetElement.sort_order }
+              if (el.id === targetId) return { ...el, sort_order: draggedElement.sort_order }
+              return el
+            })
+            // Re-sort by sort_order to reflect the change in UI
+            return updated.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+          })
+        }
+      }
+    } catch (error) {
+      console.error('Error handling drop:', error)
+    }
+  }
+
   // Helper function to render hierarchy with folders
   const renderCategoryHierarchy = (categoryId: string) => {
     if (categoryId === 'chapters') {
@@ -528,9 +650,28 @@ export default function NovelPage({ params }: NovelPageProps) {
           {folders.map(folder => (
             <div key={folder.id}>
               <button
+                draggable
+                onDragStart={() => setDraggedItem({ id: folder.id, type: 'folder', category: categoryId })}
+                onDragEnd={() => setDraggedItem(null)}
+                onDragOver={(e) => {
+                  e.preventDefault()
+                  setDragOverItem(folder.id)
+                }}
+                onDragLeave={() => setDragOverItem(null)}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  console.log('Drop on chapter folder:', folder.id, 'draggedItem:', draggedItem)
+                  if (draggedItem) {
+                    handleDrop(folder.id, 'folder')
+                  }
+                  setDragOverItem(null)
+                }}
                 onClick={() => toggleFolderExpansion(folder.id)}
                 onContextMenu={(e) => handleElementContextMenu(e, 'folder', folder, categoryId)}
-                className="w-full text-left p-2 rounded text-sm text-gray-600 hover:bg-gray-100 transition-colors"
+                className={`w-full text-left p-2 rounded text-sm text-gray-600 hover:bg-gray-100 transition-colors ${
+                  dragOverItem === folder.id ? 'bg-blue-50 border-blue-200' : ''
+                }`}
               >
                 <div className="flex items-center gap-2">
                   {expandedFolders.includes(folder.id) ? 
@@ -547,6 +688,31 @@ export default function NovelPage({ params }: NovelPageProps) {
                   {chapters.filter(ch => ch.parent_folder_id === folder.id).map(chapter => (
                     <button
                       key={chapter.id}
+                      draggable
+                      onDragStart={() => {
+                  console.log('Drag start chapter:', chapter.id)
+                  setDraggedItem({ id: chapter.id, type: 'chapter', category: categoryId })
+                }}
+                      onDragEnd={() => setDraggedItem(null)}
+                      onDragOver={(e) => {
+                        e.preventDefault()
+                        e.dataTransfer.dropEffect = 'move'
+                        setDragOverItem(chapter.id)
+                      }}
+                      onDragEnter={(e) => {
+                        e.preventDefault()
+                        setDragOverItem(chapter.id)
+                      }}
+                      onDragLeave={() => setDragOverItem(null)}
+                      onDrop={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        console.log('Drop on nested chapter:', chapter.id, 'draggedItem:', draggedItem)
+                        if (draggedItem) {
+                          handleDrop(chapter.id, 'chapter')
+                        }
+                        setDragOverItem(null)
+                      }}
                       onClick={() => {
                         setSelectedChapter(chapter)
                         setActivePanel('chapters')
@@ -556,7 +722,7 @@ export default function NovelPage({ params }: NovelPageProps) {
                         selectedChapter?.id === chapter.id
                           ? 'bg-orange-100 text-orange-800'
                           : 'text-gray-600 hover:bg-gray-100'
-                      }`}
+                      } ${dragOverItem === chapter.id ? 'bg-blue-50 border-blue-200' : ''}`}
                     >
                       <div className="flex items-center gap-2">
                         <div className="w-3 h-3" />
@@ -573,6 +739,28 @@ export default function NovelPage({ params }: NovelPageProps) {
           {rootChapters.map(chapter => (
             <button
               key={chapter.id}
+              draggable
+              onDragStart={() => setDraggedItem({ id: chapter.id, type: 'chapter', category: categoryId })}
+              onDragEnd={() => setDraggedItem(null)}
+              onDragOver={(e) => {
+                e.preventDefault()
+                e.dataTransfer.dropEffect = 'move'
+                setDragOverItem(chapter.id)
+              }}
+              onDragEnter={(e) => {
+                e.preventDefault()
+                setDragOverItem(chapter.id)
+              }}
+              onDragLeave={() => setDragOverItem(null)}
+              onDrop={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                console.log('Drop on root chapter:', chapter.id, 'draggedItem:', draggedItem)
+                if (draggedItem) {
+                  handleDrop(chapter.id, 'chapter')
+                }
+                setDragOverItem(null)
+              }}
               onClick={() => {
                 setSelectedChapter(chapter)
                 setActivePanel('chapters')
@@ -582,7 +770,7 @@ export default function NovelPage({ params }: NovelPageProps) {
                 selectedChapter?.id === chapter.id
                   ? 'bg-orange-100 text-orange-800'
                   : 'text-gray-600 hover:bg-gray-100'
-              }`}
+              } ${dragOverItem === chapter.id ? 'bg-blue-50 border-blue-200' : ''}`}
             >
               <div className="flex items-center gap-2">
                 <FileText className="w-4 h-4 flex-shrink-0" />
@@ -602,9 +790,28 @@ export default function NovelPage({ params }: NovelPageProps) {
           {folders.map(folder => (
             <div key={folder.id}>
               <button
+                draggable
+                onDragStart={() => setDraggedItem({ id: folder.id, type: 'folder', category: categoryId })}
+                onDragEnd={() => setDraggedItem(null)}
+                onDragOver={(e) => {
+                  e.preventDefault()
+                  setDragOverItem(folder.id)
+                }}
+                onDragLeave={() => setDragOverItem(null)}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  console.log('Drop on world element folder:', folder.id, 'draggedItem:', draggedItem)
+                  if (draggedItem) {
+                    handleDrop(folder.id, 'folder')
+                  }
+                  setDragOverItem(null)
+                }}
                 onClick={() => toggleFolderExpansion(folder.id)}
                 onContextMenu={(e) => handleElementContextMenu(e, 'folder', folder, categoryId)}
-                className="w-full text-left p-2 rounded text-sm text-gray-600 hover:bg-gray-100 transition-colors"
+                className={`w-full text-left p-2 rounded text-sm text-gray-600 hover:bg-gray-100 transition-colors ${
+                  dragOverItem === folder.id ? 'bg-blue-50 border-blue-200' : ''
+                }`}
               >
                 <div className="flex items-center gap-2">
                   {expandedFolders.includes(folder.id) ? 
@@ -621,6 +828,21 @@ export default function NovelPage({ params }: NovelPageProps) {
                   {worldElements.filter(el => el.category === categoryId && !el.is_folder && el.parent_folder_id === folder.id).map(element => (
                     <button
                       key={element.id}
+                      draggable
+                      onDragStart={() => setDraggedItem({ id: element.id, type: 'element', category: categoryId })}
+                      onDragEnd={() => setDraggedItem(null)}
+                      onDragOver={(e) => {
+                        e.preventDefault()
+                        setDragOverItem(element.id)
+                      }}
+                      onDragLeave={() => setDragOverItem(null)}
+                      onDrop={(e) => {
+                        e.preventDefault()
+                        if (draggedItem) {
+                          handleDrop(element.id, 'element')
+                        }
+                        setDragOverItem(null)
+                      }}
                       onClick={() => {
                         setSelectedElement(element)
                         setActivePanel(categoryId)
@@ -630,7 +852,7 @@ export default function NovelPage({ params }: NovelPageProps) {
                         selectedElement?.id === element.id
                           ? 'bg-orange-100 text-orange-800'
                           : 'text-gray-600 hover:bg-gray-100'
-                      }`}
+                      } ${dragOverItem === element.id ? 'bg-blue-50 border-blue-200' : ''}`}
                     >
                       <div className="flex items-center gap-2">
                         <div className="w-3 h-3" />
@@ -647,6 +869,21 @@ export default function NovelPage({ params }: NovelPageProps) {
           {rootElements.map(element => (
             <button
               key={element.id}
+              draggable
+              onDragStart={() => setDraggedItem({ id: element.id, type: 'element', category: categoryId })}
+              onDragEnd={() => setDraggedItem(null)}
+              onDragOver={(e) => {
+                e.preventDefault()
+                setDragOverItem(element.id)
+              }}
+              onDragLeave={() => setDragOverItem(null)}
+              onDrop={(e) => {
+                e.preventDefault()
+                if (draggedItem) {
+                  handleDrop(element.id, 'element')
+                }
+                setDragOverItem(null)
+              }}
               onClick={() => {
                 setSelectedElement(element)
                 setActivePanel(categoryId)
@@ -656,7 +893,7 @@ export default function NovelPage({ params }: NovelPageProps) {
                 selectedElement?.id === element.id
                   ? 'bg-orange-100 text-orange-800'
                   : 'text-gray-600 hover:bg-gray-100'
-              }`}
+              } ${dragOverItem === element.id ? 'bg-blue-50 border-blue-200' : ''}`}
             >
               <div className="flex items-center gap-2">
                 <FileText className="w-4 h-4 flex-shrink-0" />
