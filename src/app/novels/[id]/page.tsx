@@ -14,7 +14,14 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { createSupabaseClient } from '@/lib/auth'
-import CharacterEditor from '@/components/character-editor'
+import CharactersPanel from '@/components/world-building/characters-panel'
+import LocationsPanel from '@/components/world-building/locations-panel'
+import ChaptersPanel from '@/components/world-building/chapters-panel'
+import ResearchPanel from '@/components/world-building/research-panel'
+import MapsPanel from '@/components/world-building/maps-panel'
+import TimelinePanel from '@/components/world-building/timeline-panel'
+import CalendarPanel from '@/components/world-building/calendar-panel'
+import EncyclopediaPanel from '@/components/world-building/encyclopedia-panel'
 
 // Type definitions
 interface Project {
@@ -755,6 +762,10 @@ export default function NovelPage() {
     router.push('/app/projects')
   }
 
+  const clearSelectedElement = () => {
+    setSelectedElement(null)
+  }
+
   const toggleFolderExpansion = (folderId: string) => {
     setExpandedFolders(prev => 
       prev.includes(folderId) 
@@ -1366,14 +1377,9 @@ export default function NovelPage() {
     if (!contextMenu) return
 
     if (action === 'newItem') {
-      if (contextMenu.categoryId === 'chapters') {
-        createChapter()
-      } else {
-        const name = prompt(`Enter ${contextMenu.categoryLabel.slice(0, -1)} name:`)
-        if (name) {
-          createWorldElement(contextMenu.categoryId, name)
-        }
-      }
+      // Set the active panel to show the new component interface
+      setActivePanel(contextMenu.categoryId)
+      // The component will handle the creation UI internally
     } else if (action === 'newFolder') {
       const name = prompt('Enter folder name:')
       if (name) {
@@ -1398,18 +1404,6 @@ export default function NovelPage() {
 
   const renderPanelContent = () => {
     if (!project) return null
-
-    // Show character editor if active
-    if (showCharacterEditor) {
-      return (
-        <CharacterEditor
-          character={editingCharacter ? convertWorldElementToCharacter(editingCharacter) : undefined}
-          projectId={project.id}
-          onSave={handleCharacterSave}
-          onCancel={handleCharacterCancel}
-        />
-      )
-    }
 
     switch (activePanel) {
       case 'dashboard':
@@ -1488,351 +1482,63 @@ export default function NovelPage() {
           </div>
         )
 
-      case 'chapters':
       case 'characters':
-      case 'locations':
-      case 'maps':
-      case 'research':
-      case 'timeline':
-      case 'calendar':
-      case 'encyclopedia':
-        const categoryElements = getElementsForCategory(activePanel)
         return (
-          <div className="h-full bg-white">
-            <div className="flex h-full">
-              {/* Element List */}
-              <div className="w-1/3 border-r border-gray-200 flex flex-col">
-                <div className="p-4 border-b border-gray-200">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-lg font-semibold text-gray-900 capitalize">
-                      {SIDEBAR_OPTIONS.find(opt => opt.id === activePanel)?.label}
-                    </h3>
-                    <Button 
-                      size="sm"
-                      onClick={() => {
-                        if (activePanel === 'chapters') {
-                          createChapter()
-                        } else if (activePanel === 'characters') {
-                          handleShowCharacterEditor()
-                        } else {
-                          const name = prompt(`Enter ${activePanel.slice(0, -1)} name:`)
-                          if (name) createWorldElement(activePanel, name)
-                        }
-                      }}
-                      className="bg-orange-500 hover:bg-orange-600 text-white"
-                    >
-                      <Plus className="w-4 h-4 mr-1" />
-                      Add
-                    </Button>
-                  </div>
-                  <Input
-                    placeholder="Search..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full"
-                  />
-                </div>
-                
-                <div className="flex-1 overflow-y-auto">
-                  {categoryElements.length === 0 ? (
-                    <div className="p-4 text-center text-gray-500">
-                      <div className="mb-2">No {activePanel} yet</div>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => {
-                          if (activePanel === 'chapters') {
-                            createChapter()
-                          } else if (activePanel === 'characters') {
-                            handleShowCharacterEditor()
-                          } else {
-                            const name = prompt(`Enter ${activePanel.slice(0, -1)} name:`)
-                            if (name) createWorldElement(activePanel, name)
-                          }
-                        }}
-                      >
-                        Create first {activePanel.slice(0, -1)}
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="space-y-1 p-2">
-                      {categoryElements
-                        .filter(item => {
-                          const searchText = searchTerm.toLowerCase()
-                          if ('chapter_number' in item) {
-                            const chapter = item as Chapter
-                            return chapter.title.toLowerCase().includes(searchText) ||
-                                   chapter.content.toLowerCase().includes(searchText)
-                          } else {
-                            const element = item as WorldElement
-                            return element.name.toLowerCase().includes(searchText) ||
-                                   element.description.toLowerCase().includes(searchText)
-                          }
-                        })
-                        .map((item) => {
-                          const isChapter = 'chapter_number' in item
-                          const isSelected = isChapter 
-                            ? selectedChapter?.id === item.id
-                            : selectedElement?.id === item.id
-                          
-                          return (
-                            <button
-                              key={item.id}
-                              onClick={() => {
-                                if (isChapter) {
-                                  setSelectedChapter(item as Chapter)
-                                  setSelectedElement(null)
-                                } else {
-                                  const element = item as WorldElement
-                                  if (element.category === 'characters') {
-                                    handleShowCharacterEditor(element)
-                                  } else {
-                                    setSelectedElement(element)
-                                    setSelectedChapter(null)
-                                  }
-                                }
-                              }}
-                              onContextMenu={(e) => handleElementContextMenu(e, isChapter ? 'chapter' : 'element', item, activePanel)}
-                              className={`w-full text-left p-3 rounded-lg border transition-colors ${
-                                isSelected
-                                  ? 'bg-orange-50 border-orange-200 text-orange-800'
-                                  : 'bg-white border-gray-200 hover:bg-gray-50 text-gray-700'
-                              }`}
-                            >
-                              <div className="font-medium">
-                                {isChapter ? (item as Chapter).title : (item as WorldElement).name}
-                              </div>
-                              {isChapter ? (
-                                <div className="text-sm text-gray-500 mt-1">
-                                  Chapter {(item as Chapter).chapter_number} • {(item as Chapter).word_count}/{(item as Chapter).target_word_count} words • {(item as Chapter).status}
-                                </div>
-                              ) : (
-                                (item as WorldElement).description && (
-                                  <div className="text-sm text-gray-500 mt-1 line-clamp-2">
-                                    {(item as WorldElement).description}
-                                  </div>
-                                )
-                              )}
-                            </button>
-                          )
-                        })}
-                    </div>
-                  )}
-                </div>
-              </div>
-              
-              {/* Details Panel */}
-              <div className="flex-1 flex flex-col">
-                {selectedChapter && activePanel === 'chapters' ? (
-                  // Chapter details
-                  <div className="flex-1 p-6">
-                    <div className="flex items-center justify-between mb-6">
-                      <h2 className="text-2xl font-bold text-gray-900">{selectedChapter.title}</h2>
-                      <div className="flex gap-2">
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => {
-                            const newTitle = prompt('Edit title:', selectedChapter.title)
-                            if (newTitle && newTitle !== selectedChapter.title) {
-                              updateChapter(selectedChapter.id, { title: newTitle })
-                            }
-                          }}
-                        >
-                          <Edit3 className="w-4 h-4 mr-1" />
-                          Edit Title
-                        </Button>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => {
-                            if (confirm(`Delete ${selectedChapter.title}?`)) {
-                              deleteChapter(selectedChapter.id)
-                            }
-                          }}
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                        >
-                          <Trash2 className="w-4 h-4 mr-1" />
-                          Delete
-                        </Button>
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-6">
-                      <div className="grid grid-cols-3 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Chapter Number
-                          </label>
-                          <Input
-                            type="number"
-                            value={selectedChapter.chapter_number}
-                            onChange={(e) => updateChapter(selectedChapter.id, { chapter_number: parseInt(e.target.value) })}
-                            className="w-full"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Target Words
-                          </label>
-                          <Input
-                            type="number"
-                            value={selectedChapter.target_word_count}
-                            onChange={(e) => updateChapter(selectedChapter.id, { target_word_count: parseInt(e.target.value) })}
-                            className="w-full"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Status
-                          </label>
-                          <select
-                            value={selectedChapter.status}
-                            onChange={(e) => updateChapter(selectedChapter.id, { status: e.target.value as Chapter['status'] })}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                          >
-                            <option value="draft">Draft</option>
-                            <option value="in_review">In Review</option>
-                            <option value="completed">Completed</option>
-                            <option value="published">Published</option>
-                          </select>
-                        </div>
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Content
-                        </label>
-                        <Textarea
-                          value={selectedChapter.content}
-                          onChange={(e) => updateChapter(selectedChapter.id, { content: e.target.value })}
-                          placeholder="Write your chapter content here..."
-                          className="w-full h-64 font-mono"
-                        />
-                        <div className="text-sm text-gray-500 mt-2">
-                          Current word count: {selectedChapter.word_count} / Target: {selectedChapter.target_word_count}
-                        </div>
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Notes
-                        </label>
-                        <Textarea
-                          value={selectedChapter.notes}
-                          onChange={(e) => updateChapter(selectedChapter.id, { notes: e.target.value })}
-                          placeholder="Chapter notes, plot points, reminders..."
-                          className="w-full h-24"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ) : selectedElement && activePanel !== 'chapters' ? (
-                  // World element details
-                  <div className="flex-1 p-6">
-                    <div className="flex items-center justify-between mb-6">
-                      <h2 className="text-2xl font-bold text-gray-900">{selectedElement.name}</h2>
-                      <div className="flex gap-2">
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => {
-                            const newName = prompt('Edit name:', selectedElement.name)
-                            if (newName && newName !== selectedElement.name) {
-                              updateWorldElement(selectedElement.id, { name: newName })
-                            }
-                          }}
-                        >
-                          <Edit3 className="w-4 h-4 mr-1" />
-                          Edit
-                        </Button>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => {
-                            if (confirm(`Delete ${selectedElement.name}?`)) {
-                              deleteWorldElement(selectedElement.id)
-                            }
-                          }}
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                        >
-                          <Trash2 className="w-4 h-4 mr-1" />
-                          Delete
-                        </Button>
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-6">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Description
-                        </label>
-                        <Textarea
-                          value={selectedElement.description}
-                          onChange={(e) => updateWorldElement(selectedElement.id, { description: e.target.value })}
-                          placeholder="Enter description..."
-                          className="w-full h-24"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Tags
-                        </label>
-                        <Input
-                          value={selectedElement.tags.join(', ')}
-                          onChange={(e) => {
-                            const tags = e.target.value.split(',').map(tag => tag.trim()).filter(Boolean)
-                            updateWorldElement(selectedElement.id, { tags })
-                          }}
-                          placeholder="Enter tags separated by commas..."
-                          className="w-full"
-                        />
-                      </div>
-                      
-                      {/* Attributes */}
-                      <div className="space-y-4">
-                        <h3 className="text-lg font-semibold text-gray-900">Attributes</h3>
-                        {Object.entries(selectedElement.attributes).map(([key, value]) => (
-                          <div key={key}>
-                            <label className="block text-sm font-medium text-gray-700 mb-2 capitalize">
-                              {key.replace(/_/g, ' ')}
-                            </label>
-                            <Textarea
-                              value={value as string}
-                              onChange={(e) => {
-                                const newAttributes = {
-                                  ...selectedElement.attributes,
-                                  [key]: e.target.value
-                                }
-                                updateWorldElement(selectedElement.id, { attributes: newAttributes })
-                              }}
-                              placeholder={`Enter ${key.replace(/_/g, ' ')}...`}
-                              className="w-full h-20"
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex-1 flex items-center justify-center text-gray-500">
-                    <div className="text-center">
-                      <div className="mb-4">
-                        <FileText className="w-16 h-16 mx-auto text-gray-300" />
-                      </div>
-                      <h3 className="text-lg font-medium mb-2">
-                        No {activePanel === 'chapters' ? 'chapter' : activePanel.slice(0, -1)} selected
-                      </h3>
-                      <p className="text-sm">
-                        Select a {activePanel === 'chapters' ? 'chapter' : activePanel.slice(0, -1)} from the list to view details
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+          <CharactersPanel 
+            projectId={project.id}
+            selectedElement={selectedElement}
+            onCharactersChange={() => loadWorldElements(project.id)}
+            onClearSelection={clearSelectedElement}
+          />
+        )
+
+      case 'locations':
+        return (
+          <LocationsPanel 
+            projectId={project.id}
+          />
+        )
+
+      case 'chapters':
+        return (
+          <ChaptersPanel 
+            projectId={project.id}
+          />
+        )
+
+      case 'research':
+        return (
+          <ResearchPanel 
+            projectId={project.id}
+          />
+        )
+
+      case 'maps':
+        return (
+          <MapsPanel 
+            projectId={project.id}
+          />
+        )
+
+      case 'timeline':
+        return (
+          <TimelinePanel 
+            projectId={project.id}
+          />
+        )
+
+      case 'calendar':
+        return (
+          <CalendarPanel 
+            projectId={project.id}
+          />
+        )
+
+      case 'encyclopedia':
+        return (
+          <EncyclopediaPanel 
+            projectId={project.id}
+          />
         )
 
       default:
@@ -1917,6 +1623,9 @@ export default function NovelPage() {
                       if (canExpand) {
                         toggleCategoryExpansion(option.id)
                       } else {
+                        if (option.id === 'characters') {
+                          clearSelectedElement() // Clear selected element when navigating to characters panel
+                        }
                         setActivePanel(option.id)
                       }
                     }}
@@ -1941,12 +1650,13 @@ export default function NovelPage() {
                         <button 
                           onClick={(e) => {
                             e.stopPropagation()
-                            if (option.id === 'chapters') {
-                              createChapter()
-                            } else {
-                              const name = prompt(`Enter ${option.label.slice(0, -1)} name:`)
-                              if (name) createWorldElement(option.id, name)
+                            // Clear selected element if navigating to characters
+                            if (option.id === 'characters') {
+                              clearSelectedElement()
                             }
+                            // Set the active panel to show the new component interface
+                            setActivePanel(option.id)
+                            // The component will handle the creation UI internally
                           }}
                           className="p-1 text-gray-600 hover:text-green-600 rounded transition-colors"
                           title={`Add new ${option.label.slice(0, -1).toLowerCase()}`}
@@ -2098,21 +1808,25 @@ export default function NovelPage() {
               <button
                 onClick={() => {
                   if (elementContextMenu.category === 'characters') {
-                    handleShowCharacterEditor()
+                    // Set active panel to characters to show the new component interface
+                    setActivePanel('characters')
                   } else if (elementContextMenu.category === 'chapters') {
-                    createChapter()
+                    // Set active panel to chapters to show the new component interface  
+                    setActivePanel('chapters')
                   } else {
-                    const name = prompt(`Enter new ${elementContextMenu.category === 'chapters' ? 'chapter' : 'item'} name:`)
-                    if (name) {
-                      createWorldElement(elementContextMenu.category, name)
-                    }
+                    // Set active panel to the respective category to show the new component interface
+                    setActivePanel(elementContextMenu.category)
                   }
                   closeContextMenus()
                 }}
                 className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
               >
                 <Plus className="w-4 h-4" />
-                New {elementContextMenu.category === 'chapters' ? 'Chapter' : 'Character'}
+                New {
+                  elementContextMenu.category === 'chapters' ? 'Chapter' : 
+                  elementContextMenu.category === 'characters' ? 'Character' : 
+                  elementContextMenu.category.slice(0, -1)
+                }
               </button>
               
               <button
@@ -2189,16 +1903,14 @@ export default function NovelPage() {
             <>
               <button
                 onClick={() => {
-                  const name = prompt('Enter new chapter name:')
-                  if (name) {
-                    createChapter()
-                  }
+                  // Set active panel to chapters to show the new component interface
+                  setActivePanel('chapters')
                   closeContextMenus()
                 }}
                 className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
               >
                 <Plus className="w-4 h-4" />
-                New Character
+                New Chapter
               </button>
               
               <button
@@ -2299,16 +2011,14 @@ export default function NovelPage() {
             <>
               <button
                 onClick={() => {
-                  const name = prompt(`Enter new ${elementContextMenu.category.slice(0, -1)} name:`)
-                  if (name) {
-                    createWorldElement(elementContextMenu.category, name)
-                  }
+                  // Set active panel to the respective category to show the new component interface
+                  setActivePanel(elementContextMenu.category)
                   closeContextMenus()
                 }}
                 className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
               >
                 <Plus className="w-4 h-4" />
-                New Character
+                {elementContextMenu.category === 'characters' ? 'New Character' : `New ${elementContextMenu.category.slice(0, -1)}`}
               </button>
               
               <button

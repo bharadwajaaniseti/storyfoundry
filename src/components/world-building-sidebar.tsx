@@ -25,6 +25,7 @@ import {
 } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/auth'
 import TimelineManager from './timeline-manager'
+import NewCharacter from './new-character'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -77,6 +78,7 @@ export default function WorldBuildingSidebar({ projectId, isOpen, onToggle, onSh
   const [expandedCategories, setExpandedCategories] = useState<string[]>(['characters'])
   const [isLoading, setIsLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('elements')
+  const [showNewCharacter, setShowNewCharacter] = useState(false)
 
   useEffect(() => {
     if (isOpen) {
@@ -169,6 +171,38 @@ export default function WorldBuildingSidebar({ projectId, isOpen, onToggle, onSh
     }
   }
 
+  const handleNewCharacterSave = async (characterData: { name: string; description: string }) => {
+    try {
+      const supabase = createSupabaseClient()
+      const newElement = {
+        project_id: projectId,
+        category: 'characters',
+        name: characterData.name,
+        description: characterData.description,
+        attributes: getDefaultAttributes('characters'),
+        tags: []
+      }
+
+      const { data, error } = await supabase
+        .from('world_elements')
+        .insert(newElement)
+        .select()
+        .single()
+
+      if (error) throw error
+      
+      setElements([...elements, data])
+      setSelectedElement(data)
+      setShowNewCharacter(false)
+    } catch (error) {
+      console.error('Error creating character:', error)
+    }
+  }
+
+  const handleNewCharacterCancel = () => {
+    setShowNewCharacter(false)
+  }
+
   const getDefaultAttributes = (category: string) => {
     switch (category) {
       case 'characters':
@@ -258,6 +292,19 @@ export default function WorldBuildingSidebar({ projectId, isOpen, onToggle, onSh
       >
         <Globe className="w-5 h-5" />
       </button>
+    )
+  }
+
+  // Show NewCharacter component when creating a character
+  if (showNewCharacter) {
+    return (
+      <div className="fixed left-0 top-0 h-full w-80 bg-white border-r border-gray-200 shadow-lg z-50">
+        <NewCharacter
+          projectId={projectId}
+          onSave={handleNewCharacterSave}
+          onCancel={handleNewCharacterCancel}
+        />
+      </div>
     )
   }
 
@@ -365,8 +412,8 @@ export default function WorldBuildingSidebar({ projectId, isOpen, onToggle, onSh
                         
                         <button
                           onClick={() => {
-                            if (category.key === 'characters' && onShowCharacterEditor) {
-                              onShowCharacterEditor()
+                            if (category.key === 'characters') {
+                              setShowNewCharacter(true)
                             } else {
                               const name = prompt(`New ${category.label.slice(0, -1)} name:`)
                               if (name) createElement(category.key, name)

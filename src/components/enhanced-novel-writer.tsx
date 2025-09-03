@@ -1,11 +1,10 @@
 'use client'
 
 import React, { useState } from 'react'
-import { Globe, Layout, PenTool, BarChart3 } from 'lucide-react'
+import { Layout, PenTool, BarChart3 } from 'lucide-react'
 import NovelWriter from './novel-writer'
 import NovelOutline from './novel-outline'
 import NovelDashboard from './novel-dashboard'
-import WorldBuildingSidebar from './world-building-sidebar'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 
@@ -46,19 +45,11 @@ export default function EnhancedNovelWriter({
   onChapterCreate 
 }: EnhancedNovelWriterProps) {
   const [activeView, setActiveView] = useState('writer')
-  const [worldBuildingOpen, setWorldBuildingOpen] = useState(false)
 
   return (
     <div className="relative min-h-screen bg-gray-50">
-      {/* World Building Sidebar */}
-      <WorldBuildingSidebar
-        projectId={projectId}
-        isOpen={worldBuildingOpen}
-        onToggle={() => setWorldBuildingOpen(!worldBuildingOpen)}
-      />
-
       {/* Main Content */}
-      <div className={`transition-all duration-300 ${worldBuildingOpen ? 'ml-80' : 'ml-0'}`}>
+      <div className="transition-all duration-300">
         <div className="max-w-7xl mx-auto p-6">
           {/* Header */}
           <div className="mb-6">
@@ -66,19 +57,6 @@ export default function EnhancedNovelWriter({
               <div>
                 <h1 className="text-3xl font-bold text-gray-900">{project.title}</h1>
                 <p className="text-gray-600">{project.genre} • {totalWordCount.toLocaleString()} words</p>
-              </div>
-              
-              <div className="flex items-center space-x-3">
-                {!worldBuildingOpen && (
-                  <Button
-                    onClick={() => setWorldBuildingOpen(true)}
-                    variant="outline"
-                    className="flex items-center space-x-2"
-                  >
-                    <Globe className="w-4 h-4" />
-                    <span>World Building</span>
-                  </Button>
-                )}
               </div>
             </div>
 
@@ -133,19 +111,6 @@ export default function EnhancedNovelWriter({
           </div>
         </div>
       </div>
-
-      {/* Quick Access Floating Actions */}
-      {!worldBuildingOpen && (
-        <div className="fixed bottom-6 right-6 flex flex-col space-y-3">
-          <Button
-            onClick={() => setWorldBuildingOpen(true)}
-            className="w-12 h-12 rounded-full bg-purple-600 hover:bg-purple-700 shadow-lg"
-            title="World Building"
-          >
-            <Globe className="w-5 h-5" />
-          </Button>
-        </div>
-      )}
     </div>
   )
 }

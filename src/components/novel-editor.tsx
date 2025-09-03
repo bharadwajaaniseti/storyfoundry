@@ -18,7 +18,6 @@ import {
   ChevronDown
 } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/auth'
-import WorldBuildingSidebar from './world-building-sidebar'
 import NovelWriter from './novel-writer'
 import NovelOutline from './novel-outline'
 import NovelDashboard from './novel-dashboard'
@@ -91,7 +90,6 @@ export default function NovelEditor({ projectId }: NovelEditorProps) {
   const [project, setProject] = useState<Project | null>(null)
   const [chapters, setChapters] = useState<Chapter[]>([])
   const [activeTab, setActiveTab] = useState('chapters')
-  const [isWorldBuildingOpen, setIsWorldBuildingOpen] = useState(true)
   const [isLoading, setIsLoading] = useState(true)
   const [totalWordCount, setTotalWordCount] = useState(0)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
@@ -388,14 +386,6 @@ export default function NovelEditor({ projectId }: NovelEditorProps) {
 
   return (
     <div className="flex h-screen bg-gray-50">
-      {/* World Building Sidebar */}
-      <WorldBuildingSidebar
-        projectId={projectId}
-        isOpen={isWorldBuildingOpen}
-        onToggle={() => setIsWorldBuildingOpen(!isWorldBuildingOpen)}
-        onShowCharacterEditor={handleShowCharacterEditor}
-      />
-
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col">
         {/* Top Header */}
