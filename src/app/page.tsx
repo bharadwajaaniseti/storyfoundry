@@ -1,3 +1,5 @@
+'use client'
+
 import MarketingPage from './(marketing)/page'
 import MarketingLayout from './(marketing)/layout'
 
