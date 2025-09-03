@@ -1,12 +1,14 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { Plus, Users, Upload, MoreVertical, Image, Trash2 } from 'lucide-react'
+import { Plus, Users, Upload, MoreVertical, Image, Trash2, Search, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { createSupabaseClient } from '@/lib/auth'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import { Checkbox } from '@/components/ui/checkbox'
 
 interface Character {
   id: string
@@ -84,6 +86,187 @@ export default function CharactersPanel({ projectId, selectedElement, onCharacte
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [basicInfoModalOpen, setBasicInfoModalOpen] = useState(false)
+  const [useDefaultOptions, setUseDefaultOptions] = useState(true)
+  const defaultBasicAttributes = ['full_name','origin_country','place_of_residence','gender','formal_education','occupation']
+  const [basicSelectedAttributes, setBasicSelectedAttributes] = useState<string[]>(defaultBasicAttributes)
+  const [basicSearch, setBasicSearch] = useState('')
+  const [activeCategory, setActiveCategory] = useState('basic_information')
+  const [showCustomAttributeForm, setShowCustomAttributeForm] = useState(false)
+  const [customAttribute, setCustomAttribute] = useState({ name: '', type: 'Text' })
+  const [customAttributes, setCustomAttributes] = useState<{[category: string]: Array<{id: string, label: string, type: string, isCustom: boolean}>}>({})
+
+  // Comprehensive attribute definitions for all categories
+  const allAttributeDefinitions = {
+    basic_information: [
+      { id: 'full_name', label: 'Full Name', type: 'Text' },
+      { id: 'given_name', label: 'Given Name', type: 'Text' },
+      { id: 'nickname', label: 'Nickname', type: 'Multi-Text' },
+      { id: 'preferred_name', label: 'Preferred Name', type: 'Text' },
+      { id: 'pronouns', label: 'Pronouns', type: 'Text' },
+      { id: 'former_names', label: 'Former Names', type: 'Multi-Text' },
+      { id: 'origin_country', label: 'Origin Country', type: 'Multi-Text' },
+      { id: 'place_of_residence', label: 'Place of Residence', type: 'Text' },
+      { id: 'residential_status', label: 'Residential Status', type: 'Multi-Text' },
+      { id: 'dwelling', label: 'Dwelling', type: 'Multi-Text' },
+      { id: 'gender', label: 'Gender & Sexuality', type: 'Multi-Text' },
+      { id: 'sexual_orientation', label: 'Sexual Orientation', type: 'Multi-Text' },
+      { id: 'age', label: 'Age', type: 'Number' },
+      { id: 'birthday', label: 'Birthday', type: 'Text' },
+      { id: 'birthplace', label: 'Birthplace', type: 'Text' },
+      { id: 'astrological_sign', label: 'Astrological Sign', type: 'Multi-Text' },
+      { id: 'zodiac_sign', label: 'Zodiac Sign', type: 'Multi-Text' },
+      { id: 'patron_deity', label: 'Patron Deity', type: 'Multi-Text' },
+      { id: 'religion_sect', label: 'Religion (Sect)', type: 'Text' },
+      { id: 'world_religions', label: 'World Religions', type: 'Multi-Text' }
+    ],
+    career: [
+      { id: 'formal_education', label: 'Formal Education', type: 'Multi-Text' },
+      { id: 'alternative_education', label: 'Alternative Education', type: 'Multi-Text' },
+      { id: 'school_name', label: 'School Name', type: 'Text' },
+      { id: 'school_sports', label: 'School Sports', type: 'Multi-Text' },
+      { id: 'clubs_extracurriculars', label: 'Clubs or Extracurriculars', type: 'Multi-Text' },
+      { id: 'educators', label: 'Educator(s)', type: 'Text' },
+      { id: 'grade_point_average', label: 'Grade Point Average', type: 'Number' },
+      { id: 'skills', label: 'Skills', type: 'Multi-Text' },
+      { id: 'student_stereotype', label: 'Student Stereotype', type: 'Multi-Text' },
+      { id: 'occupation', label: 'Occupation', type: 'Multi-Text' },
+      { id: 'debt', label: 'Debt', type: 'Number' },
+      { id: 'money', label: 'Money', type: 'Number' }
+    ],
+    hobbies_interests: [
+      { id: 'competitive_hobbies', label: 'Competitive Hobbies', type: 'Multi-Text' },
+      { id: 'indoor_collecting_hobbies', label: 'Indoor Collecting Hobbies', type: 'Multi-Text' },
+      { id: 'indoor_hobbies', label: 'Indoor Hobbies', type: 'Multi-Text' },
+      { id: 'observation_hobbies', label: 'Observation Hobbies', type: 'Multi-Text' },
+      { id: 'outdoor_collecting_hobbies', label: 'Outdoor Collecting Hobbies', type: 'Multi-Text' },
+      { id: 'outdoor_hobbies', label: 'Outdoor Hobbies', type: 'Multi-Text' },
+      { id: 'skills_hobbies', label: 'Skills', type: 'Multi-Text' },
+      { id: 'educational_interests', label: 'Educational Interests', type: 'Multi-Text' },
+      { id: 'personal_interests', label: 'Personal Interests', type: 'Multi-Text' }
+    ],
+    magical_martial: [
+      { id: 'fantastical_conditions', label: 'Fantastical Conditions', type: 'Multi-Text' },
+      { id: 'maximum_spell_level', label: 'Maximum Spell Level', type: 'Number' },
+      { id: 'supernatural_abilities', label: 'Supernatural Abilities', type: 'Multi-Text' },
+      { id: 'dominant_hand', label: 'Dominant Hand', type: 'Multi-Text' },
+      { id: 'fighting_style', label: 'Fighting Style', type: 'Multi-Text' },
+      { id: 'preferred_weapon', label: 'Preferred Weapon', type: 'Multi-Text' },
+      { id: 'speed', label: 'Speed', type: 'Number' }
+    ],
+    personality: [
+      { id: 'character_archetypes', label: 'Character Archetypes', type: 'Multi-Text' },
+      { id: 'big_five_personality', label: 'Big Five Personality Traits', type: 'Multi-Text' },
+      { id: 'enneagram_personality', label: 'Enneagram Personality Traits', type: 'Multi-Text' },
+      { id: 'competence', label: 'Competence', type: 'Slider' },
+      { id: 'proactivity', label: 'Proactivity', type: 'Slider' },
+      { id: 'sympathy', label: 'Sympathy', type: 'Slider' },
+      { id: 'aggression', label: 'Aggression', type: 'Slider' },
+      { id: 'disobedience', label: 'Disobedience', type: 'Slider' },
+      { id: 'confidence', label: 'Confidence', type: 'Slider' },
+      { id: 'passion', label: 'Passion', type: 'Slider' },
+      { id: 'drive', label: 'Drive', type: 'Slider' },
+      { id: 'enthusiasm', label: 'Enthusiasm', type: 'Slider' },
+      { id: 'tolerance', label: 'Tolerance', type: 'Slider' },
+      { id: 'honesty', label: 'Honesty', type: 'Slider' },
+      { id: 'extraversion', label: 'Extraversion', type: 'Slider' },
+      { id: 'agreeableness', label: 'Agreeableness', type: 'Slider' },
+      { id: 'openness', label: 'Openness', type: 'Slider' },
+      { id: 'conscientiousness', label: 'Conscientiousness', type: 'Slider' },
+      { id: 'neuroticism', label: 'Neuroticism', type: 'Slider' },
+      { id: 'reformer', label: 'The Reformer', type: 'Slider' },
+      { id: 'helper', label: 'The Helper', type: 'Slider' }
+    ],
+    physical_traits: [
+      { id: 'height', label: 'Height', type: 'Text' },
+      { id: 'weight', label: 'Weight', type: 'Text' },
+      { id: 'body_type', label: 'Body Type', type: 'Multi-Text' },
+      { id: 'hair_color', label: 'Hair Color', type: 'Multi-Text' },
+      { id: 'hair_style', label: 'Hair Style', type: 'Multi-Text' },
+      { id: 'eye_color', label: 'Eye Color', type: 'Multi-Text' },
+      { id: 'skin_tone', label: 'Skin Tone', type: 'Multi-Text' },
+      { id: 'distinguishing_marks', label: 'Distinguishing Marks', type: 'Multi-Text' },
+      { id: 'tattoos', label: 'Tattoos', type: 'Multi-Text' },
+      { id: 'scars', label: 'Scars', type: 'Multi-Text' },
+      { id: 'clothing_style', label: 'Clothing Style', type: 'Multi-Text' },
+      { id: 'accessories', label: 'Accessories', type: 'Multi-Text' }
+    ],
+    relationships: [
+      { id: 'family_members', label: 'Family Members', type: 'Multi-Text' },
+      { id: 'parents', label: 'Parents', type: 'Multi-Text' },
+      { id: 'siblings', label: 'Siblings', type: 'Multi-Text' },
+      { id: 'children', label: 'Children', type: 'Multi-Text' },
+      { id: 'spouse_partner', label: 'Spouse/Partner', type: 'Text' },
+      { id: 'friends', label: 'Friends', type: 'Multi-Text' },
+      { id: 'enemies', label: 'Enemies', type: 'Multi-Text' },
+      { id: 'mentors', label: 'Mentors', type: 'Multi-Text' },
+      { id: 'allies', label: 'Allies', type: 'Multi-Text' },
+      { id: 'romantic_interests', label: 'Romantic Interests', type: 'Multi-Text' }
+    ],
+    attributes_games: [
+      { id: 'strength', label: 'Strength', type: 'Number' },
+      { id: 'dexterity', label: 'Dexterity', type: 'Number' },
+      { id: 'constitution', label: 'Constitution', type: 'Number' },
+      { id: 'intelligence', label: 'Intelligence', type: 'Number' },
+      { id: 'wisdom', label: 'Wisdom', type: 'Number' },
+      { id: 'charisma', label: 'Charisma', type: 'Number' },
+      { id: 'luck', label: 'Luck', type: 'Number' },
+      { id: 'health_points', label: 'Health Points', type: 'Number' },
+      { id: 'mana_points', label: 'Mana Points', type: 'Number' },
+      { id: 'armor_class', label: 'Armor Class', type: 'Number' },
+      { id: 'level', label: 'Level', type: 'Number' },
+      { id: 'experience_points', label: 'Experience Points', type: 'Number' }
+    ],
+    utilities: [
+      { id: 'notes', label: 'Notes', type: 'Multi-Text' },
+      { id: 'tags', label: 'Tags', type: 'Multi-Text' },
+      { id: 'inspiration', label: 'Inspiration', type: 'Multi-Text' },
+      { id: 'references', label: 'References', type: 'Multi-Text' },
+      { id: 'creation_date', label: 'Creation Date', type: 'Text' },
+      { id: 'last_modified', label: 'Last Modified', type: 'Text' },
+      { id: 'status', label: 'Status', type: 'Multi-Text' },
+      { id: 'version', label: 'Version', type: 'Text' }
+    ]
+  }
+
+  const categoryInfo = {
+    basic_information: { name: 'Basic Information', icon: '●', selectedAttributes: basicSelectedAttributes },
+    career: { name: 'Career', icon: '💼', selectedAttributes: [] },
+    hobbies_interests: { name: 'Hobbies & Interests', icon: '⭐', selectedAttributes: [] },
+    magical_martial: { name: 'Magical & Martial Abilities', icon: '⚔️', selectedAttributes: [] },
+    personality: { name: 'Personality', icon: '🧠', selectedAttributes: [] },
+    physical_traits: { name: 'Physical Traits', icon: '👤', selectedAttributes: [] },
+    relationships: { name: 'Relationships', icon: '👥', selectedAttributes: [] },
+    attributes_games: { name: 'Attributes for Games', icon: '🎲', selectedAttributes: [] },
+    utilities: { name: 'Utilities', icon: '🔧', selectedAttributes: [] }
+  }
+
+  const getCurrentAttributes = () => {
+    const baseAttributes = allAttributeDefinitions[activeCategory as keyof typeof allAttributeDefinitions] || []
+    const categoryCustomAttributes = customAttributes[activeCategory] || []
+    return [...baseAttributes, ...categoryCustomAttributes]
+  }
+  const getCurrentSelectedAttributes = () => {
+    if (activeCategory === 'basic_information') return basicSelectedAttributes
+    // Add other category selections here when needed
+    return []
+  }
+
+  const getFilteredAttributes = () => {
+    const currentAttrs = getCurrentAttributes()
+    return currentAttrs.filter(a =>
+      a.label.toLowerCase().includes(basicSearch.toLowerCase().trim())
+    )
+  }
+
+  const toggleAttribute = (id: string) => {
+    if (activeCategory === 'basic_information') {
+      setBasicSelectedAttributes(prev =>
+        prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+      )
+    }
+    // Add handlers for other categories when needed
+  }
 
   const supabase = createSupabaseClient()
 
@@ -563,7 +746,15 @@ export default function CharactersPanel({ projectId, selectedElement, onCharacte
               <div className={getPanelClassName('basic')} style={getPanelStyle('basic')}>
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold text-gray-800">Basic Information</h3>
-                  <div className="relative dropdown-container">
+                  <div className="flex items-center gap-2 relative dropdown-container">
+                    {/* Add (+) icon to open modal */}
+                    <button
+                      onClick={() => setBasicInfoModalOpen(true)}
+                      className="text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded-lg p-2 transition-all duration-200"
+                      title="Add"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </button>
                     <button
                       onClick={() => toggleDropdown('basic')}
                       className="text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded-lg p-2 transition-all duration-200"
@@ -623,8 +814,345 @@ export default function CharactersPanel({ projectId, selectedElement, onCharacte
                     )}
                   </div>
                 </div>
+                {/* Modal for Basic Information actions */}
+                <Dialog open={basicInfoModalOpen} onOpenChange={setBasicInfoModalOpen}>
+                  <DialogContent className="sm:max-w-4xl p-0 rounded-2xl bg-white/95 backdrop-blur-lg border-0 shadow-2xl overflow-hidden" showCloseButton={false}>
+                    {/* Header */}
+                    <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200/50">
+                      <div>
+                        <h2 className="text-lg font-semibold text-gray-900">Manage Attributes</h2>
+                        <p className="text-sm text-gray-600">Select any number of attributes below to add them to this Attributes Panel (uncheck them to remove attributes).</p>
+                      </div>
+                      <button
+                        onClick={() => setBasicInfoModalOpen(false)}
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all duration-200"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+
+                    {/* Two-column layout */}
+                    <div className="flex min-h-[500px]">
+                      {/* Left sidebar - Category buttons */}
+                      <div className="w-1/3 bg-gray-50/50 border-r border-gray-200/50 p-4">
+                        <div className="space-y-2">
+                          <div className="text-xs font-medium text-gray-500 mb-3 px-2">Currently Selected</div>
+                          
+                          {/* Category buttons */}
+                          <button 
+                            onClick={() => setActiveCategory('basic_information')}
+                            className={`w-full text-left px-3 py-2.5 rounded-lg font-medium text-sm transition-colors ${
+                              activeCategory === 'basic_information' 
+                                ? 'bg-orange-500 text-white shadow-sm' 
+                                : 'text-gray-700 hover:bg-white hover:shadow-sm'
+                            }`}
+                          >
+                            ● Basic Information
+                          </button>
+                          <button 
+                            onClick={() => setActiveCategory('career')}
+                            className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                              activeCategory === 'career' 
+                                ? 'bg-orange-500 text-white shadow-sm font-medium' 
+                                : 'text-gray-700 hover:bg-white hover:shadow-sm'
+                            }`}
+                          >
+                            💼 Career
+                          </button>
+                          <button 
+                            onClick={() => setActiveCategory('hobbies_interests')}
+                            className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                              activeCategory === 'hobbies_interests' 
+                                ? 'bg-orange-500 text-white shadow-sm font-medium' 
+                                : 'text-gray-700 hover:bg-white hover:shadow-sm'
+                            }`}
+                          >
+                            ⭐ Hobbies & Interests
+                          </button>
+                          <button 
+                            onClick={() => setActiveCategory('magical_martial')}
+                            className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                              activeCategory === 'magical_martial' 
+                                ? 'bg-orange-500 text-white shadow-sm font-medium' 
+                                : 'text-orange-600 hover:bg-orange-50'
+                            }`}
+                          >
+                            ⚔️ Magical & Martial Abilities
+                          </button>
+                          <button 
+                            onClick={() => setActiveCategory('personality')}
+                            className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                              activeCategory === 'personality' 
+                                ? 'bg-orange-500 text-white shadow-sm font-medium' 
+                                : 'text-gray-700 hover:bg-white hover:shadow-sm'
+                            }`}
+                          >
+                            🧠 Personality
+                          </button>
+                          <button 
+                            onClick={() => setActiveCategory('physical_traits')}
+                            className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                              activeCategory === 'physical_traits' 
+                                ? 'bg-orange-500 text-white shadow-sm font-medium' 
+                                : 'text-gray-700 hover:bg-white hover:shadow-sm'
+                            }`}
+                          >
+                            👤 Physical Traits
+                          </button>
+                          <button 
+                            onClick={() => setActiveCategory('relationships')}
+                            className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                              activeCategory === 'relationships' 
+                                ? 'bg-orange-500 text-white shadow-sm font-medium' 
+                                : 'text-gray-700 hover:bg-white hover:shadow-sm'
+                            }`}
+                          >
+                            👥 Relationships
+                          </button>
+                          <button 
+                            onClick={() => setActiveCategory('attributes_games')}
+                            className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                              activeCategory === 'attributes_games' 
+                                ? 'bg-orange-500 text-white shadow-sm font-medium' 
+                                : 'text-gray-700 hover:bg-white hover:shadow-sm'
+                            }`}
+                          >
+                            🎲 Attributes for Games
+                          </button>
+                          <button 
+                            onClick={() => setActiveCategory('utilities')}
+                            className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                              activeCategory === 'utilities' 
+                                ? 'bg-orange-500 text-white shadow-sm font-medium' 
+                                : 'text-gray-700 hover:bg-white hover:shadow-sm'
+                            }`}
+                          >
+                            🔧 Utilities
+                          </button>
+                        </div>
+
+                        {/* Use Default Options toggle */}
+                        <div className="mt-6 pt-4 border-t border-gray-200/50">
+                          <label className="flex items-center gap-3 cursor-pointer">
+                            <Checkbox
+                              checked={useDefaultOptions}
+                              onCheckedChange={(checked) => {
+                                const val = Boolean(checked)
+                                setUseDefaultOptions(val)
+                                if (val) {
+                                  setBasicSelectedAttributes(['full_name','origin_country','place_of_residence','gender','formal_education','occupation'])
+                                }
+                              }}
+                              className="w-4 h-4 rounded border-2 border-orange-300 data-[state=checked]:bg-orange-500 data-[state=checked]:border-orange-500"
+                            />
+                            <div>
+                              <span className="text-sm font-medium text-gray-900">Use Default Options</span>
+                              <div className="text-xs text-gray-500">🛡️</div>
+                            </div>
+                          </label>
+                        </div>
+                      </div>
+
+                      {/* Right content area */}
+                      <div className="flex-1 p-6">
+                        {/* Selected attributes tags */}
+                        <div className="mb-4">
+                          <div className="flex flex-wrap gap-2 min-h-[2rem]">
+                            {getCurrentSelectedAttributes().length > 0 ? (
+                              getCurrentSelectedAttributes().map((attrId) => {
+                                const attr = getCurrentAttributes().find(a => a.id === attrId)
+                                return attr ? (
+                                  <span key={attrId} className="inline-flex items-center gap-1 px-3 py-1 bg-gray-100 border border-gray-300 rounded-full text-xs font-medium text-gray-700">
+                                    {attr.label}
+                                    <span className="text-gray-500">({getCurrentSelectedAttributes().filter(id => id === attrId).length})</span>
+                                  </span>
+                                ) : null
+                              })
+                            ) : (
+                              <span className="text-sm text-gray-400 italic">No attributes selected</span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Custom Attribute Form */}
+                        {showCustomAttributeForm && (
+                          <div className="mb-6 p-4 bg-orange-50 border border-orange-200 rounded-xl">
+                            <h4 className="text-sm font-semibold text-orange-800 mb-3">Create Custom Attribute</h4>
+                            <div className="space-y-3">
+                              <div>
+                                <label className="block text-xs font-medium text-gray-700 mb-1">Attribute Name</label>
+                                <Input
+                                  placeholder="Enter attribute name..."
+                                  value={customAttribute.name}
+                                  onChange={(e) => setCustomAttribute(prev => ({ ...prev, name: e.target.value }))}
+                                  className="text-sm"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-gray-700 mb-1">Attribute Type</label>
+                                <select
+                                  value={customAttribute.type}
+                                  onChange={(e) => setCustomAttribute(prev => ({ ...prev, type: e.target.value }))}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-300"
+                                >
+                                  <option value="Text">Text</option>
+                                  <option value="Multi-Text">Multi-Text</option>
+                                  <option value="Number">Number</option>
+                                  <option value="Slider">Slider</option>
+                                  <option value="Date">Date</option>
+                                  <option value="Boolean">Yes/No</option>
+                                </select>
+                              </div>
+                              <div className="flex gap-2 pt-2">
+                                <Button
+                                  size="sm"
+                                  onClick={() => {
+                                    if (customAttribute.name.trim()) {
+                                      // Add custom attribute to current category
+                                      const newId = `custom_${Date.now()}`
+                                      const newAttr = {
+                                        id: newId,
+                                        label: customAttribute.name,
+                                        type: customAttribute.type,
+                                        isCustom: true
+                                      }
+                                      
+                                      // Add to custom attributes for current category
+                                      setCustomAttributes(prev => ({
+                                        ...prev,
+                                        [activeCategory]: [...(prev[activeCategory] || []), newAttr]
+                                      }))
+                                      
+                                      // Auto-select the new custom attribute
+                                      toggleAttribute(newId)
+                                      
+                                      // Reset form
+                                      setCustomAttribute({ name: '', type: 'Text' })
+                                      setShowCustomAttributeForm(false)
+                                    }
+                                  }}
+                                  className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1 text-xs"
+                                >
+                                  Add Attribute
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setShowCustomAttributeForm(false)
+                                    setCustomAttribute({ name: '', type: 'Text' })
+                                  }}
+                                  className="px-3 py-1 text-xs"
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Search and Add Custom Attribute */}
+                        <div className="mb-4 space-y-3">
+                          <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                            <Input 
+                              placeholder="Search attributes..." 
+                              className="pl-9 rounded-xl border-gray-200 focus:border-orange-300 focus:ring-orange-100" 
+                              value={basicSearch} 
+                              onChange={(e) => setBasicSearch(e.target.value)} 
+                            />
+                          </div>
+                          
+                          {!showCustomAttributeForm && (
+                            <button
+                              onClick={() => setShowCustomAttributeForm(true)}
+                              className="w-full flex items-center justify-center gap-2 px-3 py-2 border-2 border-dashed border-orange-300 rounded-xl text-orange-600 hover:border-orange-400 hover:bg-orange-50 transition-all duration-200 text-sm font-medium"
+                            >
+                              <Plus className="w-4 h-4" />
+                              Add Custom Attribute
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Attribute list */}
+                        <div className="space-y-3 max-h-80 overflow-y-auto scrollbar-hide">
+                          {getFilteredAttributes().map((attr) => (
+                            <div key={attr.id} className={`flex items-center justify-between p-3 rounded-xl border transition-all duration-200 ${
+                              (attr as any).isCustom 
+                                ? 'border-orange-200 bg-orange-50 hover:bg-orange-100 hover:shadow-sm' 
+                                : 'border-gray-200 bg-gray-50 hover:bg-white hover:shadow-sm'
+                            }`}>
+                              <label className="flex items-center gap-3 cursor-pointer flex-1">
+                                <Checkbox 
+                                  checked={getCurrentSelectedAttributes().includes(attr.id)} 
+                                  onCheckedChange={() => toggleAttribute(attr.id)}
+                                  className="w-4 h-4 rounded border-2 border-orange-300 data-[state=checked]:bg-orange-500 data-[state=checked]:border-orange-500"
+                                />
+                                <div className="flex-1">
+                                  <span className="text-sm font-medium text-gray-900">{attr.label}</span>
+                                  {(attr as any).isCustom && (
+                                    <span className="ml-2 text-xs text-orange-600 font-medium">Custom</span>
+                                  )}
+                                </div>
+                              </label>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-medium text-gray-600 bg-white border border-gray-300 rounded-full px-2 py-1">
+                                  {attr.type}
+                                </span>
+                                {(attr as any).isCustom && (
+                                  <button
+                                    onClick={() => {
+                                      // Remove from custom attributes
+                                      setCustomAttributes(prev => ({
+                                        ...prev,
+                                        [activeCategory]: prev[activeCategory]?.filter(a => a.id !== attr.id) || []
+                                      }))
+                                      // Remove from selected if it was selected
+                                      if (getCurrentSelectedAttributes().includes(attr.id)) {
+                                        toggleAttribute(attr.id)
+                                      }
+                                    }}
+                                    className="w-6 h-6 rounded-full bg-red-100 hover:bg-red-200 text-red-600 flex items-center justify-center transition-colors"
+                                    title="Delete custom attribute"
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                          {getFilteredAttributes().length === 0 && (
+                            <div className="text-center py-12 text-sm text-gray-500">
+                              No attributes match your search.
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Footer */}
+                    <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200/50 bg-gray-50/30">
+                      <Button 
+                        variant="outline" 
+                        type="button" 
+                        onClick={() => setBasicInfoModalOpen(false)}
+                        className="px-4 py-2 rounded-lg"
+                      >
+                        Cancel
+                      </Button>
+                      <Button 
+                        type="button" 
+                        onClick={() => setBasicInfoModalOpen(false)}
+                        className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg"
+                      >
+                        Select Attributes
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
                 {expandedSections.basic && (
                   <div className="space-y-4">
+                    {basicSelectedAttributes.includes('full_name') && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Full Name
@@ -641,7 +1169,9 @@ export default function CharactersPanel({ projectId, selectedElement, onCharacte
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
                       />
                     </div>
+                    )}
                     
+                    {basicSelectedAttributes.includes('origin_country') && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Origin Country
@@ -662,7 +1192,9 @@ export default function CharactersPanel({ projectId, selectedElement, onCharacte
                         <option value="Other">Other</option>
                       </select>
                     </div>
+                    )}
 
+                    {basicSelectedAttributes.includes('place_of_residence') && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Place of Residence
@@ -678,7 +1210,9 @@ export default function CharactersPanel({ projectId, selectedElement, onCharacte
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
                       />
                     </div>
+                    )}
 
+                    {basicSelectedAttributes.includes('gender') && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Gender
@@ -698,7 +1232,9 @@ export default function CharactersPanel({ projectId, selectedElement, onCharacte
                         <option value="Other">Other</option>
                       </select>
                     </div>
+                    )}
 
+                    {basicSelectedAttributes.includes('formal_education') && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Formal Education
@@ -719,7 +1255,9 @@ export default function CharactersPanel({ projectId, selectedElement, onCharacte
                         <option value="Other">Other</option>
                       </select>
                     </div>
+                    )}
 
+                    {basicSelectedAttributes.includes('occupation') && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Occupation
@@ -735,6 +1273,7 @@ export default function CharactersPanel({ projectId, selectedElement, onCharacte
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
                       />
                     </div>
+                    )}
                   </div>
                 )}
               </div>
