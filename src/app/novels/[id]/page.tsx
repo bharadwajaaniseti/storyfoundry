@@ -14,6 +14,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { createSupabaseClient } from '@/lib/auth'
+import CharacterEditor from '@/components/character-editor'
 
 // Type definitions
 interface NovelPageProps {
@@ -78,6 +79,16 @@ interface Chapter {
   icon_color?: string
 }
 
+interface Character {
+  id?: string
+  name: string
+  description: string
+  image_url?: string
+  sections: any[]
+  created_at?: string
+  updated_at?: string
+}
+
 // Sidebar navigation options
 const SIDEBAR_OPTIONS = [
   { id: 'dashboard', label: 'Dashboard', icon: Target, hasAdd: false, color: 'slate', description: 'Project overview and statistics' },
@@ -121,6 +132,8 @@ export default function NovelPage({ params }: NovelPageProps) {
   const [expandedCategories, setExpandedCategories] = useState<string[]>([])
   const [expandedFolders, setExpandedFolders] = useState<string[]>([])
   const [isCreating, setIsCreating] = useState(false)
+  const [showCharacterEditor, setShowCharacterEditor] = useState(false)
+  const [editingCharacter, setEditingCharacter] = useState<WorldElement | null>(null)
   
   // Context menu state
   const [contextMenu, setContextMenu] = useState<{
@@ -302,6 +315,82 @@ export default function NovelPage({ params }: NovelPageProps) {
         setSelectedElement(null)
       }
     } catch (error) {
+    }
+  }
+
+  // Character editor functions
+  const handleShowCharacterEditor = (character?: WorldElement) => {
+    setEditingCharacter(character || null)
+    setShowCharacterEditor(true)
+  }
+
+  const handleCharacterSave = async (character: Character) => {
+    if (!project) return
+    
+    try {
+      const supabase = createSupabaseClient()
+      
+      // Convert character data to world element format
+      const elementData = {
+        project_id: project.id,
+        category: 'characters',
+        name: character.name,
+        description: character.description,
+        attributes: {
+          sections: character.sections,
+          image_url: character.image_url
+        },
+        tags: []
+      }
+
+      if (editingCharacter) {
+        // Update existing character
+        const { data, error } = await supabase
+          .from('world_elements')
+          .update({ ...elementData, updated_at: new Date().toISOString() })
+          .eq('id', editingCharacter.id)
+          .select()
+          .single()
+
+        if (error) throw error
+        
+        setWorldElements(prev => prev.map(el => el.id === editingCharacter.id ? data : el))
+        setSelectedElement(data)
+      } else {
+        // Create new character
+        const { data, error } = await supabase
+          .from('world_elements')
+          .insert(elementData)
+          .select()
+          .single()
+
+        if (error) throw error
+        
+        setWorldElements(prev => [...prev, data])
+        setSelectedElement(data)
+      }
+
+      setShowCharacterEditor(false)
+      setEditingCharacter(null)
+    } catch (error) {
+      console.error('Error saving character:', error)
+    }
+  }
+
+  const handleCharacterCancel = () => {
+    setShowCharacterEditor(false)
+    setEditingCharacter(null)
+  }
+
+  const convertWorldElementToCharacter = (element: WorldElement): Character => {
+    return {
+      id: element.id,
+      name: element.name,
+      description: element.description,
+      image_url: element.attributes?.image_url,
+      sections: element.attributes?.sections || [],
+      created_at: element.created_at,
+      updated_at: element.updated_at
     }
   }
 
@@ -1314,6 +1403,18 @@ export default function NovelPage({ params }: NovelPageProps) {
   const renderPanelContent = () => {
     if (!project) return null
 
+    // Show character editor if active
+    if (showCharacterEditor) {
+      return (
+        <CharacterEditor
+          character={editingCharacter ? convertWorldElementToCharacter(editingCharacter) : undefined}
+          projectId={project.id}
+          onSave={handleCharacterSave}
+          onCancel={handleCharacterCancel}
+        />
+      )
+    }
+
     switch (activePanel) {
       case 'dashboard':
         return (
@@ -1415,6 +1516,8 @@ export default function NovelPage({ params }: NovelPageProps) {
                       onClick={() => {
                         if (activePanel === 'chapters') {
                           createChapter()
+                        } else if (activePanel === 'characters') {
+                          handleShowCharacterEditor()
                         } else {
                           const name = prompt(`Enter ${activePanel.slice(0, -1)} name:`)
                           if (name) createWorldElement(activePanel, name)
@@ -1444,6 +1547,8 @@ export default function NovelPage({ params }: NovelPageProps) {
                         onClick={() => {
                           if (activePanel === 'chapters') {
                             createChapter()
+                          } else if (activePanel === 'characters') {
+                            handleShowCharacterEditor()
                           } else {
                             const name = prompt(`Enter ${activePanel.slice(0, -1)} name:`)
                             if (name) createWorldElement(activePanel, name)
@@ -1482,8 +1587,13 @@ export default function NovelPage({ params }: NovelPageProps) {
                                   setSelectedChapter(item as Chapter)
                                   setSelectedElement(null)
                                 } else {
-                                  setSelectedElement(item as WorldElement)
-                                  setSelectedChapter(null)
+                                  const element = item as WorldElement
+                                  if (element.category === 'characters') {
+                                    handleShowCharacterEditor(element)
+                                  } else {
+                                    setSelectedElement(element)
+                                    setSelectedChapter(null)
+                                  }
                                 }
                               }}
                               onContextMenu={(e) => handleElementContextMenu(e, isChapter ? 'chapter' : 'element', item, activePanel)}
@@ -1991,11 +2101,13 @@ export default function NovelPage({ params }: NovelPageProps) {
             <>
               <button
                 onClick={() => {
-                  const name = prompt(`Enter new ${elementContextMenu.category === 'chapters' ? 'chapter' : 'item'} name:`)
-                  if (name) {
-                    if (elementContextMenu.category === 'chapters') {
-                      createChapter()
-                    } else {
+                  if (elementContextMenu.category === 'characters') {
+                    handleShowCharacterEditor()
+                  } else if (elementContextMenu.category === 'chapters') {
+                    createChapter()
+                  } else {
+                    const name = prompt(`Enter new ${elementContextMenu.category === 'chapters' ? 'chapter' : 'item'} name:`)
+                    if (name) {
                       createWorldElement(elementContextMenu.category, name)
                     }
                   }

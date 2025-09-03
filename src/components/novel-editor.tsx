@@ -22,6 +22,7 @@ import WorldBuildingSidebar from './world-building-sidebar'
 import NovelWriter from './novel-writer'
 import NovelOutline from './novel-outline'
 import NovelDashboard from './novel-dashboard'
+import CharacterEditor from './character-editor'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 
@@ -49,6 +50,29 @@ interface Chapter {
   updated_at: string
 }
 
+interface WorldElement {
+  id: string
+  project_id: string
+  category: string
+  name: string
+  description: string
+  attributes: Record<string, any>
+  tags: string[]
+  image_url?: string
+  created_at: string
+  updated_at: string
+}
+
+interface Character {
+  id?: string
+  name: string
+  description: string
+  image_url?: string
+  sections: any[]
+  created_at?: string
+  updated_at?: string
+}
+
 interface NovelEditorProps {
   projectId: string
 }
@@ -71,6 +95,8 @@ export default function NovelEditor({ projectId }: NovelEditorProps) {
   const [isLoading, setIsLoading] = useState(true)
   const [totalWordCount, setTotalWordCount] = useState(0)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
+  const [showCharacterEditor, setShowCharacterEditor] = useState(false)
+  const [editingCharacter, setEditingCharacter] = useState<WorldElement | null>(null)
 
   useEffect(() => {
     loadProject()
@@ -147,6 +173,70 @@ export default function NovelEditor({ projectId }: NovelEditorProps) {
     router.push('/projects')
   }
 
+  const handleShowCharacterEditor = (character?: WorldElement) => {
+    setEditingCharacter(character || null)
+    setShowCharacterEditor(true)
+  }
+
+  const handleCharacterSave = async (character: Character) => {
+    try {
+      const supabase = createSupabaseClient()
+      
+      // Convert character data to world element format
+      const elementData = {
+        project_id: projectId,
+        category: 'characters',
+        name: character.name,
+        description: character.description,
+        attributes: {
+          sections: character.sections,
+          image_url: character.image_url
+        },
+        tags: []
+      }
+
+      if (editingCharacter) {
+        // Update existing character
+        const { error } = await supabase
+          .from('world_elements')
+          .update(elementData)
+          .eq('id', editingCharacter.id)
+
+        if (error) throw error
+      } else {
+        // Create new character
+        const { error } = await supabase
+          .from('world_elements')
+          .insert(elementData)
+
+        if (error) throw error
+      }
+
+      setShowCharacterEditor(false)
+      setEditingCharacter(null)
+      setLastSaved(new Date())
+    } catch (error) {
+      console.error('Error saving character:', error)
+    }
+  }
+
+  const handleCharacterCancel = () => {
+    setShowCharacterEditor(false)
+    setEditingCharacter(null)
+  }
+
+  const convertWorldElementToCharacter = (element: WorldElement): Character => {
+    return {
+      id: element.id,
+      name: element.name,
+      description: element.description,
+      image_url: element.attributes?.image_url,
+      sections: element.attributes?.sections || [],
+      created_at: element.created_at,
+      updated_at: element.updated_at
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -174,6 +264,18 @@ export default function NovelEditor({ projectId }: NovelEditorProps) {
 
   const renderTabContent = () => {
     if (!project) return null
+    
+    // Show character editor if active
+    if (showCharacterEditor) {
+      return (
+        <CharacterEditor
+          character={editingCharacter ? convertWorldElementToCharacter(editingCharacter) : undefined}
+          projectId={projectId}
+          onSave={handleCharacterSave}
+          onCancel={handleCharacterCancel}
+        />
+      )
+    }
 
     switch (activeTab) {
       case 'chapters':
@@ -291,6 +393,7 @@ export default function NovelEditor({ projectId }: NovelEditorProps) {
         projectId={projectId}
         isOpen={isWorldBuildingOpen}
         onToggle={() => setIsWorldBuildingOpen(!isWorldBuildingOpen)}
+        onShowCharacterEditor={handleShowCharacterEditor}
       />
 
       {/* Main Content Area */}

@@ -50,6 +50,7 @@ interface WorldBuildingSidebarProps {
   projectId: string
   isOpen: boolean
   onToggle: () => void
+  onShowCharacterEditor?: (character?: WorldElement) => void
 }
 
 const CATEGORIES = [
@@ -67,7 +68,7 @@ const CATEGORIES = [
   { key: 'philosophies', label: 'Philosophies', icon: Brain, color: 'violet' }
 ]
 
-export default function WorldBuildingSidebar({ projectId, isOpen, onToggle }: WorldBuildingSidebarProps) {
+export default function WorldBuildingSidebar({ projectId, isOpen, onToggle, onShowCharacterEditor }: WorldBuildingSidebarProps) {
   const [elements, setElements] = useState<WorldElement[]>([])
   const [selectedCategory, setSelectedCategory] = useState('characters')
   const [selectedElement, setSelectedElement] = useState<WorldElement | null>(null)
@@ -340,7 +341,13 @@ export default function WorldBuildingSidebar({ projectId, isOpen, onToggle }: Wo
                         {categoryElements.map(element => (
                           <button
                             key={element.id}
-                            onClick={() => setSelectedElement(element)}
+                            onClick={() => {
+                              if (element.category === 'characters' && onShowCharacterEditor) {
+                                onShowCharacterEditor(element)
+                              } else {
+                                setSelectedElement(element)
+                              }
+                            }}
                             className={`w-full text-left p-2 rounded text-sm transition-colors ${
                               selectedElement?.id === element.id
                                 ? 'bg-purple-100 text-purple-800'
@@ -358,8 +365,12 @@ export default function WorldBuildingSidebar({ projectId, isOpen, onToggle }: Wo
                         
                         <button
                           onClick={() => {
-                            const name = prompt(`New ${category.label.slice(0, -1)} name:`)
-                            if (name) createElement(category.key, name)
+                            if (category.key === 'characters' && onShowCharacterEditor) {
+                              onShowCharacterEditor()
+                            } else {
+                              const name = prompt(`New ${category.label.slice(0, -1)} name:`)
+                              if (name) createElement(category.key, name)
+                            }
                           }}
                           className="w-full text-left p-2 rounded text-sm text-purple-600 hover:bg-purple-50 flex items-center"
                         >
