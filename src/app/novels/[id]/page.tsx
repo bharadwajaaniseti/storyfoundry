@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useParams } from 'next/navigation'
 import { 
   ArrowLeft, BookOpen, Users, Save, Settings, Eye, FileText, Map, Clock, 
   Target, MapPin, User, Calendar, Search, Bookmark, Plus, Edit3, Trash2, 
@@ -17,12 +17,6 @@ import { createSupabaseClient } from '@/lib/auth'
 import CharacterEditor from '@/components/character-editor'
 
 // Type definitions
-interface NovelPageProps {
-  params: Promise<{
-    id: string
-  }>
-}
-
 interface Project {
   id: string
   title: string
@@ -112,8 +106,9 @@ const SIDEBAR_OPTIONS = [
   { id: 'philosophies', label: 'Philosophies', icon: Brain, hasAdd: true, color: 'violet', description: 'Explore the underlying principles and worldviews that shape your story.' },
 ]
 
-export default function NovelPage({ params }: NovelPageProps) {
+export default function NovelPage() {
   const router = useRouter()
+  const params = useParams()
   
   // Core state
   const [project, setProject] = useState<Project | null>(null)
@@ -175,10 +170,11 @@ export default function NovelPage({ params }: NovelPageProps) {
   useEffect(() => {
     const loadProjectData = async () => {
       try {
-        const resolvedParams = await params
+        const projectId = params.id as string
+        if (!projectId) return
         
         // Fetch project
-        const response = await fetch(`/api/projects/${resolvedParams.id}`)
+        const response = await fetch(`/api/projects/${projectId}`)
         if (!response.ok) {
           if (response.status === 404 || response.status === 403) {
             setProject(null)
@@ -192,8 +188,8 @@ export default function NovelPage({ params }: NovelPageProps) {
         
         // Load world elements and chapters
         await Promise.all([
-          loadWorldElements(resolvedParams.id),
-          loadChapters(resolvedParams.id)
+          loadWorldElements(projectId),
+          loadChapters(projectId)
         ])
         
       } catch (error) {

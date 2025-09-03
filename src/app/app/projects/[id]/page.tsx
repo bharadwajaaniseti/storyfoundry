@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { 
   ArrowLeft,
@@ -53,8 +53,9 @@ interface ProjectAsset {
   updated_at: string
 }
 
-export default function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
+export default function ProjectPage() {
   const router = useRouter()
+  const params = useParams()
   const [project, setProject] = useState<Project | null>(null)
   const [content, setContent] = useState('')
   const [isLoading, setIsLoading] = useState(true)
@@ -65,8 +66,8 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   const [editingLogline, setEditingLogline] = useState(false)
   const [loglineValue, setLoglineValue] = useState('')
 
-  // Unwrap params using React.use()
-  const resolvedParams = React.use(params)
+  // Get project ID from params
+  const projectId = params.id as string
 
   // Handle browser history for proper back navigation
   useEffect(() => {
@@ -102,7 +103,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
 
   useEffect(() => {
     loadProject()
-  }, [resolvedParams.id])
+  }, [projectId])
 
   // Reload project data when returning from settings or other pages
   useEffect(() => {
@@ -118,7 +119,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
     return () => {
       window.removeEventListener('focus', handleFocus)
     }
-  }, [isLoading, editingLogline, resolvedParams.id])
+  }, [isLoading, editingLogline, projectId])
 
   const loadProject = async () => {
     try {
@@ -134,7 +135,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
       const { data: projectData, error: projectError } = await supabase
         .from('projects')
         .select('*')
-        .eq('id', resolvedParams.id)
+        .eq('id', projectId)
         .single()
 
       if (projectError || !projectData) {
@@ -156,7 +157,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
       const { data: contentData, error: contentError } = await supabase
         .from('project_content')
         .select('*')
-        .eq('project_id', resolvedParams.id)
+        .eq('project_id', projectId)
         .eq('asset_type', 'content')
         .order('updated_at', { ascending: false })
         .limit(1)

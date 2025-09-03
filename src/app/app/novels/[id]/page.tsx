@@ -1,15 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useParams } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-
-interface NovelPageProps {
-  params: Promise<{
-    id: string
-  }>
-}
 
 interface Project {
   id: string
@@ -19,19 +13,21 @@ interface Project {
   genre: string
 }
 
-export default function NovelPage({ params }: NovelPageProps) {
+export default function NovelPage() {
   const router = useRouter()
+  const params = useParams()
   const [project, setProject] = useState<Project | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const loadProject = async () => {
       try {
-        const resolvedParams = await params
+        const projectId = params.id as string
+        if (!projectId) return
         
         // Try to fetch from API first
         try {
-          const response = await fetch(`/api/projects/${resolvedParams.id}`)
+          const response = await fetch(`/api/projects/${projectId}`)
           if (response.ok) {
             const projectData = await response.json()
             setProject(projectData)
@@ -60,12 +56,12 @@ export default function NovelPage({ params }: NovelPageProps) {
           }
         }
 
-        const projectData = mockProjects[resolvedParams.id]
+        const projectData = mockProjects[projectId]
         if (projectData) {
           setProject(projectData)
           console.log('Loaded project from mock data:', projectData)
         } else {
-          console.log('Project not found in mock data, ID:', resolvedParams.id)
+          console.log('Project not found in mock data, ID:', projectId)
         }
       } catch (error) {
         console.error('Error loading project:', error)
