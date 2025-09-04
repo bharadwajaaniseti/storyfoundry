@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { createSupabaseClient } from '@/lib/auth'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, VisuallyHidden } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
 
 interface Character {
@@ -26,6 +26,7 @@ interface Character {
     personality_traits?: Array<{name: string, description: string}>
     statistics?: Array<{name: string, value: number, unit?: string}>
     image_url?: string
+    [key: string]: any // Allow dynamic attributes
   }
   tags: string[]
   project_id: string
@@ -90,6 +91,14 @@ export default function CharactersPanel({ projectId, selectedElement, onCharacte
   const [useDefaultOptions, setUseDefaultOptions] = useState(true)
   const defaultBasicAttributes = ['full_name','origin_country','place_of_residence','gender','formal_education','occupation']
   const [basicSelectedAttributes, setBasicSelectedAttributes] = useState<string[]>(defaultBasicAttributes)
+  const [careerSelectedAttributes, setCareerSelectedAttributes] = useState<string[]>([])
+  const [hobbiesSelectedAttributes, setHobbiesSelectedAttributes] = useState<string[]>([])
+  const [magicalSelectedAttributes, setMagicalSelectedAttributes] = useState<string[]>([])
+  const [personalitySelectedAttributes, setPersonalitySelectedAttributes] = useState<string[]>([])
+  const [physicalSelectedAttributes, setPhysicalSelectedAttributes] = useState<string[]>([])
+  const [relationshipsSelectedAttributes, setRelationshipsSelectedAttributes] = useState<string[]>([])
+  const [gamesSelectedAttributes, setGamesSelectedAttributes] = useState<string[]>([])
+  const [utilitiesSelectedAttributes, setUtilitiesSelectedAttributes] = useState<string[]>([])
   const [basicSearch, setBasicSearch] = useState('')
   const [activeCategory, setActiveCategory] = useState('basic_information')
   const [showCustomAttributeForm, setShowCustomAttributeForm] = useState(false)
@@ -231,14 +240,14 @@ export default function CharactersPanel({ projectId, selectedElement, onCharacte
 
   const categoryInfo = {
     basic_information: { name: 'Basic Information', icon: '●', selectedAttributes: basicSelectedAttributes },
-    career: { name: 'Career', icon: '💼', selectedAttributes: [] },
-    hobbies_interests: { name: 'Hobbies & Interests', icon: '⭐', selectedAttributes: [] },
-    magical_martial: { name: 'Magical & Martial Abilities', icon: '⚔️', selectedAttributes: [] },
-    personality: { name: 'Personality', icon: '🧠', selectedAttributes: [] },
-    physical_traits: { name: 'Physical Traits', icon: '👤', selectedAttributes: [] },
-    relationships: { name: 'Relationships', icon: '👥', selectedAttributes: [] },
-    attributes_games: { name: 'Attributes for Games', icon: '🎲', selectedAttributes: [] },
-    utilities: { name: 'Utilities', icon: '🔧', selectedAttributes: [] }
+    career: { name: 'Career', icon: '💼', selectedAttributes: careerSelectedAttributes },
+    hobbies_interests: { name: 'Hobbies & Interests', icon: '⭐', selectedAttributes: hobbiesSelectedAttributes },
+    magical_martial: { name: 'Magical & Martial Abilities', icon: '⚔️', selectedAttributes: magicalSelectedAttributes },
+    personality: { name: 'Personality', icon: '🧠', selectedAttributes: personalitySelectedAttributes },
+    physical_traits: { name: 'Physical Traits', icon: '👤', selectedAttributes: physicalSelectedAttributes },
+    relationships: { name: 'Relationships', icon: '👥', selectedAttributes: relationshipsSelectedAttributes },
+    attributes_games: { name: 'Attributes for Games', icon: '🎲', selectedAttributes: gamesSelectedAttributes },
+    utilities: { name: 'Utilities', icon: '🔧', selectedAttributes: utilitiesSelectedAttributes }
   }
 
   const getCurrentAttributes = () => {
@@ -247,9 +256,18 @@ export default function CharactersPanel({ projectId, selectedElement, onCharacte
     return [...baseAttributes, ...categoryCustomAttributes]
   }
   const getCurrentSelectedAttributes = () => {
-    if (activeCategory === 'basic_information') return basicSelectedAttributes
-    // Add other category selections here when needed
-    return []
+    switch (activeCategory) {
+      case 'basic_information': return basicSelectedAttributes
+      case 'career': return careerSelectedAttributes
+      case 'hobbies_interests': return hobbiesSelectedAttributes
+      case 'magical_martial': return magicalSelectedAttributes
+      case 'personality': return personalitySelectedAttributes
+      case 'physical_traits': return physicalSelectedAttributes
+      case 'relationships': return relationshipsSelectedAttributes
+      case 'attributes_games': return gamesSelectedAttributes
+      case 'utilities': return utilitiesSelectedAttributes
+      default: return []
+    }
   }
 
   const getFilteredAttributes = () => {
@@ -260,12 +278,192 @@ export default function CharactersPanel({ projectId, selectedElement, onCharacte
   }
 
   const toggleAttribute = (id: string) => {
-    if (activeCategory === 'basic_information') {
-      setBasicSelectedAttributes(prev =>
-        prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-      )
+    const toggle = (prev: string[]) => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    
+    switch (activeCategory) {
+      case 'basic_information':
+        setBasicSelectedAttributes(toggle)
+        break
+      case 'career':
+        setCareerSelectedAttributes(toggle)
+        break
+      case 'hobbies_interests':
+        setHobbiesSelectedAttributes(toggle)
+        break
+      case 'magical_martial':
+        setMagicalSelectedAttributes(toggle)
+        break
+      case 'personality':
+        setPersonalitySelectedAttributes(toggle)
+        break
+      case 'physical_traits':
+        setPhysicalSelectedAttributes(toggle)
+        break
+      case 'relationships':
+        setRelationshipsSelectedAttributes(toggle)
+        break
+      case 'attributes_games':
+        setGamesSelectedAttributes(toggle)
+        break
+      case 'utilities':
+        setUtilitiesSelectedAttributes(toggle)
+        break
     }
-    // Add handlers for other categories when needed
+  }
+
+  // Helper function to remove an attribute from the selected lists
+  const removeAttribute = (attributeId: string) => {
+    // Remove from basic_information
+    if (basicSelectedAttributes.includes(attributeId)) {
+      setBasicSelectedAttributes(prev => prev.filter(id => id !== attributeId))
+      return
+    }
+    // Remove from other categories
+    if (careerSelectedAttributes.includes(attributeId)) {
+      setCareerSelectedAttributes(prev => prev.filter(id => id !== attributeId))
+      return
+    }
+    if (hobbiesSelectedAttributes.includes(attributeId)) {
+      setHobbiesSelectedAttributes(prev => prev.filter(id => id !== attributeId))
+      return
+    }
+    if (magicalSelectedAttributes.includes(attributeId)) {
+      setMagicalSelectedAttributes(prev => prev.filter(id => id !== attributeId))
+      return
+    }
+    if (personalitySelectedAttributes.includes(attributeId)) {
+      setPersonalitySelectedAttributes(prev => prev.filter(id => id !== attributeId))
+      return
+    }
+    if (physicalSelectedAttributes.includes(attributeId)) {
+      setPhysicalSelectedAttributes(prev => prev.filter(id => id !== attributeId))
+      return
+    }
+    if (relationshipsSelectedAttributes.includes(attributeId)) {
+      setRelationshipsSelectedAttributes(prev => prev.filter(id => id !== attributeId))
+      return
+    }
+    if (gamesSelectedAttributes.includes(attributeId)) {
+      setGamesSelectedAttributes(prev => prev.filter(id => id !== attributeId))
+      return
+    }
+    if (utilitiesSelectedAttributes.includes(attributeId)) {
+      setUtilitiesSelectedAttributes(prev => prev.filter(id => id !== attributeId))
+      return
+    }
+  }
+
+  // Helper function to get attribute definition by ID from any category
+  const getAttributeDefinition = (attributeId: string) => {
+    // First check in predefined attributes
+    for (const category of Object.values(allAttributeDefinitions)) {
+      const attr = category.find(a => a.id === attributeId)
+      if (attr) return attr
+    }
+    
+    // Then check in custom attributes
+    for (const category of Object.values(customAttributes)) {
+      const attr = category.find(a => a.id === attributeId)
+      if (attr) return attr
+    }
+    
+    return null
+  }
+
+  // Helper function to render form field based on attribute type
+  const renderFormField = (attributeId: string) => {
+    const attrDef = getAttributeDefinition(attributeId)
+    if (!attrDef || !editingCharacter) return null
+
+    const value = editingCharacter.attributes[attributeId] || ''
+    const updateAttribute = (newValue: any) => {
+      if (!editingCharacter) return
+      setEditingCharacter({
+        ...editingCharacter,
+        attributes: { ...editingCharacter.attributes, [attributeId]: newValue }
+      })
+    }
+
+    const renderFieldContent = () => {
+      switch (attrDef.type) {
+        case 'Text':
+          return (
+            <input
+              type="text"
+              placeholder={`Enter ${attrDef.label.toLowerCase()}...`}
+              value={value}
+              onChange={(e) => updateAttribute(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
+            />
+          )
+        
+        case 'Multi-Text':
+          return (
+            <textarea
+              placeholder={`Enter ${attrDef.label.toLowerCase()}...`}
+              value={value}
+              onChange={(e) => updateAttribute(e.target.value)}
+              rows={3}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
+            />
+          )
+        
+        case 'Number':
+          return (
+            <input
+              type="number"
+              placeholder={`Enter ${attrDef.label.toLowerCase()}...`}
+              value={value}
+              onChange={(e) => updateAttribute(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
+            />
+          )
+        
+        case 'Slider':
+          return (
+            <div>
+              <div className="mb-2 text-sm text-gray-500">Value: {value || 0}</div>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={value || 0}
+                onChange={(e) => updateAttribute(parseInt(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+              />
+            </div>
+          )
+        
+        default:
+          return (
+            <input
+              type="text"
+              placeholder={`Enter ${attrDef.label.toLowerCase()}...`}
+              value={value}
+              onChange={(e) => updateAttribute(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
+            />
+          )
+      }
+    }
+
+    return (
+      <div key={attributeId} className="group flex items-start gap-3">
+        <div className="flex-1">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            {attrDef.label}
+          </label>
+          {renderFieldContent()}
+        </div>
+        <button
+          onClick={() => removeAttribute(attributeId)}
+          className="mt-7 p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all duration-200 opacity-0 group-hover:opacity-100"
+          title={`Remove ${attrDef.label}`}
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
+    )
   }
 
   const supabase = createSupabaseClient()
@@ -299,6 +497,9 @@ export default function CharactersPanel({ projectId, selectedElement, onCharacte
         name: selectedElement.name,
         description: selectedElement.description,
         attributes: {
+          // Preserve all attributes from database, including custom ones
+          ...selectedElement.attributes,
+          // Ensure core attributes have defaults if missing
           full_name: selectedElement.attributes?.full_name || '',
           origin_country: selectedElement.attributes?.origin_country || '',
           place_of_residence: selectedElement.attributes?.place_of_residence || '',
@@ -743,8 +944,8 @@ export default function CharactersPanel({ projectId, selectedElement, onCharacte
           <div className="container mx-auto px-6 py-8">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {/* Basic Information */}
-              <div className={getPanelClassName('basic')} style={getPanelStyle('basic')}>
-                <div className="flex items-center justify-between mb-4">
+              <div className={`${getPanelClassName('basic')} max-h-[567px] flex flex-col`} style={getPanelStyle('basic')}>
+                <div className="flex items-center justify-between mb-4 flex-shrink-0">
                   <h3 className="text-lg font-semibold text-gray-800">Basic Information</h3>
                   <div className="flex items-center gap-2 relative dropdown-container">
                     {/* Add (+) icon to open modal */}
@@ -817,6 +1018,9 @@ export default function CharactersPanel({ projectId, selectedElement, onCharacte
                 {/* Modal for Basic Information actions */}
                 <Dialog open={basicInfoModalOpen} onOpenChange={setBasicInfoModalOpen}>
                   <DialogContent className="sm:max-w-4xl p-0 rounded-2xl bg-white/95 backdrop-blur-lg border-0 shadow-2xl overflow-hidden" showCloseButton={false}>
+                    <VisuallyHidden>
+                      <DialogTitle>Manage Attributes</DialogTitle>
+                    </VisuallyHidden>
                     {/* Header */}
                     <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200/50">
                       <div>
@@ -1151,129 +1355,198 @@ export default function CharactersPanel({ projectId, selectedElement, onCharacte
                   </DialogContent>
                 </Dialog>
                 {expandedSections.basic && (
-                  <div className="space-y-4">
+                  <div className="max-h-[500px] overflow-y-auto space-y-4 pr-2">
                     {basicSelectedAttributes.includes('full_name') && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Full Name
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Enter character's full name..."
-                        value={editingCharacter.attributes.full_name || ''}
-                        onChange={(e) => setEditingCharacter({
-                          ...editingCharacter,
-                          name: e.target.value,
-                          attributes: { ...editingCharacter.attributes, full_name: e.target.value }
-                        })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
-                      />
+                    <div className="group flex items-start gap-3">
+                      <div className="flex-1">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Full Name
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Enter character's full name..."
+                          value={editingCharacter.attributes.full_name || ''}
+                          onChange={(e) => setEditingCharacter({
+                            ...editingCharacter,
+                            name: e.target.value,
+                            attributes: { ...editingCharacter.attributes, full_name: e.target.value }
+                          })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
+                        />
+                      </div>
+                      <button
+                        onClick={() => removeAttribute('full_name')}
+                        className="mt-7 p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all duration-200 opacity-0 group-hover:opacity-100"
+                        title="Remove Full Name"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                     )}
                     
                     {basicSelectedAttributes.includes('origin_country') && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Origin Country
-                      </label>
-                      <select
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
-                        value={editingCharacter.attributes.origin_country || ''}
-                        onChange={(e) => setEditingCharacter({
-                          ...editingCharacter,
-                          attributes: { ...editingCharacter.attributes, origin_country: e.target.value }
-                        })}
+                    <div className="group flex items-start gap-3">
+                      <div className="flex-1">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Origin Country
+                        </label>
+                        <select
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
+                          value={editingCharacter.attributes.origin_country || ''}
+                          onChange={(e) => setEditingCharacter({
+                            ...editingCharacter,
+                            attributes: { ...editingCharacter.attributes, origin_country: e.target.value }
+                          })}
+                        >
+                          <option value="">Select or Type...</option>
+                          <option value="United States">United States</option>
+                          <option value="United Kingdom">United Kingdom</option>
+                          <option value="Canada">Canada</option>
+                          <option value="Australia">Australia</option>
+                          <option value="Other">Other</option>
+                        </select>
+                      </div>
+                      <button
+                        onClick={() => removeAttribute('origin_country')}
+                        className="mt-7 p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all duration-200 opacity-0 group-hover:opacity-100"
+                        title="Remove Origin Country"
                       >
-                        <option value="">Select or Type...</option>
-                        <option value="United States">United States</option>
-                        <option value="United Kingdom">United Kingdom</option>
-                        <option value="Canada">Canada</option>
-                        <option value="Australia">Australia</option>
-                        <option value="Other">Other</option>
-                      </select>
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                     )}
 
                     {basicSelectedAttributes.includes('place_of_residence') && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Place of Residence
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Enter current residence..."
-                        value={editingCharacter.attributes.place_of_residence || ''}
-                        onChange={(e) => setEditingCharacter({
-                          ...editingCharacter,
-                          attributes: { ...editingCharacter.attributes, place_of_residence: e.target.value }
-                        })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
-                      />
+                    <div className="group flex items-start gap-3">
+                      <div className="flex-1">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Place of Residence
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Enter current residence..."
+                          value={editingCharacter.attributes.place_of_residence || ''}
+                          onChange={(e) => setEditingCharacter({
+                            ...editingCharacter,
+                            attributes: { ...editingCharacter.attributes, place_of_residence: e.target.value }
+                          })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
+                        />
+                      </div>
+                      <button
+                        onClick={() => removeAttribute('place_of_residence')}
+                        className="mt-7 p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all duration-200 opacity-0 group-hover:opacity-100"
+                        title="Remove Place of Residence"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                     )}
 
                     {basicSelectedAttributes.includes('gender') && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Gender
-                      </label>
-                      <select
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
-                        value={editingCharacter.attributes.gender || ''}
-                        onChange={(e) => setEditingCharacter({
-                          ...editingCharacter,
-                          attributes: { ...editingCharacter.attributes, gender: e.target.value }
-                        })}
+                    <div className="group flex items-start gap-3">
+                      <div className="flex-1">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Gender
+                        </label>
+                        <select
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
+                          value={editingCharacter.attributes.gender || ''}
+                          onChange={(e) => setEditingCharacter({
+                            ...editingCharacter,
+                            attributes: { ...editingCharacter.attributes, gender: e.target.value }
+                          })}
+                        >
+                          <option value="">Select or Type...</option>
+                          <option value="Male">Male</option>
+                          <option value="Female">Female</option>
+                          <option value="Non-binary">Non-binary</option>
+                          <option value="Other">Other</option>
+                        </select>
+                      </div>
+                      <button
+                        onClick={() => removeAttribute('gender')}
+                        className="mt-7 p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all duration-200 opacity-0 group-hover:opacity-100"
+                        title="Remove Gender"
                       >
-                        <option value="">Select or Type...</option>
-                        <option value="Male">Male</option>
-                        <option value="Female">Female</option>
-                        <option value="Non-binary">Non-binary</option>
-                        <option value="Other">Other</option>
-                      </select>
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                     )}
 
                     {basicSelectedAttributes.includes('formal_education') && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Formal Education
-                      </label>
-                      <select
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
-                        value={editingCharacter.attributes.formal_education || ''}
-                        onChange={(e) => setEditingCharacter({
-                          ...editingCharacter,
-                          attributes: { ...editingCharacter.attributes, formal_education: e.target.value }
-                        })}
+                    <div className="group flex items-start gap-3">
+                      <div className="flex-1">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Formal Education
+                        </label>
+                        <select
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
+                          value={editingCharacter.attributes.formal_education || ''}
+                          onChange={(e) => setEditingCharacter({
+                            ...editingCharacter,
+                            attributes: { ...editingCharacter.attributes, formal_education: e.target.value }
+                          })}
+                        >
+                          <option value="">Select or Type...</option>
+                          <option value="High School">High School</option>
+                          <option value="Bachelor's Degree">Bachelor's Degree</option>
+                          <option value="Master's Degree">Master's Degree</option>
+                          <option value="PhD">PhD</option>
+                          <option value="Other">Other</option>
+                        </select>
+                      </div>
+                      <button
+                        onClick={() => removeAttribute('formal_education')}
+                        className="mt-7 p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all duration-200 opacity-0 group-hover:opacity-100"
+                        title="Remove Formal Education"
                       >
-                        <option value="">Select or Type...</option>
-                        <option value="High School">High School</option>
-                        <option value="Bachelor's Degree">Bachelor's Degree</option>
-                        <option value="Master's Degree">Master's Degree</option>
-                        <option value="PhD">PhD</option>
-                        <option value="Other">Other</option>
-                      </select>
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                     )}
 
                     {basicSelectedAttributes.includes('occupation') && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Occupation
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Enter occupation..."
-                        value={editingCharacter.attributes.occupation || ''}
-                        onChange={(e) => setEditingCharacter({
-                          ...editingCharacter,
-                          attributes: { ...editingCharacter.attributes, occupation: e.target.value }
-                        })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
-                      />
+                    <div className="group flex items-start gap-3">
+                      <div className="flex-1">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Occupation
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Enter occupation..."
+                          value={editingCharacter.attributes.occupation || ''}
+                          onChange={(e) => setEditingCharacter({
+                            ...editingCharacter,
+                            attributes: { ...editingCharacter.attributes, occupation: e.target.value }
+                          })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
+                        />
+                      </div>
+                      <button
+                        onClick={() => removeAttribute('occupation')}
+                        className="mt-7 p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all duration-200 opacity-0 group-hover:opacity-100"
+                        title="Remove Occupation"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                     )}
+
+                    {/* Dynamic rendering of selected attributes from all categories */}
+                    {/* Render basic_information attributes that aren't handled by custom form fields above */}
+                    {basicSelectedAttributes
+                      .filter(attrId => !['full_name', 'origin_country', 'place_of_residence', 'gender', 'formal_education', 'occupation'].includes(attrId))
+                      .map(attrId => renderFormField(attrId))}
+                    
+                    {careerSelectedAttributes.map(attrId => renderFormField(attrId))}
+                    {hobbiesSelectedAttributes.map(attrId => renderFormField(attrId))}
+                    {magicalSelectedAttributes.map(attrId => renderFormField(attrId))}
+                    {personalitySelectedAttributes.map(attrId => renderFormField(attrId))}
+                    {physicalSelectedAttributes.map(attrId => renderFormField(attrId))}
+                    {relationshipsSelectedAttributes.map(attrId => renderFormField(attrId))}
+                    {gamesSelectedAttributes.map(attrId => renderFormField(attrId))}
+                    {utilitiesSelectedAttributes.map(attrId => renderFormField(attrId))}
                   </div>
                 )}
               </div>
@@ -1351,7 +1624,8 @@ export default function CharactersPanel({ projectId, selectedElement, onCharacte
                         ...editingCharacter,
                         attributes: { ...editingCharacter.attributes, bio: e.target.value }
                       })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500 h-40 resize-none"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500 resize-none"
+                      style={{ height: '435px' }}
                     />
                   </div>
                 )}
