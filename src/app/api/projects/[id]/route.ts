@@ -81,6 +81,7 @@ export async function GET(
       buzz_score: project.buzz_score,
       created_at: project.created_at,
       updated_at: project.updated_at,
+      owner_id: project.owner_id, // Include owner_id for ownership checks
       owner: project.profiles
     }
 
