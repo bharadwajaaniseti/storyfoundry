@@ -550,8 +550,13 @@ export default function SearchPage() {
                 </div>
                 
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {projects.map((project) => (
-                    <Link key={project.id} href={`/projects/${project.id}?from=search`}>
+                  {projects.map((project) => {
+                    console.log('Project format for routing:', project.format, 'Project ID:', project.id)
+                    return (
+                      <Link 
+                        key={project.id} 
+                        href={project.format === 'novel' ? `/novels/${project.id}/read` : `/projects/${project.id}?from=search`}
+                      >
                       <div className={`group bg-white rounded-xl border border-gray-200 p-6 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2 hover:scale-[1.02] cursor-pointer ${
                         userRole === 'writer' 
                           ? 'hover:border-orange-300' 
@@ -685,7 +690,8 @@ export default function SearchPage() {
                         </div>
                       </div>
                     </Link>
-                  ))}
+                  )
+                  })}
                 </div>
               </div>
             ) : (
@@ -708,8 +714,13 @@ export default function SearchPage() {
               </div>
               
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {featuredProjects.map((project) => (
-                  <Link key={project.id} href={`/projects/${project.id}?from=search`}>
+                {featuredProjects.map((project) => {
+                  console.log('Featured project format:', project.format, 'Project ID:', project.id)
+                  return (
+                    <Link 
+                      key={project.id} 
+                      href={project.format === 'novel' ? `/novels/${project.id}/read` : `/projects/${project.id}?from=search`}
+                    >
                     <div className={`group bg-white rounded-xl border border-gray-200 p-6 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2 hover:scale-[1.02] cursor-pointer ${
                       userRole === 'writer' 
                         ? 'hover:border-orange-300' 
@@ -776,7 +787,8 @@ export default function SearchPage() {
                       </div>
                     </div>
                   </Link>
-                ))}
+                )
+                })}
               </div>
             </div>
 

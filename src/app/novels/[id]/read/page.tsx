@@ -155,18 +155,23 @@ export default function ReadNovelPage() {
     try {
       // Load novel data from API
       const response = await fetch(`/api/novels/${novelId}`)
+      console.log('Novel API response status:', response.status)
+      
       if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        console.error('Novel API error:', errorData)
+        
         if (response.status === 404) {
-          console.error('Novel not found')
-          router.push('/app/dashboard')
+          console.error('Novel not found:', errorData.error || 'Unknown error')
+          router.push('/app/search')
           return
         }
         if (response.status === 403) {
-          console.error('Novel is private')
-          router.push('/app/dashboard')
+          console.error('Novel is private:', errorData.error || 'Access denied')
+          router.push('/app/search')
           return
         }
-        throw new Error(`HTTP error! status: ${response.status}`)
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorData.error || 'Unknown error'}`)
       }
 
       const { novel: novelData, chapters: chaptersData } = await response.json()
@@ -175,7 +180,7 @@ export default function ReadNovelPage() {
 
     } catch (error) {
       console.error('Error loading novel:', error)
-      router.push('/app/dashboard')
+      router.push('/app/search')
     } finally {
       setIsLoading(false)
     }
@@ -258,12 +263,12 @@ export default function ReadNovelPage() {
           <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-gray-800 mb-2">Novel not found</h2>
           <p className="text-gray-600 mb-4">The novel you're looking for doesn't exist or isn't available.</p>
-          <button 
-            onClick={() => router.push('/app/dashboard')}
+          <Link
+            href="/app/search"
             className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
           >
-            Back to Dashboard
-          </button>
+            Back to Search
+          </Link>
         </div>
       </div>
     )
@@ -282,12 +287,12 @@ export default function ReadNovelPage() {
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <button
-                onClick={() => router.push('/app/dashboard')}
+              <Link
+                href="/app/search"
                 className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
               >
                 <ArrowLeft className="w-5 h-5" />
-              </button>
+              </Link>
               
               <div className="flex items-center space-x-3">
                 <BookOpen className="w-6 h-6 text-blue-600" />

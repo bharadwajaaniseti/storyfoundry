@@ -3,20 +3,20 @@ import { createSupabaseClient } from '@/lib/auth'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const novelId = params.id
+    const { id: novelId } = await params
     const supabase = createSupabaseClient()
 
     // Get novel data with author profile
+    console.log('Fetching novel data for ID:', novelId)
     const { data: novel, error: novelError } = await supabase
       .from('projects')
       .select(`
         id,
         title,
         logline,
-        description,
         genre,
         word_count,
         buzz_score,
@@ -24,6 +24,7 @@ export async function GET(
         updated_at,
         owner_id,
         visibility,
+        format,
         profiles!owner_id (
           display_name,
           avatar_url,
@@ -31,12 +32,23 @@ export async function GET(
         )
       `)
       .eq('id', novelId)
-      .eq('format', 'novel')
       .single()
 
+    console.log('Novel query result:', { novel, novelError })
+
     if (novelError || !novel) {
+      console.log('Novel not found for ID:', novelId)
       return NextResponse.json(
         { error: 'Novel not found' },
+        { status: 404 }
+      )
+    }
+
+    // Check if it's a novel (case-insensitive)
+    if (novel.format?.toLowerCase() !== 'novel') {
+      console.log('Project is not a novel, format:', novel.format)
+      return NextResponse.json(
+        { error: 'Project is not a novel' },
         { status: 404 }
       )
     }
