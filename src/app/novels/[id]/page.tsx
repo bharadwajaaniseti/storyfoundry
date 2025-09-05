@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { 
   ArrowLeft, BookOpen, Users, Save, Settings, Eye, FileText, Map, Clock, 
@@ -728,12 +728,12 @@ export default function NovelPage() {
     return attributeMap[category] || {}
   }
 
-  const getElementsForCategory = (category: string): (WorldElement | Chapter)[] => {
+  const getElementsForCategory = useCallback((category: string): (WorldElement | Chapter)[] => {
     if (category === 'chapters') {
       return chapters
     }
     return worldElements.filter(el => el.category === category && !el.is_folder)
-  }
+  }, [chapters, worldElements])
 
   const getTotalItemsForCategory = (category: string): number => {
     if (category === 'chapters') {
@@ -1402,7 +1402,25 @@ export default function NovelPage() {
     }
   }, [contextMenu, elementContextMenu])
 
-  const renderPanelContent = () => {
+  // Navigate to a world element from chapter links
+  const navigateToWorldElement = useCallback((elementId: string, category: string) => {
+    // Switch to the appropriate panel
+    setActivePanel(category)
+    
+    // Find and select the element
+    const element = worldElements.find(el => el.id === elementId)
+    if (element) {
+      setSelectedElement(element)
+    }
+  }, [worldElements])
+
+  const handleCharactersChange = useCallback(() => {
+    if (project) {
+      loadWorldElements(project.id)
+    }
+  }, [project])
+
+  const renderPanelContent = useCallback(() => {
     if (!project) return null
 
     switch (activePanel) {
@@ -1487,7 +1505,7 @@ export default function NovelPage() {
           <CharactersPanel 
             projectId={project.id}
             selectedElement={selectedElement}
-            onCharactersChange={() => loadWorldElements(project.id)}
+            onCharactersChange={handleCharactersChange}
             onClearSelection={clearSelectedElement}
           />
         )
@@ -1503,6 +1521,7 @@ export default function NovelPage() {
         return (
           <ChaptersPanel 
             projectId={project.id}
+            onNavigateToElement={navigateToWorldElement}
           />
         )
 
@@ -1551,7 +1570,7 @@ export default function NovelPage() {
           </div>
         )
     }
-  }
+  }, [activePanel, project, getElementsForCategory, chapters, worldElements.length, navigateToWorldElement, selectedElement, clearSelectedElement, handleCharactersChange])
 
   if (loading) {
     return (
