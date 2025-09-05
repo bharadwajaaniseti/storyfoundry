@@ -213,6 +213,10 @@ export default function NovelPage() {
         const projectId = params.id as string
         if (!projectId) return
         
+        // Check user authentication and permissions
+        const supabase = createSupabaseClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        
         // Fetch project
         const response = await fetch(`/api/projects/${projectId}`)
         if (!response.ok) {
@@ -224,6 +228,14 @@ export default function NovelPage() {
         }
         
         const projectData = await response.json()
+        
+        // Check if user is the owner - if not, redirect to read page
+        if (!user || projectData.owner_id !== user.id) {
+          // Redirect non-owners to the read-only view
+          router.push(`/novels/${projectId}/read`)
+          return
+        }
+        
         setProject(projectData)
         
         // Load world elements and chapters
@@ -240,7 +252,7 @@ export default function NovelPage() {
     }
 
     loadProjectData()
-  }, [params])
+  }, [params, router])
 
   // Data loading functions
   const loadWorldElements = async (projectId: string) => {
@@ -1821,7 +1833,12 @@ export default function NovelPage() {
                 >
                   <BookOpen className="w-4 h-4" />
                 </Button>
-                <Button size="sm" variant="outline" className="border-gray-300 text-gray-600 hover:bg-gray-50">
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="border-gray-300 text-gray-600 hover:bg-gray-50"
+                  onClick={() => window.open(`/novels/${project.id}/read`, '_blank')}
+                >
                   <Eye className="w-4 h-4 mr-2" />
                   Preview
                 </Button>

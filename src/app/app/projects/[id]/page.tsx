@@ -143,6 +143,12 @@ export default function ProjectPage() {
         return
       }
 
+      // If this is a novel and user is not the owner, redirect to read view
+      if (projectData.format === 'novel' && projectData.owner_id !== user.id) {
+        router.push(`/novels/${projectId}/read`)
+        return
+      }
+
       // Check if user has access
       if (projectData.owner_id !== user.id) {
         // TODO: Check collaborator access
