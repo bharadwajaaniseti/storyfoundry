@@ -1,6 +1,5 @@
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
 import { cache } from 'react'
 
 export type UserRole = 'reader' | 'writer'
@@ -44,6 +43,8 @@ export async function createSupabaseServer() {
     throw new Error('Missing Supabase configuration')
   }
 
+  // Dynamically import cookies only when needed (server-side)
+  const { cookies } = await import('next/headers')
   const cookieStore = await cookies()
 
   return createServerClient(supabaseUrl, supabaseKey, {

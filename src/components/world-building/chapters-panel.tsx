@@ -41,6 +41,10 @@ interface Chapter {
   notes: string
   created_at: string
   updated_at: string
+  parent_folder_id?: string
+  sort_order?: number
+  category: string
+  icon_color?: string
 }
 
 interface WorldElement {
@@ -58,15 +62,20 @@ interface WorldElement {
 
 interface ChaptersPanelProps { 
   projectId: string 
+  selectedChapter?: Chapter | null
+  onChapterSelect?: (chapter: Chapter | null) => void
   onNavigateToElement?: (elementId: string, category: string) => void
+  triggerNewChapter?: boolean
+  onChaptersChange?: () => void
 }
 
 type Snapshot = { html: string; start: number; end: number }
 
-export default function ChaptersPanel({ projectId, onNavigateToElement }: ChaptersPanelProps) {
+export default function ChaptersPanel({ projectId, selectedChapter: parentSelectedChapter, onChapterSelect, onNavigateToElement, triggerNewChapter, onChaptersChange }: ChaptersPanelProps) {
   const [chapters, setChapters] = useState<Chapter[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedChapter, setSelectedChapter] = useState<Chapter | null>(null)
+  // Use parent's selectedChapter instead of local state
+  const selectedChapter = parentSelectedChapter
   const [title, setTitle] = useState("")
   const [saving, setSaving] = useState(false)
   const [autoSaving, setAutoSaving] = useState(false)
@@ -91,6 +100,11 @@ export default function ChaptersPanel({ projectId, onNavigateToElement }: Chapte
   const [chapterNotes, setChapterNotes] = useState("")
   const [writingPrompts, setWritingPrompts] = useState<string[]>([])
   const [showPrompts, setShowPrompts] = useState(false)
+  
+  // New chapter creation modal
+  const [showNewChapterModal, setShowNewChapterModal] = useState(false)
+  const [newChapterName, setNewChapterName] = useState("")
+  const [newChapterTemplate, setNewChapterTemplate] = useState("")
   const [readingTime, setReadingTime] = useState(0)
   const [showReadabilityStats, setShowReadabilityStats] = useState(false)
   const [newElementDescription, setNewElementDescription] = useState("")
@@ -294,15 +308,120 @@ export default function ChaptersPanel({ projectId, onNavigateToElement }: Chapte
     }
   }, [onNavigateToElement])
 
+  // Auto-save when selectedChapter changes (for sidebar navigation)
   useEffect(() => {
     if (!selectedChapter) return
-    setTitle(selectedChapter.title)
-    if (editorRef.current) editorRef.current.innerHTML = selectedChapter.content || ""
-    const first = { html: getHTML(), start: 0, end: 0 }
-    setHistory([first]); setHIndex(0)
-    setCurrentChapterIndex(chapters.findIndex(c => c.id === selectedChapter.id))
-    setLastSavedHTML(selectedChapter.content || "")
-  }, [selectedChapter, chapters])
+
+    // Save the current chapter content BEFORE loading the new one
+    const saveCurrentBeforeSwitch = async () => {
+      const prevChapter = previousSelectedChapter.current
+      
+      if (prevChapter && prevChapter.id !== selectedChapter.id) {
+        // We're switching chapters, auto-save the previous one with current editor content
+        const html = getHTML()
+        
+        // Only save if content is not empty and different from last saved
+        if (html !== lastSavedHTML && html.trim() && html.trim() !== "Start writing...") {
+          try {
+            const supabase = createSupabaseClient()
+            const updateData = {
+              title: title.trim() || prevChapter.title, 
+              content: html, 
+              word_count: html.trim().split(/\s+/).filter(Boolean).length, 
+              updated_at: new Date().toISOString() 
+            }
+            
+            await supabase
+              .from('project_chapters')
+              .update(updateData)
+              .eq('id', prevChapter.id)
+          } catch (e) { 
+            console.error('Error saving previous chapter:', e) 
+          }
+        }
+      }
+    }
+
+    // Load chapter content from database to ensure we have the latest data
+    const loadChapterFromDatabase = async () => {
+      try {
+        const supabase = createSupabaseClient()
+        const { data, error } = await supabase
+          .from('project_chapters')
+          .select('*')
+          .eq('id', selectedChapter.id)
+          .single()
+        
+        if (error) throw error
+        
+        // Use the fresh data from database
+        setTitle(data.title)
+        if (editorRef.current) {
+          editorRef.current.innerHTML = data.content || ""
+        }
+        const first = { html: data.content || "", start: 0, end: 0 }
+        setHistory([first]); setHIndex(0)
+        setCurrentChapterIndex(chapters.findIndex(c => c.id === selectedChapter.id))
+        setLastSavedHTML(data.content || "")
+        
+        // Update the ref to current chapter
+        previousSelectedChapter.current = selectedChapter
+        
+      } catch (error) {
+        console.error('Error loading chapter from database:', error)
+        // Fallback to using the selectedChapter prop data
+        setTitle(selectedChapter.title)
+        if (editorRef.current) {
+          editorRef.current.innerHTML = selectedChapter.content || ""
+        }
+        const first = { html: selectedChapter.content || "", start: 0, end: 0 }
+        setHistory([first]); setHIndex(0)
+        setCurrentChapterIndex(chapters.findIndex(c => c.id === selectedChapter.id))
+        setLastSavedHTML(selectedChapter.content || "")
+        previousSelectedChapter.current = selectedChapter
+      }
+    }
+
+    // If this is the first chapter load (no previous chapter), just load it directly
+    if (!previousSelectedChapter.current) {
+      loadChapterFromDatabase()
+    } else {
+      // Otherwise, save previous then load new
+      saveCurrentBeforeSwitch().then(() => {
+        loadChapterFromDatabase()
+      })
+    }
+  }, [selectedChapter])
+
+  // Watch for chapter changes to auto-save previous chapter
+  const previousSelectedChapter = useRef<Chapter | null>(null)
+
+  // Trigger new chapter modal when no chapter is selected and chapters exist
+  useEffect(() => {
+    if (!selectedChapter && chapters.length === 0) {
+      // Auto-open the new chapter modal when there are no chapters
+      const timer = setTimeout(() => {
+        handleOpenNewChapterModal()
+      }, 100)
+      return () => clearTimeout(timer)
+    }
+  }, [selectedChapter, chapters.length])
+
+  // Also handle the case where user clicks + from sidebar when chapters exist but none selected
+  useEffect(() => {
+    // If we have chapters but none is selected, this might be triggered by + button
+    // We could add a prop to explicitly trigger this, but for now let's keep it simple
+    if (!selectedChapter && chapters.length > 0) {
+      // Don't auto-open modal, user should click the + New button in the header or select a chapter
+    }
+  }, [])
+
+  // Handle triggerNewChapter prop from parent
+  useEffect(() => {
+    if (triggerNewChapter) {
+      handleOpenNewChapterModal()
+    }
+  }, [triggerNewChapter])
 
   const loadChapters = async () => {
     try {
@@ -312,8 +431,11 @@ export default function ChaptersPanel({ projectId, onNavigateToElement }: Chapte
         .eq('project_id', projectId)
         .order('chapter_number', { ascending: true })
       if (error) throw error
+      
       setChapters(data || [])
-      if ((data || []).length && !selectedChapter) setSelectedChapter((data as Chapter[])[0])
+      if ((data || []).length && !selectedChapter) {
+        onChapterSelect?.((data as Chapter[])[0])
+      }
     } catch (e) { console.error(e) } finally { setLoading(false) }
   }
 
@@ -1154,9 +1276,9 @@ export default function ChaptersPanel({ projectId, onNavigateToElement }: Chapte
       scheduleHistoryPush()
       return
     } catch (error) {
-      console.log('Standard approach failed, trying alternative')
+      // Standard approach failed, trying alternative
     }
-    
+
     // Alternative approach: manually create list
     const range = selection.rangeCount > 0 ? selection.getRangeAt(0) : null
     if (!range) return
@@ -1198,9 +1320,9 @@ export default function ChaptersPanel({ projectId, onNavigateToElement }: Chapte
       scheduleHistoryPush()
       return
     } catch (error) {
-      console.log('Standard approach failed, trying alternative')
+      // Standard approach failed, trying alternative
     }
-    
+
     // Alternative approach: manually create list
     const range = selection.rangeCount > 0 ? selection.getRangeAt(0) : null
     if (!range) return
@@ -1480,6 +1602,65 @@ export default function ChaptersPanel({ projectId, onNavigateToElement }: Chapte
     }
   }
 
+  // New Chapter Creation Functions
+  const handleOpenNewChapterModal = () => {
+    setShowNewChapterModal(true)
+    const nextChapterNumber = chapters.length > 0 ? Math.max(...chapters.map(c => c.chapter_number)) + 1 : 1
+    setNewChapterName(`Chapter ${nextChapterNumber}`)
+    setNewChapterTemplate("")
+  }
+
+  const handleCloseNewChapterModal = () => {
+    setShowNewChapterModal(false)
+    setNewChapterName("")
+    setNewChapterTemplate("")
+  }
+
+  const handleCreateNewChapter = async () => {
+    if (!newChapterName.trim()) {
+      alert('Please enter a chapter name.')
+      return
+    }
+
+    try {
+      const supabase = createSupabaseClient()
+      const nextChapterNumber = chapters.length > 0 ? Math.max(...chapters.map(c => c.chapter_number)) + 1 : 1
+      const nextSortOrder = chapters.length > 0 ? Math.max(...chapters.map(c => c.sort_order || 0)) + 10 : 10
+      
+      const newChapter = {
+        project_id: projectId,
+        chapter_number: nextChapterNumber,
+        title: newChapterName.trim(),
+        content: newChapterTemplate || '',
+        status: 'draft' as const,
+        notes: '',
+        target_word_count: 2000,
+        word_count: 0,
+        sort_order: nextSortOrder,
+        parent_folder_id: null,
+        category: 'chapters'
+      }
+
+      const { data, error } = await supabase
+        .from('project_chapters')
+        .insert(newChapter)
+        .select()
+        .single()
+
+      if (error) throw error
+      
+      setChapters(prev => [...prev, data])
+      onChapterSelect?.(data)
+      handleCloseNewChapterModal()
+      
+      // Notify parent component that chapters have changed
+      onChaptersChange?.()
+    } catch (error) {
+      console.error('Error creating chapter:', error)
+      alert('Failed to create chapter. Please try again.')
+    }
+  }
+
   const getFilteredElements = () => {
     if (!linkSearchTerm.trim()) return availableElements
     
@@ -1547,6 +1728,12 @@ export default function ChaptersPanel({ projectId, onNavigateToElement }: Chapte
     if (!selectedChapter) return
     const html = getHTML()
     if (html === lastSavedHTML) return
+    
+    // Prevent saving empty content or placeholder text
+    if (!html.trim() || html.trim() === "Start writing...") {
+      return
+    }
+    
     setAutoSaving(true)
     try {
       const supabase = createSupabaseClient()
@@ -1589,6 +1776,23 @@ export default function ChaptersPanel({ projectId, onNavigateToElement }: Chapte
     else if (k === 'y' || (k === 'z' && e.shiftKey)) { e.preventDefault(); doRedo() }
   }
 
+  const navigateToChapter = async (chapter: Chapter) => {
+    // The useEffect will handle auto-saving when selectedChapter changes
+    onChapterSelect?.(chapter)
+  }
+
+  const navigateToPrevious = async () => {
+    if (currentChapterIndex > 0) {
+      await navigateToChapter(chapters[currentChapterIndex - 1])
+    }
+  }
+
+  const navigateToNext = async () => {
+    if (currentChapterIndex < chapters.length - 1) {
+      await navigateToChapter(chapters[currentChapterIndex + 1])
+    }
+  }
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'completed': return 'bg-green-100 text-green-800 border-green-200'
@@ -1611,10 +1815,20 @@ export default function ChaptersPanel({ projectId, onNavigateToElement }: Chapte
             <div className={`border-b border-gray-200 bg-white ${focusMode ? 'hidden' : ''}`}>
               <div className="flex items-center justify-between p-3">
                 <div className="flex items-center gap-2">
-                  <Button onClick={() => setSelectedChapter(chapters[currentChapterIndex - 1])} variant="ghost" size="sm" disabled={currentChapterIndex === 0} className="h-8 w-8 p-0"><ChevronLeft className="h-4 w-4" /></Button>
-                  <Button onClick={() => setSelectedChapter(chapters[currentChapterIndex + 1])} variant="ghost" size="sm" disabled={currentChapterIndex === chapters.length - 1} className="h-8 w-8 p-0"><ChevronRight className="h-4 w-4" /></Button>
+                  <Button onClick={navigateToPrevious} variant="ghost" size="sm" disabled={currentChapterIndex === 0} className="h-8 w-8 p-0"><ChevronLeft className="h-4 w-4" /></Button>
+                  <Button onClick={navigateToNext} variant="ghost" size="sm" disabled={currentChapterIndex === chapters.length - 1} className="h-8 w-8 p-0"><ChevronRight className="h-4 w-4" /></Button>
                   <Separator orientation="vertical" className="h-6" />
                   <span className="text-sm text-gray-600">Chapter {currentChapterIndex + 1} of {chapters.length}</span>
+                  <Button 
+                    onClick={handleOpenNewChapterModal} 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-8 ml-2 px-2 text-green-600 hover:text-green-700 hover:bg-green-50"
+                    title="Create new chapter"
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    New
+                  </Button>
                 </div>
                 <div className="flex items-center gap-2">
                   {autoSaving && (
@@ -2739,35 +2953,115 @@ export default function ChaptersPanel({ projectId, onNavigateToElement }: Chapte
         ) : (
           <div className="flex-1 flex items-center justify-center bg-gray-50">
             <div className="text-center">
-              <div className="text-gray-500 mb-4">No chapter selected</div>
-              <Button onClick={() => {
-                const nextChapterNumber = Math.max(0, ...chapters.map(c => c.chapter_number)) + 1
-                const newTitle = `Chapter ${nextChapterNumber}`
-                createSupabaseClient().from('project_chapters').insert({
-                  project_id: projectId,
-                  chapter_number: nextChapterNumber,
-                  title: newTitle,
-                  content: '',
-                  word_count: 0,
-                  target_word_count: 2500,
-                  status: 'draft',
-                  notes: ''
-                }).select().single().then(({ data }) => {
-                  if (data) {
-                    const newCh = data as Chapter
-                    setChapters(prev => [...prev, newCh])
-                    setSelectedChapter(newCh)
-                    setTitle(newTitle)
-                    if (editorRef.current) editorRef.current.innerHTML = ''
-                  }
-                })
-              }}>
-                <Plus className="h-4 w-4 mr-2" />Create your first chapter
-              </Button>
+              {chapters.length === 0 ? (
+                <>
+                  <div className="text-gray-500 mb-4">No chapters found</div>
+                  <Button onClick={handleOpenNewChapterModal}>
+                    <Plus className="h-4 w-4 mr-2" />Create your first chapter
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <div className="text-gray-500 mb-4">Select a chapter from the sidebar to start editing</div>
+                  <Button onClick={() => onChapterSelect?.(chapters[0])}>
+                    <BookOpen className="h-4 w-4 mr-2" />Open First Chapter
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         )}
       </div>
+
+      {/* New Chapter Modal */}
+      {showNewChapterModal && (
+        <Dialog open={showNewChapterModal} onOpenChange={setShowNewChapterModal}>
+          <DialogContent className="max-w-md bg-gradient-to-br from-white to-gray-50 border-0 shadow-2xl">
+            <DialogHeader className="border-b border-gray-100 pb-6 bg-gradient-to-r from-green-50 to-blue-50 -m-6 mb-6 p-6 rounded-t-lg">
+              <DialogTitle className="text-xl font-bold text-gray-900 flex items-center gap-3">
+                <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-blue-600 rounded-lg flex items-center justify-center">
+                  <Plus className="w-4 h-4 text-white" />
+                </div>
+                Create New Chapter
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-6">
+              {/* Chapter Name Input */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">Chapter Name</label>
+                <Input
+                  type="text"
+                  value={newChapterName}
+                  onChange={(e) => setNewChapterName(e.target.value)}
+                  placeholder="Enter chapter name..."
+                  className="bg-white border-gray-200 focus:border-green-500 focus:ring-green-500"
+                  autoFocus
+                />
+              </div>
+
+              {/* Template Selection */}
+              <div className="space-y-3">
+                <label className="text-sm font-medium text-gray-700">Choose Template (Optional)</label>
+                <div className="space-y-2">
+                  <button
+                    onClick={() => setNewChapterTemplate("")}
+                    className={`w-full p-3 text-left rounded-lg border transition-all ${
+                      newChapterTemplate === "" 
+                        ? "border-green-500 bg-green-50 text-green-800" 
+                        : "border-gray-200 hover:border-gray-300 text-gray-700"
+                    }`}
+                  >
+                    <div className="font-medium">Blank Chapter</div>
+                    <div className="text-sm text-gray-500">Start with an empty chapter</div>
+                  </button>
+                  
+                  <button
+                    onClick={() => setNewChapterTemplate("# Chapter Title\n\nStart writing your story here...\n\n---\n\n[Scene description or notes]")}
+                    className={`w-full p-3 text-left rounded-lg border transition-all ${
+                      newChapterTemplate.includes("Start writing your story here") 
+                        ? "border-green-500 bg-green-50 text-green-800" 
+                        : "border-gray-200 hover:border-gray-300 text-gray-700"
+                    }`}
+                  >
+                    <div className="font-medium">Basic Template</div>
+                    <div className="text-sm text-gray-500">Chapter with basic structure</div>
+                  </button>
+                  
+                  <button
+                    onClick={() => setNewChapterTemplate("# Chapter Title\n\n## Setting\n[Describe the location and atmosphere]\n\n## Characters Present\n[List main characters in this chapter]\n\n## Goals\n[What needs to be accomplished in this chapter]\n\n---\n\n[Begin your chapter content here...]")}
+                    className={`w-full p-3 text-left rounded-lg border transition-all ${
+                      newChapterTemplate.includes("Setting") && newChapterTemplate.includes("Characters Present")
+                        ? "border-green-500 bg-green-50 text-green-800" 
+                        : "border-gray-200 hover:border-gray-300 text-gray-700"
+                    }`}
+                  >
+                    <div className="font-medium">Detailed Template</div>
+                    <div className="text-sm text-gray-500">Chapter with planning sections</div>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6 pt-6 border-t border-gray-100">
+              <Button
+                variant="outline"
+                onClick={handleCloseNewChapterModal}
+                className="flex-1 bg-white hover:bg-gray-50 border-gray-200"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCreateNewChapter}
+                disabled={!newChapterName.trim()}
+                className="flex-1 bg-gradient-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-200 border-0"
+              >
+                Create Chapter
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Link Element Modal */}
       {showLinkModal && (
@@ -2964,7 +3258,9 @@ export default function ChaptersPanel({ projectId, onNavigateToElement }: Chapte
                         .update({ target_word_count: target })
                         .eq('id', selectedChapter.id)
                         .then(() => {
-                          setSelectedChapter(prev => prev ? { ...prev, target_word_count: target } : null)
+                          if (selectedChapter) {
+                            onChapterSelect?.({ ...selectedChapter, target_word_count: target })
+                          }
                         })
                     }
                   }}

@@ -1,4 +1,4 @@
-import { createSupabaseServer, createSupabaseAdmin } from './auth'
+import { createSupabaseServer, createSupabaseAdmin } from './auth-server'
 import { env } from './env'
 
 export type StorageFolder = 'covers' | 'samples' | 'full-pdfs' | 'supporting'

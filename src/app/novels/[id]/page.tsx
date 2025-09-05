@@ -22,6 +22,8 @@ import MapsPanel from '@/components/world-building/maps-panel'
 import TimelinePanel from '@/components/world-building/timeline-panel'
 import CalendarPanel from '@/components/world-building/calendar-panel'
 import EncyclopediaPanel from '@/components/world-building/encyclopedia-panel'
+import InputModal from '@/components/ui/input-modal'
+import DeleteModal from '@/components/ui/delete-modal'
 
 // Type definitions
 interface Project {
@@ -136,6 +138,7 @@ export default function NovelPage() {
   const [isCreating, setIsCreating] = useState(false)
   const [showCharacterEditor, setShowCharacterEditor] = useState(false)
   const [editingCharacter, setEditingCharacter] = useState<WorldElement | null>(null)
+  const [triggerNewChapter, setTriggerNewChapter] = useState(false)
   
   // Context menu state
   const [contextMenu, setContextMenu] = useState<{
@@ -172,6 +175,36 @@ export default function NovelPage() {
   } | null>(null)
   const [selectedColor, setSelectedColor] = useState('#3B82F6')
   const [colorInputs, setColorInputs] = useState({ hex: '4E2AE4', r: 78, g: 42, b: 228 })
+
+  // Input modal state
+  const [inputModal, setInputModal] = useState<{
+    isOpen: boolean
+    type: 'folder' | 'rename'
+    title: string
+    description?: string
+    placeholder?: string
+    defaultValue?: string
+    onConfirm: (value: string) => void
+  }>({
+    isOpen: false,
+    type: 'folder',
+    title: '',
+    onConfirm: () => {}
+  })
+
+  // Delete modal state
+  const [deleteModal, setDeleteModal] = useState<{
+    isOpen: boolean
+    type: 'folder' | 'element' | 'chapter'
+    title: string
+    itemName?: string
+    onConfirm: () => void
+  }>({
+    isOpen: false,
+    type: 'element',
+    title: '',
+    onConfirm: () => {}
+  })
 
   // Load project data
   useEffect(() => {
@@ -1381,10 +1414,17 @@ export default function NovelPage() {
       setActivePanel(contextMenu.categoryId)
       // The component will handle the creation UI internally
     } else if (action === 'newFolder') {
-      const name = prompt('Enter folder name:')
-      if (name) {
-        createFolder(contextMenu.categoryId, name)
-      }
+      setInputModal({
+        isOpen: true,
+        type: 'folder',
+        title: 'Create New Folder',
+        description: 'Enter a name for the new folder to organize your elements.',
+        placeholder: 'Enter folder name...',
+        defaultValue: '',
+        onConfirm: (name) => {
+          createFolder(contextMenu.categoryId, name)
+        }
+      })
     }
 
     closeContextMenus()
@@ -1417,6 +1457,12 @@ export default function NovelPage() {
   const handleCharactersChange = useCallback(() => {
     if (project) {
       loadWorldElements(project.id)
+    }
+  }, [project])
+
+  const handleChaptersChange = useCallback(() => {
+    if (project) {
+      loadChapters(project.id)
     }
   }, [project])
 
@@ -1521,7 +1567,11 @@ export default function NovelPage() {
         return (
           <ChaptersPanel 
             projectId={project.id}
+            selectedChapter={selectedChapter}
+            onChapterSelect={(chapter) => setSelectedChapter(chapter)}
             onNavigateToElement={navigateToWorldElement}
+            triggerNewChapter={triggerNewChapter}
+            onChaptersChange={handleChaptersChange}
           />
         )
 
@@ -1570,7 +1620,7 @@ export default function NovelPage() {
           </div>
         )
     }
-  }, [activePanel, project, getElementsForCategory, chapters, worldElements.length, navigateToWorldElement, selectedElement, clearSelectedElement, handleCharactersChange])
+  }, [activePanel, project, getElementsForCategory, chapters, worldElements.length, navigateToWorldElement, selectedElement, clearSelectedElement, handleCharactersChange, handleChaptersChange, triggerNewChapter])
 
   if (loading) {
     return (
@@ -1675,6 +1725,14 @@ export default function NovelPage() {
                             }
                             // Set the active panel to show the new component interface
                             setActivePanel(option.id)
+                            
+                            // For chapters, trigger creation modal
+                            if (option.id === 'chapters') {
+                              setTriggerNewChapter(true)
+                              // Reset trigger after a brief moment
+                              setTimeout(() => setTriggerNewChapter(false), 100)
+                            }
+                            
                             // The component will handle the creation UI internally
                           }}
                           className="p-1 text-gray-600 hover:text-green-600 rounded transition-colors"
@@ -1830,8 +1888,11 @@ export default function NovelPage() {
                     // Set active panel to characters to show the new component interface
                     setActivePanel('characters')
                   } else if (elementContextMenu.category === 'chapters') {
-                    // Set active panel to chapters to show the new component interface  
+                    // Set active panel to chapters and trigger new chapter modal  
                     setActivePanel('chapters')
+                    setTriggerNewChapter(true)
+                    // Reset trigger after a brief moment
+                    setTimeout(() => setTriggerNewChapter(false), 100)
                   } else {
                     // Set active panel to the respective category to show the new component interface
                     setActivePanel(elementContextMenu.category)
@@ -1850,10 +1911,17 @@ export default function NovelPage() {
               
               <button
                 onClick={() => {
-                  const name = prompt('Enter folder name:')
-                  if (name) {
-                    createFolder(elementContextMenu.category, name)
-                  }
+                  setInputModal({
+                    isOpen: true,
+                    type: 'folder',
+                    title: 'Create New Folder',
+                    description: 'Enter a name for the new folder to organize your elements.',
+                    placeholder: 'Enter folder name...',
+                    defaultValue: '',
+                    onConfirm: (name) => {
+                      createFolder(elementContextMenu.category, name)
+                    }
+                  })
                   closeContextMenus()
                 }}
                 className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
@@ -1867,10 +1935,19 @@ export default function NovelPage() {
               <button
                 onClick={() => {
                   const element = elementContextMenu.item as WorldElement
-                  const newName = prompt('Rename folder:', element.name)
-                  if (newName && newName !== element.name) {
-                    updateWorldElement(element.id, { name: newName })
-                  }
+                  setInputModal({
+                    isOpen: true,
+                    type: 'rename',
+                    title: 'Rename Folder',
+                    description: 'Enter a new name for this folder.',
+                    placeholder: 'Enter folder name...',
+                    defaultValue: element.name,
+                    onConfirm: (newName) => {
+                      if (newName !== element.name) {
+                        updateWorldElement(element.id, { name: newName })
+                      }
+                    }
+                  })
                   closeContextMenus()
                 }}
                 className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
@@ -1906,9 +1983,15 @@ export default function NovelPage() {
               <button
                 onClick={() => {
                   const element = elementContextMenu.item as WorldElement
-                  if (confirm(`Delete folder "${element.name}" and all its contents?`)) {
-                    deleteWorldElement(element.id)
-                  }
+                  setDeleteModal({
+                    isOpen: true,
+                    type: 'folder',
+                    title: 'Delete Folder',
+                    itemName: element.name,
+                    onConfirm: () => {
+                      deleteWorldElement(element.id)
+                    }
+                  })
                   closeContextMenus()
                 }}
                 className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
@@ -1922,8 +2005,11 @@ export default function NovelPage() {
             <>
               <button
                 onClick={() => {
-                  // Set active panel to chapters to show the new component interface
+                  // Set active panel to chapters and trigger new chapter modal
                   setActivePanel('chapters')
+                  setTriggerNewChapter(true)
+                  // Reset trigger after a brief moment
+                  setTimeout(() => setTriggerNewChapter(false), 100)
                   closeContextMenus()
                 }}
                 className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
@@ -1934,10 +2020,17 @@ export default function NovelPage() {
               
               <button
                 onClick={() => {
-                  const name = prompt('Enter folder name:')
-                  if (name) {
-                    createFolder(elementContextMenu.category, name)
-                  }
+                  setInputModal({
+                    isOpen: true,
+                    type: 'folder',
+                    title: 'Create New Folder',
+                    description: 'Enter a name for the new folder to organize your elements.',
+                    placeholder: 'Enter folder name...',
+                    defaultValue: '',
+                    onConfirm: (name) => {
+                      createFolder(elementContextMenu.category, name)
+                    }
+                  })
                   closeContextMenus()
                 }}
                 className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
@@ -1951,10 +2044,19 @@ export default function NovelPage() {
               <button
                 onClick={() => {
                   const chapter = elementContextMenu.item as Chapter
-                  const newTitle = prompt('Rename chapter:', chapter.title)
-                  if (newTitle && newTitle !== chapter.title) {
-                    updateChapter(chapter.id, { title: newTitle })
-                  }
+                  setInputModal({
+                    isOpen: true,
+                    type: 'rename',
+                    title: 'Rename Element',
+                    description: 'Enter a new name for this element.',
+                    placeholder: 'Enter new name...',
+                    defaultValue: chapter.title,
+                    onConfirm: (newTitle) => {
+                      if (newTitle !== chapter.title) {
+                        updateChapter(chapter.id, { title: newTitle })
+                      }
+                    }
+                  })
                   closeContextMenus()
                 }}
                 className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
@@ -2014,9 +2116,15 @@ export default function NovelPage() {
               <button
                 onClick={() => {
                   const chapter = elementContextMenu.item as Chapter
-                  if (confirm(`Delete chapter "${chapter.title}"?`)) {
-                    deleteChapter(chapter.id)
-                  }
+                  setDeleteModal({
+                    isOpen: true,
+                    type: 'chapter',
+                    title: 'Delete Chapter',
+                    itemName: chapter.title,
+                    onConfirm: () => {
+                      deleteChapter(chapter.id)
+                    }
+                  })
                   closeContextMenus()
                 }}
                 className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
@@ -2042,10 +2150,17 @@ export default function NovelPage() {
               
               <button
                 onClick={() => {
-                  const name = prompt('Enter folder name:')
-                  if (name) {
-                    createFolder(elementContextMenu.category, name)
-                  }
+                  setInputModal({
+                    isOpen: true,
+                    type: 'folder',
+                    title: 'Create New Folder',
+                    description: 'Enter a name for the new folder to organize your elements.',
+                    placeholder: 'Enter folder name...',
+                    defaultValue: '',
+                    onConfirm: (name) => {
+                      createFolder(elementContextMenu.category, name)
+                    }
+                  })
                   closeContextMenus()
                 }}
                 className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
@@ -2059,10 +2174,19 @@ export default function NovelPage() {
               <button
                 onClick={() => {
                   const element = elementContextMenu.item as WorldElement
-                  const newName = prompt('Rename element:', element.name)
-                  if (newName && newName !== element.name) {
-                    updateWorldElement(element.id, { name: newName })
-                  }
+                  setInputModal({
+                    isOpen: true,
+                    type: 'rename',
+                    title: 'Rename Element',
+                    description: 'Enter a new name for this element.',
+                    placeholder: 'Enter new name...',
+                    defaultValue: element.name,
+                    onConfirm: (newName) => {
+                      if (newName !== element.name) {
+                        updateWorldElement(element.id, { name: newName })
+                      }
+                    }
+                  })
                   closeContextMenus()
                 }}
                 className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
@@ -2122,9 +2246,15 @@ export default function NovelPage() {
               <button
                 onClick={() => {
                   const element = elementContextMenu.item as WorldElement
-                  if (confirm(`Delete ${element.name}?`)) {
-                    deleteWorldElement(element.id)
-                  }
+                  setDeleteModal({
+                    isOpen: true,
+                    type: 'element',
+                    title: 'Delete Element',
+                    itemName: element.name,
+                    onConfirm: () => {
+                      deleteWorldElement(element.id)
+                    }
+                  })
                   closeContextMenus()
                 }}
                 className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
@@ -2301,6 +2431,30 @@ export default function NovelPage() {
           </div>
         </div>
       )}
+
+      {/* Input Modal */}
+      <InputModal
+        isOpen={inputModal.isOpen}
+        onClose={() => setInputModal(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={inputModal.onConfirm}
+        title={inputModal.title}
+        description={inputModal.description}
+        placeholder={inputModal.placeholder}
+        defaultValue={inputModal.defaultValue}
+        type={inputModal.type}
+        confirmText={inputModal.type === 'folder' ? 'Create Folder' : 'Rename'}
+      />
+
+      {/* Delete Modal */}
+      <DeleteModal
+        isOpen={deleteModal.isOpen}
+        onClose={() => setDeleteModal(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={deleteModal.onConfirm}
+        title={deleteModal.title}
+        itemName={deleteModal.itemName}
+        type={deleteModal.type}
+        confirmText={deleteModal.type === 'folder' ? 'Delete Folder' : deleteModal.type === 'chapter' ? 'Delete Chapter' : 'Delete Element'}
+      />
     </div>
   )
 }
