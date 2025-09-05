@@ -457,7 +457,14 @@ export default function DashboardPage() {
                     {projects.map((project) => (
                       <div
                         key={project.id}
-                        onClick={() => router.push(`/app/projects/${project.id}`)}
+                        onClick={() => {
+                          // Route novels to the new novel page, others to the regular project page
+                          if (project.format.toLowerCase() === 'novel') {
+                            router.push(`/novels/${project.id}`)
+                          } else {
+                            router.push(`/app/projects/${project.id}`)
+                          }
+                        }}
                         className="group bg-white border border-gray-200 rounded-xl transition-all duration-300 hover:border-orange-300 hover:shadow-xl cursor-pointer transform hover:-translate-y-2 hover:scale-[1.02] p-6"
                       >
                         <div className="h-full flex flex-col">
@@ -478,7 +485,12 @@ export default function DashboardPage() {
                             <button 
                               onClick={(e) => {
                                 e.stopPropagation()
-                                router.push(`/app/projects/${project.id}/settings`)
+                                // Route novels to the new novel page settings, others to regular project settings
+                                if (project.format.toLowerCase() === 'novel') {
+                                  router.push(`/novels/${project.id}?tab=settings`)
+                                } else {
+                                  router.push(`/app/projects/${project.id}/settings`)
+                                }
                               }}
                               className="text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded-lg p-2 transition-all duration-200 transform hover:scale-110 hover:rotate-12"
                               title="Project Settings"
@@ -574,7 +586,13 @@ export default function DashboardPage() {
                       className="flex items-start space-x-3 p-3 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
                       onClick={() => {
                         if (activity.project_id) {
-                          router.push(`/app/projects/${activity.project_id}`)
+                          // Find the project to check its format
+                          const project = projects.find(p => p.id === activity.project_id)
+                          if (project && project.format.toLowerCase() === 'novel') {
+                            router.push(`/novels/${activity.project_id}`)
+                          } else {
+                            router.push(`/app/projects/${activity.project_id}`)
+                          }
                         }
                       }}
                     >
