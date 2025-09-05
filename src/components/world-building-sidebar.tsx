@@ -298,7 +298,7 @@ export default function WorldBuildingSidebar({ projectId, isOpen, onToggle, onSh
   // Show NewCharacter component when creating a character
   if (showNewCharacter) {
     return (
-      <div className="fixed left-0 top-0 h-full w-80 bg-white border-r border-gray-200 shadow-lg z-50">
+      <div className="fixed left-0 top-0 h-screen w-80 bg-white border-r border-gray-200 shadow-lg z-50">
         <NewCharacter
           projectId={projectId}
           onSave={handleNewCharacterSave}
@@ -309,7 +309,7 @@ export default function WorldBuildingSidebar({ projectId, isOpen, onToggle, onSh
   }
 
   return (
-    <div className="fixed left-0 top-0 h-full w-80 bg-white border-r border-gray-200 shadow-lg z-50 flex flex-col">
+    <div className="fixed left-0 top-0 h-screen w-80 bg-white border-r border-gray-200 shadow-lg z-50 flex flex-col">
       {/* Header */}
       <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-indigo-50">
         <div className="flex items-center justify-between mb-3">
@@ -444,7 +444,7 @@ export default function WorldBuildingSidebar({ projectId, isOpen, onToggle, onSh
 
       {/* Element Details Panel */}
       {selectedElement && activeTab === 'elements' && (
-        <div className="absolute right-0 top-0 w-96 h-full bg-white border-l border-gray-200 shadow-lg">
+        <div className="absolute right-0 top-0 w-96 h-screen bg-white border-l border-gray-200 shadow-lg">
           <ElementDetailsPanel
             element={selectedElement}
             onUpdate={updateElement}

@@ -2,21 +2,16 @@
 
 import React, { useState, useEffect } from 'react'
 import { 
-  Plus, 
-  Search, 
-  FileText, 
-  Edit3, 
-  Trash2,
-  Book,
-  BookOpen,
-  FileEdit,
-  Eye
+  Plus, Search, Edit3, Trash2, ChevronLeft, ChevronRight, Save,
+  Bold, Italic, Underline, Type, AlignLeft, AlignCenter, AlignRight, AlignJustify,
+  List, ListOrdered, Quote, Link, Image, Eye, Settings
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Separator } from '@/components/ui/separator'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { createSupabaseClient } from '@/lib/auth'
 
 interface Chapter {
@@ -42,24 +37,78 @@ export default function ChaptersPanel({ projectId }: ChaptersPanelProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const [loading, setLoading] = useState(true)
   const [selectedChapter, setSelectedChapter] = useState<Chapter | null>(null)
+  const [isEditing, setIsEditing] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
-  const [editingChapter, setEditingChapter] = useState<Chapter | null>(null)
-  const [formData, setFormData] = useState({
-    title: '',
-    content: '',
-    notes: '',
-    target_word_count: 2500
-  })
+  const [content, setContent] = useState('')
+  const [title, setTitle] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [autoSaving, setAutoSaving] = useState(false)
+  const [fontSize, setFontSize] = useState('16')
+  const [currentChapterIndex, setCurrentChapterIndex] = useState(0)
+  const [textareaRef, setTextareaRef] = useState<HTMLTextAreaElement | null>(null)
+  const [lastSavedContent, setLastSavedContent] = useState('')
+
+  useEffect(() => { loadChapters() }, [projectId])
+
+  // Auto-save functionality - save changes after user stops typing for 2 seconds
+  useEffect(() => {
+    if (!selectedChapter || !isEditing || !content || content === lastSavedContent) return
+    
+    const autoSaveTimer = setTimeout(() => {
+      autoSaveChapter()
+    }, 2000)
+
+    return () => clearTimeout(autoSaveTimer)
+  }, [content, selectedChapter, isEditing, lastSavedContent])
 
   useEffect(() => {
-    loadChapters()
-  }, [projectId])
+    if (selectedChapter) {
+      setContent(selectedChapter.content)
+      setTitle(selectedChapter.title)
+      setLastSavedContent(selectedChapter.content)
+      const index = chapters.findIndex(c => c.id === selectedChapter.id)
+      setCurrentChapterIndex(index)
+    }
+  }, [selectedChapter, chapters])
+
+  const autoSaveChapter = async () => {
+    if (!selectedChapter || !title.trim() || content === lastSavedContent) return
+    
+    setAutoSaving(true)
+    try {
+      const supabase = createSupabaseClient()
+      const wordCount = content.trim().split(/\s+/).filter(word => word.length > 0).length
+      const { error } = await supabase
+        .from('project_chapters')
+        .update({
+          title: title.trim(),
+          content,
+          word_count: wordCount,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', selectedChapter.id)
+
+      if (error) { console.error('Error auto-saving chapter:', error); return }
+
+      setChapters(prev => prev.map(chapter =>
+        chapter.id === selectedChapter.id
+          ? { ...chapter, title: title.trim(), content, word_count: wordCount }
+          : chapter
+      ))
+      setSelectedChapter(prev => prev ? { ...prev, title: title.trim(), content, word_count: wordCount } : null)
+      setLastSavedContent(content)
+    } catch (error) {
+      console.error('Error auto-saving:', error)
+    } finally {
+      setAutoSaving(false)
+    }
+  }
 
   const loadChapters = async () => {
     try {
       const supabase = createSupabaseClient()
       const { data, error } = await supabase
-        .from('chapters')
+        .from('project_chapters')
         .select('*')
         .eq('project_id', projectId)
         .order('chapter_number', { ascending: true })
@@ -70,6 +119,7 @@ export default function ChaptersPanel({ projectId }: ChaptersPanelProps) {
       }
 
       setChapters(data || [])
+      if (data && data.length > 0 && !selectedChapter) setSelectedChapter(data[0])
     } catch (error) {
       console.error('Error:', error)
     } finally {
@@ -77,524 +127,484 @@ export default function ChaptersPanel({ projectId }: ChaptersPanelProps) {
     }
   }
 
-  const createChapter = () => {
+  const createNewChapter = async () => {
     const nextChapterNumber = Math.max(0, ...chapters.map(c => c.chapter_number)) + 1
-    setFormData({ 
-      title: `Chapter ${nextChapterNumber}`, 
-      content: '', 
-      notes: '',
-      target_word_count: 2500
-    })
-    setEditingChapter(null)
-    setIsCreating(true)
-  }
+    const newTitle = `Chapter ${nextChapterNumber}`
+    try {
+      const supabase = createSupabaseClient()
+      const { data, error } = await supabase
+        .from('project_chapters')
+        .insert({
+          project_id: projectId,
+          chapter_number: nextChapterNumber,
+          title: newTitle,
+          content: '',
+          word_count: 0,
+          target_word_count: 2500,
+          status: 'draft',
+          notes: ''
+        })
+        .select()
+        .single()
 
-  const editChapter = (chapter: Chapter) => {
-    setFormData({
-      title: chapter.title,
-      content: chapter.content,
-      notes: chapter.notes,
-      target_word_count: chapter.target_word_count
-    })
-    setEditingChapter(chapter)
-    setIsCreating(true)
+      if (error) { console.error('Error creating chapter:', error); return }
+
+      const newChapter = data as Chapter
+      setChapters(prev => [...prev, newChapter])
+      setSelectedChapter(newChapter)
+      setTitle(newTitle)
+      setContent('')
+      setIsCreating(false)
+      setIsEditing(true)
+    } catch (error) { console.error('Error:', error) }
   }
 
   const saveChapter = async () => {
-    if (!formData.title.trim()) return
-
+    if (!selectedChapter || !title.trim()) return
+    setSaving(true)
     try {
       const supabase = createSupabaseClient()
-      const wordCount = formData.content.trim().split(/\s+/).filter(word => word.length > 0).length
-      
-      const chapterData = {
-        project_id: projectId,
-        title: formData.title.trim(),
-        content: formData.content.trim(),
-        notes: formData.notes.trim(),
-        word_count: wordCount,
-        target_word_count: formData.target_word_count,
-        status: 'draft' as const
-      }
+      const wordCount = content.trim().split(/\s+/).filter(word => word.length > 0).length
+      const { error } = await supabase
+        .from('project_chapters')
+        .update({
+          title: title.trim(),
+          content,
+          word_count: wordCount,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', selectedChapter.id)
 
-      if (editingChapter) {
-        // Update existing chapter
-        const { error } = await supabase
-          .from('chapters')
-          .update(chapterData)
-          .eq('id', editingChapter.id)
+      if (error) { console.error('Error saving chapter:', error); return }
 
-        if (error) {
-          console.error('Error updating chapter:', error)
-          return
-        }
-      } else {
-        // Create new chapter
-        const nextChapterNumber = Math.max(0, ...chapters.map(c => c.chapter_number)) + 1
-        const { error } = await supabase
-          .from('chapters')
-          .insert([{
-            ...chapterData,
-            chapter_number: nextChapterNumber
-          }])
-
-        if (error) {
-          console.error('Error creating chapter:', error)
-          return
-        }
-      }
-
-      setIsCreating(false)
-      setEditingChapter(null)
-      loadChapters()
+      setChapters(prev => prev.map(chapter =>
+        chapter.id === selectedChapter.id
+          ? { ...chapter, title: title.trim(), content, word_count: wordCount }
+          : chapter
+      ))
+      setSelectedChapter(prev => prev ? { ...prev, title: title.trim(), content, word_count: wordCount } : null)
+      setIsEditing(false)
     } catch (error) {
       console.error('Error:', error)
-    }
+    } finally { setSaving(false) }
   }
 
   const deleteChapter = async (chapterId: string) => {
     if (!confirm('Are you sure you want to delete this chapter?')) return
-
     try {
       const supabase = createSupabaseClient()
-      const { error } = await supabase
-        .from('chapters')
-        .delete()
-        .eq('id', chapterId)
-
-      if (error) {
-        console.error('Error deleting chapter:', error)
-        return
-      }
-
-      setChapters(chapters.filter(c => c.id !== chapterId))
+      const { error } = await supabase.from('project_chapters').delete().eq('id', chapterId)
+      if (error) { console.error('Error deleting chapter:', error); return }
+      setChapters(prev => prev.filter(c => c.id !== chapterId))
       if (selectedChapter?.id === chapterId) {
-        setSelectedChapter(null)
+        const remaining = chapters.filter(c => c.id !== chapterId)
+        setSelectedChapter(remaining.length > 0 ? remaining[0] : null)
       }
-    } catch (error) {
-      console.error('Error:', error)
+    } catch (error) { console.error('Error:', error) }
+  }
+
+  const navigateChapter = (direction: 'prev' | 'next') => {
+    const currentIndex = chapters.findIndex(c => c.id === selectedChapter?.id)
+    if (direction === 'prev' && currentIndex > 0) setSelectedChapter(chapters[currentIndex - 1])
+    else if (direction === 'next' && currentIndex < chapters.length - 1) setSelectedChapter(chapters[currentIndex + 1])
+  }
+
+  // Text formatting functions
+  const formatText = (prefix: string, suffix: string = '') => {
+    if (!textareaRef || !isEditing) return
+
+    const start = textareaRef.selectionStart
+    const end = textareaRef.selectionEnd
+    const selectedText = content.substring(start, end)
+    
+    const newText = content.substring(0, start) + prefix + selectedText + suffix + content.substring(end)
+    setContent(newText)
+
+    // Restore cursor position
+    setTimeout(() => {
+      if (textareaRef) {
+        const newCursorPos = start + prefix.length + selectedText.length + suffix.length
+        textareaRef.setSelectionRange(newCursorPos, newCursorPos)
+        textareaRef.focus()
+      }
+    }, 0)
+  }
+
+  const insertText = (text: string) => {
+    if (!textareaRef || !isEditing) return
+
+    const start = textareaRef.selectionStart
+    const newText = content.substring(0, start) + text + content.substring(start)
+    setContent(newText)
+
+    setTimeout(() => {
+      if (textareaRef) {
+        const newCursorPos = start + text.length
+        textareaRef.setSelectionRange(newCursorPos, newCursorPos)
+        textareaRef.focus()
+      }
+    }, 0)
+  }
+
+  const insertHeading = (level: number) => {
+    const prefix = '#'.repeat(level) + ' '
+    insertText('\n' + prefix)
+  }
+
+  const insertLink = () => {
+    const url = prompt('Enter URL:')
+    const text = prompt('Enter link text:') || 'link'
+    if (url) {
+      formatText(`[${text}](`, `${url})`)
     }
   }
 
-  const updateChapterStatus = async (chapterId: string, status: Chapter['status']) => {
-    try {
-      const supabase = createSupabaseClient()
-      const { error } = await supabase
-        .from('chapters')
-        .update({ status })
-        .eq('id', chapterId)
-
-      if (error) {
-        console.error('Error updating chapter status:', error)
-        return
-      }
-
-      setChapters(chapters.map(c => 
-        c.id === chapterId ? { ...c, status } : c
-      ))
-      
-      if (selectedChapter?.id === chapterId) {
-        setSelectedChapter({ ...selectedChapter, status })
-      }
-    } catch (error) {
-      console.error('Error:', error)
-    }
-  }
-
-  const cancelEdit = () => {
-    setIsCreating(false)
-    setEditingChapter(null)
-    setFormData({ title: '', content: '', notes: '', target_word_count: 2500 })
-  }
-
-  const getStatusColor = (status: Chapter['status']) => {
+  const getStatusColor = (status: string) => {
     switch (status) {
-      case 'draft': return 'bg-gray-100 text-gray-800'
-      case 'in_review': return 'bg-yellow-100 text-yellow-800'
-      case 'completed': return 'bg-green-100 text-green-800'
-      case 'published': return 'bg-blue-100 text-blue-800'
-      default: return 'bg-gray-100 text-gray-800'
+      case 'completed': return 'bg-green-100 text-green-800 border-green-200'
+      case 'in_review': return 'bg-yellow-100 text-yellow-800 border-yellow-200'
+      case 'published': return 'bg-blue-100 text-blue-800 border-blue-200'
+      default: return 'bg-gray-100 text-gray-800 border-gray-200'
     }
   }
 
-  const getProgressPercentage = (wordCount: number, targetWordCount: number) => {
-    return Math.min(100, Math.round((wordCount / targetWordCount) * 100))
-  }
-
-  const filteredChapters = chapters.filter(chapter =>
-    chapter.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    chapter.content.toLowerCase().includes(searchTerm.toLowerCase())
-  )
-
-  if (isCreating) {
+  if (loading) {
     return (
-      <div className="h-full bg-white p-6">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900">
-                {editingChapter ? 'Edit Chapter' : 'New Chapter'}
-              </h2>
-              <p className="text-gray-600">Write and organize your story chapters</p>
-            </div>
-            <Button onClick={cancelEdit} variant="outline">
-              Cancel
-            </Button>
-          </div>
-
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Chapter Title *
-                </label>
-                <Input
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  placeholder="Enter chapter title..."
-                  className="w-full"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Target Word Count
-                </label>
-                <Input
-                  type="number"
-                  value={formData.target_word_count}
-                  onChange={(e) => setFormData({ ...formData, target_word_count: parseInt(e.target.value) || 2500 })}
-                  placeholder="2500"
-                  className="w-full"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Chapter Content
-              </label>
-              <Textarea
-                value={formData.content}
-                onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                placeholder="Write your chapter content here..."
-                className="w-full h-64 font-mono"
-              />
-              <div className="text-sm text-gray-500 mt-2">
-                Current word count: {formData.content.trim().split(/\s+/).filter(word => word.length > 0).length}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Chapter Notes
-              </label>
-              <Textarea
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                placeholder="Chapter notes, plot points, reminders..."
-                className="w-full h-24"
-              />
-            </div>
-
-            <div className="flex justify-end space-x-3">
-              <Button onClick={cancelEdit} variant="outline">
-                Cancel
-              </Button>
-              <Button 
-                onClick={saveChapter}
-                disabled={!formData.title.trim()}
-                className="bg-orange-600 hover:bg-orange-700"
-              >
-                {editingChapter ? 'Update Chapter' : 'Create Chapter'}
-              </Button>
-            </div>
-          </div>
-        </div>
+      <div className="flex items-center justify-center h-96">
+        <div className="text-gray-500">Loading chapters...</div>
       </div>
     )
   }
 
   return (
-    <div className="h-full bg-white">
-      {/* Header */}
-      <div className="p-6 border-b border-gray-200">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-orange-100 rounded-lg">
-              <FileText className="w-6 h-6 text-orange-600" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Chapters</h1>
-              <p className="text-gray-600">Write and organize your story chapters</p>
-            </div>
-          </div>
-          <Button onClick={createChapter} className="bg-orange-600 hover:bg-orange-700">
-            <Plus className="w-4 h-4 mr-2" />
-            New Chapter
-          </Button>
-        </div>
-
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-          <Input
-            placeholder="Search chapters..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 overflow-hidden">
-        {loading ? (
-          <div className="flex items-center justify-center h-64">
-            <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
-          </div>
-        ) : (
-          <div className="h-full flex">
-            {/* Chapters List */}
-            <div className="w-1/3 border-r border-gray-200 overflow-y-auto">
-              <div className="p-4">
-                {filteredChapters.length === 0 ? (
-                  <div className="text-center py-12">
-                    <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">No chapters yet</h3>
-                    <p className="text-gray-600 mb-4">Create your first chapter to get started</p>
-                    <Button onClick={createChapter} size="sm">
-                      <Plus className="w-4 h-4 mr-2" />
-                      New Chapter
+    // Lock page height and hide page scrollbars
+    <div className="h-screen overflow-hidden flex flex-col">
+      {/* Main Editor Area */}
+      <div className="flex-1 flex flex-col min-h-0">
+        {selectedChapter ? (
+          // Fill remaining height and allow inner scroll only
+          <div className="flex-1 flex flex-col min-h-0">
+            {/* Header (non-scrolling) */}
+            <div className="border-b border-gray-200 bg-white">
+              <div className="flex items-center justify-between p-3">
+                <div className="flex items-center gap-2">
+                  <Button onClick={() => navigateChapter('prev')} variant="ghost" size="sm" disabled={currentChapterIndex === 0} className="h-8 w-8 p-0">
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button onClick={() => navigateChapter('next')} variant="ghost" size="sm" disabled={currentChapterIndex === chapters.length - 1} className="h-8 w-8 p-0">
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  <Separator orientation="vertical" className="h-6" />
+                  <span className="text-sm text-gray-600">Chapter {currentChapterIndex + 1} of {chapters.length}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {/* Auto-save status indicator */}
+                  {autoSaving && (
+                    <div className="flex items-center gap-1 text-xs text-gray-500">
+                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-purple-600"></div>
+                      Auto-saving...
+                    </div>
+                  )}
+                  
+                  {!autoSaving && isEditing && content !== lastSavedContent && (
+                    <div className="text-xs text-orange-600">
+                      Unsaved changes
+                    </div>
+                  )}
+                  
+                  {!autoSaving && isEditing && content === lastSavedContent && content && (
+                    <div className="text-xs text-green-600">
+                      ✓ Saved
+                    </div>
+                  )}
+                  
+                  <Button onClick={() => setIsEditing(!isEditing)} variant="ghost" size="sm" className="h-8">
+                    {isEditing ? <Eye className="h-4 w-4 mr-1" /> : <Edit3 className="h-4 w-4 mr-1" />}
+                    {isEditing ? 'Preview' : 'Edit'}
+                  </Button>
+                  {isEditing && (
+                    <Button onClick={saveChapter} disabled={saving || autoSaving} size="sm" className="h-8">
+                      <Save className="h-4 w-4 mr-1" />
+                      {saving ? 'Saving...' : 'Save Now'}
                     </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Title (non-scrolling) */}
+            <div className="p-4 border-b border-gray-100 bg-white">
+              {isEditing ? (
+                <Input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="text-2xl font-bold border-none p-0 h-auto focus-visible:ring-0 shadow-none"
+                  placeholder="Chapter Title"
+                />
+              ) : (
+                <h1 className="text-2xl font-bold text-gray-900">{selectedChapter?.title}</h1>
+              )}
+            </div>
+
+            {/* Scrollable Content Area */}
+            <div className="flex-1 overflow-y-auto min-h-0 bg-white">
+              {/* Sticky Toolbar inside the scrollable region */}
+              <div className="sticky top-0 z-50 bg-white border-b border-gray-200 p-3 shadow-sm">
+                <div className="flex items-center gap-1">
+                  {/* Font Size */}
+                  <Select value={fontSize} onValueChange={setFontSize}>
+                    <SelectTrigger className="h-8 w-16 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="12">12px</SelectItem>
+                      <SelectItem value="14">14px</SelectItem>
+                      <SelectItem value="16">16px</SelectItem>
+                      <SelectItem value="18">18px</SelectItem>
+                      <SelectItem value="20">20px</SelectItem>
+                      <SelectItem value="24">24px</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Separator orientation="vertical" className="h-6 mx-2" />
+
+                  {/* Text Formatting */}
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-8 w-8 p-0" 
+                    onClick={() => formatText('**', '**')}
+                    disabled={!isEditing}
+                    title="Bold (Ctrl+B)"
+                  >
+                    <Bold className="h-4 w-4" />
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-8 w-8 p-0"
+                    onClick={() => formatText('*', '*')}
+                    disabled={!isEditing}
+                    title="Italic (Ctrl+I)"
+                  >
+                    <Italic className="h-4 w-4" />
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-8 w-8 p-0"
+                    onClick={() => formatText('<u>', '</u>')}
+                    disabled={!isEditing}
+                    title="Underline (Ctrl+U)"
+                  >
+                    <Underline className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" disabled={!isEditing}>
+                    <Type className="h-4 w-4" />
+                  </Button>
+
+                  <Separator orientation="vertical" className="h-6 mx-2" />
+
+                  {/* Headers */}
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-8 px-2 text-sm font-medium"
+                    onClick={() => insertHeading(1)}
+                    disabled={!isEditing}
+                    title="Heading 1"
+                  >
+                    H1
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-8 px-2 text-sm font-medium"
+                    onClick={() => insertHeading(2)}
+                    disabled={!isEditing}
+                    title="Heading 2"
+                  >
+                    H2
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-8 px-2 text-sm font-medium"
+                    onClick={() => insertHeading(3)}
+                    disabled={!isEditing}
+                    title="Heading 3"
+                  >
+                    H3
+                  </Button>
+
+                  <Separator orientation="vertical" className="h-6 mx-2" />
+
+                  {/* Alignment */}
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" disabled={!isEditing}>
+                    <AlignLeft className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" disabled={!isEditing}>
+                    <AlignCenter className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" disabled={!isEditing}>
+                    <AlignRight className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" disabled={!isEditing}>
+                    <AlignJustify className="h-4 w-4" />
+                  </Button>
+
+                  <Separator orientation="vertical" className="h-6 mx-2" />
+
+                  {/* Lists */}
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-8 w-8 p-0"
+                    onClick={() => insertText('\n• ')}
+                    disabled={!isEditing}
+                    title="Bullet List"
+                  >
+                    <List className="h-4 w-4" />
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-8 w-8 p-0"
+                    onClick={() => insertText('\n1. ')}
+                    disabled={!isEditing}
+                    title="Numbered List"
+                  >
+                    <ListOrdered className="h-4 w-4" />
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-8 w-8 p-0"
+                    onClick={() => formatText('\n> ', '')}
+                    disabled={!isEditing}
+                    title="Quote"
+                  >
+                    <Quote className="h-4 w-4" />
+                  </Button>
+
+                  <Separator orientation="vertical" className="h-6 mx-2" />
+
+                  {/* Insert Options */}
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-8 w-8 p-0"
+                    onClick={insertLink}
+                    disabled={!isEditing}
+                    title="Insert Link"
+                  >
+                    <Link className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" disabled={!isEditing}>
+                    <Image className="h-4 w-4" />
+                  </Button>
+
+                  <Separator orientation="vertical" className="h-6 mx-2" />
+
+                  {/* Special Breaks */}
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-8 px-3 text-sm"
+                    onClick={() => insertText('\n---\n')}
+                    disabled={!isEditing}
+                    title="Scene Break"
+                  >
+                    Scene Break
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-8 px-3 text-sm"
+                    onClick={() => insertText('\n\n* * *\n\n')}
+                    disabled={!isEditing}
+                    title="Chapter Break"
+                  >
+                    Chapter Break
+                  </Button>
+                </div>
+
+                {/* Word Count */}
+                <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
+                  <div className="flex items-center gap-1">
+                    <Search className="h-4 w-4" />
+                    <span className="text-blue-600 font-semibold">
+                      {isEditing ? content.trim().split(/\s+/).filter(word => word.length > 0).length : selectedChapter?.word_count || 0} words
+                    </span>
+                    <span>| {content.length} chars</span>
                   </div>
+                </div>
+              </div>
+
+              {/* Content Editor */}
+              <div className="p-4">
+                {isEditing ? (
+                  <Textarea
+                    ref={(el) => setTextareaRef(el)}
+                    value={content}
+                    onChange={(e) => setContent(e.target.value)}
+                    className="w-full resize-none border-none p-0 focus-visible:ring-0 shadow-none min-h-[600px]"
+                    placeholder="Start writing your chapter..."
+                    style={{ fontSize: `${fontSize}px`, lineHeight: 1.6 }}
+                    onKeyDown={(e) => {
+                      // Word-like keyboard shortcuts
+                      if (e.ctrlKey || e.metaKey) {
+                        if (e.key === 'b') {
+                          e.preventDefault()
+                          formatText('**', '**')
+                        } else if (e.key === 'i') {
+                          e.preventDefault()
+                          formatText('*', '*')
+                        } else if (e.key === 'u') {
+                          e.preventDefault()
+                          formatText('<u>', '</u>')
+                        } else if (e.key === 's') {
+                          e.preventDefault()
+                          saveChapter()
+                        }
+                      }
+                    }}
+                  />
                 ) : (
-                  <div className="space-y-3">
-                    {filteredChapters.map((chapter) => {
-                      const progress = getProgressPercentage(chapter.word_count, chapter.target_word_count)
-                      return (
-                        <Card 
-                          key={chapter.id}
-                          className={`cursor-pointer transition-all duration-200 hover:shadow-md ${
-                            selectedChapter?.id === chapter.id ? 'ring-2 ring-orange-500 bg-orange-50' : ''
-                          }`}
-                          onClick={() => setSelectedChapter(chapter)}
-                        >
-                          <CardContent className="p-4">
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                <div className="flex items-center space-x-2 mb-1">
-                                  <span className="text-xs font-medium text-gray-500">
-                                    Chapter {chapter.chapter_number}
-                                  </span>
-                                  <Badge className={getStatusColor(chapter.status)}>
-                                    {chapter.status}
-                                  </Badge>
-                                </div>
-                                <h3 className="font-semibold text-gray-900 mb-1">{chapter.title}</h3>
-                                <div className="text-xs text-gray-500 mb-2">
-                                  {chapter.word_count} / {chapter.target_word_count} words ({progress}%)
-                                </div>
-                                <div className="w-full bg-gray-200 rounded-full h-1.5">
-                                  <div 
-                                    className="bg-orange-500 h-1.5 rounded-full transition-all duration-300" 
-                                    style={{ width: `${progress}%` }}
-                                  />
-                                </div>
-                              </div>
-                              <div className="flex items-center space-x-1 ml-2">
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    editChapter(chapter)
-                                  }}
-                                >
-                                  <Edit3 className="w-3 h-3" />
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    deleteChapter(chapter.id)
-                                  }}
-                                  className="text-red-600 hover:text-red-700"
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                </Button>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      )
-                    })}
+                  <div
+                    className="w-full prose prose-gray max-w-none"
+                    style={{ fontSize: `${fontSize}px`, lineHeight: 1.6 }}
+                  >
+                    {content ? (
+                      <div className="whitespace-pre-wrap">{content}</div>
+                    ) : (
+                      <div className="text-gray-500 italic">No content yet. Click Edit to start writing.</div>
+                    )}
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Chapter Details */}
-            <div className="flex-1 overflow-y-auto">
-              {selectedChapter ? (
-                <div className="p-6">
-                  <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-600 rounded-lg flex items-center justify-center">
-                        <FileText className="w-6 h-6 text-white" />
-                      </div>
-                      <div>
-                        <h2 className="text-2xl font-bold text-gray-900">{selectedChapter.title}</h2>
-                        <p className="text-gray-600">Chapter {selectedChapter.chapter_number}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <select
-                        value={selectedChapter.status}
-                        onChange={(e) => updateChapterStatus(selectedChapter.id, e.target.value as Chapter['status'])}
-                        className="px-3 py-1 text-sm border border-gray-300 rounded-md"
-                      >
-                        <option value="draft">Draft</option>
-                        <option value="in_review">In Review</option>
-                        <option value="completed">Completed</option>
-                        <option value="published">Published</option>
-                      </select>
-                      <Button
-                        onClick={() => editChapter(selectedChapter)}
-                        variant="outline"
-                        size="sm"
-                      >
-                        <Edit3 className="w-4 h-4 mr-2" />
-                        Edit
-                      </Button>
-                      <Button
-                        onClick={() => deleteChapter(selectedChapter.id)}
-                        variant="outline"
-                        size="sm"
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Delete
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-6">
-                    {/* Progress */}
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-lg">Writing Progress</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-3">
-                          <div className="flex justify-between text-sm">
-                            <span>Word Count</span>
-                            <span>{selectedChapter.word_count} / {selectedChapter.target_word_count}</span>
-                          </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div 
-                              className="bg-orange-500 h-2 rounded-full transition-all duration-300" 
-                              style={{ 
-                                width: `${getProgressPercentage(selectedChapter.word_count, selectedChapter.target_word_count)}%` 
-                              }}
-                            />
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {getProgressPercentage(selectedChapter.word_count, selectedChapter.target_word_count)}% complete
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    {/* Content Preview */}
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-lg">Content Preview</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="prose max-w-none">
-                          {selectedChapter.content ? (
-                            <div className="text-gray-700 whitespace-pre-wrap text-sm leading-relaxed">
-                              {selectedChapter.content.substring(0, 500)}
-                              {selectedChapter.content.length > 500 && '...'}
-                            </div>
-                          ) : (
-                            <p className="text-gray-500 italic">No content yet</p>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    {/* Notes */}
-                    {selectedChapter.notes && (
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="text-lg">Notes</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <p className="text-gray-700 whitespace-pre-wrap text-sm">
-                            {selectedChapter.notes}
-                          </p>
-                        </CardContent>
-                      </Card>
-                    )}
-
-                    {/* Quick Actions */}
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-lg">Quick Actions</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                          <Button variant="outline" className="h-auto py-3 flex flex-col items-center">
-                            <FileEdit className="w-5 h-5 mb-1 text-orange-500" />
-                            <span className="text-sm">Edit Chapter</span>
-                          </Button>
-                          <Button variant="outline" className="h-auto py-3 flex flex-col items-center">
-                            <Eye className="w-5 h-5 mb-1 text-blue-500" />
-                            <span className="text-sm">Preview</span>
-                          </Button>
-                          <Button variant="outline" className="h-auto py-3 flex flex-col items-center">
-                            <Book className="w-5 h-5 mb-1 text-green-500" />
-                            <span className="text-sm">Export</span>
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    {/* Chapter Info */}
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-lg">Information</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="grid grid-cols-2 gap-4 text-sm">
-                          <div>
-                            <label className="font-medium text-gray-700">Created</label>
-                            <p className="text-gray-600">
-                              {new Date(selectedChapter.created_at).toLocaleDateString()}
-                            </p>
-                          </div>
-                          <div>
-                            <label className="font-medium text-gray-700">Last Updated</label>
-                            <p className="text-gray-600">
-                              {new Date(selectedChapter.updated_at).toLocaleDateString()}
-                            </p>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-center justify-center h-full">
-                  <div className="text-center">
-                    <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">Select a Chapter</h3>
-                    <p className="text-gray-600">Choose a chapter from the list to view details</p>
-                  </div>
-                </div>
-              )}
+            {/* Footer / Status (non-scrolling) */}
+            <div className="border-t border-gray-200 px-4 py-2 bg-gray-50 flex items-center justify-between text-sm text-gray-600">
+              <div className="flex items-center gap-4">
+                <span>Words: {isEditing ? content.trim().split(/\s+/).filter(word => word.length > 0).length : selectedChapter?.word_count}</span>
+                <span>Target: {selectedChapter?.target_word_count}</span>
+                <Badge variant="outline" className={getStatusColor(selectedChapter?.status || 'draft')}>
+                  {selectedChapter?.status}
+                </Badge>
+              </div>
+              <div>Last updated: {new Date(selectedChapter?.updated_at || '').toLocaleDateString()}</div>
+            </div>
+          </div>
+        ) : (
+          <div className="flex-1 flex items-center justify-center bg-gray-50">
+            <div className="text-center">
+              <div className="text-gray-500 mb-4">No chapter selected</div>
+              <Button onClick={createNewChapter}>
+                <Plus className="h-4 w-4 mr-2" />
+                Create your first chapter
+              </Button>
             </div>
           </div>
         )}

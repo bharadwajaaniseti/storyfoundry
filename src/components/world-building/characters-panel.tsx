@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { Plus, Users, Upload, MoreVertical, Image, Trash2, Search, X } from 'lucide-react'
+import { Plus, Users, Upload, MoreVertical, Image, Trash2, Search, X, MapPin, BookOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -26,6 +26,8 @@ interface Character {
     personality_traits?: Array<{name: string, description: string}>
     statistics?: Array<{name: string, value: number, unit?: string}>
     image_url?: string
+    image_urls?: string[] // Support for multiple images
+    links?: Link[] // Support for links to other elements
     [key: string]: any // Allow dynamic attributes
   }
   tags: string[]
@@ -33,6 +35,15 @@ interface Character {
   created_at: string
   updated_at: string
   category: string
+}
+
+interface Link {
+  id: string
+  target_element_id: string
+  target_element_name: string
+  target_element_category: string
+  description?: string
+  created_at: string
 }
 
 interface WorldElement {
@@ -104,6 +115,26 @@ export default function CharactersPanel({ projectId, selectedElement, onCharacte
   const [showCustomAttributeForm, setShowCustomAttributeForm] = useState(false)
   const [customAttribute, setCustomAttribute] = useState({ name: '', type: 'Text' })
   const [customAttributes, setCustomAttributes] = useState<{[category: string]: Array<{id: string, label: string, type: string, isCustom: boolean}>}>({})
+  
+  // Image management state
+  const [uploadedImages, setUploadedImages] = useState<string[]>([])
+  const [isUploading, setIsUploading] = useState(false)
+  const [currentImageIndex, setCurrentImageIndex] = useState(0)
+  const maxImages = 50 // Maximum number of images allowed
+
+  // Link management state
+  const [showLinkModal, setShowLinkModal] = useState(false)
+  const [linkSearchTerm, setLinkSearchTerm] = useState('')
+  const [availableElements, setAvailableElements] = useState<WorldElement[]>([])
+  const [recentlyViewedElements, setRecentlyViewedElements] = useState<WorldElement[]>([])
+  const [showCreateNewElement, setShowCreateNewElement] = useState(false)
+  const [newElementName, setNewElementName] = useState('')
+  const [newElementCategory, setNewElementCategory] = useState('characters')
+
+  const elementCategories = [
+    'characters', 'locations', 'items', 'cultures', 'systems', 
+    'languages', 'religions', 'philosophies', 'maps', 'species'
+  ]
 
   // Comprehensive attribute definitions for all categories
   const allAttributeDefinitions = {
@@ -468,6 +499,392 @@ export default function CharactersPanel({ projectId, selectedElement, onCharacte
 
   const supabase = createSupabaseClient()
 
+  // Load existing countries from all characters in the project
+  const loadExistingCountries = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('world_elements')
+        .select('attributes')
+        .eq('project_id', projectId)
+        .eq('category', 'characters')
+
+      if (error) throw error
+      
+      const countries = new Set<string>()
+      data?.forEach(item => {
+        const country = item.attributes?.origin_country
+        if (country && typeof country === 'string' && country.trim()) {
+          countries.add(country.trim())
+        }
+      })
+      
+      setExistingCountries(Array.from(countries).sort())
+    } catch (error) {
+      console.error('Error loading existing countries:', error)
+    }
+  }
+
+  // Load existing genders from all characters in the project
+  const loadExistingGenders = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('world_elements')
+        .select('attributes')
+        .eq('project_id', projectId)
+        .eq('category', 'characters')
+
+      if (error) throw error
+      
+      const genders = new Set<string>()
+      data?.forEach(item => {
+        const gender = item.attributes?.gender
+        if (gender && typeof gender === 'string' && gender.trim()) {
+          genders.add(gender.trim())
+        }
+      })
+      
+      setExistingGenders(Array.from(genders).sort())
+    } catch (error) {
+      console.error('Error loading existing genders:', error)
+    }
+  }
+
+  // Load existing educations from all characters in the project
+  const loadExistingEducations = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('world_elements')
+        .select('attributes')
+        .eq('project_id', projectId)
+        .eq('category', 'characters')
+
+      if (error) throw error
+      
+      const educations = new Set<string>()
+      data?.forEach(item => {
+        const education = item.attributes?.formal_education
+        if (education && typeof education === 'string' && education.trim()) {
+          educations.add(education.trim())
+        }
+      })
+      
+      setExistingEducations(Array.from(educations).sort())
+    } catch (error) {
+      console.error('Error loading existing educations:', error)
+    }
+  }
+
+  // Load existing occupations from all characters in the project
+  const loadExistingOccupations = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('world_elements')
+        .select('attributes')
+        .eq('project_id', projectId)
+        .eq('category', 'characters')
+
+      if (error) throw error
+      
+      const occupations = new Set<string>()
+      data?.forEach(item => {
+        const occupation = item.attributes?.occupation
+        if (occupation && typeof occupation === 'string' && occupation.trim()) {
+          occupations.add(occupation.trim())
+        }
+      })
+      
+      setExistingOccupations(Array.from(occupations).sort())
+    } catch (error) {
+      console.error('Error loading existing occupations:', error)
+    }
+  }
+
+  // Image handling functions
+  const handleImageUpload = async (files: FileList) => {
+    if (!files || files.length === 0) return
+
+    // Check if adding these files would exceed the limit
+    if (uploadedImages.length + files.length > maxImages) {
+      setError(`Maximum ${maxImages} images allowed. You can upload ${maxImages - uploadedImages.length} more images.`)
+      return
+    }
+
+    setIsUploading(true)
+    const newImages: string[] = []
+
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        
+        // Validate file type
+        if (!file.type.startsWith('image/')) {
+          setError('Please select only image files.')
+          continue
+        }
+
+        // Validate file size (5MB limit)
+        if (file.size > 5 * 1024 * 1024) {
+          setError('Image files must be smaller than 5MB.')
+          continue
+        }
+
+        // Create a data URL for preview (in a real app, you'd upload to a storage service)
+        const reader = new FileReader()
+        const dataUrl = await new Promise<string>((resolve) => {
+          reader.onload = (e) => resolve(e.target?.result as string)
+          reader.readAsDataURL(file)
+        })
+        
+        newImages.push(dataUrl)
+      }
+
+      // Update the uploaded images state
+      setUploadedImages(prev => {
+        const combined = [...prev, ...newImages]
+        const finalImages = combined.slice(0, maxImages) // Ensure we don't exceed the limit
+        
+        // Update the character's image arrays
+        if (editingCharacter) {
+          setEditingCharacter(prevChar => prevChar ? {
+            ...prevChar,
+            attributes: {
+              ...prevChar.attributes,
+              image_url: finalImages[0] || '', // Keep first image as primary
+              image_urls: finalImages // Store all images
+            }
+          } : null)
+        }
+        
+        return finalImages
+      })
+
+      setError(null)
+      setSuccessMessage(`${newImages.length} image(s) uploaded successfully!`)
+      setTimeout(() => setSuccessMessage(null), 3000)
+    } catch (error) {
+      console.error('Error uploading images:', error)
+      setError('Failed to upload images. Please try again.')
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
+  const handleImageRemove = (index: number) => {
+    setUploadedImages(prev => {
+      const updated = prev.filter((_, i) => i !== index)
+      
+      // Adjust current index if needed
+      if (index <= currentImageIndex && currentImageIndex > 0) {
+        setCurrentImageIndex(currentImageIndex - 1)
+      } else if (updated.length === 0) {
+        setCurrentImageIndex(0)
+      } else if (currentImageIndex >= updated.length) {
+        setCurrentImageIndex(updated.length - 1)
+      }
+      
+      // Update character's image arrays
+      if (editingCharacter) {
+        setEditingCharacter(prevChar => prevChar ? {
+          ...prevChar,
+          attributes: {
+            ...prevChar.attributes,
+            image_url: updated[0] || '', // First image as primary
+            image_urls: updated // All images
+          }
+        } : null)
+      }
+      
+      return updated
+    })
+  }
+
+  const handlePreviousImage = () => {
+    setCurrentImageIndex(prev => Math.max(0, prev - 2))
+  }
+
+  const handleNextImage = () => {
+    setCurrentImageIndex(prev => {
+      const maxIndex = uploadedImages.length - 1
+      return Math.min(maxIndex, prev + 2)
+    })
+  }
+
+  const handleImageSelect = (index: number) => {
+    setCurrentImageIndex(index)
+    // Update character's primary image_url to the selected image
+    if (editingCharacter && uploadedImages[index]) {
+      setEditingCharacter(prev => prev ? {
+        ...prev,
+        attributes: {
+          ...prev.attributes,
+          image_url: uploadedImages[index] // Set selected image as primary
+        }
+      } : null)
+    }
+  }
+
+  const handleImageChange = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/*'
+    input.multiple = true
+    input.onchange = (e) => {
+      const files = (e.target as HTMLInputElement).files
+      if (files) {
+        handleImageUpload(files)
+      }
+    }
+    input.click()
+  }
+
+  // Link management functions
+  const loadAvailableElements = async () => {
+    try {
+      const supabase = createSupabaseClient()
+      const { data, error } = await supabase
+        .from('world_elements')
+        .select('*')
+        .eq('project_id', projectId)
+        .neq('id', editingCharacter?.id || '') // Exclude current character
+        .order('name', { ascending: true })
+
+      if (error) throw error
+      setAvailableElements(data || [])
+    } catch (error) {
+      console.error('Error loading available elements:', error)
+    }
+  }
+
+  const handleOpenLinkModal = () => {
+    setShowLinkModal(true)
+    setLinkSearchTerm('')
+    setShowCreateNewElement(false)
+    setNewElementName('')
+    loadAvailableElements()
+  }
+
+  const handleCloseLinkModal = () => {
+    setShowLinkModal(false)
+    setLinkSearchTerm('')
+    setShowCreateNewElement(false)
+    setNewElementName('')
+  }
+
+  const handleLinkElement = async (targetElement: WorldElement) => {
+    if (!editingCharacter) return
+
+    try {
+      const supabase = createSupabaseClient()
+      
+      // Create the link
+      const newLink: Omit<Link, 'id' | 'created_at'> = {
+        target_element_id: targetElement.id,
+        target_element_name: targetElement.name,
+        target_element_category: targetElement.category,
+        description: ''
+      }
+
+      // Add to recently viewed
+      setRecentlyViewedElements(prev => {
+        const filtered = prev.filter(el => el.id !== targetElement.id)
+        return [targetElement, ...filtered].slice(0, 5)
+      })
+
+      // Update character with new link
+      const updatedLinks = [...(editingCharacter.attributes.links || []), {
+        ...newLink,
+        id: `link_${Date.now()}`,
+        created_at: new Date().toISOString()
+      }]
+
+      setEditingCharacter(prev => prev ? {
+        ...prev,
+        attributes: {
+          ...prev.attributes,
+          links: updatedLinks
+        }
+      } : null)
+
+      setSuccessMessage(`Linked to ${targetElement.name}`)
+      setTimeout(() => setSuccessMessage(null), 3000)
+      handleCloseLinkModal()
+    } catch (error) {
+      console.error('Error creating link:', error)
+      setError('Failed to create link. Please try again.')
+    }
+  }
+
+  const handleCreateAndLinkElement = async () => {
+    if (!newElementName.trim() || !editingCharacter) return
+
+    try {
+      const supabase = createSupabaseClient()
+      
+      // Create the new element
+      const newElement = {
+        project_id: projectId,
+        category: newElementCategory,
+        name: newElementName.trim(),
+        description: '',
+        attributes: {},
+        tags: []
+      }
+
+      const { data, error } = await supabase
+        .from('world_elements')
+        .insert(newElement)
+        .select()
+        .single()
+
+      if (error) throw error
+
+      // If we created a character, refresh the characters list
+      if (newElementCategory === 'characters') {
+        await loadCharacters()
+      }
+
+      // Refresh the available elements list for future linking
+      await loadAvailableElements()
+
+      // Link to the new element
+      await handleLinkElement(data)
+      
+      // Reset form
+      setNewElementName('')
+      setNewElementCategory('characters')
+      
+      // Notify parent component that elements have changed (for sidebar refresh)
+      // This should happen after all operations are complete
+      onCharactersChange?.()
+      
+    } catch (error) {
+      console.error('Error creating and linking element:', error)
+      setError('Failed to create element. Please try again.')
+    }
+  }
+
+  const handleRemoveLink = (linkId: string) => {
+    if (!editingCharacter) return
+
+    setEditingCharacter(prev => prev ? {
+      ...prev,
+      attributes: {
+        ...prev.attributes,
+        links: (prev.attributes.links || []).filter(link => link.id !== linkId)
+      }
+    } : null)
+  }
+
+  const getFilteredElements = () => {
+    if (!linkSearchTerm.trim()) return availableElements.slice(0, 10)
+    
+    return availableElements.filter(element =>
+      element.name.toLowerCase().includes(linkSearchTerm.toLowerCase()) ||
+      element.category.toLowerCase().includes(linkSearchTerm.toLowerCase()) ||
+      element.description.toLowerCase().includes(linkSearchTerm.toLowerCase())
+    )
+  }
+
   useEffect(() => {
     loadCharacters()
   }, [projectId])
@@ -510,7 +927,9 @@ export default function CharactersPanel({ projectId, selectedElement, onCharacte
           physical_traits: selectedElement.attributes?.physical_traits || [],
           personality_traits: selectedElement.attributes?.personality_traits || [],
           statistics: selectedElement.attributes?.statistics || [],
-          image_url: selectedElement.attributes?.image_url || ''
+          image_url: selectedElement.attributes?.image_url || '',
+          image_urls: selectedElement.attributes?.image_urls || [],
+          links: selectedElement.attributes?.links || []
         },
         tags: selectedElement.tags || [],
         project_id: selectedElement.project_id,
@@ -521,6 +940,12 @@ export default function CharactersPanel({ projectId, selectedElement, onCharacte
       
       setEditingCharacter(character)
       setIsCreating(false)
+      
+      // Initialize uploaded images from character data
+      const images = selectedElement.attributes?.image_urls || 
+                    (selectedElement.attributes?.image_url ? [selectedElement.attributes.image_url] : [])
+      setUploadedImages(images)
+      setCurrentImageIndex(images.length > 0 ? 0 : 0)
       
       // Load panel colors if available
       if (selectedElement.attributes?.panel_colors) {
@@ -555,7 +980,9 @@ export default function CharactersPanel({ projectId, selectedElement, onCharacte
           physical_traits: item.attributes?.physical_traits || [],
           personality_traits: item.attributes?.personality_traits || [],
           statistics: item.attributes?.statistics || [],
-          image_url: item.attributes?.image_url || ''
+          image_url: item.attributes?.image_url || '',
+          image_urls: item.attributes?.image_urls || [],
+          links: item.attributes?.links || []
         },
         tags: item.tags || [],
         project_id: item.project_id,
@@ -565,6 +992,14 @@ export default function CharactersPanel({ projectId, selectedElement, onCharacte
       }))
       
       setCharacters(transformedCharacters)
+      
+      // Also reload dropdown options when characters are loaded
+      await Promise.all([
+        loadExistingCountries(),
+        loadExistingGenders(),
+        loadExistingEducations(),
+        loadExistingOccupations()
+      ])
     } catch (error) {
       console.error('Error loading characters:', error)
     } finally {
@@ -592,7 +1027,9 @@ export default function CharactersPanel({ projectId, selectedElement, onCharacte
         physical_traits: [],
         personality_traits: [],
         statistics: [],
-        image_url: ''
+        image_url: '',
+        image_urls: [],
+        links: []
       },
       tags: [],
       project_id: projectId,
@@ -600,6 +1037,10 @@ export default function CharactersPanel({ projectId, selectedElement, onCharacte
       updated_at: '',
       category: 'characters'
     })
+    
+    // Reset uploaded images
+    setUploadedImages([])
+    setCurrentImageIndex(0)
     
     // Reset panel colors to defaults
     setPanelColors({
@@ -697,6 +1138,110 @@ export default function CharactersPanel({ projectId, selectedElement, onCharacte
     }
   }
 
+  // Handle adding a new country
+  const handleAddNewCountry = () => {
+    if (!editingCharacter) return
+    
+    const trimmedName = newCountryName.trim()
+    if (trimmedName && !existingCountries.includes(trimmedName)) {
+      setExistingCountries(prev => [...prev, trimmedName].sort())
+      setEditingCharacter({
+        ...editingCharacter,
+        attributes: { ...editingCharacter.attributes, origin_country: trimmedName }
+      })
+      setNewCountryName('')
+      setShowNewCountryInput(false)
+    }
+  }
+
+  // Handle adding a new gender
+  const handleAddNewGender = () => {
+    if (!editingCharacter) return
+    
+    const trimmedName = newGenderName.trim()
+    if (trimmedName && !existingGenders.includes(trimmedName)) {
+      setExistingGenders(prev => [...prev, trimmedName].sort())
+      setEditingCharacter({
+        ...editingCharacter,
+        attributes: { ...editingCharacter.attributes, gender: trimmedName }
+      })
+      setNewGenderName('')
+      setShowNewGenderInput(false)
+    }
+  }
+
+  // Handle adding a new education
+  const handleAddNewEducation = () => {
+    if (!editingCharacter) return
+    
+    const trimmedName = newEducationName.trim()
+    if (trimmedName && !existingEducations.includes(trimmedName)) {
+      setExistingEducations(prev => [...prev, trimmedName].sort())
+      setEditingCharacter({
+        ...editingCharacter,
+        attributes: { ...editingCharacter.attributes, formal_education: trimmedName }
+      })
+      setNewEducationName('')
+      setShowNewEducationInput(false)
+    }
+  }
+
+  // Handle adding a new occupation
+  const handleAddNewOccupation = () => {
+    if (!editingCharacter) return
+    
+    const trimmedName = newOccupationName.trim()
+    if (trimmedName && !existingOccupations.includes(trimmedName)) {
+      setExistingOccupations(prev => [...prev, trimmedName].sort())
+      setEditingCharacter({
+        ...editingCharacter,
+        attributes: { ...editingCharacter.attributes, occupation: trimmedName }
+      })
+      setNewOccupationName('')
+      setShowNewOccupationInput(false)
+    }
+  }
+
+  const handleNewCountryKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleAddNewCountry()
+    } else if (e.key === 'Escape') {
+      setNewCountryName('')
+      setShowNewCountryInput(false)
+    }
+  }
+
+  const handleNewGenderKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleAddNewGender()
+    } else if (e.key === 'Escape') {
+      setNewGenderName('')
+      setShowNewGenderInput(false)
+    }
+  }
+
+  const handleNewEducationKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleAddNewEducation()
+    } else if (e.key === 'Escape') {
+      setNewEducationName('')
+      setShowNewEducationInput(false)
+    }
+  }
+
+  const handleNewOccupationKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleAddNewOccupation()
+    } else if (e.key === 'Escape') {
+      setNewOccupationName('')
+      setShowNewOccupationInput(false)
+    }
+  }
+
   const toggleSection = (section: keyof typeof expandedSections) => {
     setExpandedSections(prev => ({
       ...prev,
@@ -722,6 +1267,18 @@ export default function CharactersPanel({ projectId, selectedElement, onCharacte
   }
 
   const [customColors, setCustomColors] = useState<{[key: string]: string}>({})
+  const [existingCountries, setExistingCountries] = useState<string[]>([])
+  const [existingGenders, setExistingGenders] = useState<string[]>([])
+  const [existingEducations, setExistingEducations] = useState<string[]>([])
+  const [existingOccupations, setExistingOccupations] = useState<string[]>([])
+  const [showNewCountryInput, setShowNewCountryInput] = useState(false)
+  const [showNewGenderInput, setShowNewGenderInput] = useState(false)
+  const [showNewEducationInput, setShowNewEducationInput] = useState(false)
+  const [showNewOccupationInput, setShowNewOccupationInput] = useState(false)
+  const [newCountryName, setNewCountryName] = useState('')
+  const [newGenderName, setNewGenderName] = useState('')
+  const [newEducationName, setNewEducationName] = useState('')
+  const [newOccupationName, setNewOccupationName] = useState('')
 
   const handleColorSelect = (section: string, color: string) => {
     setPanelColors(prev => ({
@@ -1393,18 +1950,55 @@ export default function CharactersPanel({ projectId, selectedElement, onCharacte
                         <select
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
                           value={editingCharacter.attributes.origin_country || ''}
-                          onChange={(e) => setEditingCharacter({
-                            ...editingCharacter,
-                            attributes: { ...editingCharacter.attributes, origin_country: e.target.value }
-                          })}
+                          onChange={(e) => {
+                            if (e.target.value === 'ADD_NEW') {
+                              setShowNewCountryInput(true)
+                            } else {
+                              setEditingCharacter({
+                                ...editingCharacter,
+                                attributes: { ...editingCharacter.attributes, origin_country: e.target.value }
+                              })
+                            }
+                          }}
                         >
-                          <option value="">Select or Type...</option>
-                          <option value="United States">United States</option>
-                          <option value="United Kingdom">United Kingdom</option>
-                          <option value="Canada">Canada</option>
-                          <option value="Australia">Australia</option>
-                          <option value="Other">Other</option>
+                          <option value="">Select Country...</option>
+                          {existingCountries.map(country => (
+                            <option key={country} value={country}>{country}</option>
+                          ))}
+                          <option value="ADD_NEW">+ Add New Country</option>
                         </select>
+                        
+                        {showNewCountryInput && (
+                          <div className="mt-2">
+                            <input
+                              type="text"
+                              placeholder="Enter new country name..."
+                              value={newCountryName}
+                              onChange={(e) => setNewCountryName(e.target.value)}
+                              onKeyDown={handleNewCountryKeyDown}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
+                              autoFocus
+                            />
+                            <div className="flex gap-2 mt-2">
+                              <button
+                                onClick={handleAddNewCountry}
+                                className="px-3 py-1 bg-orange-600 text-white text-sm rounded hover:bg-orange-700"
+                                disabled={!newCountryName.trim()}
+                              >
+                                Add
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setShowNewCountryInput(false)
+                                  setNewCountryName('')
+                                }}
+                                className="px-3 py-1 bg-gray-300 text-gray-700 text-sm rounded hover:bg-gray-400"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                       <button
                         onClick={() => removeAttribute('origin_country')}
@@ -1452,17 +2046,55 @@ export default function CharactersPanel({ projectId, selectedElement, onCharacte
                         <select
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
                           value={editingCharacter.attributes.gender || ''}
-                          onChange={(e) => setEditingCharacter({
-                            ...editingCharacter,
-                            attributes: { ...editingCharacter.attributes, gender: e.target.value }
-                          })}
+                          onChange={(e) => {
+                            if (e.target.value === 'ADD_NEW') {
+                              setShowNewGenderInput(true)
+                            } else {
+                              setEditingCharacter({
+                                ...editingCharacter,
+                                attributes: { ...editingCharacter.attributes, gender: e.target.value }
+                              })
+                            }
+                          }}
                         >
-                          <option value="">Select or Type...</option>
-                          <option value="Male">Male</option>
-                          <option value="Female">Female</option>
-                          <option value="Non-binary">Non-binary</option>
-                          <option value="Other">Other</option>
+                          <option value="">Select Gender...</option>
+                          {existingGenders.map(gender => (
+                            <option key={gender} value={gender}>{gender}</option>
+                          ))}
+                          <option value="ADD_NEW">+ Add New Gender</option>
                         </select>
+                        
+                        {showNewGenderInput && (
+                          <div className="mt-2">
+                            <input
+                              type="text"
+                              placeholder="Enter new gender..."
+                              value={newGenderName}
+                              onChange={(e) => setNewGenderName(e.target.value)}
+                              onKeyDown={handleNewGenderKeyDown}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
+                              autoFocus
+                            />
+                            <div className="flex gap-2 mt-2">
+                              <button
+                                onClick={handleAddNewGender}
+                                className="px-3 py-1 bg-orange-600 text-white text-sm rounded hover:bg-orange-700"
+                                disabled={!newGenderName.trim()}
+                              >
+                                Add
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setShowNewGenderInput(false)
+                                  setNewGenderName('')
+                                }}
+                                className="px-3 py-1 bg-gray-300 text-gray-700 text-sm rounded hover:bg-gray-400"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                       <button
                         onClick={() => removeAttribute('gender')}
@@ -1483,18 +2115,55 @@ export default function CharactersPanel({ projectId, selectedElement, onCharacte
                         <select
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
                           value={editingCharacter.attributes.formal_education || ''}
-                          onChange={(e) => setEditingCharacter({
-                            ...editingCharacter,
-                            attributes: { ...editingCharacter.attributes, formal_education: e.target.value }
-                          })}
+                          onChange={(e) => {
+                            if (e.target.value === 'ADD_NEW') {
+                              setShowNewEducationInput(true)
+                            } else {
+                              setEditingCharacter({
+                                ...editingCharacter,
+                                attributes: { ...editingCharacter.attributes, formal_education: e.target.value }
+                              })
+                            }
+                          }}
                         >
-                          <option value="">Select or Type...</option>
-                          <option value="High School">High School</option>
-                          <option value="Bachelor's Degree">Bachelor's Degree</option>
-                          <option value="Master's Degree">Master's Degree</option>
-                          <option value="PhD">PhD</option>
-                          <option value="Other">Other</option>
+                          <option value="">Select Education...</option>
+                          {existingEducations.map(education => (
+                            <option key={education} value={education}>{education}</option>
+                          ))}
+                          <option value="ADD_NEW">+ Add New Education</option>
                         </select>
+                        
+                        {showNewEducationInput && (
+                          <div className="mt-2">
+                            <input
+                              type="text"
+                              placeholder="Enter new education level..."
+                              value={newEducationName}
+                              onChange={(e) => setNewEducationName(e.target.value)}
+                              onKeyDown={handleNewEducationKeyDown}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
+                              autoFocus
+                            />
+                            <div className="flex gap-2 mt-2">
+                              <button
+                                onClick={handleAddNewEducation}
+                                className="px-3 py-1 bg-orange-600 text-white text-sm rounded hover:bg-orange-700"
+                                disabled={!newEducationName.trim()}
+                              >
+                                Add
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setShowNewEducationInput(false)
+                                  setNewEducationName('')
+                                }}
+                                className="px-3 py-1 bg-gray-300 text-gray-700 text-sm rounded hover:bg-gray-400"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                       <button
                         onClick={() => removeAttribute('formal_education')}
@@ -1512,16 +2181,58 @@ export default function CharactersPanel({ projectId, selectedElement, onCharacte
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           Occupation
                         </label>
-                        <input
-                          type="text"
-                          placeholder="Enter occupation..."
-                          value={editingCharacter.attributes.occupation || ''}
-                          onChange={(e) => setEditingCharacter({
-                            ...editingCharacter,
-                            attributes: { ...editingCharacter.attributes, occupation: e.target.value }
-                          })}
+                        <select
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
-                        />
+                          value={editingCharacter.attributes.occupation || ''}
+                          onChange={(e) => {
+                            if (e.target.value === 'ADD_NEW') {
+                              setShowNewOccupationInput(true)
+                            } else {
+                              setEditingCharacter({
+                                ...editingCharacter,
+                                attributes: { ...editingCharacter.attributes, occupation: e.target.value }
+                              })
+                            }
+                          }}
+                        >
+                          <option value="">Select Occupation...</option>
+                          {existingOccupations.map(occupation => (
+                            <option key={occupation} value={occupation}>{occupation}</option>
+                          ))}
+                          <option value="ADD_NEW">+ Add New Occupation</option>
+                        </select>
+                        
+                        {showNewOccupationInput && (
+                          <div className="mt-2">
+                            <input
+                              type="text"
+                              placeholder="Enter new occupation..."
+                              value={newOccupationName}
+                              onChange={(e) => setNewOccupationName(e.target.value)}
+                              onKeyDown={handleNewOccupationKeyDown}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
+                              autoFocus
+                            />
+                            <div className="flex gap-2 mt-2">
+                              <button
+                                onClick={handleAddNewOccupation}
+                                className="px-3 py-1 bg-orange-600 text-white text-sm rounded hover:bg-orange-700"
+                                disabled={!newOccupationName.trim()}
+                              >
+                                Add
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setShowNewOccupationInput(false)
+                                  setNewOccupationName('')
+                                }}
+                                className="px-3 py-1 bg-gray-300 text-gray-700 text-sm rounded hover:bg-gray-400"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                       <button
                         onClick={() => removeAttribute('occupation')}
@@ -1698,24 +2409,26 @@ export default function CharactersPanel({ projectId, selectedElement, onCharacte
                 {expandedSections.physical && (
                   <div className="space-y-3">
                     {editingCharacter.attributes.physical_traits?.map((trait, index) => (
-                      <div key={index} className="space-y-2 p-3 border border-gray-200 rounded-lg">
-                        <input
-                          type="text"
-                          placeholder="Trait name..."
-                          value={trait.name}
-                          onChange={(e) => updateTrait('physical_traits', index, 'name', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500 font-medium"
-                        />
-                        <input
-                          type="text"
-                          placeholder="Add a description..."
-                          value={trait.description}
-                          onChange={(e) => updateTrait('physical_traits', index, 'description', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
-                        />
+                      <div key={index} className="flex gap-3 items-start p-3 border border-gray-200 rounded-lg">
+                        <div className="flex-1 space-y-2">
+                          <input
+                            type="text"
+                            placeholder="Trait name..."
+                            value={trait.name}
+                            onChange={(e) => updateTrait('physical_traits', index, 'name', e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500 font-medium"
+                          />
+                          <input
+                            type="text"
+                            placeholder="Add a description..."
+                            value={trait.description}
+                            onChange={(e) => updateTrait('physical_traits', index, 'description', e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
+                          />
+                        </div>
                         <button
                           onClick={() => removeTrait('physical_traits', index)}
-                          className="text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg p-2 transition-all duration-200"
+                          className="mt-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg p-2 transition-all duration-200"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -1799,24 +2512,26 @@ export default function CharactersPanel({ projectId, selectedElement, onCharacte
                 {expandedSections.personality && (
                   <div className="space-y-3">
                     {editingCharacter.attributes.personality_traits?.map((trait, index) => (
-                      <div key={index} className="space-y-2 p-3 border border-gray-200 rounded-lg">
-                        <input
-                          type="text"
-                          placeholder="Trait name..."
-                          value={trait.name}
-                          onChange={(e) => updateTrait('personality_traits', index, 'name', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500 font-medium"
-                        />
-                        <input
-                          type="text"
-                          placeholder="Add a description..."
-                          value={trait.description}
-                          onChange={(e) => updateTrait('personality_traits', index, 'description', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
-                        />
+                      <div key={index} className="flex gap-3 items-start p-3 border border-gray-200 rounded-lg">
+                        <div className="flex-1 space-y-2">
+                          <input
+                            type="text"
+                            placeholder="Trait name..."
+                            value={trait.name}
+                            onChange={(e) => updateTrait('personality_traits', index, 'name', e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500 font-medium"
+                          />
+                          <input
+                            type="text"
+                            placeholder="Add a description..."
+                            value={trait.description}
+                            onChange={(e) => updateTrait('personality_traits', index, 'description', e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
+                          />
+                        </div>
                         <button
                           onClick={() => removeTrait('personality_traits', index)}
-                          className="text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg p-2 transition-all duration-200"
+                          className="mt-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg p-2 transition-all duration-200"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -1898,17 +2613,181 @@ export default function CharactersPanel({ projectId, selectedElement, onCharacte
                   </div>
                 </div>
                 {expandedSections.image && (
-                  <div className="text-center">
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 hover:border-orange-300 transition-colors">
-                      <Image className="w-12 h-12 mx-auto text-gray-400 mb-3" />
-                      <p className="text-sm text-gray-600 mb-2">
-                        Upload new images or choose from your <strong>Image Gallery</strong>!
-                      </p>
-                      <button className="flex items-center space-x-2 bg-white text-gray-700 px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors mx-auto">
-                        <Upload className="w-4 h-4" />
-                        <span>Select Images</span>
-                      </button>
-                    </div>
+                  <div className="space-y-4">
+                    {/* Display uploaded images */}
+                    {uploadedImages.length > 0 ? (
+                      <div className="space-y-4">
+                        {/* Two images side by side */}
+                        <div className="grid grid-cols-2 gap-4">
+                          {/* First image slot */}
+                          <div className="relative group">
+                            {uploadedImages[currentImageIndex] ? (
+                              <>
+                                <div className="aspect-square rounded-lg overflow-hidden border-2 border-gray-200 bg-gray-50">
+                                  <img 
+                                    src={uploadedImages[currentImageIndex]} 
+                                    alt={`Character ${currentImageIndex + 1}`}
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
+                                {/* Remove button for first image */}
+                                <button
+                                  onClick={() => handleImageRemove(currentImageIndex)}
+                                  className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 transition-colors shadow-lg opacity-0 group-hover:opacity-100"
+                                  title="Remove image"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </>
+                            ) : (
+                              <div className="aspect-square rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center">
+                                <span className="text-gray-400 text-sm">No image</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Second image slot */}
+                          <div className="relative group">
+                            {uploadedImages[currentImageIndex + 1] ? (
+                              <>
+                                <div className="aspect-square rounded-lg overflow-hidden border-2 border-gray-200 bg-gray-50">
+                                  <img 
+                                    src={uploadedImages[currentImageIndex + 1]} 
+                                    alt={`Character ${currentImageIndex + 2}`}
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
+                                {/* Remove button for second image */}
+                                <button
+                                  onClick={() => handleImageRemove(currentImageIndex + 1)}
+                                  className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 transition-colors shadow-lg opacity-0 group-hover:opacity-100"
+                                  title="Remove image"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </>
+                            ) : (
+                              <div className="aspect-square rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center">
+                                <span className="text-gray-400 text-sm">No image</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        
+                        {/* Navigation controls (only show if more than 2 images) */}
+                        {uploadedImages.length > 2 && (
+                          <div className="flex items-center justify-between">
+                            <button
+                              onClick={handlePreviousImage}
+                              disabled={currentImageIndex === 0}
+                              className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 disabled:bg-gray-50 disabled:text-gray-400 rounded-lg transition-colors text-sm"
+                              title="Previous images"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                              </svg>
+                              Previous
+                            </button>
+                            
+                            {/* Page indicator */}
+                            <div className="text-sm text-gray-600">
+                              {Math.floor(currentImageIndex / 2) + 1} / {Math.ceil(uploadedImages.length / 2)}
+                            </div>
+                            
+                            <button
+                              onClick={handleNextImage}
+                              disabled={currentImageIndex + 2 >= uploadedImages.length}
+                              className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 disabled:bg-gray-50 disabled:text-gray-400 rounded-lg transition-colors text-sm"
+                              title="Next images"
+                            >
+                              Next
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                              </svg>
+                            </button>
+                          </div>
+                        )}
+                        
+                        {/* Image capacity and action buttons */}
+                        <div className="space-y-3">
+                          {/* Capacity indicator */}
+                          <div className="flex items-center justify-between text-sm text-gray-600">
+                            <span>Images: {uploadedImages.length}/{maxImages}</span>
+                            <span className="text-xs">Max {maxImages} images allowed</span>
+                          </div>
+                          
+                          {/* File size limit */}
+                          <div className="text-xs text-gray-500 text-center">
+                            Maximum size: 5MB per image
+                          </div>
+                          
+                          {/* Action buttons */}
+                          <div className="flex gap-2">
+                            <button
+                              onClick={handleImageChange}
+                              disabled={isUploading || uploadedImages.length >= maxImages}
+                              className="flex items-center space-x-2 bg-orange-500 text-white px-3 py-2 rounded-lg hover:bg-orange-600 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              <Upload className="w-4 h-4" />
+                              <span>Change Images</span>
+                            </button>
+                            
+                            <button
+                              onClick={() => {
+                                setUploadedImages([])
+                                setCurrentImageIndex(0)
+                                if (editingCharacter) {
+                                  setEditingCharacter(prev => prev ? {
+                                    ...prev,
+                                    attributes: { 
+                                      ...prev.attributes, 
+                                      image_url: '',
+                                      image_urls: []
+                                    }
+                                  } : null)
+                                }
+                              }}
+                              className="flex items-center space-x-2 bg-gray-500 text-white px-3 py-2 rounded-lg hover:bg-gray-600 transition-colors text-sm"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                              <span>Remove All</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Upload area for new images */
+                      <div 
+                        className="border-2 border-dashed border-gray-300 rounded-lg p-8 hover:border-orange-300 transition-colors cursor-pointer bg-gray-50 hover:bg-orange-50"
+                        onClick={handleImageChange}
+                      >
+                        <div className="text-center">
+                          {isUploading ? (
+                            <div className="flex flex-col items-center">
+                              <div className="animate-spin w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full mb-3" />
+                              <p className="text-sm text-gray-600">Uploading images...</p>
+                            </div>
+                          ) : (
+                            <>
+                              <Image className="w-12 h-12 mx-auto text-gray-400 mb-3" />
+                              <p className="text-sm text-gray-600 mb-2">
+                                Upload up to <strong>{maxImages} images</strong> for your character
+                              </p>
+                              <p className="text-xs text-gray-500 mb-4">
+                                Click here or drag and drop images (max 5MB each)
+                              </p>
+                              <button 
+                                type="button"
+                                className="flex items-center space-x-2 bg-white text-gray-700 px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors mx-auto"
+                              >
+                                <Upload className="w-4 h-4" />
+                                <span>Select Images</span>
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -2085,14 +2964,51 @@ export default function CharactersPanel({ projectId, selectedElement, onCharacte
                   </div>
                 </div>
                 {expandedSections.links && (
-                  <div>
-                    <p className="text-sm text-gray-600 mb-4">
-                      Links connect <strong>{editingCharacter.name || 'New Character'}</strong> with any other elements within your story.
-                    </p>
-                    <p className="text-sm text-gray-600 mb-4">
-                      Click <strong>+ Add Link</strong> below to add a link to an existing element.
-                    </p>
-                    <button className="flex items-center space-x-2 bg-white text-gray-700 px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors">
+                  <div className="space-y-4">
+                    {/* Existing Links */}
+                    {editingCharacter.attributes.links && editingCharacter.attributes.links.length > 0 && (
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-medium text-gray-700">Linked Elements</h4>
+                        {editingCharacter.attributes.links.map((link) => (
+                          <div key={link.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+                                <span className="text-xs font-medium text-blue-600">
+                                  {link.target_element_category.charAt(0).toUpperCase()}
+                                </span>
+                              </div>
+                              <div>
+                                <div className="font-medium text-sm text-gray-900">{link.target_element_name}</div>
+                                <div className="text-xs text-gray-500 capitalize">{link.target_element_category}</div>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => handleRemoveLink(link.id)}
+                              className="text-gray-400 hover:text-red-500 transition-colors"
+                              title="Remove link"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Description */}
+                    <div>
+                      <p className="text-sm text-gray-600 mb-2">
+                        Links connect <strong>{editingCharacter.name || 'New Character'}</strong> with any other elements within your story.
+                      </p>
+                      <p className="text-sm text-gray-600 mb-4">
+                        Click <strong>+ Add Link</strong> below to add a link to an existing element.
+                      </p>
+                    </div>
+
+                    {/* Add Link Button */}
+                    <button 
+                      onClick={handleOpenLinkModal}
+                      className="flex items-center space-x-2 bg-white text-gray-700 px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
+                    >
                       <Plus className="w-4 h-4" />
                       <span>Add Link</span>
                     </button>
@@ -2123,6 +3039,196 @@ export default function CharactersPanel({ projectId, selectedElement, onCharacte
             </button>
           </div>
         </div>
+      )}
+
+      {/* Link Element Modal */}
+      {showLinkModal && (
+        <Dialog open={showLinkModal} onOpenChange={setShowLinkModal}>
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden bg-white border-0 shadow-2xl">
+            <DialogHeader className="border-b border-gray-100 pb-6">
+              <DialogTitle className="text-2xl font-semibold text-gray-900">Link Element</DialogTitle>
+              <DialogDescription className="text-gray-600 mt-2">
+                Select an element to create a two-way link. This link will be available in links panels on either of the two elements.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="flex flex-col h-full pt-6">
+              {/* Tabs */}
+              <div className="flex bg-gray-50 rounded-lg p-1 mb-6">
+                <button
+                  onClick={() => setShowCreateNewElement(false)}
+                  className={`flex-1 px-6 py-3 text-sm font-medium rounded-md transition-all duration-200 ${
+                    !showCreateNewElement
+                      ? 'bg-white text-gray-900 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  Select Element
+                </button>
+                <button
+                  onClick={() => setShowCreateNewElement(true)}
+                  className={`flex-1 px-6 py-3 text-sm font-medium rounded-md transition-all duration-200 ${
+                    showCreateNewElement
+                      ? 'bg-white text-gray-900 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  Create New Element
+                </button>
+              </div>
+
+              {!showCreateNewElement ? (
+                /* Select Element Tab */
+                <div className="flex flex-col flex-1 min-h-0">
+                  {/* Search */}
+                  <div className="relative mb-6">
+                    <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                    <Input
+                      placeholder="Search for an element..."
+                      value={linkSearchTerm}
+                      onChange={(e) => setLinkSearchTerm(e.target.value)}
+                      className="pl-12 h-12 text-base border-gray-200 focus:border-gray-400 focus:ring-0 bg-gray-50"
+                    />
+                  </div>
+
+                  {/* Recently Viewed */}
+                  {recentlyViewedElements.length > 0 && !linkSearchTerm && (
+                    <div className="mb-6">
+                      <h4 className="text-sm font-semibold text-gray-900 mb-3">Recently Viewed</h4>
+                      <div className="space-y-2">
+                        {recentlyViewedElements.map((element) => (
+                          <button
+                            key={element.id}
+                            onClick={() => handleLinkElement(element)}
+                            className="w-full flex items-center space-x-4 p-4 hover:bg-gray-50 rounded-xl text-left transition-all duration-200 border border-transparent hover:border-gray-200"
+                          >
+                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-sm">
+                              <span className="text-sm font-bold text-white">
+                                {element.category.charAt(0).toUpperCase()}
+                              </span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-base font-medium text-gray-900 truncate">{element.name}</div>
+                              <div className="text-sm text-gray-500 capitalize">{element.category}</div>
+                            </div>
+                            <div className="text-gray-400">
+                              {element.category === 'characters' ? <Users className="w-5 h-5" /> : 
+                               element.category === 'locations' ? <MapPin className="w-5 h-5" /> : 
+                               <BookOpen className="w-5 h-5" />}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Search Results */}
+                  <div className="flex-1 overflow-y-auto min-h-0">
+                    {linkSearchTerm && (
+                      <h4 className="text-sm font-semibold text-gray-900 mb-3">Search Results</h4>
+                    )}
+                    <div className="space-y-2 pb-4">
+                      {getFilteredElements().map((element) => (
+                        <button
+                          key={element.id}
+                          onClick={() => handleLinkElement(element)}
+                          className="w-full flex items-center space-x-4 p-4 hover:bg-gray-50 rounded-xl text-left transition-all duration-200 border border-transparent hover:border-gray-200"
+                        >
+                          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-teal-600 flex items-center justify-center shadow-sm">
+                            <span className="text-sm font-bold text-white">
+                              {element.category.charAt(0).toUpperCase()}
+                            </span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-base font-medium text-gray-900 truncate">{element.name}</div>
+                            <div className="text-sm text-gray-500 capitalize">{element.category}</div>
+                            {element.description && (
+                              <div className="text-sm text-gray-400 truncate mt-1 max-w-md">{element.description}</div>
+                            )}
+                          </div>
+                          <div className="text-gray-400">
+                            {element.category === 'characters' ? <Users className="w-5 h-5" /> : 
+                             element.category === 'locations' ? <MapPin className="w-5 h-5" /> : 
+                             <BookOpen className="w-5 h-5" />}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                    {getFilteredElements().length === 0 && (
+                      <div className="text-center py-12 text-gray-500">
+                        <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <BookOpen className="w-8 h-8 text-gray-400" />
+                        </div>
+                        <p className="text-base font-medium text-gray-900 mb-1">No elements found</p>
+                        {linkSearchTerm && (
+                          <p className="text-sm text-gray-500">Try a different search term</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                /* Create New Element Tab */
+                <div className="space-y-6 pb-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-900 mb-3">Element Name</label>
+                      <Input
+                        placeholder="Enter element name..."
+                        value={newElementName}
+                        onChange={(e) => setNewElementName(e.target.value)}
+                        className="h-12 text-base border-gray-200 focus:border-gray-400 focus:ring-0 bg-gray-50"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-900 mb-3">Category</label>
+                      <select
+                        value={newElementCategory}
+                        onChange={(e) => setNewElementCategory(e.target.value)}
+                        className="w-full h-12 px-4 text-base bg-gray-50 border border-gray-200 rounded-lg focus:ring-0 focus:border-gray-400 transition-colors"
+                      >
+                        {elementCategories.map((category) => (
+                          <option key={category} value={category}>
+                            {category.charAt(0).toUpperCase() + category.slice(1)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="bg-gradient-to-br from-gray-50 to-gray-100 border border-gray-200 rounded-xl p-6">
+                    <div className="flex items-center space-x-4">
+                      <div className="w-16 h-16 bg-white border-2 border-dashed border-gray-300 rounded-xl flex items-center justify-center">
+                        <Image className="w-6 h-6 text-gray-400" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-900 mb-1">Add a thumbnail image</p>
+                        <p className="text-xs text-gray-500">Optional - You can add this later</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex space-x-3 pt-6 border-t border-gray-100">
+                    <button
+                      onClick={handleCloseLinkModal}
+                      className="flex-1 h-12 px-6 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleCreateAndLinkElement}
+                      disabled={!newElementName.trim()}
+                      className="flex-1 h-12 px-6 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Create Element and Link
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   )
