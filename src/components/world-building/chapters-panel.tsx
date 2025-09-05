@@ -8,7 +8,8 @@ import {
   List, ListOrdered, Type, AlignLeft, AlignCenter, AlignRight, AlignJustify,
   Link, Image, Quote, MoreHorizontal, ChevronDown, Search, Users, MapPin, BookOpen,
   Lightbulb, Target, StickyNote, Zap, BarChart3, MousePointer, Clock, CheckCircle, FileText, X,
-  Replace, Palette, Highlighter, Indent, RotateCcw
+  Replace, Palette, Highlighter, Indent, RotateCcw, Minus, Check, File,
+  Download, FileDown, Printer, Settings, Eye
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -24,6 +25,9 @@ import {
 } from "@/components/ui/dialog"
 import { createSupabaseClient } from "@/lib/auth"
 import { uploadFile } from "@/lib/storage"
+import jsPDF from 'jspdf'
+import html2canvas from 'html2canvas'
+import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx'
 
 interface Chapter {
   id: string
@@ -109,11 +113,35 @@ export default function ChaptersPanel({ projectId, onNavigateToElement }: Chapte
   const [showSprintStats, setShowSprintStats] = useState(false)
   const [showDailyGoals, setShowDailyGoals] = useState(false)
 
+  // Export and formatting features
+  const [showExportDialog, setShowExportDialog] = useState(false)
+  const [exportFormat, setExportFormat] = useState<'pdf' | 'docx' | 'rtf'>('pdf')
+  const [exportProgress, setExportProgress] = useState(0)
+  const [isExporting, setIsExporting] = useState(false)
+  const [selectedFormattingPreset, setSelectedFormattingPreset] = useState<string>('standard-manuscript')
+  
+  // Quick fact lookup
+  const [showQuickFacts, setShowQuickFacts] = useState(false)
+  const [quickFactSearch, setQuickFactSearch] = useState('')
+  const [filteredElements, setFilteredElements] = useState<WorldElement[]>([])
+
   // Find and Replace functionality
   const [showTextColorPicker, setShowTextColorPicker] = useState(false)
   const [showHighlightPicker, setShowHighlightPicker] = useState(false)
   const [textColor, setTextColor] = useState('#000000')
   const [highlightColor, setHighlightColor] = useState('#ffff00')
+
+  // Spell check functionality
+  const [spellCheckEnabled, setSpellCheckEnabled] = useState(true)
+
+  // Zoom functionality
+  const [zoomLevel, setZoomLevel] = useState(100)
+
+  // Pages functionality
+  const [showPageBreaks, setShowPageBreaks] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [pageHeight, setPageHeight] = useState(800) // pixels per page
 
   // Find and Replace functionality
   const [showFindReplace, setShowFindReplace] = useState(false)
@@ -424,6 +452,320 @@ export default function ChaptersPanel({ projectId, onNavigateToElement }: Chapte
     setCustomTemplates(prev => prev.filter((_, i) => i !== index))
   }
 
+  // Manuscript formatting presets
+  const formattingPresets = {
+    'standard-manuscript': {
+      name: 'Standard Manuscript Format',
+      description: 'Industry standard formatting for novel submissions',
+      styles: {
+        fontFamily: 'Times New Roman, serif',
+        fontSize: '12pt',
+        lineHeight: '2.0',
+        margins: '1in',
+        firstLineIndent: '0.5in',
+        pageHeader: true,
+        pageNumbers: true
+      }
+    },
+    'apa-manuscript': {
+      name: 'APA Manuscript Format',
+      description: 'Academic paper formatting',
+      styles: {
+        fontFamily: 'Times New Roman, serif',
+        fontSize: '12pt',
+        lineHeight: '2.0',
+        margins: '1in',
+        firstLineIndent: '0.5in',
+        pageHeader: true,
+        pageNumbers: true
+      }
+    },
+    'mla-manuscript': {
+      name: 'MLA Manuscript Format',
+      description: 'Modern Language Association formatting',
+      styles: {
+        fontFamily: 'Times New Roman, serif',
+        fontSize: '12pt',
+        lineHeight: '2.0',
+        margins: '1in',
+        firstLineIndent: '0.5in',
+        pageHeader: true,
+        pageNumbers: true
+      }
+    },
+    'publisher-standard': {
+      name: 'Publisher Standard',
+      description: 'General publisher-ready formatting',
+      styles: {
+        fontFamily: 'Times New Roman, serif',
+        fontSize: '12pt',
+        lineHeight: '1.5',
+        margins: '1in',
+        firstLineIndent: '0.25in',
+        pageHeader: false,
+        pageNumbers: false
+      }
+    },
+    'print-ready': {
+      name: 'Print Ready',
+      description: 'Optimized for home printing',
+      styles: {
+        fontFamily: 'Times New Roman, serif',
+        fontSize: '12pt',
+        lineHeight: '1.5',
+        margins: '0.75in',
+        firstLineIndent: '0.25in',
+        pageHeader: true,
+        pageNumbers: true
+      }
+    }
+  }
+
+  // Export functions
+  const applyFormattingPreset = (presetKey: string) => {
+    const preset = formattingPresets[presetKey as keyof typeof formattingPresets]
+    if (!preset || !editorRef.current) return
+
+    const styles = preset.styles
+    
+    // Apply formatting to editor
+    editorRef.current.style.fontFamily = styles.fontFamily
+    editorRef.current.style.fontSize = styles.fontSize
+    editorRef.current.style.lineHeight = styles.lineHeight
+    editorRef.current.style.margin = styles.margins
+    
+    // Apply paragraph formatting
+    const paragraphs = editorRef.current.querySelectorAll('p')
+    paragraphs.forEach((p, index) => {
+      if (index > 0) { // Don't indent first paragraph of chapter
+        (p as HTMLElement).style.textIndent = styles.firstLineIndent
+      }
+      (p as HTMLElement).style.marginBottom = '0'
+      ;(p as HTMLElement).style.marginTop = '0'
+    })
+    
+    setSelectedFormattingPreset(presetKey)
+    scheduleHistoryPush()
+  }
+
+  const exportToPDF = async () => {
+    if (!editorRef.current || !selectedChapter) return
+
+    setIsExporting(true)
+    setExportProgress(0)
+
+    try {
+      const canvas = await html2canvas(editorRef.current, {
+        useCORS: true,
+        allowTaint: true
+      })
+      
+      setExportProgress(50)
+      
+      const imgData = canvas.toDataURL('image/png')
+      const pdf = new jsPDF('p', 'mm', 'a4')
+      
+      const imgWidth = 210 // A4 width in mm
+      const pageHeight = 295 // A4 height in mm
+      const imgHeight = (canvas.height * imgWidth) / canvas.width
+      let heightLeft = imgHeight
+      
+      let position = 0
+      
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
+      heightLeft -= pageHeight
+      
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight
+        pdf.addPage()
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
+        heightLeft -= pageHeight
+      }
+      
+      setExportProgress(100)
+      
+      pdf.save(`${selectedChapter.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`)
+      
+    } catch (error) {
+      console.error('PDF export failed:', error)
+      alert('Failed to export PDF. Please try again.')
+    } finally {
+      setIsExporting(false)
+      setExportProgress(0)
+    }
+  }
+
+  const exportToDOCX = async () => {
+    if (!editorRef.current || !selectedChapter) return
+
+    setIsExporting(true)
+    setExportProgress(0)
+
+    try {
+      const content = getText()
+      const paragraphs = content.split('\n').filter(p => p.trim())
+      
+      setExportProgress(30)
+      
+      const doc = new Document({
+        sections: [{
+          properties: {},
+          children: paragraphs.map((para, index) => 
+            new Paragraph({
+              text: para,
+              heading: index === 0 ? HeadingLevel.TITLE : undefined,
+              spacing: {
+                after: 200,
+                line: 360
+              }
+            })
+          )
+        }]
+      })
+      
+      setExportProgress(70)
+      
+      const buffer = await Packer.toBuffer(doc)
+      const blob = new Blob([new Uint8Array(buffer)], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })
+      
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${selectedChapter.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.docx`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      
+      setExportProgress(100)
+      
+    } catch (error) {
+      console.error('DOCX export failed:', error)
+      alert('Failed to export DOCX. Please try again.')
+    } finally {
+      setIsExporting(false)
+      setExportProgress(0)
+    }
+  }
+
+  const exportToEPUB = async () => {
+    if (!selectedChapter) return
+
+    setIsExporting(true)
+    setExportProgress(0)
+
+    try {
+      // For now, show a message that EPUB export is coming soon
+      alert('EPUB export will be available in a future update. Please use PDF or DOCX for now.')
+      
+      setExportProgress(100)
+      
+    } catch (error) {
+      console.error('EPUB export failed:', error)
+      alert('Failed to export EPUB. Please try again.')
+    } finally {
+      setIsExporting(false)
+      setExportProgress(0)
+    }
+  }
+
+  const exportToRTF = async () => {
+    if (!editorRef.current || !selectedChapter) return
+
+    setIsExporting(true)
+    setExportProgress(0)
+
+    try {
+      const content = getText()
+      
+      setExportProgress(50)
+      
+      // Create simple RTF content
+      const textContent = getText()
+      const rtfContent = `{\\rtf1\\ansi\\deff0 {\\fonttbl {\\f0 Times New Roman;}}\\fs24 ${textContent.replace(/[{}]/g, '\\$&')}}`
+      
+      const blob = new Blob([rtfContent], { type: 'application/rtf' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${selectedChapter.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.rtf`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      
+      setExportProgress(100)
+      
+    } catch (error) {
+      console.error('RTF export failed:', error)
+      alert('Failed to export RTF. Please try again.')
+    } finally {
+      setIsExporting(false)
+      setExportProgress(0)
+    }
+  }
+
+  const handleExport = async () => {
+    switch (exportFormat) {
+      case 'pdf':
+        await exportToPDF()
+        break
+      case 'docx':
+        await exportToDOCX()
+        break
+      case 'rtf':
+        await exportToRTF()
+        break
+    }
+    setShowExportDialog(false)
+  }
+
+  // Quick fact lookup functions
+  const updateFilteredElements = useCallback(() => {
+    if (!quickFactSearch.trim()) {
+      setFilteredElements(availableElements.slice(0, 10)) // Show first 10
+      return
+    }
+    
+    const filtered = availableElements.filter(element =>
+      element.name.toLowerCase().includes(quickFactSearch.toLowerCase()) ||
+      element.category.toLowerCase().includes(quickFactSearch.toLowerCase()) ||
+      element.description.toLowerCase().includes(quickFactSearch.toLowerCase()) ||
+      element.tags.some(tag => tag.toLowerCase().includes(quickFactSearch.toLowerCase()))
+    )
+    setFilteredElements(filtered.slice(0, 20)) // Limit to 20 results
+  }, [quickFactSearch, availableElements])
+
+  useEffect(() => {
+    updateFilteredElements()
+  }, [updateFilteredElements])
+
+  // Load available elements when component mounts
+  useEffect(() => {
+    loadAvailableElements()
+  }, [projectId])
+
+  const insertQuickFact = (element: WorldElement) => {
+    if (editorRef.current) {
+      editorRef.current.focus()
+      
+      const selection = window.getSelection()
+      if (selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0)
+        const factText = `${element.name}: ${element.description}`
+        range.deleteContents()
+        range.insertNode(document.createTextNode(factText))
+        
+        range.setStartAfter(range.endContainer)
+        range.collapse(true)
+        selection.removeAllRanges()
+        selection.addRange(range)
+      }
+      
+      scheduleHistoryPush()
+    }
+  }
+
   // Find and Replace Functions
   const findTextInEditor = (searchText: string, caseSensitive = false, wholeWordOnly = false) => {
     if (!editorRef.current || !searchText.trim()) return []
@@ -549,6 +891,140 @@ export default function ChaptersPanel({ projectId, onNavigateToElement }: Chapte
     setWholeWord(false)
   }
   
+  // Zoom functions
+  const zoomIn = () => {
+    setZoomLevel(prev => Math.min(prev + 25, 200))
+  }
+  
+  const zoomOut = () => {
+    setZoomLevel(prev => Math.max(prev - 25, 50))
+  }
+  
+  const resetZoom = () => {
+    setZoomLevel(100)
+  }
+  
+  // Page functions
+  const insertPageBreak = () => {
+    focusEditor()
+    const selection = window.getSelection()
+    if (selection && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0)
+      
+      // Create a page break element
+      const pageBreak = document.createElement('div')
+      pageBreak.className = 'page-break'
+      pageBreak.innerHTML = '--- Page Break ---'
+      pageBreak.style.cssText = `
+        page-break-before: always;
+        border-top: 1px dashed #ccc;
+        margin-top: ${48 * (zoomLevel / 100)}pt;
+        padding-top: ${48 * (zoomLevel / 100)}pt;
+        text-align: center;
+        color: #666;
+        font-size: 12px;
+        font-style: italic;
+      `
+      
+      // Insert the page break
+      range.deleteContents()
+      range.insertNode(pageBreak)
+      
+      // Move cursor after the page break
+      range.setStartAfter(pageBreak)
+      range.collapse(true)
+      selection.removeAllRanges()
+      selection.addRange(range)
+      
+      scheduleHistoryPush()
+      updatePageCount()
+    }
+  }
+  
+  const updatePageCount = () => {
+    if (!editorRef.current) return
+    
+    // Count page breaks to determine total pages
+    const pageBreaks = editorRef.current.querySelectorAll('.page-break')
+    const newTotalPages = pageBreaks.length + 1
+    setTotalPages(newTotalPages)
+    
+    // Update page numbers display
+    updatePageNumbers()
+  }
+  
+  const updatePageNumbers = () => {
+    if (!editorRef.current) return
+    
+    // Remove existing page numbers
+    const existingNumbers = editorRef.current.querySelectorAll('.page-number')
+    existingNumbers.forEach(el => el.remove())
+    
+    if (!showPageBreaks) return
+    
+    // Add page numbers
+    const pageBreaks = Array.from(editorRef.current.querySelectorAll('.page-break'))
+    let pageNum = 1
+    
+    // Add page number at the beginning
+    addPageNumber(editorRef.current, pageNum)
+    pageNum++
+    
+    // Add page numbers after each page break
+    pageBreaks.forEach(() => {
+      addPageNumber(editorRef.current!, pageNum)
+      pageNum++
+    })
+  }
+  
+  const addPageNumber = (container: HTMLElement, pageNum: number) => {
+    const pageNumber = document.createElement('div')
+    pageNumber.className = 'page-number'
+    pageNumber.textContent = `Page ${pageNum}`
+    pageNumber.style.cssText = `
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      font-size: 10px;
+      color: #666;
+      background: rgba(255, 255, 255, 0.8);
+      padding: 2px 6px;
+      border-radius: 3px;
+      border: 1px solid #ccc;
+    `
+    container.appendChild(pageNumber)
+  }
+  
+  const goToPage = (pageNum: number) => {
+    if (pageNum < 1 || pageNum > totalPages) return
+    
+    setCurrentPage(pageNum)
+    
+    if (!editorRef.current) return
+    
+    const pageBreaks = Array.from(editorRef.current.querySelectorAll('.page-break'))
+    
+    let targetElement: Element | null = null
+    
+    if (pageNum === 1) {
+      // Go to the beginning
+      targetElement = editorRef.current.firstElementChild || editorRef.current
+    } else {
+      // Go to the page break before the target page
+      targetElement = pageBreaks[pageNum - 2] || editorRef.current.lastElementChild
+    }
+    
+    if (targetElement) {
+      targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }
+  
+  const togglePageBreaks = () => {
+    setShowPageBreaks(!showPageBreaks)
+    // Update page numbers when toggling
+    setTimeout(updatePageNumbers, 100)
+  }
+
   // Enhanced formatting functions
   const applyTextColor = (color: string) => {
     focusEditor()
@@ -1060,6 +1536,13 @@ export default function ChaptersPanel({ projectId, onNavigateToElement }: Chapte
     return () => clearTimeout(t)
   }, [autoTick, selectedChapter, lastSavedHTML])
 
+  // Update page count when content changes
+  useEffect(() => {
+    if (selectedChapter && editorRef.current) {
+      updatePageCount()
+    }
+  }, [selectedChapter, autoTick])
+
   const autoSaveChapter = async () => {
     if (!selectedChapter) return
     const html = getHTML()
@@ -1258,6 +1741,48 @@ export default function ChaptersPanel({ projectId, onNavigateToElement }: Chapte
                       title="Find and Replace (Ctrl+F)"
                     >
                       <Search className="h-4 w-4" />
+                    </button>
+                    
+                    {/* Spell Check */}
+                    <button 
+                      onClick={() => setSpellCheckEnabled(!spellCheckEnabled)}
+                      className={`p-2 rounded hover:bg-gray-100 ml-2 ${spellCheckEnabled ? 'text-blue-600 bg-blue-50' : 'text-gray-700'}`}
+                      title={spellCheckEnabled ? "Disable spell check" : "Enable spell check"}
+                    >
+                      <Check className="h-4 w-4" />
+                    </button>
+                    
+                    {/* Page Break */}
+                    <button 
+                      onClick={insertPageBreak}
+                      className="p-2 rounded hover:bg-gray-100 ml-2 text-gray-700"
+                      title="Insert page break"
+                    >
+                      <File className="h-4 w-4" />
+                    </button>
+                    
+                    {/* Export */}
+                    <button 
+                      onClick={() => setShowExportDialog(true)}
+                      className="p-2 rounded hover:bg-gray-100 ml-2 text-gray-700"
+                      title="Export document"
+                    >
+                      <Download className="h-4 w-4" />
+                    </button>
+                    
+                    {/* Quick Facts */}
+                    <button 
+                      onClick={() => {
+                        const newState = !showQuickFacts
+                        setShowQuickFacts(newState)
+                        if (newState) {
+                          loadAvailableElements()
+                        }
+                      }}
+                      className={`p-2 rounded ml-2 ${showQuickFacts ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                      title="Quick fact lookup"
+                    >
+                      <Eye className="h-4 w-4" />
                     </button>
                   </div>
                   
@@ -1752,6 +2277,7 @@ export default function ChaptersPanel({ projectId, onNavigateToElement }: Chapte
                             <div>Ctrl+I: Italic</div>
                             <div>Ctrl+F: Find and Replace</div>
                             <div>Ctrl+Shift+S: Start 15min Sprint</div>
+                            <div>Ctrl+Shift+F: Quick Facts</div>
                             <div>Ctrl+S: Save</div>
                             <div>Tab: Indent</div>
                             <div>Shift+Tab: Outdent</div>
@@ -1807,18 +2333,27 @@ export default function ChaptersPanel({ projectId, onNavigateToElement }: Chapte
 
               {/* Google Docs Style Editor */}
               <div className="bg-gray-100 min-h-full">
-                <div className="max-w-4xl mx-auto py-8">
+                <div className={`mx-auto py-8 transition-all duration-300 ${
+                  zoomLevel === 50 ? 'max-w-2xl' :
+                  zoomLevel === 75 ? 'max-w-4xl' :
+                  zoomLevel === 100 ? 'max-w-5xl' :
+                  zoomLevel === 125 ? 'max-w-6xl' :
+                  zoomLevel === 150 ? 'max-w-7xl' :
+                  zoomLevel === 175 ? 'max-w-8xl' :
+                  'max-w-9xl'
+                }`}>
                   <div className={`shadow-sm min-h-[800px] mx-4 ${focusMode ? 'bg-gray-800' : 'bg-white'}`}>
                     {/* Document styling */}
                     <style jsx global>{`
                       .google-docs-editor {
                         font-family: 'Arial', sans-serif !important;
-                        font-size: 11pt !important;
+                        font-size: ${11 * (zoomLevel / 100)}pt !important;
                         line-height: 1.5 !important;
                         color: ${focusMode ? '#e5e7eb' : '#000'} !important;
                         background-color: ${focusMode ? '#374151' : '#ffffff'} !important;
-                        padding: 96px 96px 96px 96px; /* 1 inch margins */
+                        padding: ${96 * (zoomLevel / 100)}px ${96 * (zoomLevel / 100)}px ${96 * (zoomLevel / 100)}px ${96 * (zoomLevel / 100)}px; /* 1 inch margins scaled */
                         font-weight: 400 !important;
+                        transition: all 0.3s ease;
                       }
                       .google-docs-editor * {
                         font-family: inherit !important;
@@ -1832,35 +2367,35 @@ export default function ChaptersPanel({ projectId, onNavigateToElement }: Chapte
                         outline: none;
                       }
                       .google-docs-editor h1 {
-                        font-size: 20pt !important;
+                        font-size: ${20 * (zoomLevel / 100)}pt !important;
                         font-weight: 400 !important;
-                        margin: 12pt 0 6pt 0 !important;
+                        margin: ${12 * (zoomLevel / 100)}pt 0 ${6 * (zoomLevel / 100)}pt 0 !important;
                         padding: 0 !important;
                         line-height: 1.2 !important;
                       }
                       .google-docs-editor h2 {
-                        font-size: 16pt !important;
+                        font-size: ${16 * (zoomLevel / 100)}pt !important;
                         font-weight: 400 !important;
-                        margin: 10pt 0 6pt 0 !important;
+                        margin: ${10 * (zoomLevel / 100)}pt 0 ${6 * (zoomLevel / 100)}pt 0 !important;
                         padding: 0 !important;
                         line-height: 1.2 !important;
                       }
                       .google-docs-editor h3 {
-                        font-size: 14pt !important;
+                        font-size: ${14 * (zoomLevel / 100)}pt !important;
                         font-weight: 400 !important;
-                        margin: 8pt 0 6pt 0 !important;
+                        margin: ${8 * (zoomLevel / 100)}pt 0 ${6 * (zoomLevel / 100)}pt 0 !important;
                         padding: 0 !important;
                         line-height: 1.2 !important;
                       }
                       .google-docs-editor p {
-                        margin: 0 0 6pt 0 !important;
-                        font-size: 11pt !important;
+                        margin: 0 0 ${6 * (zoomLevel / 100)}pt 0 !important;
+                        font-size: ${11 * (zoomLevel / 100)}pt !important;
                         font-weight: 400 !important;
                         line-height: 1.5 !important;
                       }
                       .google-docs-editor ul, .google-docs-editor ol {
-                        margin: 0 0 6pt 0;
-                        padding-left: 18pt;
+                        margin: 0 0 ${6 * (zoomLevel / 100)}pt 0;
+                        padding-left: ${18 * (zoomLevel / 100)}pt;
                         list-style-position: outside;
                       }
                       .google-docs-editor ul {
@@ -1870,7 +2405,7 @@ export default function ChaptersPanel({ projectId, onNavigateToElement }: Chapte
                         list-style-type: decimal;
                       }
                       .google-docs-editor li {
-                        margin: 0 0 6pt 0;
+                        margin: 0 0 ${6 * (zoomLevel / 100)}pt 0;
                         padding-left: 0;
                       }
                       .google-docs-editor ul ul {
@@ -1880,9 +2415,9 @@ export default function ChaptersPanel({ projectId, onNavigateToElement }: Chapte
                         list-style-type: square;
                       }
                       .google-docs-editor blockquote {
-                        margin: 12pt 0;
-                        padding: 8pt 16pt;
-                        border-left: 4px solid #e5e7eb;
+                        margin: ${12 * (zoomLevel / 100)}pt 0;
+                        padding: ${8 * (zoomLevel / 100)}pt ${16 * (zoomLevel / 100)}pt;
+                        border-left: ${4 * (zoomLevel / 100)}px solid #e5e7eb;
                         background-color: #f9fafb;
                         font-style: italic;
                         color: #6b7280;
@@ -1897,8 +2432,8 @@ export default function ChaptersPanel({ projectId, onNavigateToElement }: Chapte
                       .page-break {
                         page-break-before: always;
                         border-top: 1px dashed #ccc;
-                        margin-top: 48pt;
-                        padding-top: 48pt;
+                        margin-top: ${48 * (zoomLevel / 100)}pt;
+                        padding-top: ${48 * (zoomLevel / 100)}pt;
                       }
                     `}</style>
                     
@@ -1906,6 +2441,7 @@ export default function ChaptersPanel({ projectId, onNavigateToElement }: Chapte
                       ref={editorRef}
                       contentEditable
                       suppressContentEditableWarning
+                      spellCheck={spellCheckEnabled}
                       onInput={() => { setAutoTick(t => t + 1); scheduleHistoryPush() }}
                       onKeyDown={(e) => {
                         // Handle Tab for indent/outdent
@@ -1926,6 +2462,12 @@ export default function ChaptersPanel({ projectId, onNavigateToElement }: Chapte
                         else if (k === 'z' && !e.shiftKey) { e.preventDefault(); doUndo() }
                         else if (k === 'y' || (k === 'z' && e.shiftKey)) { e.preventDefault(); doRedo() }
                         else if (k === 's') { e.preventDefault(); saveChapter() }
+        else if (k === 'f' && e.ctrlKey && e.shiftKey) { 
+                          e.preventDefault(); 
+                          const newState = !showQuickFacts;
+                          setShowQuickFacts(newState);
+                          if (newState) loadAvailableElements();
+                        }
                       }}
                       className="google-docs-editor"
                     />
@@ -1975,8 +2517,75 @@ export default function ChaptersPanel({ projectId, onNavigateToElement }: Chapte
                   </span>
                 )}
                 {uploadingImage && <span className="text-blue-600">Uploading image...</span>}
+                
+                {/* Page Controls */}
+                {showPageBreaks && totalPages > 1 && (
+                  <div className="flex items-center gap-2 bg-white rounded-lg border border-gray-200 px-3 py-1 shadow-sm">
+                    <button
+                      onClick={() => goToPage(currentPage - 1)}
+                      disabled={currentPage <= 1}
+                      className="p-1 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Previous page"
+                    >
+                      <ChevronLeft className="h-3 w-3" />
+                    </button>
+                    <span className="text-xs font-medium min-w-[60px] text-center">
+                      {currentPage} / {totalPages}
+                    </span>
+                    <button
+                      onClick={() => goToPage(currentPage + 1)}
+                      disabled={currentPage >= totalPages}
+                      className="p-1 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Next page"
+                    >
+                      <ChevronRight className="h-3 w-3" />
+                    </button>
+                  </div>
+                )}
+                
+                {/* Page Break Toggle */}
+                <button
+                  onClick={togglePageBreaks}
+                  className={`px-3 py-1 rounded text-xs font-medium ${
+                    showPageBreaks 
+                      ? 'bg-blue-100 text-blue-700 border border-blue-200' 
+                      : 'bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200'
+                  }`}
+                  title={showPageBreaks ? "Hide page breaks" : "Show page breaks"}
+                >
+                  {showPageBreaks ? 'Hide Pages' : 'Show Pages'}
+                </button>
               </div>
-              <div>Last updated: {new Date(selectedChapter?.updated_at || '').toLocaleDateString()}</div>
+              <div className="flex items-center gap-4">
+                {/* Zoom Controls */}
+                <div className="flex items-center gap-2 bg-white rounded-lg border border-gray-200 px-3 py-1 shadow-sm">
+                  <button
+                    onClick={zoomOut}
+                    disabled={zoomLevel <= 50}
+                    className="p-1 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Zoom out"
+                  >
+                    <Minus className="h-3 w-3" />
+                  </button>
+                  <span className="text-xs font-medium min-w-[40px] text-center">{zoomLevel}%</span>
+                  <button
+                    onClick={zoomIn}
+                    disabled={zoomLevel >= 200}
+                    className="p-1 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Zoom in"
+                  >
+                    <Plus className="h-3 w-3" />
+                  </button>
+                  <button
+                    onClick={resetZoom}
+                    className="ml-2 p-1 rounded hover:bg-gray-100 text-xs"
+                    title="Reset zoom"
+                  >
+                    <RotateCcw className="h-3 w-3" />
+                  </button>
+                </div>
+                <div>Last updated: {new Date(selectedChapter?.updated_at || '').toLocaleDateString()}</div>
+              </div>
             </div>
 
             {/* Writing Assistant Panels */}
@@ -2514,6 +3123,29 @@ export default function ChaptersPanel({ projectId, onNavigateToElement }: Chapte
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-6 overflow-y-auto max-h-96">
+              {/* Formatting Presets */}
+              <div className="bg-white border border-indigo-100 rounded-xl p-6 shadow-sm">
+                <h4 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                  <Settings className="w-4 h-4 text-indigo-600" />
+                  Industry Standard Formats
+                </h4>
+                <div className="grid grid-cols-1 gap-3">
+                  {Object.entries(formattingPresets).map(([key, preset]) => (
+                    <button
+                      key={key}
+                      onClick={() => applyFormattingPreset(key)}
+                      className="p-3 text-left border border-gray-200 rounded-lg hover:border-indigo-300 hover:bg-indigo-50 transition-colors group"
+                    >
+                      <div className="font-medium text-gray-900 group-hover:text-indigo-700">{preset.name}</div>
+                      <div className="text-sm text-gray-600 mt-1">{preset.description}</div>
+                      <div className="text-xs text-gray-500 mt-2">
+                        {preset.styles.fontSize} • {preset.styles.lineHeight} spacing • {preset.styles.margins} margins
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Add New Template */}
               <div className="bg-white border border-indigo-100 rounded-xl p-6 shadow-sm">
                 <h4 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
@@ -2738,6 +3370,173 @@ export default function ChaptersPanel({ projectId, onNavigateToElement }: Chapte
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Export Dialog */}
+      {showExportDialog && (
+        <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
+          <DialogContent className="max-w-md bg-gradient-to-br from-white to-blue-50 border-0 shadow-2xl">
+            <DialogHeader className="border-b border-blue-100 pb-6 bg-gradient-to-r from-blue-50 to-indigo-50 -m-6 mb-6 p-6 rounded-t-lg">
+              <DialogTitle className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
+                  <Download className="w-5 h-5 text-white" />
+                </div>
+                Export Document
+              </DialogTitle>
+              <DialogDescription className="text-gray-600 mt-2">
+                Choose format and export your chapter
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-6">
+              {/* Format Selection */}
+              <div className="space-y-3">
+                <label className="block text-sm font-semibold text-gray-900">Export Format</label>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { id: 'pdf', name: 'PDF', icon: FileText },
+                    { id: 'docx', name: 'Word (.docx)', icon: FileDown },
+                    { id: 'rtf', name: 'RTF', icon: FileText }
+                  ].map((format) => (
+                    <button
+                      key={format.id}
+                      onClick={() => setExportFormat(format.id as any)}
+                      className={`p-3 rounded-xl border-2 transition-all ${
+                        exportFormat === format.id
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                      }`}
+                    >
+                      <format.icon className="w-5 h-5 mx-auto mb-2" />
+                      <div className="text-sm font-medium">{format.name}</div>
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => alert('EPUB export coming soon!')}
+                    className="p-3 rounded-xl border-2 border-gray-200 hover:border-gray-300 text-gray-400 cursor-not-allowed"
+                    disabled
+                  >
+                    <BookOpen className="w-5 h-5 mx-auto mb-2" />
+                    <div className="text-sm font-medium">EPUB</div>
+                    <div className="text-xs">Coming Soon</div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Formatting Preset */}
+              <div className="space-y-3">
+                <label className="block text-sm font-semibold text-gray-900">Formatting Preset</label>
+                <select
+                  value={selectedFormattingPreset}
+                  onChange={(e) => setSelectedFormattingPreset(e.target.value)}
+                  className="w-full py-3 px-4 text-base border border-gray-200 rounded-lg focus:border-blue-500 focus:ring-blue-500 bg-white"
+                >
+                  {Object.entries(formattingPresets).map(([key, preset]) => (
+                    <option key={key} value={key}>{preset.name}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => applyFormattingPreset(selectedFormattingPreset)}
+                  className="w-full py-2 px-4 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                >
+                  Apply Formatting
+                </button>
+              </div>
+
+              {/* Progress */}
+              {isExporting && (
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span>Exporting...</span>
+                    <span>{exportProgress}%</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div 
+                      className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                      style={{ width: `${exportProgress}%` }}
+                    ></div>
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-4 border-t border-gray-100">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setShowExportDialog(false)}
+                  className="flex-1 border-gray-300 hover:bg-gray-50"
+                  disabled={isExporting}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleExport}
+                  className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700"
+                  disabled={isExporting}
+                >
+                  {isExporting ? 'Exporting...' : 'Export'}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Quick Facts Panel */}
+      {showQuickFacts && (
+        <div className="fixed top-20 right-4 w-80 bg-white border border-gray-200 rounded-lg shadow-xl z-50 max-h-96 overflow-hidden">
+          <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                <Eye className="w-4 h-4" />
+                Quick Facts
+              </h3>
+              <button
+                onClick={() => setShowQuickFacts(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ×
+              </button>
+            </div>
+            <input
+              type="text"
+              placeholder="Search world elements..."
+              value={quickFactSearch}
+              onChange={(e) => setQuickFactSearch(e.target.value)}
+              className="w-full mt-3 px-3 py-2 text-sm border border-gray-200 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+          <div className="max-h-80 overflow-y-auto">
+            {filteredElements.length > 0 ? (
+              <div className="divide-y divide-gray-100">
+                {filteredElements.map((element) => (
+                  <div key={element.id} className="p-3 hover:bg-gray-50">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-gray-900 truncate">{element.name}</div>
+                        <div className="text-xs text-gray-500 capitalize">{element.category}</div>
+                        {element.description && (
+                          <div className="text-xs text-gray-600 mt-1 line-clamp-2">{element.description}</div>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => insertQuickFact(element)}
+                        className="ml-2 p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded"
+                        title="Insert fact"
+                      >
+                        <Plus className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="p-4 text-center text-gray-500 text-sm">
+                No elements found
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }
