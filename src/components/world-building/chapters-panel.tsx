@@ -37,7 +37,6 @@ export default function ChaptersPanel({ projectId }: ChaptersPanelProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const [loading, setLoading] = useState(true)
   const [selectedChapter, setSelectedChapter] = useState<Chapter | null>(null)
-  const [isEditing, setIsEditing] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
   const [content, setContent] = useState('')
   const [title, setTitle] = useState('')
@@ -52,14 +51,14 @@ export default function ChaptersPanel({ projectId }: ChaptersPanelProps) {
 
   // Auto-save functionality - save changes after user stops typing for 2 seconds
   useEffect(() => {
-    if (!selectedChapter || !isEditing || !content || content === lastSavedContent) return
+    if (!selectedChapter || !content || content === lastSavedContent) return
     
     const autoSaveTimer = setTimeout(() => {
       autoSaveChapter()
     }, 2000)
 
     return () => clearTimeout(autoSaveTimer)
-  }, [content, selectedChapter, isEditing, lastSavedContent])
+  }, [content, selectedChapter, lastSavedContent])
 
   useEffect(() => {
     if (selectedChapter) {
@@ -155,7 +154,6 @@ export default function ChaptersPanel({ projectId }: ChaptersPanelProps) {
       setTitle(newTitle)
       setContent('')
       setIsCreating(false)
-      setIsEditing(true)
     } catch (error) { console.error('Error:', error) }
   }
 
@@ -183,7 +181,6 @@ export default function ChaptersPanel({ projectId }: ChaptersPanelProps) {
           : chapter
       ))
       setSelectedChapter(prev => prev ? { ...prev, title: title.trim(), content, word_count: wordCount } : null)
-      setIsEditing(false)
     } catch (error) {
       console.error('Error:', error)
     } finally { setSaving(false) }
@@ -211,7 +208,7 @@ export default function ChaptersPanel({ projectId }: ChaptersPanelProps) {
 
   // Text formatting functions
   const formatText = (prefix: string, suffix: string = '') => {
-    if (!textareaRef || !isEditing) return
+    if (!textareaRef) return
 
     const start = textareaRef.selectionStart
     const end = textareaRef.selectionEnd
@@ -231,7 +228,7 @@ export default function ChaptersPanel({ projectId }: ChaptersPanelProps) {
   }
 
   const insertText = (text: string) => {
-    if (!textareaRef || !isEditing) return
+    if (!textareaRef) return
 
     const start = textareaRef.selectionStart
     const newText = content.substring(0, start) + text + content.substring(start)
@@ -306,44 +303,35 @@ export default function ChaptersPanel({ projectId }: ChaptersPanelProps) {
                     </div>
                   )}
                   
-                  {!autoSaving && isEditing && content !== lastSavedContent && (
+                  {!autoSaving && content !== lastSavedContent && (
                     <div className="text-xs text-orange-600">
                       Unsaved changes
                     </div>
                   )}
                   
-                  {!autoSaving && isEditing && content === lastSavedContent && content && (
+                  {!autoSaving && content === lastSavedContent && content && (
                     <div className="text-xs text-green-600">
                       ✓ Saved
                     </div>
                   )}
                   
-                  <Button onClick={() => setIsEditing(!isEditing)} variant="ghost" size="sm" className="h-8">
-                    {isEditing ? <Eye className="h-4 w-4 mr-1" /> : <Edit3 className="h-4 w-4 mr-1" />}
-                    {isEditing ? 'Preview' : 'Edit'}
+                  {/* Manual save button */}
+                  <Button onClick={saveChapter} disabled={saving || autoSaving} size="sm" className="h-8">
+                    <Save className="h-4 w-4 mr-1" />
+                    {saving ? 'Saving...' : 'Save Now'}
                   </Button>
-                  {isEditing && (
-                    <Button onClick={saveChapter} disabled={saving || autoSaving} size="sm" className="h-8">
-                      <Save className="h-4 w-4 mr-1" />
-                      {saving ? 'Saving...' : 'Save Now'}
-                    </Button>
-                  )}
                 </div>
               </div>
             </div>
 
             {/* Title (non-scrolling) */}
             <div className="p-4 border-b border-gray-100 bg-white">
-              {isEditing ? (
-                <Input
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="text-2xl font-bold border-none p-0 h-auto focus-visible:ring-0 shadow-none"
-                  placeholder="Chapter Title"
-                />
-              ) : (
-                <h1 className="text-2xl font-bold text-gray-900">{selectedChapter?.title}</h1>
-              )}
+              <Input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="text-2xl font-bold border-none p-0 h-auto focus-visible:ring-0 shadow-none"
+                placeholder="Chapter Title"
+              />
             </div>
 
             {/* Scrollable Content Area */}
@@ -374,7 +362,7 @@ export default function ChaptersPanel({ projectId }: ChaptersPanelProps) {
                     size="sm" 
                     className="h-8 w-8 p-0" 
                     onClick={() => formatText('**', '**')}
-                    disabled={!isEditing}
+                    
                     title="Bold (Ctrl+B)"
                   >
                     <Bold className="h-4 w-4" />
@@ -384,7 +372,7 @@ export default function ChaptersPanel({ projectId }: ChaptersPanelProps) {
                     size="sm" 
                     className="h-8 w-8 p-0"
                     onClick={() => formatText('*', '*')}
-                    disabled={!isEditing}
+                    
                     title="Italic (Ctrl+I)"
                   >
                     <Italic className="h-4 w-4" />
@@ -394,12 +382,12 @@ export default function ChaptersPanel({ projectId }: ChaptersPanelProps) {
                     size="sm" 
                     className="h-8 w-8 p-0"
                     onClick={() => formatText('<u>', '</u>')}
-                    disabled={!isEditing}
+                    
                     title="Underline (Ctrl+U)"
                   >
                     <Underline className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" disabled={!isEditing}>
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" >
                     <Type className="h-4 w-4" />
                   </Button>
 
@@ -411,7 +399,7 @@ export default function ChaptersPanel({ projectId }: ChaptersPanelProps) {
                     size="sm" 
                     className="h-8 px-2 text-sm font-medium"
                     onClick={() => insertHeading(1)}
-                    disabled={!isEditing}
+                    
                     title="Heading 1"
                   >
                     H1
@@ -421,7 +409,7 @@ export default function ChaptersPanel({ projectId }: ChaptersPanelProps) {
                     size="sm" 
                     className="h-8 px-2 text-sm font-medium"
                     onClick={() => insertHeading(2)}
-                    disabled={!isEditing}
+                    
                     title="Heading 2"
                   >
                     H2
@@ -431,7 +419,7 @@ export default function ChaptersPanel({ projectId }: ChaptersPanelProps) {
                     size="sm" 
                     className="h-8 px-2 text-sm font-medium"
                     onClick={() => insertHeading(3)}
-                    disabled={!isEditing}
+                    
                     title="Heading 3"
                   >
                     H3
@@ -440,16 +428,16 @@ export default function ChaptersPanel({ projectId }: ChaptersPanelProps) {
                   <Separator orientation="vertical" className="h-6 mx-2" />
 
                   {/* Alignment */}
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" disabled={!isEditing}>
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" >
                     <AlignLeft className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" disabled={!isEditing}>
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" >
                     <AlignCenter className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" disabled={!isEditing}>
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" >
                     <AlignRight className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" disabled={!isEditing}>
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" >
                     <AlignJustify className="h-4 w-4" />
                   </Button>
 
@@ -461,7 +449,7 @@ export default function ChaptersPanel({ projectId }: ChaptersPanelProps) {
                     size="sm" 
                     className="h-8 w-8 p-0"
                     onClick={() => insertText('\n• ')}
-                    disabled={!isEditing}
+                    
                     title="Bullet List"
                   >
                     <List className="h-4 w-4" />
@@ -471,7 +459,7 @@ export default function ChaptersPanel({ projectId }: ChaptersPanelProps) {
                     size="sm" 
                     className="h-8 w-8 p-0"
                     onClick={() => insertText('\n1. ')}
-                    disabled={!isEditing}
+                    
                     title="Numbered List"
                   >
                     <ListOrdered className="h-4 w-4" />
@@ -481,7 +469,7 @@ export default function ChaptersPanel({ projectId }: ChaptersPanelProps) {
                     size="sm" 
                     className="h-8 w-8 p-0"
                     onClick={() => formatText('\n> ', '')}
-                    disabled={!isEditing}
+                    
                     title="Quote"
                   >
                     <Quote className="h-4 w-4" />
@@ -495,12 +483,12 @@ export default function ChaptersPanel({ projectId }: ChaptersPanelProps) {
                     size="sm" 
                     className="h-8 w-8 p-0"
                     onClick={insertLink}
-                    disabled={!isEditing}
+                    
                     title="Insert Link"
                   >
                     <Link className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" disabled={!isEditing}>
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" >
                     <Image className="h-4 w-4" />
                   </Button>
 
@@ -512,7 +500,7 @@ export default function ChaptersPanel({ projectId }: ChaptersPanelProps) {
                     size="sm" 
                     className="h-8 px-3 text-sm"
                     onClick={() => insertText('\n---\n')}
-                    disabled={!isEditing}
+                    
                     title="Scene Break"
                   >
                     Scene Break
@@ -522,7 +510,7 @@ export default function ChaptersPanel({ projectId }: ChaptersPanelProps) {
                     size="sm" 
                     className="h-8 px-3 text-sm"
                     onClick={() => insertText('\n\n* * *\n\n')}
-                    disabled={!isEditing}
+                    
                     title="Chapter Break"
                   >
                     Chapter Break
@@ -534,7 +522,7 @@ export default function ChaptersPanel({ projectId }: ChaptersPanelProps) {
                   <div className="flex items-center gap-1">
                     <Search className="h-4 w-4" />
                     <span className="text-blue-600 font-semibold">
-                      {isEditing ? content.trim().split(/\s+/).filter(word => word.length > 0).length : selectedChapter?.word_count || 0} words
+                      {content.trim().split(/\s+/).filter(word => word.length > 0).length} words
                     </span>
                     <span>| {content.length} chars</span>
                   </div>
@@ -543,52 +531,39 @@ export default function ChaptersPanel({ projectId }: ChaptersPanelProps) {
 
               {/* Content Editor */}
               <div className="p-4">
-                {isEditing ? (
-                  <Textarea
-                    ref={(el) => setTextareaRef(el)}
-                    value={content}
-                    onChange={(e) => setContent(e.target.value)}
-                    className="w-full resize-none border-none p-0 focus-visible:ring-0 shadow-none min-h-[600px]"
-                    placeholder="Start writing your chapter..."
-                    style={{ fontSize: `${fontSize}px`, lineHeight: 1.6 }}
-                    onKeyDown={(e) => {
-                      // Word-like keyboard shortcuts
-                      if (e.ctrlKey || e.metaKey) {
-                        if (e.key === 'b') {
-                          e.preventDefault()
-                          formatText('**', '**')
-                        } else if (e.key === 'i') {
-                          e.preventDefault()
-                          formatText('*', '*')
-                        } else if (e.key === 'u') {
-                          e.preventDefault()
-                          formatText('<u>', '</u>')
-                        } else if (e.key === 's') {
-                          e.preventDefault()
-                          saveChapter()
-                        }
+                <Textarea
+                  ref={(el) => setTextareaRef(el)}
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  className="w-full resize-none border-none p-0 focus-visible:ring-0 shadow-none min-h-[600px]"
+                  placeholder="Start writing your chapter..."
+                  style={{ fontSize: `${fontSize}px`, lineHeight: 1.6 }}
+                  onKeyDown={(e) => {
+                    // Word-like keyboard shortcuts
+                    if (e.ctrlKey || e.metaKey) {
+                      if (e.key === 'b') {
+                        e.preventDefault()
+                        formatText('**', '**')
+                      } else if (e.key === 'i') {
+                        e.preventDefault()
+                        formatText('*', '*')
+                      } else if (e.key === 'u') {
+                        e.preventDefault()
+                        formatText('<u>', '</u>')
+                      } else if (e.key === 's') {
+                        e.preventDefault()
+                        saveChapter()
                       }
-                    }}
-                  />
-                ) : (
-                  <div
-                    className="w-full prose prose-gray max-w-none"
-                    style={{ fontSize: `${fontSize}px`, lineHeight: 1.6 }}
-                  >
-                    {content ? (
-                      <div className="whitespace-pre-wrap">{content}</div>
-                    ) : (
-                      <div className="text-gray-500 italic">No content yet. Click Edit to start writing.</div>
-                    )}
-                  </div>
-                )}
+                    }
+                  }}
+                />
               </div>
             </div>
 
             {/* Footer / Status (non-scrolling) */}
             <div className="border-t border-gray-200 px-4 py-2 bg-gray-50 flex items-center justify-between text-sm text-gray-600">
               <div className="flex items-center gap-4">
-                <span>Words: {isEditing ? content.trim().split(/\s+/).filter(word => word.length > 0).length : selectedChapter?.word_count}</span>
+                <span>Words: {content.trim().split(/\s+/).filter(word => word.length > 0).length}</span>
                 <span>Target: {selectedChapter?.target_word_count}</span>
                 <Badge variant="outline" className={getStatusColor(selectedChapter?.status || 'draft')}>
                   {selectedChapter?.status}
