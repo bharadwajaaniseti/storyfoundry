@@ -1,10 +1,11 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { 
   Plus, Search, Edit3, Trash2, ChevronLeft, ChevronRight, Save,
   Bold, Italic, Underline, Type, AlignLeft, AlignCenter, AlignRight, AlignJustify,
-  List, ListOrdered, Quote, Link, Image, Eye, Settings
+  List, ListOrdered, Quote, Link, Image, Eye, Settings, Strikethrough,
+  Heading1, Heading2, Heading3, Loader2, Check, AlertTriangle, X, Undo, Redo
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -44,8 +45,14 @@ export default function ChaptersPanel({ projectId }: ChaptersPanelProps) {
   const [autoSaving, setAutoSaving] = useState(false)
   const [fontSize, setFontSize] = useState('16')
   const [currentChapterIndex, setCurrentChapterIndex] = useState(0)
-  const [textareaRef, setTextareaRef] = useState<HTMLTextAreaElement | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [lastSavedContent, setLastSavedContent] = useState('')
+  const [showFindReplace, setShowFindReplace] = useState(false)
+  const [findText, setFindText] = useState('')
+  const [replaceText, setReplaceText] = useState('')
+  const [contentHistory, setContentHistory] = useState<string[]>([])
+  const [historyIndex, setHistoryIndex] = useState(-1)
+  const [isUndoRedoAction, setIsUndoRedoAction] = useState(false)
 
   useEffect(() => { loadChapters() }, [projectId])
 
@@ -67,8 +74,32 @@ export default function ChaptersPanel({ projectId }: ChaptersPanelProps) {
       setLastSavedContent(selectedChapter.content)
       const index = chapters.findIndex(c => c.id === selectedChapter.id)
       setCurrentChapterIndex(index)
+      // Initialize history with current content
+      setContentHistory([selectedChapter.content])
+      setHistoryIndex(0)
     }
   }, [selectedChapter, chapters])
+
+  // Track content changes for undo/redo (debounced)
+  useEffect(() => {
+    if (!content || isUndoRedoAction) return
+    
+    const historyTimer = setTimeout(() => {
+      if (isUndoRedoAction) return // Double check to prevent race conditions
+      
+      setContentHistory(prev => {
+        // Remove any future history if we're not at the end
+        const newHistory = prev.slice(0, historyIndex + 1)
+        // Add new content
+        newHistory.push(content)
+        // Keep only last 50 states to prevent memory issues
+        return newHistory.slice(-50)
+      })
+      setHistoryIndex(prev => Math.min(prev + 1, 49))
+    }, 1000) // Add to history after 1 second of no changes
+
+    return () => clearTimeout(historyTimer)
+  }, [content, isUndoRedoAction, historyIndex])
 
   const autoSaveChapter = async () => {
     if (!selectedChapter || !title.trim() || content === lastSavedContent) return
@@ -208,10 +239,10 @@ export default function ChaptersPanel({ projectId }: ChaptersPanelProps) {
 
   // Text formatting functions
   const formatText = (prefix: string, suffix: string = '') => {
-    if (!textareaRef) return
+    if (!textareaRef.current) return
 
-    const start = textareaRef.selectionStart
-    const end = textareaRef.selectionEnd
+    const start = textareaRef.current.selectionStart
+    const end = textareaRef.current.selectionEnd
     const selectedText = content.substring(start, end)
     
     const newText = content.substring(0, start) + prefix + selectedText + suffix + content.substring(end)
@@ -219,26 +250,26 @@ export default function ChaptersPanel({ projectId }: ChaptersPanelProps) {
 
     // Restore cursor position
     setTimeout(() => {
-      if (textareaRef) {
+      if (textareaRef.current) {
         const newCursorPos = start + prefix.length + selectedText.length + suffix.length
-        textareaRef.setSelectionRange(newCursorPos, newCursorPos)
-        textareaRef.focus()
+        textareaRef.current.setSelectionRange(newCursorPos, newCursorPos)
+        textareaRef.current.focus()
       }
     }, 0)
   }
 
   const insertText = (text: string) => {
-    if (!textareaRef) return
+    if (!textareaRef.current) return
 
-    const start = textareaRef.selectionStart
+    const start = textareaRef.current.selectionStart
     const newText = content.substring(0, start) + text + content.substring(start)
     setContent(newText)
 
     setTimeout(() => {
-      if (textareaRef) {
+      if (textareaRef.current) {
         const newCursorPos = start + text.length
-        textareaRef.setSelectionRange(newCursorPos, newCursorPos)
-        textareaRef.focus()
+        textareaRef.current.setSelectionRange(newCursorPos, newCursorPos)
+        textareaRef.current.focus()
       }
     }, 0)
   }
@@ -255,6 +286,78 @@ export default function ChaptersPanel({ projectId }: ChaptersPanelProps) {
       formatText(`[${text}](`, `${url})`)
     }
   }
+
+  const applyAlignment = (alignment: string) => {
+    if (!textareaRef.current) return
+
+    const start = textareaRef.current.selectionStart
+    const content_text = content
+    
+    // Find the start of the current line
+    let lineStart = start
+    while (lineStart > 0 && content_text[lineStart - 1] !== '\n') {
+      lineStart--
+    }
+    
+    // Find the end of the current line
+    let lineEnd = start
+    while (lineEnd < content_text.length && content_text[lineEnd] !== '\n') {
+      lineEnd++
+    }
+    
+    const lineContent = content_text.substring(lineStart, lineEnd)
+    let newLineContent
+    
+    // Remove existing alignment tags
+    const cleanLine = lineContent.replace(/^<div style="text-align: (left|center|right|justify);">|<\/div>$/g, '')
+    
+    if (alignment === 'left') {
+      newLineContent = cleanLine
+    } else {
+      newLineContent = `<div style="text-align: ${alignment};">${cleanLine}</div>`
+    }
+    
+    const newContent = content_text.substring(0, lineStart) + newLineContent + content_text.substring(lineEnd)
+    setContent(newContent)
+  }
+
+  const findAndReplace = (findStr: string, replaceStr: string, replaceAll: boolean = false) => {
+    if (!findStr) return
+
+    let newContent = content
+    if (replaceAll) {
+      // Use split and join for broader compatibility instead of replaceAll
+      newContent = newContent.split(findStr).join(replaceStr)
+    } else {
+      newContent = newContent.replace(findStr, replaceStr)
+    }
+
+    setContent(newContent)
+  }
+
+  // Undo/Redo functionality
+  const undo = () => {
+    if (historyIndex > 0) {
+      setIsUndoRedoAction(true)
+      const previousContent = contentHistory[historyIndex - 1]
+      setContent(previousContent)
+      setHistoryIndex(prev => prev - 1)
+      setTimeout(() => setIsUndoRedoAction(false), 0)
+    }
+  }
+
+  const redo = () => {
+    if (historyIndex < contentHistory.length - 1) {
+      setIsUndoRedoAction(true)
+      const nextContent = contentHistory[historyIndex + 1]
+      setContent(nextContent)
+      setHistoryIndex(prev => prev + 1)
+      setTimeout(() => setIsUndoRedoAction(false), 0)
+    }
+  }
+
+  const canUndo = historyIndex > 0
+  const canRedo = historyIndex < contentHistory.length - 1
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -337,202 +440,274 @@ export default function ChaptersPanel({ projectId }: ChaptersPanelProps) {
             {/* Scrollable Content Area */}
             <div className="flex-1 overflow-y-auto min-h-0 bg-white">
               {/* Sticky Toolbar inside the scrollable region */}
-              <div className="sticky top-0 z-50 bg-white border-b border-gray-200 p-3 shadow-sm">
-                <div className="flex items-center gap-1">
-                  {/* Font Size */}
-                  <Select value={fontSize} onValueChange={setFontSize}>
-                    <SelectTrigger className="h-8 w-16 text-sm">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="12">12px</SelectItem>
-                      <SelectItem value="14">14px</SelectItem>
-                      <SelectItem value="16">16px</SelectItem>
-                      <SelectItem value="18">18px</SelectItem>
-                      <SelectItem value="20">20px</SelectItem>
-                      <SelectItem value="24">24px</SelectItem>
-                    </SelectContent>
-                  </Select>
+              <div className="sticky top-0 z-50 bg-gradient-to-r from-gray-50 to-gray-100/50 border-b border-gray-200/80 p-4 backdrop-blur-sm">
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <div className="flex items-center space-x-2 flex-wrap">
+                    {/* Font Size */}
+                    <div className="flex items-center space-x-1 bg-white/60 backdrop-blur-sm border border-gray-200/60 rounded-xl px-3 py-2 shadow-sm">
+                      <Type className="w-4 h-4 text-gray-500" />
+                      <select
+                        value={fontSize}
+                        onChange={(e) => setFontSize(e.target.value)}
+                        className="text-sm bg-transparent border-none outline-none text-gray-600 cursor-pointer"
+                      >
+                        <option value="12">12px</option>
+                        <option value="14">14px</option>
+                        <option value="16">16px</option>
+                        <option value="18">18px</option>
+                        <option value="20">20px</option>
+                        <option value="24">24px</option>
+                      </select>
+                    </div>
 
-                  <Separator orientation="vertical" className="h-6 mx-2" />
+                    {/* Undo/Redo */}
+                    <div className="flex items-center space-x-1 bg-white/60 backdrop-blur-sm border border-gray-200/60 rounded-xl px-3 py-2 shadow-sm">
+                      <button 
+                        onClick={undo}
+                        disabled={!canUndo}
+                        className={`p-2 rounded-lg transition-all duration-200 ${
+                          canUndo 
+                            ? 'hover:bg-purple-50 hover:text-purple-600 text-gray-600' 
+                            : 'text-gray-300 cursor-not-allowed'
+                        }`}
+                        title="Undo (Ctrl+Z)"
+                      >
+                        <Undo className="h-4 w-4" />
+                      </button>
+                      <button 
+                        onClick={redo}
+                        disabled={!canRedo}
+                        className={`p-2 rounded-lg transition-all duration-200 ${
+                          canRedo 
+                            ? 'hover:bg-purple-50 hover:text-purple-600 text-gray-600' 
+                            : 'text-gray-300 cursor-not-allowed'
+                        }`}
+                        title="Redo (Ctrl+Y)"
+                      >
+                        <Redo className="h-4 w-4" />
+                      </button>
+                    </div>
 
-                  {/* Text Formatting */}
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="h-8 w-8 p-0" 
-                    onClick={() => formatText('**', '**')}
-                    
-                    title="Bold (Ctrl+B)"
-                  >
-                    <Bold className="h-4 w-4" />
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="h-8 w-8 p-0"
-                    onClick={() => formatText('*', '*')}
-                    
-                    title="Italic (Ctrl+I)"
-                  >
-                    <Italic className="h-4 w-4" />
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="h-8 w-8 p-0"
-                    onClick={() => formatText('<u>', '</u>')}
-                    
-                    title="Underline (Ctrl+U)"
-                  >
-                    <Underline className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" >
-                    <Type className="h-4 w-4" />
-                  </Button>
+                    {/* Basic formatting */}
+                    <div className="flex items-center space-x-1 bg-white/60 backdrop-blur-sm border border-gray-200/60 rounded-xl px-3 py-2 shadow-sm">
+                      <button 
+                        onClick={() => formatText('**', '**')}
+                        className="p-2 hover:bg-purple-50 hover:text-purple-600 rounded-lg transition-all duration-200 text-gray-600"
+                        title="Bold (Ctrl+B)"
+                      >
+                        <Bold className="h-4 w-4" />
+                      </button>
+                      <button 
+                        onClick={() => formatText('*', '*')}
+                        className="p-2 hover:bg-purple-50 hover:text-purple-600 rounded-lg transition-all duration-200 text-gray-600"
+                        title="Italic (Ctrl+I)"
+                      >
+                        <Italic className="h-4 w-4" />
+                      </button>
+                      <button 
+                        onClick={() => formatText('<u>', '</u>')}
+                        className="p-2 hover:bg-purple-50 hover:text-purple-600 rounded-lg transition-all duration-200 text-gray-600"
+                        title="Underline (Ctrl+U)"
+                      >
+                        <Underline className="h-4 w-4" />
+                      </button>
+                      <button 
+                        onClick={() => formatText('~~', '~~')}
+                        className="p-2 hover:bg-purple-50 hover:text-purple-600 rounded-lg transition-all duration-200 text-gray-600"
+                        title="Strikethrough"
+                      >
+                        <Strikethrough className="h-4 w-4" />
+                      </button>
+                    </div>
 
-                  <Separator orientation="vertical" className="h-6 mx-2" />
+                    {/* Headers */}
+                    <div className="flex items-center space-x-1 bg-white/60 backdrop-blur-sm border border-gray-200/60 rounded-xl px-3 py-2 shadow-sm">
+                      <button 
+                        onClick={() => insertHeading(1)}
+                        className="p-2 hover:bg-purple-50 hover:text-purple-600 rounded-lg transition-all duration-200 text-gray-600"
+                        title="Heading 1"
+                      >
+                        <Heading1 className="h-4 w-4" />
+                      </button>
+                      <button 
+                        onClick={() => insertHeading(2)}
+                        className="p-2 hover:bg-purple-50 hover:text-purple-600 rounded-lg transition-all duration-200 text-gray-600"
+                        title="Heading 2"
+                      >
+                        <Heading2 className="h-4 w-4" />
+                      </button>
+                      <button 
+                        onClick={() => insertHeading(3)}
+                        className="p-2 hover:bg-purple-50 hover:text-purple-600 rounded-lg transition-all duration-200 text-gray-600"
+                        title="Heading 3"
+                      >
+                        <Heading3 className="h-4 w-4" />
+                      </button>
+                    </div>
 
-                  {/* Headers */}
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="h-8 px-2 text-sm font-medium"
-                    onClick={() => insertHeading(1)}
-                    
-                    title="Heading 1"
-                  >
-                    H1
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="h-8 px-2 text-sm font-medium"
-                    onClick={() => insertHeading(2)}
-                    
-                    title="Heading 2"
-                  >
-                    H2
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="h-8 px-2 text-sm font-medium"
-                    onClick={() => insertHeading(3)}
-                    
-                    title="Heading 3"
-                  >
-                    H3
-                  </Button>
+                    {/* Alignment */}
+                    <div className="flex items-center space-x-1 bg-white/60 backdrop-blur-sm border border-gray-200/60 rounded-xl px-3 py-2 shadow-sm">
+                      <button 
+                        onClick={() => applyAlignment('left')}
+                        className="p-2 hover:bg-purple-50 hover:text-purple-600 rounded-lg transition-all duration-200 text-gray-600"
+                        title="Align Left"
+                      >
+                        <AlignLeft className="h-4 w-4" />
+                      </button>
+                      <button 
+                        onClick={() => applyAlignment('center')}
+                        className="p-2 hover:bg-purple-50 hover:text-purple-600 rounded-lg transition-all duration-200 text-gray-600"
+                        title="Align Center"
+                      >
+                        <AlignCenter className="h-4 w-4" />
+                      </button>
+                      <button 
+                        onClick={() => applyAlignment('right')}
+                        className="p-2 hover:bg-purple-50 hover:text-purple-600 rounded-lg transition-all duration-200 text-gray-600"
+                        title="Align Right"
+                      >
+                        <AlignRight className="h-4 w-4" />
+                      </button>
+                      <button 
+                        onClick={() => applyAlignment('justify')}
+                        className="p-2 hover:bg-purple-50 hover:text-purple-600 rounded-lg transition-all duration-200 text-gray-600"
+                        title="Justify"
+                      >
+                        <AlignJustify className="h-4 w-4" />
+                      </button>
+                    </div>
 
-                  <Separator orientation="vertical" className="h-6 mx-2" />
+                    {/* Lists and quotes */}
+                    <div className="flex items-center space-x-1 bg-white/60 backdrop-blur-sm border border-gray-200/60 rounded-xl px-3 py-2 shadow-sm">
+                      <button 
+                        onClick={() => insertText('\n• ')}
+                        className="p-2 hover:bg-purple-50 hover:text-purple-600 rounded-lg transition-all duration-200 text-gray-600"
+                        title="Bullet List"
+                      >
+                        <List className="h-4 w-4" />
+                      </button>
+                      <button 
+                        onClick={() => insertText('\n1. ')}
+                        className="p-2 hover:bg-purple-50 hover:text-purple-600 rounded-lg transition-all duration-200 text-gray-600"
+                        title="Numbered List"
+                      >
+                        <ListOrdered className="h-4 w-4" />
+                      </button>
+                      <button 
+                        onClick={() => formatText('\n> ', '')}
+                        className="p-2 hover:bg-purple-50 hover:text-purple-600 rounded-lg transition-all duration-200 text-gray-600"
+                        title="Quote"
+                      >
+                        <Quote className="h-4 w-4" />
+                      </button>
+                    </div>
 
-                  {/* Alignment */}
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" >
-                    <AlignLeft className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" >
-                    <AlignCenter className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" >
-                    <AlignRight className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" >
-                    <AlignJustify className="h-4 w-4" />
-                  </Button>
+                    {/* Insert elements */}
+                    <div className="flex items-center space-x-1 bg-white/60 backdrop-blur-sm border border-gray-200/60 rounded-xl px-3 py-2 shadow-sm">
+                      <button 
+                        onClick={insertLink}
+                        className="p-2 hover:bg-purple-50 hover:text-purple-600 rounded-lg transition-all duration-200 text-gray-600"
+                        title="Insert Link"
+                      >
+                        <Link className="h-4 w-4" />
+                      </button>
+                      <button 
+                        className="p-2 hover:bg-purple-50 hover:text-purple-600 rounded-lg transition-all duration-200 text-gray-600"
+                        title="Insert Image"
+                      >
+                        <Image className="h-4 w-4" />
+                      </button>
+                    </div>
 
-                  <Separator orientation="vertical" className="h-6 mx-2" />
+                    {/* Special inserts */}
+                    <div className="flex items-center space-x-1 bg-white/60 backdrop-blur-sm border border-gray-200/60 rounded-xl px-3 py-2 shadow-sm">
+                      <button 
+                        onClick={() => insertText('\n---\n')}
+                        className="px-3 py-2 hover:bg-purple-50 hover:text-purple-600 rounded-lg transition-all duration-200 text-gray-600 text-xs font-medium"
+                        title="Scene Break"
+                      >
+                        Scene Break
+                      </button>
+                      <button 
+                        onClick={() => insertText('\n\n* * *\n\n')}
+                        className="px-3 py-2 hover:bg-purple-50 hover:text-purple-600 rounded-lg transition-all duration-200 text-gray-600 text-xs font-medium"
+                        title="Chapter Break"
+                      >
+                        Chapter Break
+                      </button>
+                    </div>
+                  </div>
 
-                  {/* Lists */}
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="h-8 w-8 p-0"
-                    onClick={() => insertText('\n• ')}
-                    
-                    title="Bullet List"
-                  >
-                    <List className="h-4 w-4" />
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="h-8 w-8 p-0"
-                    onClick={() => insertText('\n1. ')}
-                    
-                    title="Numbered List"
-                  >
-                    <ListOrdered className="h-4 w-4" />
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="h-8 w-8 p-0"
-                    onClick={() => formatText('\n> ', '')}
-                    
-                    title="Quote"
-                  >
-                    <Quote className="h-4 w-4" />
-                  </Button>
-
-                  <Separator orientation="vertical" className="h-6 mx-2" />
-
-                  {/* Insert Options */}
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="h-8 w-8 p-0"
-                    onClick={insertLink}
-                    
-                    title="Insert Link"
-                  >
-                    <Link className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" >
-                    <Image className="h-4 w-4" />
-                  </Button>
-
-                  <Separator orientation="vertical" className="h-6 mx-2" />
-
-                  {/* Special Breaks */}
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="h-8 px-3 text-sm"
-                    onClick={() => insertText('\n---\n')}
-                    
-                    title="Scene Break"
-                  >
-                    Scene Break
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="h-8 px-3 text-sm"
-                    onClick={() => insertText('\n\n* * *\n\n')}
-                    
-                    title="Chapter Break"
-                  >
-                    Chapter Break
-                  </Button>
-                </div>
-
-                {/* Word Count */}
-                <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
-                  <div className="flex items-center gap-1">
-                    <Search className="h-4 w-4" />
-                    <span className="text-blue-600 font-semibold">
-                      {content.trim().split(/\s+/).filter(word => word.length > 0).length} words
-                    </span>
-                    <span>| {content.length} chars</span>
+                  {/* Find/Replace and Word Count */}
+                  <div className="flex items-center space-x-3">
+                    <button
+                      onClick={() => setShowFindReplace(!showFindReplace)}
+                      className={`p-2 rounded-lg transition-all duration-200 ${
+                        showFindReplace 
+                          ? 'bg-purple-100 text-purple-600 shadow-sm' 
+                          : 'hover:bg-purple-50 hover:text-purple-600 text-gray-600'
+                      }`}
+                      title="Find & Replace (Ctrl+F)"
+                    >
+                      <Search className="w-4 h-4" />
+                    </button>
+                    <div className="text-xs text-gray-600 bg-white/80 backdrop-blur-sm px-4 py-2 rounded-xl border border-gray-200/60 shadow-sm font-medium">
+                      <span className="text-purple-600 font-semibold">
+                        {content.trim().split(/\s+/).filter(word => word.length > 0).length}
+                      </span> words | <span className="text-gray-500">{content.length}</span> chars
+                    </div>
                   </div>
                 </div>
               </div>
 
+              {/* Find/Replace Panel */}
+              {showFindReplace && (
+                <div className="bg-gradient-to-r from-purple-50/80 to-blue-50/60 backdrop-blur-sm border-b border-purple-200/50 p-4 flex-shrink-0">
+                  <div className="flex items-center space-x-3">
+                    <div className="flex-1 flex items-center space-x-2">
+                      <input
+                        type="text"
+                        placeholder="Find..."
+                        value={findText}
+                        onChange={(e) => setFindText(e.target.value)}
+                        className="flex-1 px-4 py-2.5 border border-purple-200/60 rounded-xl text-sm bg-white/80 backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-purple-300 focus:border-transparent transition-all duration-200 placeholder-gray-400"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Replace with..."
+                        value={replaceText}
+                        onChange={(e) => setReplaceText(e.target.value)}
+                        className="flex-1 px-4 py-2.5 border border-purple-200/60 rounded-xl text-sm bg-white/80 backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-purple-300 focus:border-transparent transition-all duration-200 placeholder-gray-400"
+                      />
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => findAndReplace(findText, replaceText, false)}
+                        className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-xl text-sm font-medium hover:from-purple-700 hover:to-purple-800 transition-all duration-200 shadow-sm hover:shadow-md"
+                      >
+                        Replace
+                      </button>
+                      <button
+                        onClick={() => findAndReplace(findText, replaceText, true)}
+                        className="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl text-sm font-medium hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-sm hover:shadow-md"
+                      >
+                        Replace All
+                      </button>
+                      <button
+                        onClick={() => setShowFindReplace(false)}
+                        className="p-2 hover:bg-white/60 hover:text-purple-600 rounded-lg transition-all duration-200 text-gray-500"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Content Editor */}
               <div className="p-4">
                 <Textarea
-                  ref={(el) => setTextareaRef(el)}
+                  ref={textareaRef}
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
                   className="w-full resize-none border-none p-0 focus-visible:ring-0 shadow-none min-h-[600px]"
@@ -550,6 +725,15 @@ export default function ChaptersPanel({ projectId }: ChaptersPanelProps) {
                       } else if (e.key === 'u') {
                         e.preventDefault()
                         formatText('<u>', '</u>')
+                      } else if (e.key === 'f') {
+                        e.preventDefault()
+                        setShowFindReplace(!showFindReplace)
+                      } else if (e.key === 'z' && !e.shiftKey) {
+                        e.preventDefault()
+                        undo()
+                      } else if ((e.key === 'y') || (e.key === 'z' && e.shiftKey)) {
+                        e.preventDefault()
+                        redo()
                       } else if (e.key === 's') {
                         e.preventDefault()
                         saveChapter()
