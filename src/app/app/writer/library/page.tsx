@@ -206,6 +206,7 @@ export default function WriterLibraryPage() {
   }
 
   const loadLibraryData = async (userId: string) => {
+    console.log('Loading library data for user:', userId)
     try {
       const supabase = createSupabaseClient()
 
@@ -232,9 +233,8 @@ export default function WriterLibraryPage() {
         .eq('user_id', userId)
         .order('updated_at', { ascending: false })
 
-      if (progressError) {
-        console.error('Error loading reading progress:', progressError)
-      }
+      console.log('Reading progress data:', progressData)
+      console.log('Reading progress error:', progressError)
 
       // If we have progress data, fetch the profile information separately
       if (progressData && progressData.length > 0) {
@@ -257,12 +257,20 @@ export default function WriterLibraryPage() {
         const completed = progressData.filter(p => p.progress_percentage >= 100)
         const inProgress = progressData.filter(p => p.progress_percentage < 100 && p.progress_percentage > 0)
 
+        console.log('Progress data processed:', { completed: completed.length, inProgress: inProgress.length })
+        console.log('In progress items:', inProgress.map(p => ({ 
+          title: p.projects?.title, 
+          progress: p.progress_percentage 
+        })))
+
         setReadProjects(completed)
         setCurrentlyReading(inProgress)
       }
 
       // Load bookmarked projects using centralized system
+      console.log('Loading bookmarks for user:', userId)
       const bookmarks = await getUserBookmarks(userId)
+      console.log('Bookmarks loaded:', bookmarks)
       setBookmarkedProjects(bookmarks)
 
       // Load bookmark status for all projects
@@ -335,6 +343,15 @@ export default function WriterLibraryPage() {
 
   const isBookmarked = (projectId: string) => {
     return bookmarkStatus[projectId] || false
+  }
+
+  const getProjectUrl = (project: any) => {
+    // Check if it's a novel format project
+    if (project.format && project.format.toLowerCase() === 'novel') {
+      return `/novels/${project.id}/read?from=library`
+    }
+    // Default to regular project page for other formats
+    return `/projects/${project.id}?from=library`
   }
 
   const getFilteredProjects = () => {
@@ -963,7 +980,7 @@ export default function WriterLibraryPage() {
                       handleSelectProject(project.id);
                     } : undefined}
                   >
-                    <Link href={`/projects/${project.id}?from=library`} className={`block ${isManagingProgress ? 'pointer-events-none' : ''}`}>
+                    <Link href={getProjectUrl(project)} className={`block ${isManagingProgress ? 'pointer-events-none' : ''}`}>
                       <Card className={`hover:shadow-lg transition-all duration-300 cursor-pointer group-hover:scale-[1.02] group-hover:border-orange-300 overflow-hidden relative ${
                         isManagingProgress && selectedProjects.has(project.id) 
                           ? 'border-red-400 shadow-lg transform scale-[1.02] bg-red-50' 

@@ -22,6 +22,7 @@ import MapsPanel from '@/components/world-building/maps-panel'
 import TimelinePanel from '@/components/world-building/timeline-panel'
 import CalendarPanel from '@/components/world-building/calendar-panel'
 import EncyclopediaPanel from '@/components/world-building/encyclopedia-panel'
+import NovelSettingsModal from '@/components/novel-settings-modal'
 import InputModal from '@/components/ui/input-modal'
 import DeleteModal from '@/components/ui/delete-modal'
 
@@ -29,16 +30,17 @@ import DeleteModal from '@/components/ui/delete-modal'
 interface Project {
   id: string
   title: string
-  description: string
-  synopsis?: string
+  logline: string
+  synopsis?: string | null
   format: string
-  genre: string
-  subgenre?: string
-  word_count?: number
-  cast_size?: number
+  genre: string | null
+  subgenre?: string | null
+  word_count?: number | null
+  cast_size?: number | null
   language?: string
-  visibility: string
+  visibility: 'private' | 'preview' | 'public'
   buzz_score?: number
+  owner_id: string
   created_at: string
   updated_at: string
   owner?: {
@@ -139,6 +141,7 @@ export default function NovelPage() {
   const [showCharacterEditor, setShowCharacterEditor] = useState(false)
   const [editingCharacter, setEditingCharacter] = useState<WorldElement | null>(null)
   const [triggerNewChapter, setTriggerNewChapter] = useState(false)
+  const [showSettingsModal, setShowSettingsModal] = useState(false)
   
   // Context menu state
   const [contextMenu, setContextMenu] = useState<{
@@ -294,6 +297,15 @@ export default function NovelPage() {
       setChapters(chaptersWithCategory)
     } catch (error) {
     }
+  }
+
+  // Project settings handlers
+  const handleProjectUpdate = (updatedProject: Project) => {
+    setProject(updatedProject)
+  }
+
+  const handleProjectDelete = () => {
+    router.push('/projects')
   }
 
   // World element functions
@@ -1484,76 +1496,374 @@ export default function NovelPage() {
     switch (activePanel) {
       case 'dashboard':
         return (
-          <div className="h-full bg-white p-6">
-            <div className="max-w-6xl mx-auto">
-              <h3 className="text-2xl font-bold text-gray-900 mb-6">Project Dashboard</h3>
-              
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-                {/* Project Stats */}
-                <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg p-6 border border-orange-200">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
-                      <FileText className="w-4 h-4 text-white" />
-                    </div>
-                    <h4 className="font-semibold text-gray-900">Chapters</h4>
-                  </div>
-                  <div className="text-2xl font-bold text-gray-900 mb-1">
-                    {chapters.reduce((total, ch) => total + ch.word_count, 0).toLocaleString()} words
-                  </div>
-                  <div className="text-sm text-gray-600">
-                    {chapters.length} chapters • Target: 50,000 words
-                  </div>
-                </div>
-                
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-6 border border-blue-200">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
-                      <Users className="w-4 h-4 text-white" />
-                    </div>
-                    <h4 className="font-semibold text-gray-900">Characters</h4>
-                  </div>
-                  <div className="text-2xl font-bold text-gray-900 mb-1">
-                    {getElementsForCategory('characters').length}
-                  </div>
-                  <div className="text-sm text-gray-600">Created</div>
-                </div>
-                
-                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-6 border border-green-200">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
-                      <MapPin className="w-4 h-4 text-white" />
-                    </div>
-                    <h4 className="font-semibold text-gray-900">Locations</h4>
-                  </div>
-                  <div className="text-2xl font-bold text-gray-900 mb-1">
-                    {getElementsForCategory('locations').length}
-                  </div>
-                  <div className="text-sm text-gray-600">Created</div>
+          <div className="h-full bg-gray-50 p-6 overflow-y-auto">
+            <div className="max-w-7xl mx-auto space-y-8">
+              {/* Header Section */}
+              <div className="bg-gradient-to-r from-orange-500 to-amber-500 rounded-xl p-8 text-white">
+                <h3 className="text-3xl font-bold mb-2">Welcome back, Writer!</h3>
+                <p className="text-orange-100 text-lg">Your creative journey continues with "{project.title}"</p>
+                <div className="mt-4 flex items-center gap-4 text-sm">
+                  <span className="bg-white/20 px-3 py-1 rounded-full">{project.genre}</span>
+                  <span className="bg-white/20 px-3 py-1 rounded-full">{project.format}</span>
+                  <span className="bg-white/20 px-3 py-1 rounded-full">
+                    {new Date(project.created_at).toLocaleDateString()} started
+                  </span>
                 </div>
               </div>
 
-              {/* Recent Activity */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Recent Activity</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {chapters.slice(0, 3).map(chapter => (
-                      <div key={chapter.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                        <FileText className="w-5 h-5 text-orange-500" />
-                        <div className="flex-1">
-                          <p className="font-medium text-gray-900">{chapter.title}</p>
-                          <p className="text-sm text-gray-500">
-                            {chapter.word_count} words • {chapter.status}
+              {/* Writing Progress & Goals */}
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                {/* Total Words */}
+                <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center">
+                      <FileText className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-gray-900">Total Words</h4>
+                      <p className="text-sm text-gray-500">Your progress</p>
+                    </div>
+                  </div>
+                  <div className="text-3xl font-bold text-gray-900 mb-2">
+                    {chapters.reduce((total, ch) => total + ch.word_count, 0).toLocaleString()}
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
+                    <div 
+                      className="bg-gradient-to-r from-orange-500 to-amber-500 h-2 rounded-full transition-all duration-500"
+                      style={{ 
+                        width: `${Math.min(100, (chapters.reduce((total, ch) => total + ch.word_count, 0) / 50000) * 100)}%` 
+                      }}
+                    ></div>
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    {Math.round((chapters.reduce((total, ch) => total + ch.word_count, 0) / 50000) * 100)}% to 50K goal
+                  </p>
+                </div>
+
+                {/* Chapters Completed */}
+                <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center">
+                      <BookOpen className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-gray-900">Chapters</h4>
+                      <p className="text-sm text-gray-500">Story structure</p>
+                    </div>
+                  </div>
+                  <div className="text-3xl font-bold text-gray-900 mb-2">
+                    {chapters.length}
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    {chapters.filter(ch => ch.status === 'completed').length} completed
+                  </p>
+                </div>
+
+                {/* Characters */}
+                <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center">
+                      <Users className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-gray-900">Characters</h4>
+                      <p className="text-sm text-gray-500">Cast members</p>
+                    </div>
+                  </div>
+                  <div className="text-3xl font-bold text-gray-900 mb-2">
+                    {getElementsForCategory('characters').length}
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    Bringing life to your story
+                  </p>
+                </div>
+
+                {/* World Elements */}
+                <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center">
+                      <Globe className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-gray-900">World Building</h4>
+                      <p className="text-sm text-gray-500">Universe depth</p>
+                    </div>
+                  </div>
+                  <div className="text-3xl font-bold text-gray-900 mb-2">
+                    {worldElements.length}
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    Locations, items & lore
+                  </p>
+                </div>
+              </div>
+
+              {/* Main Content Grid */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Left Column - Writing Insights & Progress */}
+                <div className="lg:col-span-2 space-y-6">
+                  {/* Daily Writing Goal */}
+                  <Card className="border-0 shadow-sm">
+                    <CardHeader className="pb-4">
+                      <CardTitle className="flex items-center gap-2">
+                        <Target className="w-5 h-5 text-orange-500" />
+                        Daily Writing Goal
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium text-gray-700">Today's Progress</span>
+                          <span className="text-sm text-gray-500">0 / 500 words</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-3">
+                          <div className="bg-gradient-to-r from-orange-500 to-amber-500 h-3 rounded-full" style={{ width: '0%' }}></div>
+                        </div>
+                        <p className="text-sm text-gray-600">
+                          Keep the momentum going! Even 100 words brings you closer to your dreams.
+                        </p>
+                        <Button 
+                          className="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white"
+                          onClick={() => setActivePanel('chapters')}
+                        >
+                          Start Writing Today
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Recent Activity & Chapter Status */}
+                  <Card className="border-0 shadow-sm">
+                    <CardHeader className="pb-4">
+                      <CardTitle className="flex items-center gap-2">
+                        <Clock className="w-5 h-5 text-blue-500" />
+                        Chapter Progress
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        {chapters.length === 0 ? (
+                          <div className="text-center py-8">
+                            <BookOpen className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                            <h4 className="font-medium text-gray-900 mb-2">Ready to begin your story?</h4>
+                            <p className="text-sm text-gray-500 mb-4">Every great novel starts with a single chapter.</p>
+                            <Button 
+                              onClick={() => {
+                                setActivePanel('chapters')
+                                setTriggerNewChapter(true)
+                                setTimeout(() => setTriggerNewChapter(false), 100)
+                              }}
+                              className="bg-orange-500 hover:bg-orange-600 text-white"
+                            >
+                              <Plus className="w-4 h-4 mr-2" />
+                              Create First Chapter
+                            </Button>
+                          </div>
+                        ) : (
+                          chapters.slice(0, 5).map(chapter => (
+                            <div key={chapter.id} className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                                 onClick={() => {
+                                   setSelectedChapter(chapter)
+                                   setActivePanel('chapters')
+                                 }}>
+                              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                                chapter.status === 'completed' ? 'bg-green-100 text-green-600' :
+                                chapter.status === 'in_review' ? 'bg-yellow-100 text-yellow-600' :
+                                'bg-orange-100 text-orange-600'
+                              }`}>
+                                <FileText className="w-5 h-5" />
+                              </div>
+                              <div className="flex-1">
+                                <h5 className="font-medium text-gray-900">{chapter.title}</h5>
+                                <div className="flex items-center gap-4 text-sm text-gray-500">
+                                  <span>{chapter.word_count} words</span>
+                                  <span>•</span>
+                                  <span className="capitalize">{chapter.status.replace('_', ' ')}</span>
+                                  {chapter.target_word_count > 0 && (
+                                    <>
+                                      <span>•</span>
+                                      <span>{Math.round((chapter.word_count / chapter.target_word_count) * 100)}% complete</span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                              <Badge variant={
+                                chapter.status === 'completed' ? 'default' :
+                                chapter.status === 'in_review' ? 'secondary' :
+                                'outline'
+                              }>
+                                {chapter.status === 'completed' ? 'Done' :
+                                 chapter.status === 'in_review' ? 'Review' :
+                                 'Draft'}
+                              </Badge>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* World Building Overview */}
+                  <Card className="border-0 shadow-sm">
+                    <CardHeader className="pb-4">
+                      <CardTitle className="flex items-center gap-2">
+                        <MapPin className="w-5 h-5 text-green-500" />
+                        Your Story Universe
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {[
+                          { label: 'Locations', count: getElementsForCategory('locations').length, icon: MapPin, color: 'green' },
+                          { label: 'Research', count: getElementsForCategory('research').length, icon: Search, color: 'purple' },
+                          { label: 'Timeline', count: getElementsForCategory('timeline').length, icon: Clock, color: 'indigo' },
+                          { label: 'Magic/Items', count: getElementsForCategory('magic').length + getElementsForCategory('items').length, icon: Zap, color: 'yellow' }
+                        ].map(item => (
+                          <div key={item.label} className="text-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                               onClick={() => setActivePanel(item.label.toLowerCase())}>
+                            <item.icon className={`w-8 h-8 text-${item.color}-500 mx-auto mb-2`} />
+                            <div className="text-2xl font-bold text-gray-900">{item.count}</div>
+                            <div className="text-sm text-gray-600">{item.label}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Right Column - Writer's Toolkit */}
+                <div className="space-y-6">
+                  {/* Writer's Inspiration */}
+                  <Card className="border-0 shadow-sm bg-gradient-to-br from-purple-50 to-indigo-50">
+                    <CardHeader className="pb-4">
+                      <CardTitle className="flex items-center gap-2 text-purple-700">
+                        <Brain className="w-5 h-5" />
+                        Daily Inspiration
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <blockquote className="text-sm italic text-gray-700 border-l-4 border-purple-300 pl-4">
+                          "The first draft of anything is shit."
+                        </blockquote>
+                        <p className="text-xs text-gray-600">— Ernest Hemingway</p>
+                        <p className="text-sm text-gray-600">
+                          Remember: every bestselling author started with an imperfect first draft. Your story matters.
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Writing Tips */}
+                  <Card className="border-0 shadow-sm">
+                    <CardHeader className="pb-4">
+                      <CardTitle className="flex items-center gap-2">
+                        <Zap className="w-5 h-5 text-yellow-500" />
+                        Writer's Tip
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        <h5 className="font-medium text-gray-900">Show, Don't Tell</h5>
+                        <p className="text-sm text-gray-600">
+                          Instead of "She was angry," try "Her knuckles whitened around the coffee mug." 
+                          Let readers feel emotions through actions and details.
+                        </p>
+                        <Button variant="outline" size="sm" className="w-full">
+                          <ExternalLink className="w-4 h-4 mr-2" />
+                          More Writing Tips
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Quick Actions */}
+                  <Card className="border-0 shadow-sm">
+                    <CardHeader className="pb-4">
+                      <CardTitle className="flex items-center gap-2">
+                        <Zap className="w-5 h-5 text-orange-500" />
+                        Quick Actions
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        <Button 
+                          variant="outline" 
+                          className="w-full justify-start"
+                          onClick={() => {
+                            clearSelectedElement()
+                            setActivePanel('characters')
+                          }}
+                        >
+                          <Users className="w-4 h-4 mr-2" />
+                          Create New Character
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          className="w-full justify-start"
+                          onClick={() => setActivePanel('locations')}
+                        >
+                          <MapPin className="w-4 h-4 mr-2" />
+                          Add Location
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          className="w-full justify-start"
+                          onClick={() => setActivePanel('timeline')}
+                        >
+                          <Clock className="w-4 h-4 mr-2" />
+                          Plot Timeline Event
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          className="w-full justify-start"
+                          onClick={() => setActivePanel('research')}
+                        >
+                          <Search className="w-4 h-4 mr-2" />
+                          Save Research
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Writing Statistics */}
+                  <Card className="border-0 shadow-sm">
+                    <CardHeader className="pb-4">
+                      <CardTitle className="flex items-center gap-2">
+                        <Target className="w-5 h-5 text-blue-500" />
+                        Your Writing Journey
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-gray-600">Days writing</span>
+                          <span className="font-semibold">
+                            {Math.floor((new Date().getTime() - new Date(project.created_at).getTime()) / (1000 * 60 * 60 * 24))}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-gray-600">Avg words/chapter</span>
+                          <span className="font-semibold">
+                            {chapters.length > 0 ? Math.round(chapters.reduce((total, ch) => total + ch.word_count, 0) / chapters.length) : 0}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-gray-600">Story completeness</span>
+                          <span className="font-semibold">
+                            {Math.round((chapters.filter(ch => ch.status === 'completed').length / Math.max(chapters.length, 1)) * 100)}%
+                          </span>
+                        </div>
+                        <div className="pt-2 border-t">
+                          <p className="text-xs text-gray-500 text-center">
+                            Keep going! Every word counts toward your masterpiece.
                           </p>
                         </div>
-                        <Badge variant="secondary">{chapter.status}</Badge>
                       </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
             </div>
           </div>
         )
@@ -1846,7 +2156,7 @@ export default function NovelPage() {
                   <Save className="w-4 h-4 mr-2" />
                   Save
                 </Button>
-                <Button size="sm" variant="ghost" className="text-gray-400 hover:text-gray-600 hover:bg-gray-100">
+                <Button size="sm" variant="ghost" className="text-gray-400 hover:text-gray-600 hover:bg-gray-100" onClick={() => setShowSettingsModal(true)}>
                   <Settings className="w-4 h-4" />
                 </Button>
               </div>
@@ -2471,6 +2781,15 @@ export default function NovelPage() {
         itemName={deleteModal.itemName}
         type={deleteModal.type}
         confirmText={deleteModal.type === 'folder' ? 'Delete Folder' : deleteModal.type === 'chapter' ? 'Delete Chapter' : 'Delete Element'}
+      />
+
+      {/* Novel Settings Modal */}
+      <NovelSettingsModal
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+        project={project}
+        onProjectUpdate={handleProjectUpdate}
+        onProjectDelete={handleProjectDelete}
       />
     </div>
   )

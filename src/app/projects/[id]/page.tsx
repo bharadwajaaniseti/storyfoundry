@@ -501,8 +501,8 @@ export default function PublicProjectPage() {
         }
       }
       
-      // Save progress to database every 5% increment (only if user is logged in)
-      if (currentUser && content && percentage % 5 < 1) {
+      // Save progress to database (save every 1% to ensure we capture reading activity)
+      if (currentUser && content && percentage > 0) {
         saveReadingProgress(percentage, scrollTop)
       }
     }
@@ -513,6 +513,19 @@ export default function PublicProjectPage() {
     window.addEventListener('scroll', handleScroll)
     return () => window.removeEventListener('scroll', handleScroll)
   }, [content, currentUser, contentLength])
+
+  // Save progress when user leaves the page
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (currentUser && scrollPosition > 0 && content) {
+        // Save final progress before leaving
+        saveReadingProgress(scrollPosition, window.scrollY)
+      }
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [currentUser, scrollPosition, content])
 
   const loadProjectAndUser = async () => {
     console.log('Loading project:', projectId)

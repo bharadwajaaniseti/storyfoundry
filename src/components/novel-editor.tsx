@@ -22,14 +22,18 @@ import NovelWriter from './novel-writer'
 import NovelOutline from './novel-outline'
 import NovelDashboard from './novel-dashboard'
 import CharacterEditor from './character-editor'
+import NovelSettingsModal from './novel-settings-modal'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 
 interface Project {
   id: string
   title: string
-  description: string
-  genre: string
+  logline: string
+  synopsis?: string | null
+  format: string
+  genre: string | null
+  visibility: 'private' | 'preview' | 'public'
   owner_id: string
   created_at: string
   updated_at: string
@@ -95,6 +99,7 @@ export default function NovelEditor({ projectId }: NovelEditorProps) {
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [showCharacterEditor, setShowCharacterEditor] = useState(false)
   const [editingCharacter, setEditingCharacter] = useState<WorldElement | null>(null)
+  const [showSettingsModal, setShowSettingsModal] = useState(false)
 
   useEffect(() => {
     loadProject()
@@ -163,11 +168,19 @@ export default function NovelEditor({ projectId }: NovelEditorProps) {
   }
 
   const handleSettings = () => {
-    // Settings functionality
-    console.log('Project settings')
+    setShowSettingsModal(true)
   }
 
   const goBackToDashboard = () => {
+    router.push('/projects')
+  }
+
+  const handleProjectUpdate = (updatedProject: Project) => {
+    setProject(updatedProject)
+    setLastSaved(new Date())
+  }
+
+  const handleProjectDelete = () => {
     router.push('/projects')
   }
 
@@ -286,7 +299,7 @@ export default function NovelEditor({ projectId }: NovelEditorProps) {
                 title: project.title,
                 word_count: totalWordCount,
                 target_word_count: 50000, // Default target
-                format: project.genre
+                format: project.format || 'novel'
               }}
             />
           </div>
@@ -337,7 +350,7 @@ export default function NovelEditor({ projectId }: NovelEditorProps) {
                 </div>
                 <div className="mt-6">
                   <h3 className="text-lg font-semibold text-gray-700 mb-2">Description</h3>
-                  <p className="text-gray-600">{project.description || 'No description provided.'}</p>
+                  <p className="text-gray-600">{project.logline || 'No description provided.'}</p>
                 </div>
               </div>
             </div>
@@ -407,7 +420,7 @@ export default function NovelEditor({ projectId }: NovelEditorProps) {
                 <div className="flex items-center space-x-3">
                   <div>
                     <h1 className="text-xl font-bold text-gray-800">{project.title}</h1>
-                    <p className="text-sm text-gray-600">{project.description}</p>
+                    <p className="text-sm text-gray-600">{project.logline}</p>
                   </div>
                   <Badge className="bg-green-100 text-green-800">
                     {project.genre}
@@ -464,6 +477,15 @@ export default function NovelEditor({ projectId }: NovelEditorProps) {
           {renderTabContent()}
         </div>
       </div>
+
+      {/* Novel Settings Modal */}
+      <NovelSettingsModal
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+        project={project}
+        onProjectUpdate={handleProjectUpdate}
+        onProjectDelete={handleProjectDelete}
+      />
     </div>
   )
 }

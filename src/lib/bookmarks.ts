@@ -117,10 +117,12 @@ export async function getMultipleBookmarkStatus(projectIds: string[], userId: st
  */
 export async function toggleProjectBookmark(projectId: string, userId: string): Promise<boolean> {
   try {
+    console.log('toggleProjectBookmark: Toggling bookmark for project:', projectId, 'user:', userId)
     const supabase = createSupabaseClient()
     
     // Check current status
     const isBookmarked = await isProjectBookmarked(projectId, userId)
+    console.log('toggleProjectBookmark: Current bookmark status:', isBookmarked)
     
     if (isBookmarked) {
       // Remove bookmark
@@ -130,6 +132,8 @@ export async function toggleProjectBookmark(projectId: string, userId: string): 
         .eq('project_id', projectId)
         .eq('actor_id', userId)
         .eq('kind', 'save')
+
+      console.log('toggleProjectBookmark: Remove bookmark result:', { error })
 
       if (error) {
         console.error('Error removing bookmark:', error)
@@ -149,6 +153,8 @@ export async function toggleProjectBookmark(projectId: string, userId: string): 
           kind: 'save',
           weight: 5
         })
+
+      console.log('toggleProjectBookmark: Add bookmark result:', { error })
 
       if (error) {
         console.error('Error adding bookmark:', error)
@@ -170,6 +176,7 @@ export async function toggleProjectBookmark(projectId: string, userId: string): 
  */
 export async function getUserBookmarks(userId: string): Promise<BookmarkData[]> {
   try {
+    console.log('getUserBookmarks: Loading bookmarks for userId:', userId)
     const supabase = createSupabaseClient()
     
     // Get bookmarks with project data
@@ -200,23 +207,32 @@ export async function getUserBookmarks(userId: string): Promise<BookmarkData[]> 
       .eq('projects.visibility', 'public')
       .order('created_at', { ascending: false })
 
+    console.log('getUserBookmarks: Raw query result:', { bookmarks, error })
+
     if (error) {
       console.error('Error loading bookmarks:', error)
       return []
     }
 
     if (!bookmarks || bookmarks.length === 0) {
+      console.log('getUserBookmarks: No bookmarks found')
       return []
     }
 
+    console.log('getUserBookmarks: Found bookmarks before profile loading:', bookmarks)
+
     // Get owner profiles for the bookmarked projects
     const ownerIds = [...new Set(bookmarks.map(b => (b.projects as any)?.owner_id).filter(Boolean))]
+    
+    console.log('getUserBookmarks: Owner IDs to fetch:', ownerIds)
     
     if (ownerIds.length > 0) {
       const { data: profiles } = await supabase
         .from('profiles')
         .select('id, display_name, avatar_url, bio, verified_pro')
         .in('id', ownerIds)
+
+      console.log('getUserBookmarks: Profiles fetched:', profiles)
 
       // Attach profiles to projects
       bookmarks.forEach(bookmark => {
@@ -226,6 +242,7 @@ export async function getUserBookmarks(userId: string): Promise<BookmarkData[]> 
       })
     }
 
+    console.log('getUserBookmarks: Final bookmarks with profiles:', bookmarks)
     return bookmarks as any
   } catch (error) {
     console.error('Error loading user bookmarks:', error)

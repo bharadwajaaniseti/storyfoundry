@@ -411,6 +411,15 @@ export default function LibraryPage() {
     }
   }
 
+  const getProjectUrl = (project: any) => {
+    // Check if it's a novel format project
+    if (project.format && project.format.toLowerCase() === 'novel') {
+      return `/novels/${project.id}/read?from=library`
+    }
+    // Default to regular project page for other formats
+    return `/projects/${project.id}?from=library`
+  }
+
   const getFilteredProjects = () => {
     let projects: any[] = []
     
@@ -1005,7 +1014,7 @@ export default function LibraryPage() {
                       handleSelectProject(project.id);
                     } : undefined}
                   >
-                    <Link href={`/projects/${project.id}?from=library`} className={`block ${isManagingProgress ? 'pointer-events-none' : ''}`}>
+                    <Link href={getProjectUrl(project)} className={`block ${isManagingProgress ? 'pointer-events-none' : ''}`}>
                       <Card className={`hover:shadow-lg transition-all duration-300 cursor-pointer group-hover:scale-[1.02] group-hover:border-purple-300 overflow-hidden relative ${
                         isManagingProgress && selectedProjects.has(project.id) 
                           ? 'border-red-400 shadow-lg transform scale-[1.02] bg-red-50' 
