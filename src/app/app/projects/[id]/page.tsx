@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { 
@@ -10,6 +10,7 @@ import {
   Users,
   Settings,
   Eye,
+  Edit3,
   Shield,
   Clock,
   TrendingUp,
@@ -25,6 +26,17 @@ import { createSupabaseClient } from '@/lib/auth'
 import NovelWriter from '@/components/novel-writer'
 import NovelOutline from '@/components/novel-outline'
 import NovelDashboard from '@/components/novel-dashboard'
+import ProjectCollaborationButton from '@/components/project-collaboration-button'
+import SendMessageModal from '@/components/send-message-modal'
+import EditCollaboratorModal from '@/components/edit-collaborator-modal'
+import { PermissionGate, RoleBadge } from '@/components/permission-gate'
+import RoleSpecificSidebar from '@/components/role-specific-sidebar'
+import RoleWorkflowManager from '@/components/role-workflow-manager'
+import RolePermissionTester from '@/components/role-permission-tester'
+import ProjectComments from '@/components/project-comments'
+import ProjectHistory from '@/components/project-history'
+import { useProjectCollaborators } from '@/hooks/useCollaboration'
+import { useRealtimeProjectContent, useRealtimeProject } from '@/hooks/useRealtimeProject'
 
 interface Project {
   id: string
@@ -56,18 +68,119 @@ interface ProjectAsset {
 export default function ProjectPage() {
   const router = useRouter()
   const params = useParams()
-  const [project, setProject] = useState<Project | null>(null)
-  const [content, setContent] = useState('')
+  // Get project ID from params
+  const projectId = params.id as string
+
+  // Real-time content and project
+  const { 
+    content: realtimeContent, 
+    setContent: setRealtimeContent, 
+    lastUpdated: contentLastUpdated,
+    hasRealtimeUpdate,
+    clearRealtimeUpdate
+  } = useRealtimeProjectContent(projectId)
+  
+  const { 
+    project: realtimeProject, 
+    setProject: setRealtimeProject 
+  } = useRealtimeProject(projectId)
+
+  // Use realtime data or fallback to local state
+  const content = realtimeContent
+  const setContent = setRealtimeContent
+  const project = realtimeProject
+
+  // Local state
+  const [currentUser, setCurrentUser] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error' | null>(null)
   const [showShareDialog, setShowShareDialog] = useState(false)
   const [activeTab, setActiveTab] = useState('write')
   const [editingLogline, setEditingLogline] = useState(false)
+  const hasLoadedRef = useRef(false)
   const [loglineValue, setLoglineValue] = useState('')
+  const [showMessageModal, setShowMessageModal] = useState(false)
+  const [messageRecipient, setMessageRecipient] = useState<{
+    id: string
+    display_name: string | null
+    avatar_url: string | null
+    role: string
+  } | null>(null)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editingCollaborator, setEditingCollaborator] = useState<any>(null)
 
-  // Get project ID from params
-  const projectId = params.id as string
+  // Collaboration data
+  const { collaborators, pendingInvitations, loading: collaboratorsLoading, error: collaboratorsError, refresh: refreshCollaborators } = useProjectCollaborators(projectId)
+
+  // Handler functions for collaboration actions
+  const handleSendMessage = (userId: string, userName?: string, userAvatar?: string, userRole?: string) => {
+    setMessageRecipient({
+      id: userId,
+      display_name: userName || null,
+      avatar_url: userAvatar || null,
+      role: userRole || 'collaborator'
+    })
+    setShowMessageModal(true)
+  }
+
+  const handleEditCollaborator = (collaborator: any) => {
+    setEditingCollaborator(collaborator)
+    setShowEditModal(true)
+  }
+
+  const handleUpdateCollaborator = async (collaboratorId: string, updates: { role?: string; royalty_split?: number }) => {
+    try {
+      const response = await fetch(`/api/collaborations/collaborators/${collaboratorId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      })
+      
+      if (response.ok) {
+        refreshCollaborators()
+      } else {
+        throw new Error('Failed to update collaborator')
+      }
+    } catch (error) {
+      throw error
+    }
+  }
+
+  const handleRemoveCollaborator = async (collaboratorId: string) => {
+    try {
+      const response = await fetch(`/api/collaborations/collaborators/${collaboratorId}`, {
+        method: 'DELETE'
+      })
+      
+      if (response.ok) {
+        refreshCollaborators()
+      } else {
+        throw new Error('Failed to remove collaborator')
+      }
+    } catch (error) {
+      throw error
+    }
+  }
+
+  const handleCancelInvitation = async (invitationId: string) => {
+    if (!confirm('Are you sure you want to cancel this invitation?')) return
+    
+    try {
+      const response = await fetch(`/api/collaborations/invitations/${invitationId}`, {
+        method: 'DELETE'
+      })
+      
+      if (response.ok) {
+        refreshCollaborators()
+      } else {
+        alert('Failed to cancel invitation')
+      }
+    } catch (error) {
+      alert('Error canceling invitation')
+    }
+  }
 
   // Handle browser history for proper back navigation
   useEffect(() => {
@@ -102,27 +215,26 @@ export default function ProjectPage() {
   }, [])
 
   useEffect(() => {
-    loadProject()
+    if (projectId && !project && !hasLoadedRef.current) {
+      hasLoadedRef.current = true
+      loadProject()
+    }
   }, [projectId])
 
   // Reload project data when returning from settings or other pages
   useEffect(() => {
-    const handleFocus = () => {
-      // Only reload if we're not currently loading and not editing logline
-      if (!isLoading && !editingLogline) {
-        loadProject()
-      }
-    }
-
-    window.addEventListener('focus', handleFocus)
-
+    // Disabled auto-reload on focus since we have real-time updates
+    // This was causing frequent reloads and poor user experience
+    
+    // If you need to manually reload, you can call loadProject() from a button
     return () => {
-      window.removeEventListener('focus', handleFocus)
+      // Cleanup if needed
     }
-  }, [isLoading, editingLogline, projectId])
+  }, [])
 
   const loadProject = async () => {
     try {
+      setIsLoading(true)
       const supabase = createSupabaseClient()
       const { data: { user } } = await supabase.auth.getUser()
 
@@ -131,6 +243,9 @@ export default function ProjectPage() {
         return
       }
 
+      setCurrentUser(user)
+      console.log('Loading project:', projectId, 'for user:', user.id)
+
       // Load project
       const { data: projectData, error: projectError } = await supabase
         .from('projects')
@@ -138,25 +253,71 @@ export default function ProjectPage() {
         .eq('id', projectId)
         .single()
 
+      console.log('Project query result:', { projectData, projectError })
+
       if (projectError || !projectData) {
-        router.push('/app/dashboard')
+        console.log('Project not found or error:', projectError)
+        setError('Project not found')
+        setIsLoading(false)
         return
       }
 
-      // If this is a novel and user is not the owner, redirect to read view
+      // If this is a novel and user is not the owner, check if they're a collaborator before redirecting
       if (projectData.format === 'novel' && projectData.owner_id !== user.id) {
-        router.push(`/novels/${projectId}/read`)
-        return
+        // Check if user is a collaborator
+        try {
+          const { data: collaboratorData } = await supabase
+            .from('project_collaborators')
+            .select('*')
+            .eq('project_id', projectId)
+            .eq('user_id', user.id)
+            .eq('status', 'active')
+            .single()
+
+          console.log('Novel collaborator check:', collaboratorData)
+
+          // If not a collaborator, redirect to read view
+          if (!collaboratorData) {
+            router.push(`/novels/${projectId}/read`)
+            return
+          }
+        } catch (error) {
+          console.log('Collaboration check failed (table may not exist), allowing access:', error)
+          // If collaboration check fails, allow access - the table might not exist yet
+        }
       }
 
-      // Check if user has access
+      // Check if user has access (owner or collaborator)
       if (projectData.owner_id !== user.id) {
-        // TODO: Check collaborator access
-        router.push('/app/dashboard')
-        return
+        // Check if user is a collaborator
+        try {
+          const { data: collaboratorData, error: collaboratorError } = await supabase
+            .from('project_collaborators')
+            .select('*')
+            .eq('project_id', projectId)
+            .eq('user_id', user.id)
+            .eq('status', 'active')
+            .single()
+
+          console.log('Collaborator access check:', { collaboratorData, collaboratorError })
+
+          if (!collaboratorData) {
+            console.log('Access denied: not owner and not collaborator')
+            setError('You do not have access to this project')
+            setIsLoading(false)
+            return
+          }
+        } catch (error) {
+          console.log('Collaboration access check failed (table may not exist), allowing owner access only:', error)
+          // If collaboration check fails and user is not owner, deny access
+          console.log('Access denied: not owner and collaboration table unavailable')
+          setError('You do not have access to this project')
+          setIsLoading(false)
+          return
+        }
       }
 
-      setProject(projectData)
+      setRealtimeProject(projectData)
       setLoglineValue(projectData.logline)
 
       // Load project content
@@ -169,9 +330,23 @@ export default function ProjectPage() {
         .limit(1)
 
       if (contentError) {
-        console.log('No content found for project (this is normal for new projects):', contentError.message)
-      } else if (contentData && contentData.length > 0) {
+        console.log('No content found in project_content table:', contentError.message)
+      }
+
+      if (contentData && contentData.length > 0 && contentData[0].content) {
+        // Use content from project_content table
         setContent(contentData[0].content || '')
+        console.log('Loaded content from project_content table')
+      } else {
+        // Fallback to projects.synopsis field
+        console.log('No content in project_content table, checking projects.synopsis fallback...')
+        if (projectData.synopsis) {
+          setContent(projectData.synopsis)
+          console.log('Loaded content from projects.synopsis fallback')
+        } else {
+          console.log('No content found in either location')
+          setContent('')
+        }
       }
 
     } catch (error) {
@@ -188,40 +363,57 @@ export default function ProjectPage() {
     setSaveStatus('saving')
 
     try {
-      const supabase = createSupabaseClient()
-
       // Calculate word count using the same method as the frontend display
       const wordCount = content.trim().split(/\s+/).filter(word => word.length > 0).length
 
-      // Save/update content
-      const { error } = await supabase
-        .from('project_content')
-        .upsert({
-          project_id: project.id,
-          filename: `${project.title.toLowerCase().replace(/\s+/g, '_')}.txt`,
-          content,
-          asset_type: 'content'
-        })
+      console.log('Saving content for project:', project.id, 'word count:', wordCount)
 
-      if (error) throw error
+      // Use the new API endpoint for saving content
+      const response = await fetch(`/api/projects/${project.id}/content`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ content }),
+      })
 
-      // Update project with new word count and updated_at
-      await supabase
-        .from('projects')
-        .update({ 
-          word_count: wordCount,
-          updated_at: new Date().toISOString() 
-        })
-        .eq('id', project.id)
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to save content')
+      }
+
+      const result = await response.json()
+      console.log('Content saved via API:', result.savedTo, 'word count:', result.wordCount)
 
       // Update local project state to reflect the new word count
-      setProject({ ...project, word_count: wordCount })
+      setRealtimeProject({ ...project, word_count: result.wordCount })
 
       setSaveStatus('saved')
       setTimeout(() => setSaveStatus(null), 2000)
 
     } catch (error) {
       console.error('Error saving content:', error)
+      
+      // More detailed error logging
+      if (error && typeof error === 'object') {
+        const errorObj = error as any
+        console.error('Error details:', {
+          message: errorObj.message || 'Unknown error',
+          code: errorObj.code || 'No code',
+          details: errorObj.details || 'No details',
+          hint: errorObj.hint || 'No hint',
+          stack: errorObj.stack || 'No stack trace'
+        })
+        
+        // If it's a Supabase error, log the full error object
+        if (errorObj.code || errorObj.details || errorObj.hint) {
+          console.error('Full Supabase error object:', errorObj)
+        }
+      } else {
+        console.error('Error type:', typeof error)
+        console.error('Error string representation:', String(error))
+      }
+      
       setSaveStatus('error')
       setTimeout(() => setSaveStatus(null), 3000)
     } finally {
@@ -245,7 +437,7 @@ export default function ProjectPage() {
 
       if (error) throw error
 
-      setProject({ ...project, logline: loglineValue.trim() })
+      setRealtimeProject({ ...project, logline: loglineValue.trim() })
       setEditingLogline(false)
 
     } catch (error) {
@@ -273,12 +465,24 @@ export default function ProjectPage() {
     )
   }
 
-  if (!project) {
+  if (!project || error) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <h2 className="text-xl font-semibold text-gray-800 mb-2">Project not found</h2>
-          <p className="text-gray-600 mb-4">The project you're looking for doesn't exist or you don't have access to it.</p>
+          <h2 className="text-xl font-semibold text-gray-800 mb-2">
+            {error || 'Project not found'}
+          </h2>
+          <p className="text-gray-600 mb-4">
+            {error || "The project you're looking for doesn't exist or you don't have access to it."}
+          </p>
+          {process.env.NODE_ENV === 'development' && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4 text-left max-w-md mx-auto">
+              <h3 className="font-semibold text-yellow-800 mb-2">Debug Info:</h3>
+              <p className="text-sm text-yellow-700">Project ID: {projectId}</p>
+              <p className="text-sm text-yellow-700">Error: {error || 'No specific error'}</p>
+              <p className="text-sm text-yellow-700">Check browser console for more details</p>
+            </div>
+          )}
           <button 
             onClick={() => {
               const urlParams = new URLSearchParams(window.location.search)
@@ -396,6 +600,16 @@ export default function ProjectPage() {
             </div>
 
             <div className="flex items-center space-x-3">
+              {/* Role Badge - Show user's role in this project */}
+              {currentUser && (
+                <RoleBadge 
+                  projectId={projectId} 
+                  userId={currentUser.id} 
+                  showAllRoles 
+                  className="mr-2"
+                />
+              )}
+
               {/* Save Status */}
               {saveStatus && (
                 <div className="flex items-center space-x-2 text-sm">
@@ -420,29 +634,50 @@ export default function ProjectPage() {
                 </div>
               )}
 
-              <button
-                onClick={saveContent}
-                disabled={isSaving}
-                className="flex items-center space-x-2 px-3 py-2 text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:border-gray-400 transition-colors"
+              {/* Save Button - Only for users with write permission */}
+              <PermissionGate 
+                projectId={projectId} 
+                userId={currentUser?.id} 
+                requiredPermission="write"
               >
-                <Save className="w-4 h-4" />
-                <span>Save</span>
-              </button>
-
-              <button
-                onClick={() => setShowShareDialog(true)}
-                className="flex items-center space-x-2 px-3 py-2 text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:border-gray-400 transition-colors"
-              >
-                <Share2 className="w-4 h-4" />
-                <span>Share</span>
-              </button>
-
-              <Link href={`/app/projects/${project.id}/settings`}>
-                <button className="flex items-center space-x-2 px-3 py-2 text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:border-gray-400 transition-colors">
-                  <Settings className="w-4 h-4" />
-                  <span>Settings</span>
+                <button
+                  onClick={saveContent}
+                  disabled={isSaving}
+                  className="flex items-center space-x-2 px-3 py-2 text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:border-gray-400 transition-colors"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>Save</span>
                 </button>
-              </Link>
+              </PermissionGate>
+
+              {/* Share Button - Only for users with read permission */}
+              <PermissionGate 
+                projectId={projectId} 
+                userId={currentUser?.id} 
+                requiredPermission="read"
+              >
+                <button
+                  onClick={() => setShowShareDialog(true)}
+                  className="flex items-center space-x-2 px-3 py-2 text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:border-gray-400 transition-colors"
+                >
+                  <Share2 className="w-4 h-4" />
+                  <span>Share</span>
+                </button>
+              </PermissionGate>
+
+              {/* Settings - Owner only */}
+              <PermissionGate 
+                projectId={projectId} 
+                userId={currentUser?.id} 
+                ownerOnly
+              >
+                <Link href={`/app/projects/${project.id}/settings`}>
+                  <button className="flex items-center space-x-2 px-3 py-2 text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:border-gray-400 transition-colors">
+                    <Settings className="w-4 h-4" />
+                    <span>Settings</span>
+                  </button>
+                </Link>
+              </PermissionGate>
             </div>
           </div>
 
@@ -538,76 +773,74 @@ export default function ProjectPage() {
               <div className="grid lg:grid-cols-4 gap-8">
                 {/* Main Editor */}
                 <div className="lg:col-span-3">
-                  <div className="bg-white rounded-xl border border-gray-200 min-h-[600px]">
-                    <div className="p-6 border-b border-gray-200">
-                      <h2 className="text-lg font-semibold text-gray-800">Content</h2>
+                  <PermissionGate 
+                    projectId={projectId} 
+                    userId={currentUser?.id} 
+                    requiredPermission="write"
+                    fallback={
+                      <div className="bg-white rounded-xl border border-gray-200 min-h-[600px]">
+                        <div className="p-6 border-b border-gray-200">
+                          <div className="flex items-center justify-between">
+                            <h2 className="text-lg font-semibold text-gray-800">Content (Read-Only)</h2>
+                            <div className="flex items-center space-x-2 text-sm text-gray-500">
+                              <Eye className="w-4 h-4" />
+                              <span>Viewing only</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="p-6">
+                          <div className="w-full h-[500px] text-gray-800 leading-relaxed bg-gray-50 rounded-lg p-4 overflow-auto">
+                            {content || 'No content yet...'}
+                          </div>
+                        </div>
+                      </div>
+                    }
+                    showFallback
+                  >
+                    <div className="bg-white rounded-xl border border-gray-200 min-h-[600px]">
+                      <div className="p-6 border-b border-gray-200">
+                        <div className="flex items-center justify-between">
+                          <h2 className="text-lg font-semibold text-gray-800">Content</h2>
+                          <div className="flex items-center space-x-4">
+                            {hasRealtimeUpdate && (
+                              <div className="flex items-center space-x-2 text-sm text-orange-600 animate-pulse">
+                                <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                                <span>Content updated by collaborator</span>
+                                <button 
+                                  onClick={clearRealtimeUpdate}
+                                  className="text-orange-600 hover:text-orange-800 text-xs underline"
+                                >
+                                  Dismiss
+                                </button>
+                              </div>
+                            )}
+                            <div className="flex items-center space-x-2 text-sm text-green-600">
+                              <Edit3 className="w-4 h-4" />
+                              <span>Edit mode</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="p-6">
+                        <textarea
+                          value={content}
+                          onChange={(e) => setContent(e.target.value)}
+                          className="w-full h-[500px] border-none outline-none resize-none text-gray-800 leading-relaxed"
+                          placeholder="Start writing your story here..."
+                        />
+                      </div>
                     </div>
-                    <div className="p-6">
-                      <textarea
-                        value={content}
-                        onChange={(e) => setContent(e.target.value)}
-                        className="w-full h-[500px] border-none outline-none resize-none text-gray-800 leading-relaxed"
-                    placeholder="Start writing your story here..."
-                  />
+                  </PermissionGate>
                 </div>
-              </div>
-            </div>
 
-            {/* Sidebar */}
-            <div className="space-y-6">
-              {/* AI Assistant */}
-              {project.ai_enabled && (
-                <div className="bg-white rounded-xl border border-gray-200 p-6">
-                  <div className="flex items-center space-x-2 mb-4">
-                    <Sparkles className="w-5 h-5 text-purple-500" />
-                    <h3 className="text-lg font-semibold text-gray-800">AI Assistant</h3>
-                  </div>
-                  <p className="text-sm text-gray-600 mb-4">
-                    Get AI-powered suggestions for your story
-                  </p>
-                  <button className="w-full btn-secondary text-sm">
-                    Analyze Current Content
-                  </button>
-                </div>
-              )}
-
-              {/* Project Stats */}
-              <div className="bg-white rounded-xl border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold text-gray-800 mb-4">Statistics</h3>
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Word Count</span>
-                    <span className="font-medium">{content.split(/\s+/).filter(word => word.length > 0).length}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Character Count</span>
-                    <span className="font-medium">{content.length}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Buzz Score</span>
-                    <span className="font-medium">{project.buzz_score}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Quick Actions */}
-              <div className="bg-white rounded-xl border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold text-gray-800 mb-4">Quick Actions</h3>
-                <div className="space-y-2">
-                  <button className="w-full text-left p-2 rounded-lg hover:bg-gray-50 flex items-center space-x-2">
-                    <Download className="w-4 h-4 text-gray-500" />
-                    <span className="text-sm text-gray-700">Export as PDF</span>
-                  </button>
-                  <button className="w-full text-left p-2 rounded-lg hover:bg-gray-50 flex items-center space-x-2">
-                    <FileText className="w-4 h-4 text-gray-500" />
-                    <span className="text-sm text-gray-700">Export as DOCX</span>
-                  </button>
-                  <button className="w-full text-left p-2 rounded-lg hover:bg-gray-50 flex items-center space-x-2">
-                    <Clock className="w-4 h-4 text-gray-500" />
-                    <span className="text-sm text-gray-700">Create Timestamp</span>
-                  </button>
-                </div>
-              </div>
+            {/* Role-Specific Sidebar */}
+            <div>
+              <RoleSpecificSidebar
+                projectId={projectId}
+                userId={currentUser?.id}
+                project={project}
+                content={content}
+              />
             </div>
           </div>
             )}
@@ -687,35 +920,453 @@ export default function ProjectPage() {
 
         {activeTab === 'collaborators' && (
           <div className="max-w-4xl">
-            <div className="bg-white rounded-xl border border-gray-200 p-8">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold text-gray-800">Collaborators</h2>
-                <button className="btn-primary">Invite Collaborator</button>
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              {/* Header */}
+              <div className="px-8 py-6 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-orange-50">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Project Collaborators</h2>
+                    <p className="text-gray-600">Manage who can contribute to your project</p>
+                    {process.env.NODE_ENV === 'development' && collaborators.length > 0 && collaborators[0]?.id?.startsWith('mock-') && (
+                      <div className="mt-3 px-3 py-2 bg-blue-100 border border-blue-200 rounded-lg">
+                        <p className="text-sm text-blue-800">
+                          🧪 <strong>Development Mode:</strong> Showing mock collaboration data because database is unavailable
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  <ProjectCollaborationButton 
+                    projectId={projectId}
+                    projectTitle={project.title}
+                    isOwner={true}
+                    currentCollaborators={collaborators}
+                    className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-200"
+                    onInvitationSent={refreshCollaborators}
+                  />
+                </div>
               </div>
-              
-              <div className="text-center py-8">
-                <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-800 mb-2">No collaborators yet</h3>
-                <p className="text-gray-600">Invite others to collaborate on this project</p>
+
+              {/* Content */}
+              <div className="p-8">
+                {collaboratorsLoading ? (
+                  <div className="text-center py-12">
+                    <div className="w-8 h-8 border-2 border-orange-300 border-t-orange-600 rounded-full animate-spin mx-auto mb-4"></div>
+                    <p className="text-gray-600">Loading collaborators...</p>
+                  </div>
+                ) : collaboratorsError ? (
+                  <div className="text-center py-16">
+                    <div className="relative mx-auto mb-6">
+                      <div className="w-20 h-20 bg-gradient-to-br from-red-50 to-orange-50 rounded-2xl flex items-center justify-center mx-auto shadow-sm">
+                        <AlertCircle className="w-10 h-10 text-red-400" />
+                      </div>
+                    </div>
+                    <h3 className="text-xl font-semibold text-gray-900 mb-3">Oops! Something went wrong</h3>
+                    <p className="text-gray-600 mb-2">We couldn't load your collaborators right now.</p>
+                    <p className="text-sm text-red-600 mb-6 font-mono bg-red-50 px-3 py-2 rounded-lg inline-block">{collaboratorsError}</p>
+                    <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                      <button 
+                        onClick={() => window.location.reload()}
+                        className="px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transition-all duration-200"
+                      >
+                        Try Again
+                      </button>
+                      <button className="px-6 py-3 border-2 border-gray-300 text-gray-700 font-medium rounded-lg hover:border-orange-300 hover:text-orange-700 transition-colors">
+                        Contact Support
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-4">
+                      Don't worry - your collaborators are still there! This is just a temporary loading issue.
+                    </p>
+                  </div>
+                ) : (collaborators.length === 0 && pendingInvitations.length === 0) ? (
+                  /* Empty State */
+                  <div className="text-center py-20">
+                    {/* Animated Icon Container */}
+                    <div className="relative mx-auto mb-8">
+                      <div className="w-24 h-24 bg-gradient-to-br from-orange-100 via-amber-50 to-orange-100 rounded-3xl flex items-center justify-center mx-auto shadow-lg animate-pulse">
+                        <Users className="w-12 h-12 text-orange-600" />
+                      </div>
+                      {/* Floating Elements */}
+                      <div className="absolute -top-2 -right-2 w-6 h-6 bg-gradient-to-br from-purple-400 to-purple-600 rounded-full flex items-center justify-center animate-bounce">
+                        <Sparkles className="w-3 h-3 text-white" />
+                      </div>
+                      <div className="absolute -bottom-1 -left-1 w-5 h-5 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center animate-bounce delay-300">
+                        <MessageSquare className="w-2.5 h-2.5 text-white" />
+                      </div>
+                    </div>
+
+                    <h3 className="text-2xl font-bold text-gray-900 mb-4">
+                      Ready to build your dream team? ✨
+                    </h3>
+                    <p className="text-lg text-gray-700 mb-3 max-w-lg mx-auto">
+                      Great stories are born from collaboration! 
+                    </p>
+                    <p className="text-gray-600 mb-8 max-w-xl mx-auto leading-relaxed">
+                      Invite talented writers, skilled editors, creative translators, and experienced producers to join your project. 
+                      Share revenue, combine expertise, and create something amazing together.
+                    </p>
+
+                    {/* Feature Highlights */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10 max-w-3xl mx-auto">
+                      <div className="text-center p-4">
+                        <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-blue-200 rounded-xl flex items-center justify-center mx-auto mb-3">
+                          <Users className="w-6 h-6 text-blue-600" />
+                        </div>
+                        <h4 className="font-semibold text-gray-900 mb-2">Find Your Tribe</h4>
+                        <p className="text-sm text-gray-600">Connect with writers, editors, and creators who share your vision</p>
+                      </div>
+                      <div className="text-center p-4">
+                        <div className="w-12 h-12 bg-gradient-to-br from-green-100 to-green-200 rounded-xl flex items-center justify-center mx-auto mb-3">
+                          <Sparkles className="w-6 h-6 text-green-600" />
+                        </div>
+                        <h4 className="font-semibold text-gray-900 mb-2">Share Revenue</h4>
+                        <p className="text-sm text-gray-600">Set up fair revenue sharing and build a sustainable creative partnership</p>
+                      </div>
+                      <div className="text-center p-4">
+                        <div className="w-12 h-12 bg-gradient-to-br from-purple-100 to-purple-200 rounded-xl flex items-center justify-center mx-auto mb-3">
+                          <TrendingUp className="w-6 h-6 text-purple-600" />
+                        </div>
+                        <h4 className="font-semibold text-gray-900 mb-2">Grow Together</h4>
+                        <p className="text-sm text-gray-600">Track contributions and watch your project flourish with diverse skills</p>
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+                      <ProjectCollaborationButton 
+                        projectId={projectId}
+                        projectTitle={project.title}
+                        isOwner={true}
+                        currentCollaborators={collaborators}
+                        className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-semibold px-8 py-3 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200"
+                        onInvitationSent={refreshCollaborators}
+                      />
+                      <button className="px-6 py-3 border-2 border-orange-200 text-orange-700 font-medium rounded-lg hover:border-orange-300 hover:bg-orange-50 transition-all duration-200 flex items-center space-x-2">
+                        <FileText className="w-4 h-4" />
+                        <span>Learn About Collaboration</span>
+                      </button>
+                    </div>
+
+                    {/* Encouraging Note */}
+                    <div className="mt-8 p-4 bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl border border-orange-100 max-w-md mx-auto">
+                      <p className="text-sm text-orange-800">
+                        💡 <strong>Pro tip:</strong> The best collaborations start with clear communication and shared goals. 
+                        Take time to discuss roles and expectations with your team!
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  /* Collaborators List */
+                  <div className="space-y-6">
+                    {/* Stats Overview */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
+                            <Users className="w-5 h-5 text-white" />
+                          </div>
+                          <div>
+                            <p className="text-sm text-blue-600 font-medium">Total Collaborators</p>
+                            <p className="text-2xl font-bold text-blue-900">{collaborators.length + pendingInvitations.length}</p>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-4 border border-green-100">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center">
+                            <Check className="w-5 h-5 text-white" />
+                          </div>
+                          <div>
+                            <p className="text-sm text-green-600 font-medium">Active Members</p>
+                            <p className="text-2xl font-bold text-green-900">
+                              {collaborators.filter(c => c.status === 'active').length}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="bg-gradient-to-br from-purple-50 to-violet-50 rounded-xl p-4 border border-purple-100">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-10 h-10 bg-purple-500 rounded-lg flex items-center justify-center">
+                            <Sparkles className="w-5 h-5 text-white" />
+                          </div>
+                          <div>
+                            <p className="text-sm text-purple-600 font-medium">Revenue Share</p>
+                            <p className="text-2xl font-bold text-purple-900">
+                              {collaborators.reduce((total, c) => total + (c.royalty_split || 0), 0)}%
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Pending Invitations */}
+                    {pendingInvitations.length > 0 && (
+                      <div className="space-y-4 mb-8">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center space-x-2">
+                          <Clock className="w-5 h-5 text-orange-500" />
+                          <span>Pending Invitations ({pendingInvitations.length})</span>
+                        </h3>
+                        {pendingInvitations.map((invitation) => (
+                          <div key={invitation.id} className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl p-6 border border-orange-200">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center space-x-4">
+                                <div className="relative">
+                                  <div className="w-14 h-14 bg-gradient-to-br from-orange-400 to-amber-500 rounded-xl flex items-center justify-center">
+                                    <span className="text-white font-bold text-lg">
+                                      {invitation.profiles?.display_name?.slice(0, 2).toUpperCase() || 'U'}
+                                    </span>
+                                  </div>
+                                  <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-orange-500 rounded-full border-2 border-white flex items-center justify-center">
+                                    <Clock className="w-3 h-3 text-white" />
+                                  </div>
+                                </div>
+
+                                <div className="flex-1">
+                                  <div className="flex items-center space-x-3 mb-1">
+                                    <h4 className="font-semibold text-gray-900">
+                                      {invitation.profiles?.display_name || 'Unknown User'}
+                                    </h4>
+                                    <span className="px-3 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-700">
+                                      {invitation.role?.toUpperCase()}
+                                    </span>
+                                    {invitation.royalty_split && invitation.royalty_split > 0 && (
+                                      <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
+                                        {invitation.royalty_split}% revenue
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center space-x-4 text-sm text-gray-600">
+                                    <span className="flex items-center space-x-1">
+                                      <Clock className="w-4 h-4" />
+                                      <span>Invited {new Date(invitation.created_at).toLocaleDateString()}</span>
+                                    </span>
+                                    <span className="flex items-center space-x-1 text-orange-600">
+                                      <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></div>
+                                      <span>Pending Response</span>
+                                    </span>
+                                  </div>
+                                  {invitation.message && (
+                                    <p className="text-sm text-gray-600 mt-2 italic">
+                                      "{invitation.message}"
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="flex items-center space-x-2">
+                                <button 
+                                  onClick={() => handleSendMessage(
+                                    invitation.invitee_id, 
+                                    invitation.profiles?.display_name,
+                                    invitation.profiles?.avatar_url,
+                                    invitation.role
+                                  )}
+                                  className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                  title="Send Message"
+                                >
+                                  <MessageSquare className="w-4 h-4" />
+                                </button>
+                                <button 
+                                  onClick={() => handleCancelInvitation(invitation.id)}
+                                  className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+                                  title="Cancel Invitation"
+                                >
+                                  <Settings className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Active Collaborators */}
+                    {collaborators.length > 0 && (
+                      <div className="space-y-4">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-4">Active Team Members ({collaborators.length})</h3>
+                        {collaborators.map((collaborator) => (
+                        <div key={collaborator.id} className="bg-gradient-to-r from-gray-50 to-orange-50/30 rounded-xl p-6 border border-gray-200 hover:border-orange-200 transition-all duration-200">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-4">
+                              <div className="relative">
+                                <div className="w-14 h-14 bg-gradient-to-br from-orange-400 to-amber-500 rounded-xl flex items-center justify-center">
+                                  <span className="text-white font-bold text-lg">
+                                    {collaborator.profiles?.display_name?.slice(0, 2).toUpperCase() || 'U'}
+                                  </span>
+                                </div>
+                                <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-white flex items-center justify-center ${
+                                  collaborator.status === 'active' ? 'bg-green-500' : 
+                                  collaborator.status === 'inactive' ? 'bg-yellow-500' : 'bg-gray-500'
+                                }`}>
+                                  {collaborator.status === 'active' && <Check className="w-3 h-3 text-white" />}
+                                  {collaborator.status === 'inactive' && <Clock className="w-3 h-3 text-white" />}
+                                </div>
+                              </div>
+
+                              <div className="flex-1">
+                                <div className="flex items-center space-x-3 mb-1">
+                                  <h4 className="font-semibold text-gray-900">
+                                    {collaborator.profiles?.display_name || 'Unknown User'}
+                                  </h4>
+                                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                    collaborator.role === 'coauthor' ? 'bg-blue-100 text-blue-700' :
+                                    collaborator.role === 'editor' ? 'bg-orange-100 text-orange-700' :
+                                    collaborator.role === 'translator' ? 'bg-purple-100 text-purple-700' :
+                                    collaborator.role === 'producer' ? 'bg-green-100 text-green-700' :
+                                    'bg-gray-100 text-gray-700'
+                                  }`}>
+                                    {collaborator.role?.toUpperCase()}
+                                  </span>
+                                  {collaborator.royalty_split && collaborator.royalty_split > 0 && (
+                                    <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
+                                      {collaborator.royalty_split}% revenue
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center space-x-4 text-sm text-gray-600">
+                                  <span className="flex items-center space-x-1">
+                                    <Clock className="w-4 h-4" />
+                                    <span>Joined {new Date(collaborator.joined_at).toLocaleDateString()}</span>
+                                  </span>
+                                  <span className={`flex items-center space-x-1 ${
+                                    collaborator.status === 'active' ? 'text-green-600' :
+                                    collaborator.status === 'inactive' ? 'text-yellow-600' : 'text-gray-600'
+                                  }`}>
+                                    <div className={`w-2 h-2 rounded-full ${
+                                      collaborator.status === 'active' ? 'bg-green-500' :
+                                      collaborator.status === 'inactive' ? 'bg-yellow-500' : 'bg-gray-500'
+                                    }`}></div>
+                                    <span className="capitalize">{collaborator.status}</span>
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center space-x-2">
+                              <button 
+                                onClick={() => handleSendMessage(
+                                  collaborator.user_id, 
+                                  collaborator.profiles?.display_name,
+                                  collaborator.profiles?.avatar_url,
+                                  collaborator.role
+                                )}
+                                className="p-2 text-gray-600 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+                                title="Send Message"
+                              >
+                                <MessageSquare className="w-4 h-4" />
+                              </button>
+                              <button 
+                                onClick={() => handleEditCollaborator(collaborator)}
+                                className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+                                title="Edit Role & Permissions"
+                              >
+                                <Settings className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Action Footer */}
+                    <div className="pt-6 border-t border-gray-200">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm text-gray-600">
+                          Manage collaboration permissions and revenue sharing for your team
+                        </div>
+                        <div className="flex space-x-3">
+                          <button className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:border-orange-300 hover:text-orange-700 transition-colors">
+                            Manage Permissions
+                          </button>
+                          <PermissionGate 
+                            projectId={projectId} 
+                            userId={currentUser?.id} 
+                            requiredPermission="invite"
+                          >
+                            <ProjectCollaborationButton 
+                              projectId={projectId}
+                              projectTitle={project.title}
+                              isOwner={project.owner_id === currentUser?.id}
+                              currentCollaborators={collaborators}
+                              className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-medium"
+                              onInvitationSent={refreshCollaborators}
+                            />
+                          </PermissionGate>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Role-based Workflow Manager */}
+                <div className="mt-8">
+                  <RoleWorkflowManager
+                    projectId={projectId}
+                    userId={currentUser?.id}
+                    project={project}
+                  />
+                </div>
+
+                {/* Permission Tester (Development Only) */}
+                {process.env.NODE_ENV === 'development' && (
+                  <div className="mt-8">
+                    <RolePermissionTester
+                      projectId={projectId}
+                      userId={currentUser?.id}
+                    />
+                  </div>
+                )}
+
+                {/* Project Comments */}
+                <div className="mt-8">
+                  <ProjectComments
+                    projectId={projectId}
+                    userId={currentUser?.id}
+                  />
+                </div>
               </div>
             </div>
           </div>
         )}
 
         {activeTab === 'history' && (
-          <div className="max-w-4xl">
-            <div className="bg-white rounded-xl border border-gray-200 p-8">
-              <h2 className="text-xl font-semibold text-gray-800 mb-6">Version History</h2>
-              
-              <div className="text-center py-8">
-                <History className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-800 mb-2">No version history</h3>
-                <p className="text-gray-600">Content versions will appear here as you make changes</p>
-              </div>
-            </div>
-          </div>
+          <ProjectHistory
+            projectId={projectId}
+            currentUserId={currentUser?.id}
+            canRestore={project?.owner_id === currentUser?.id || false}
+          />
         )}
       </div>
+
+      {/* Send Message Modal */}
+      {showMessageModal && messageRecipient && (
+        <SendMessageModal
+          isOpen={showMessageModal}
+          onClose={() => {
+            setShowMessageModal(false)
+            setMessageRecipient(null)
+          }}
+          recipient={messageRecipient}
+        />
+      )}
+
+      {/* Edit Collaborator Modal */}
+      {showEditModal && editingCollaborator && (
+        <EditCollaboratorModal
+          isOpen={showEditModal}
+          onClose={() => {
+            setShowEditModal(false)
+            setEditingCollaborator(null)
+          }}
+          collaborator={editingCollaborator}
+          onSave={(updates) => handleUpdateCollaborator(editingCollaborator.id, updates)}
+          onRemove={() => handleRemoveCollaborator(editingCollaborator.id)}
+          currentTotalSplit={collaborators.reduce((total, c) => total + (c.royalty_split || 0), 0)}
+        />
+      )}
     </div>
   )
 }
