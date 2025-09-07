@@ -13,13 +13,15 @@ import {
   BarChart3,
   Coffee,
   Flame,
-  CheckCircle
+  CheckCircle,
+  Users
 } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/auth'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import ProjectCollaborationButton from '@/components/project-collaboration-button'
 
 interface WritingGoal {
   id: string
@@ -422,6 +424,23 @@ export default function NovelDashboard({
               <BookOpen className="w-5 h-5 mb-1" />
               <span className="text-sm">Chapter Overview</span>
             </Button>
+          </div>
+          
+          {/* Collaboration Section */}
+          <div className="mt-4 pt-4 border-t border-gray-200">
+            <h4 className="text-sm font-medium text-gray-700 mb-3">Collaboration</h4>
+            <div className="flex space-x-3">
+              <ProjectCollaborationButton
+                projectId={projectId}
+                projectTitle="Current Novel"
+                isOwner={true} // You'd get this from your project data
+                currentCollaborators={[]}
+              />
+              <Button variant="outline" size="sm" className="flex items-center space-x-2">
+                <Users className="w-4 h-4" />
+                <span>View Team</span>
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>

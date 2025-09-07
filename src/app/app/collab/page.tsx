@@ -1,346 +1,362 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import { 
   Users,
   Plus,
-  Mail,
-  Check,
-  X,
-  Clock,
-  FileText,
-  MessageSquare,
-  Settings,
   Search,
-  Filter
+  Settings,
+  Clock,
+  CheckCircle,
+  AlertCircle,
+  TrendingUp,
+  BookOpen,
+  Calendar,
+  Star
 } from 'lucide-react'
-
-const COLLABORATION_INVITES = [
-  {
-    id: '1',
-    project: {
-      title: 'Neon Nights',
-      format: 'Screenplay',
-      owner: 'Alex Morgan'
-    },
-    role: 'Co-Writer',
-    message: 'Would love to collaborate on this cyberpunk thriller. Your background in tech writing would be perfect.',
-    sentAt: '2024-01-10T10:30:00Z',
-    status: 'pending'
-  },
-  {
-    id: '2',
-    project: {
-      title: 'The Last Garden',
-      format: 'Novel',
-      owner: 'Maria Santos'
-    },
-    role: 'Editor',
-    message: 'Looking for an experienced editor to help polish this environmental fiction novel.',
-    sentAt: '2024-01-08T14:15:00Z',
-    status: 'pending'
-  }
-]
-
-const ACTIVE_COLLABORATIONS = [
-  {
-    id: '1',
-    project: {
-      title: 'Midnight Express',
-      format: 'Treatment',
-      owner: 'David Kim'
-    },
-    role: 'Co-Writer',
-    startedAt: '2023-12-15T09:00:00Z',
-    lastActivity: '2024-01-12T16:45:00Z',
-    status: 'active',
-    progress: 65
-  },
-  {
-    id: '2',
-    project: {
-      title: 'Ocean Deep',
-      format: 'Screenplay',
-      owner: 'Sarah Johnson'
-    },
-    role: 'Script Doctor',
-    startedAt: '2024-01-05T11:30:00Z',
-    lastActivity: '2024-01-11T13:20:00Z',
-    status: 'active',
-    progress: 30
-  }
-]
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import CollaborationInvitations from '@/components/collaboration-invitations'
+import InviteCollaboratorModal from '@/components/invite-collaborator-modal'
+import { useCollaborationInvitations, useActiveCollaborations } from '@/hooks/useCollaboration'
 
 export default function CollaborationsPage() {
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    })
+  const [searchQuery, setSearchQuery] = useState('')
+  const [showInviteModal, setShowInviteModal] = useState(false)
+  const { invitations: receivedInvitations } = useCollaborationInvitations('received')
+  const { invitations: sentInvitations } = useCollaborationInvitations('sent')
+  const { collaborations: activeCollaborations, loading: activeLoading } = useActiveCollaborations()
+
+  const pendingReceived = receivedInvitations.filter(inv => inv.status === 'pending').length
+  const pendingSent = sentInvitations.filter(inv => inv.status === 'pending').length
+  const activeProjects = activeCollaborations.length
+
+  const formatRole = (role: string) => {
+    return role.charAt(0).toUpperCase() + role.slice(1)
   }
 
-  const formatTime = (dateString: string) => {
-    const now = new Date()
-    const date = new Date(dateString)
-    const diff = now.getTime() - date.getTime()
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-    
-    if (days === 0) return 'Today'
-    if (days === 1) return 'Yesterday'
-    if (days < 7) return `${days} days ago`
-    return formatDate(dateString)
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    })
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white border-b border-gray-200">
-        <div className="container mx-auto px-6 py-8">
+        <div className="container mx-auto px-6 py-6">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-800 mb-2">Collaborations</h1>
-              <p className="text-gray-600">Manage your collaborative projects and team invitations</p>
+              <p className="text-gray-600">Manage your collaborative projects and team connections</p>
             </div>
             
             <div className="flex items-center space-x-3">
               <div className="relative">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                <input
+                <Input
                   type="text"
-                  placeholder="Search collaborations..."
-                  className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
+                  placeholder="Search projects..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 pr-4 py-2 w-64"
                 />
               </div>
-              <button className="btn-primary flex items-center space-x-2">
-                <Plus className="w-4 h-4" />
-                <span>Invite Collaborator</span>
-              </button>
+              <Button asChild>
+                <Link href="/app/search">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Find Collaborators
+                </Link>
+              </Button>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="container mx-auto px-6 py-8">
+      <div className="container mx-auto px-6 py-8 max-w-7xl">
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Pending Invitations</p>
+                  <p className="text-2xl font-bold text-gray-800">{pendingReceived}</p>
+                </div>
+                <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
+                  <Clock className="w-6 h-6 text-orange-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Sent Invitations</p>
+                  <p className="text-2xl font-bold text-gray-800">{pendingSent}</p>
+                </div>
+                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                  <Users className="w-6 h-6 text-blue-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Active Projects</p>
+                  <p className="text-2xl font-bold text-gray-800">{activeProjects}</p>
+                </div>
+                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                  <CheckCircle className="w-6 h-6 text-green-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Success Rate</p>
+                  <p className="text-2xl font-bold text-gray-800">--</p>
+                </div>
+                <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+                  <TrendingUp className="w-6 h-6 text-purple-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Main Content */}
-          <div className="lg:col-span-2 space-y-8">
-            {/* Pending Invitations */}
-            <div>
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold text-gray-800">Pending Invitations</h2>
-                {COLLABORATION_INVITES.length > 0 && (
-                  <span className="text-sm text-orange-600 bg-orange-100 px-3 py-1 rounded-full">
-                    {COLLABORATION_INVITES.length} pending
-                  </span>
-                )}
-              </div>
-              
-              {COLLABORATION_INVITES.length === 0 ? (
-                <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
-                  <Mail className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-800 mb-2">No pending invitations</h3>
-                  <p className="text-gray-600">New collaboration invitations will appear here</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {COLLABORATION_INVITES.map((invite) => (
-                    <div key={invite.id} className="bg-white rounded-xl border border-gray-200 p-6">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-3 mb-2">
-                            <h3 className="font-semibold text-gray-800">{invite.project.title}</h3>
-                            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
-                              {invite.project.format}
-                            </span>
-                            <span className="text-xs bg-orange-100 text-orange-600 px-2 py-1 rounded-full">
-                              {invite.role}
-                            </span>
-                          </div>
-                          
-                          <p className="text-gray-600 text-sm mb-3">{invite.message}</p>
-                          
-                          <div className="flex items-center space-x-4 text-xs text-gray-500">
-                            <span>From {invite.project.owner}</span>
-                            <span>•</span>
-                            <span>{formatTime(invite.sentAt)}</span>
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center space-x-2 ml-4">
-                          <button className="flex items-center space-x-1 px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm">
-                            <Check className="w-4 h-4" />
-                            <span>Accept</span>
-                          </button>
-                          <button className="flex items-center space-x-1 px-3 py-2 border border-gray-300 text-gray-600 rounded-lg hover:border-gray-400 transition-colors text-sm">
-                            <X className="w-4 h-4" />
-                            <span>Decline</span>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+          <div className="lg:col-span-2">
+            <Tabs defaultValue="received" className="space-y-6">
+              <TabsList>
+                <TabsTrigger value="received" className="flex items-center space-x-2">
+                  <span>Received</span>
+                  {pendingReceived > 0 && (
+                    <Badge variant="secondary" className="text-xs">
+                      {pendingReceived}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="sent" className="flex items-center space-x-2">
+                  <span>Sent</span>
+                  {pendingSent > 0 && (
+                    <Badge variant="secondary" className="text-xs">
+                      {pendingSent}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="active">Active Projects</TabsTrigger>
+              </TabsList>
 
-            {/* Active Collaborations */}
-            <div>
-              <h2 className="text-xl font-semibold text-gray-800 mb-6">Active Collaborations</h2>
-              
-              {ACTIVE_COLLABORATIONS.length === 0 ? (
-                <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
-                  <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-800 mb-2">No active collaborations</h3>
-                  <p className="text-gray-600 mb-6">Start collaborating with other creators to bring your stories to life</p>
-                  <button className="btn-primary inline-flex items-center space-x-2">
-                    <Plus className="w-4 h-4" />
-                    <span>Find Collaborators</span>
-                  </button>
+              <TabsContent value="received">
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-semibold text-gray-800">Collaboration Invitations</h2>
+                  </div>
+                  <CollaborationInvitations type="received" />
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  {ACTIVE_COLLABORATIONS.map((collab) => (
-                    <div key={collab.id} className="bg-white rounded-xl border border-gray-200 p-6">
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-3 mb-2">
-                            <h3 className="font-semibold text-gray-800">{collab.project.title}</h3>
-                            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
-                              {collab.project.format}
-                            </span>
-                            <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded-full">
-                              {collab.role}
-                            </span>
-                          </div>
-                          
-                          <div className="flex items-center space-x-4 text-xs text-gray-500 mb-3">
-                            <span>with {collab.project.owner}</span>
-                            <span>•</span>
-                            <span>Started {formatTime(collab.startedAt)}</span>
-                            <span>•</span>
-                            <span>Last activity {formatTime(collab.lastActivity)}</span>
-                          </div>
+              </TabsContent>
 
-                          {/* Progress Bar */}
-                          <div className="mb-3">
-                            <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
-                              <span>Progress</span>
-                              <span>{collab.progress}%</span>
-                            </div>
-                            <div className="w-full bg-gray-200 rounded-full h-2">
-                              <div 
-                                className="bg-orange-500 h-2 rounded-full transition-all" 
-                                style={{ width: `${collab.progress}%` }}
-                              ></div>
-                            </div>
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center space-x-2 ml-4">
-                          <button className="p-2 text-gray-400 hover:text-gray-600">
-                            <MessageSquare className="w-4 h-4" />
-                          </button>
-                          <button className="p-2 text-gray-400 hover:text-gray-600">
-                            <FileText className="w-4 h-4" />
-                          </button>
-                          <button className="p-2 text-gray-400 hover:text-gray-600">
-                            <Settings className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-                        <Link
-                          href={`/app/projects/${collab.id}`}
-                          className="text-sm text-orange-600 hover:text-orange-700 font-medium"
-                        >
-                          View Project →
-                        </Link>
-                        
-                        <div className="flex items-center space-x-2">
-                          <div className={`w-2 h-2 rounded-full ${
-                            collab.status === 'active' ? 'bg-green-500' : 'bg-gray-400'
-                          }`}></div>
-                          <span className="text-xs text-gray-500 capitalize">{collab.status}</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+              <TabsContent value="sent">
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-semibold text-gray-800">Sent Invitations</h2>
+                  </div>
+                  <CollaborationInvitations type="sent" />
                 </div>
-              )}
-            </div>
+              </TabsContent>
+
+              <TabsContent value="active">
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-semibold text-gray-800">Active Collaborations</h2>
+                  </div>
+                  
+                  {activeLoading ? (
+                    <Card>
+                      <CardContent className="p-12 text-center">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4"></div>
+                        <p className="text-gray-600">Loading collaborations...</p>
+                      </CardContent>
+                    </Card>
+                  ) : activeCollaborations.length === 0 ? (
+                    <Card>
+                      <CardContent className="p-12 text-center">
+                        <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                        <h3 className="text-lg font-medium text-gray-800 mb-2">No active collaborations</h3>
+                        <p className="text-gray-600 mb-6">
+                          Start collaborating with other creators to bring your stories to life
+                        </p>
+                        <Button asChild>
+                          <Link href="/app/search">
+                            <Plus className="w-4 h-4 mr-2" />
+                            Find Collaborators
+                          </Link>
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <div className="space-y-4">
+                      {activeCollaborations.map((collaboration) => (
+                        <Card key={collaboration.id} className="hover:shadow-md transition-shadow">
+                          <CardContent className="p-6">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center space-x-4 mb-3">
+                                  <BookOpen className="w-5 h-5 text-blue-600" />
+                                  <div>
+                                    <Link 
+                                      href={`/app/projects/${collaboration.project.id}`}
+                                      className="text-lg font-semibold text-gray-800 hover:text-blue-600 transition-colors"
+                                    >
+                                      {collaboration.project.title}
+                                    </Link>
+                                    <p className="text-sm text-gray-600">{collaboration.project.logline || collaboration.project.synopsis}</p>
+                                  </div>
+                                </div>
+                                
+                                <div className="flex items-center space-x-6 text-sm text-gray-600">
+                                  <div className="flex items-center space-x-2">
+                                    <Avatar className="w-5 h-5">
+                                      <AvatarImage src={collaboration.project.owner.avatar_url} />
+                                      <AvatarFallback className="text-xs">
+                                        {collaboration.project.owner.display_name.charAt(0).toUpperCase()}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    <span>Owner: {collaboration.project.owner.display_name}</span>
+                                  </div>
+                                  <div className="flex items-center space-x-1">
+                                    <Calendar className="w-4 h-4" />
+                                    <span>Joined {formatDate(collaboration.joined_at)}</span>
+                                  </div>
+                                  <div className="flex items-center space-x-1">
+                                    <Star className="w-4 h-4" />
+                                    <span>{collaboration.royalty_split}% revenue</span>
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              <div className="flex items-center space-x-3">
+                                <Badge variant="outline" className="capitalize">
+                                  {formatRole(collaboration.role)}
+                                </Badge>
+                                <Badge variant="secondary" className="capitalize">
+                                  {collaboration.project.format}
+                                </Badge>
+                                <Button variant="outline" size="sm" asChild>
+                                  <Link href={`/app/projects/${collaboration.project.id}`}>
+                                    View Project
+                                  </Link>
+                                </Button>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+            </Tabs>
           </div>
 
           {/* Sidebar */}
           <div className="space-y-6">
             {/* Collaboration Tips */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">Collaboration Tips</h3>
-              <div className="space-y-3 text-sm text-gray-600">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Collaboration Tips</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
                 <div className="flex items-start space-x-2">
-                  <Check className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
-                  <span>Set clear expectations and deadlines from the start</span>
+                  <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
+                  <span className="text-sm text-gray-600">Set clear expectations and deadlines from the start</span>
                 </div>
                 <div className="flex items-start space-x-2">
-                  <Check className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
-                  <span>Communicate regularly about progress and changes</span>
+                  <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
+                  <span className="text-sm text-gray-600">Communicate regularly about progress and changes</span>
                 </div>
                 <div className="flex items-start space-x-2">
-                  <Check className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
-                  <span>Use version control to track document changes</span>
+                  <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
+                  <span className="text-sm text-gray-600">Use version control to track document changes</span>
                 </div>
                 <div className="flex items-start space-x-2">
-                  <Check className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
-                  <span>Respect each other's creative contributions</span>
+                  <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
+                  <span className="text-sm text-gray-600">Respect each other's creative contributions</span>
                 </div>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
 
             {/* Quick Actions */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">Quick Actions</h3>
-              <div className="space-y-2">
-                <button className="w-full text-left p-3 rounded-lg hover:bg-gray-50 flex items-center space-x-3 transition-colors">
-                  <Plus className="w-4 h-4 text-gray-500" />
-                  <span className="text-sm text-gray-700">Invite New Collaborator</span>
-                </button>
-                <button className="w-full text-left p-3 rounded-lg hover:bg-gray-50 flex items-center space-x-3 transition-colors">
-                  <Search className="w-4 h-4 text-gray-500" />
-                  <span className="text-sm text-gray-700">Find Projects to Join</span>
-                </button>
-                <button className="w-full text-left p-3 rounded-lg hover:bg-gray-50 flex items-center space-x-3 transition-colors">
-                  <Settings className="w-4 h-4 text-gray-500" />
-                  <span className="text-sm text-gray-700">Collaboration Settings</span>
-                </button>
-              </div>
-            </div>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Quick Actions</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <Button variant="outline" className="w-full justify-start" asChild>
+                  <Link href="/app/search">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Find Collaborators
+                  </Link>
+                </Button>
+                <Button variant="outline" className="w-full justify-start" asChild>
+                  <Link href="/app/projects">
+                    <Search className="w-4 h-4 mr-2" />
+                    Browse Projects
+                  </Link>
+                </Button>
+                <Button variant="outline" className="w-full justify-start" asChild>
+                  <Link href="/app/settings">
+                    <Settings className="w-4 h-4 mr-2" />
+                    Collaboration Settings
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
 
-            {/* Stats */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">Your Stats</h3>
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Active Collaborations</span>
-                  <span className="font-semibold text-gray-800">{ACTIVE_COLLABORATIONS.length}</span>
+            {/* Help */}
+            <Card className="bg-blue-50 border-blue-200">
+              <CardContent className="p-6">
+                <div className="flex items-center space-x-2 mb-3">
+                  <AlertCircle className="w-5 h-5 text-blue-600" />
+                  <h3 className="font-medium text-blue-800">Need Help?</h3>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Pending Invites</span>
-                  <span className="font-semibold text-gray-800">{COLLABORATION_INVITES.length}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Completed Projects</span>
-                  <span className="font-semibold text-gray-800">3</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Success Rate</span>
-                  <span className="font-semibold text-green-600">95%</span>
-                </div>
-              </div>
-            </div>
+                <p className="text-sm text-blue-700 mb-4">
+                  Learn more about collaboration features and best practices.
+                </p>
+                <Button variant="outline" size="sm" className="border-blue-300 text-blue-700 hover:bg-blue-100">
+                  View Guide
+                </Button>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </div>
+
+      {/* Invite Collaborator Modal */}
+      <InviteCollaboratorModal
+        isOpen={showInviteModal}
+        onClose={() => setShowInviteModal(false)}
+        projectId="demo-project" // This would be passed from a project context
+        projectTitle="Demo Project"
+      />
     </div>
   )
 }

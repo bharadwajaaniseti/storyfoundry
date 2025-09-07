@@ -272,6 +272,181 @@ export interface Database {
           created_at?: string
         }
       }
+      collaboration_invitations: {
+        Row: {
+          id: string
+          project_id: string
+          inviter_id: string
+          invitee_id: string
+          role: 'coauthor' | 'editor' | 'translator' | 'producer' | 'reviewer'
+          royalty_split: number | null
+          message: string | null
+          status: 'pending' | 'accepted' | 'declined' | 'cancelled'
+          expires_at: string | null
+          created_at: string
+          responded_at: string | null
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          inviter_id: string
+          invitee_id: string
+          role: 'coauthor' | 'editor' | 'translator' | 'producer' | 'reviewer'
+          royalty_split?: number | null
+          message?: string | null
+          status?: 'pending' | 'accepted' | 'declined' | 'cancelled'
+          expires_at?: string | null
+          created_at?: string
+          responded_at?: string | null
+        }
+        Update: {
+          id?: string
+          project_id?: string
+          inviter_id?: string
+          invitee_id?: string
+          role?: 'coauthor' | 'editor' | 'translator' | 'producer' | 'reviewer'
+          royalty_split?: number | null
+          message?: string | null
+          status?: 'pending' | 'accepted' | 'declined' | 'cancelled'
+          expires_at?: string | null
+          created_at?: string
+          responded_at?: string | null
+        }
+      }
+      project_collaborators: {
+        Row: {
+          id: string
+          project_id: string
+          user_id: string
+          role: 'coauthor' | 'editor' | 'translator' | 'producer' | 'reviewer'
+          royalty_split: number | null
+          permissions: Json
+          status: 'active' | 'inactive' | 'removed'
+          joined_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          user_id: string
+          role: 'coauthor' | 'editor' | 'translator' | 'producer' | 'reviewer'
+          royalty_split?: number | null
+          permissions?: Json
+          status?: 'active' | 'inactive' | 'removed'
+          joined_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          project_id?: string
+          user_id?: string
+          role?: 'coauthor' | 'editor' | 'translator' | 'producer' | 'reviewer'
+          royalty_split?: number | null
+          permissions?: Json
+          status?: 'active' | 'inactive' | 'removed'
+          joined_at?: string
+          updated_at?: string
+        }
+      }
+      collaboration_messages: {
+        Row: {
+          id: string
+          project_id: string
+          sender_id: string
+          content: string
+          message_type: 'general' | 'announcement' | 'feedback' | 'question'
+          parent_id: string | null
+          is_pinned: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          sender_id: string
+          content: string
+          message_type?: 'general' | 'announcement' | 'feedback' | 'question'
+          parent_id?: string | null
+          is_pinned?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          project_id?: string
+          sender_id?: string
+          content?: string
+          message_type?: 'general' | 'announcement' | 'feedback' | 'question'
+          parent_id?: string | null
+          is_pinned?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      project_activity: {
+        Row: {
+          id: string
+          project_id: string
+          user_id: string
+          activity_type: 'project_created' | 'project_updated' | 'collaborator_added' | 'collaborator_removed' | 'chapter_created' | 'chapter_updated' | 'chapter_deleted' | 'comment_added' | 'message_sent' | 'file_uploaded' | 'permission_changed'
+          description: string
+          metadata: Json
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          user_id: string
+          activity_type: 'project_created' | 'project_updated' | 'collaborator_added' | 'collaborator_removed' | 'chapter_created' | 'chapter_updated' | 'chapter_deleted' | 'comment_added' | 'message_sent' | 'file_uploaded' | 'permission_changed'
+          description: string
+          metadata?: Json
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          project_id?: string
+          user_id?: string
+          activity_type?: 'project_created' | 'project_updated' | 'collaborator_added' | 'collaborator_removed' | 'chapter_created' | 'chapter_updated' | 'chapter_deleted' | 'comment_added' | 'message_sent' | 'file_uploaded' | 'permission_changed'
+          description?: string
+          metadata?: Json
+          created_at?: string
+        }
+      }
+      collaboration_requests: {
+        Row: {
+          id: string
+          project_id: string
+          requester_id: string
+          desired_role: 'coauthor' | 'editor' | 'translator' | 'producer' | 'reviewer'
+          message: string | null
+          portfolio_links: string[] | null
+          status: 'pending' | 'approved' | 'rejected' | 'withdrawn'
+          created_at: string
+          responded_at: string | null
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          requester_id: string
+          desired_role: 'coauthor' | 'editor' | 'translator' | 'producer' | 'reviewer'
+          message?: string | null
+          portfolio_links?: string[] | null
+          status?: 'pending' | 'approved' | 'rejected' | 'withdrawn'
+          created_at?: string
+          responded_at?: string | null
+        }
+        Update: {
+          id?: string
+          project_id?: string
+          requester_id?: string
+          desired_role?: 'coauthor' | 'editor' | 'translator' | 'producer' | 'reviewer'
+          message?: string | null
+          portfolio_links?: string[] | null
+          status?: 'pending' | 'approved' | 'rejected' | 'withdrawn'
+          created_at?: string
+          responded_at?: string | null
+        }
+      }
       pitch_rooms: {
         Row: {
           id: string

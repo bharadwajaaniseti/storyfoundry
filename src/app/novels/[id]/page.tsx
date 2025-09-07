@@ -25,6 +25,7 @@ import EncyclopediaPanel from '@/components/world-building/encyclopedia-panel'
 import NovelSettingsModal from '@/components/novel-settings-modal'
 import InputModal from '@/components/ui/input-modal'
 import DeleteModal from '@/components/ui/delete-modal'
+import ProjectCollaborationButton from '@/components/project-collaboration-button'
 
 // Type definitions
 interface Project {
@@ -1822,6 +1823,21 @@ export default function NovelPage() {
                           <Search className="w-4 h-4 mr-2" />
                           Save Research
                         </Button>
+                        
+                        {/* Collaboration Quick Action */}
+                        <div className="pt-2 border-t border-gray-200">
+                          <p className="text-xs font-medium text-gray-700 mb-2 flex items-center">
+                            <Users className="w-3 h-3 mr-1" />
+                            Collaboration
+                          </p>
+                          <ProjectCollaborationButton 
+                            projectId={project.id}
+                            projectTitle={project.title}
+                            isOwner={true}
+                            currentCollaborators={[]}
+                            className="w-full justify-start text-sm"
+                          />
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -2135,6 +2151,13 @@ export default function NovelPage() {
               </div>
 
               <div className="flex items-center gap-3">
+                <ProjectCollaborationButton 
+                  projectId={project.id}
+                  projectTitle={project.title}
+                  isOwner={true}
+                  currentCollaborators={[]}
+                  className="text-sm"
+                />
                 <Button 
                   variant="ghost" 
                   size="sm"

@@ -54,6 +54,7 @@ import {
   toggleProjectBookmark, 
   isProjectBookmarked
 } from '@/lib/bookmarks'
+import ProjectCollaborationButton from '@/components/project-collaboration-button'
 
 // Navigation component from marketing layout
 function Navigation({ currentUser, isLoadingUser }: { currentUser: any; isLoadingUser: boolean }) {
@@ -1724,6 +1725,23 @@ export default function PublicProjectPage() {
                       <p className="text-xs text-gray-600">Manage visibility and features</p>
                     </div>
                   </Link>
+
+                  {/* Collaboration Section */}
+                  <div className="p-3 rounded-lg bg-blue-50">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center space-x-2">
+                        <UserPlus className="w-4 h-4 text-blue-600" />
+                        <p className="font-medium text-blue-800">Collaboration</p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-blue-600 mb-3">Invite writers to collaborate on this project</p>
+                    <ProjectCollaborationButton 
+                      projectId={projectId}
+                      projectTitle={project.title}
+                      isOwner={true}
+                      currentCollaborators={[]}
+                    />
+                  </div>
                   
                   <div className="flex items-center space-x-3 p-3 rounded-lg bg-green-50">
                     <BarChart3 className="w-4 h-4 text-green-600" />
