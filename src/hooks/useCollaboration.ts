@@ -72,7 +72,15 @@ export function useCollaborationInvitations(type?: 'sent' | 'received') {
         body: JSON.stringify({ action })
       })
       
-      const data = await response.json()
+      let data
+      try {
+        data = await response.json()
+      } catch (jsonError) {
+        // If JSON parsing fails, try to get the text response
+        const textResponse = await response.text()
+        console.error('Failed to parse JSON response:', textResponse)
+        throw new Error(`Server returned invalid response: ${textResponse.substring(0, 100)}...`)
+      }
       
       if (!response.ok) {
         throw new Error(data.error || 'Failed to respond to invitation')
