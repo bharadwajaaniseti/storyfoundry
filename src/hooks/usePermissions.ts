@@ -66,9 +66,7 @@ export function useProjectPermissions(projectId: string, userId?: string) {
 
         // Check if user is a collaborator
         let collaborator = null
-        // TEMPORARY FIX: Skip collaborator check to prevent infinite loop
-        // This will be re-enabled once RLS policies are fixed
-        if (false && !isOwner) {
+        if (!isOwner) {
           try {
             const { data } = await supabase
               .from('project_collaborators')
@@ -87,8 +85,9 @@ export function useProjectPermissions(projectId: string, userId?: string) {
               .single()
             
             collaborator = data
+            console.log('usePermissions collaborator found:', collaborator)
           } catch (error) {
-            console.log('Collaboration table not available, user will have owner-only access:', error)
+            console.log('No active collaboration found for user:', userId, 'in project:', projectId)
             // If collaboration check fails, user will only get owner permissions if they are the owner
           }
         }

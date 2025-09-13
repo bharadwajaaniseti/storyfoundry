@@ -84,32 +84,89 @@ interface ApprovalAction {
 }
 
 export default function ApprovedWorkflow({ projectId, userId, userRole: passedUserRole, permissions: passedPermissions, project, currentUser }: ApprovedWorkflowProps) {
-  // Simple owner check: if project and currentUser are available, check if currentUser owns the project
-  const isOwnerByProject = project && currentUser && project.owner_id === currentUser.id
+  console.log('=== ApprovedWorkflow Component Props ===', { 
+    projectId, 
+    userId, 
+    passedUserRole, 
+    currentUser: currentUser ? { id: currentUser.id, email: currentUser.email } : null,
+    project: project ? { id: project.id, title: project.title, owner_id: project.owner_id } : null
+  })
+  // Get hook result for role information
+  const hookResult = useRoleBasedUI(projectId, userId)
   
-  // Use passed userRole if available, otherwise use hook, otherwise use direct project check
-  const hookResult = useRoleBasedUI(projectId)
-  const userRole = passedUserRole ?? hookResult.userRole ?? (isOwnerByProject ? 'owner' : null)
-  const getAllRoleNames = hookResult.getAllRoleNames
+  // Memoize role information to prevent unnecessary re-renders
+  const roleInfo = useMemo(() => {
+    const isOwnerByProject = project && currentUser && project.owner_id === currentUser.id
+    
+    let userRole: string | null = null
+    let allUserRoles: string[] = []
 
-  console.log('ApprovedWorkflow props:', { 
+    if (isOwnerByProject) {
+      userRole = 'owner'
+      allUserRoles = ['Owner']
+    } else {
+      // Use the hook result which properly handles role detection
+      userRole = hookResult.userRole
+      allUserRoles = hookResult.getAllRoleNames()
+      
+      // Fallback to passed props if hook doesn't have complete info
+      if (!userRole && passedUserRole) {
+        userRole = passedUserRole
+        if (allUserRoles.length === 0 || (allUserRoles.length === 1 && allUserRoles[0] === 'Viewer')) {
+          allUserRoles = [passedUserRole.charAt(0).toUpperCase() + passedUserRole.slice(1)]
+        }
+      }
+    }
+
+    return {
+      isOwnerByProject,
+      userRole,
+      allUserRoles,
+      allUserRolesString: allUserRoles.join(',') // Stable string for dependencies
+    }
+  }, [
+    project?.owner_id, 
+    currentUser?.id, 
+    hookResult.userRole, 
+    JSON.stringify(hookResult.getAllRoleNames()), // Stringify to make stable
+    passedUserRole
+  ])
+
+  const { isOwnerByProject, userRole, allUserRoles } = roleInfo
+
+  console.log('ApprovedWorkflow role resolution:', { 
     passedUserRole, 
     hookUserRole: hookResult.userRole, 
     isOwnerByProject,
     finalUserRole: userRole,
+    allUserRoles,
+    hookRoleNames: hookResult.getAllRoleNames(),
     projectOwnerId: project?.owner_id,
     currentUserId: currentUser?.id
   })
+
   const { 
     loading, 
     error,
-    fetchSubmissions, 
     processApproval,
     fetchStats 
   } = useWorkflow(projectId)
   
   const [workflowItems, setWorkflowItems] = useState<WorkflowItem[]>([])
-  const [activeTab, setActiveTab] = useState<'pending_approvals' | 'all_requests' | 'my_submissions'>('pending_approvals')
+  const [allWorkflowData, setAllWorkflowData] = useState<WorkflowItem[]>([]) // Store all data
+  const [isLoading, setIsLoading] = useState(true)
+  const [lastFetched, setLastFetched] = useState<number>(0)
+  
+  // Determine default tab based on user role
+  const getDefaultTab = useCallback(() => {
+    if (isOwnerByProject || allUserRoles.includes('owner') || allUserRoles.includes('Owner')) {
+      return 'pending_approvals' // Owners see pending approvals by default
+    } else {
+      return 'my_submissions' // Others see their own submissions by default
+    }
+  }, [isOwnerByProject, allUserRoles])
+
+  const [activeTab, setActiveTab] = useState<'pending_approvals' | 'all_requests' | 'my_submissions'>(() => getDefaultTab())
   const [searchQuery, setSearchQuery] = useState('')
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [filterRole, setFilterRole] = useState<string>('all')
@@ -117,139 +174,146 @@ export default function ApprovedWorkflow({ projectId, userId, userRole: passedUs
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set())
   const [expandedItem, setExpandedItem] = useState<string | null>(null)
 
-  // Memoize user roles to prevent unnecessary re-renders
-  const allUserRoles = useMemo(() => {
-    // If we can determine owner status directly from project data, use that
-    if (isOwnerByProject) {
-      return ['Owner']
-    }
-    // Otherwise fall back to the hook result
-    return getAllRoleNames()
-  }, [getAllRoleNames, isOwnerByProject])
-
   console.log('ApprovedWorkflow debug:', { 
     allUserRoles,
     canApproveCheck: isOwnerByProject || allUserRoles.includes('owner') || allUserRoles.includes('Owner')
   })
 
-  // Load workflow data from API
-  useEffect(() => {
+  // Fetch all workflow data once and cache it
+  const fetchAllWorkflowData = useCallback(async () => {
     if (!projectId) return
 
-    const loadWorkflowData = async () => {
-      try {
-        // Determine filter criteria based on active tab
-        let filters: any = {}
-        
-        if (activeTab === 'pending_approvals') {
-          filters.status = 'pending_approval'
-        } else if (activeTab === 'my_submissions' && userId) {
-          filters.submitter_id = userId
-        }
-        
-        const submissions = await fetchSubmissions(filters)
-        
-        // Transform API data to match WorkflowItem interface
-        const transformedItems: WorkflowItem[] = submissions.map((submission) => ({
-          id: submission.id,
-          type: submission.submission_type,
-          title: submission.title,
-          author: {
-            id: submission.submitter?.id || submission.submitter_id,
-            name: submission.submitter?.display_name || submission.submitter?.email || 'Unknown User',
-            avatar: submission.submitter?.avatar_url,
-            role: submission.submitter?.role || 'Contributor',
-            roles: submission.submitter?.roles || []
-          },
-          status: submission.status,
-          created_at: submission.created_at,
-          updated_at: submission.updated_at,
-          description: submission.description,
-          content: submission.content,
-          originalContent: submission.original_content,
-          reviewNotes: submission.review_notes,
-          priority: submission.priority || 'medium',
-          category: submission.category || 'content',
-          targetRole: submission.target_role as CollaborationRole,
-          approver: submission.approvals?.[0] ? {
-            id: submission.approvals[0].reviewer.id,
-            name: submission.approvals[0].reviewer.display_name,
-            role: submission.approvals[0].reviewer.role || 'Reviewer'
-          } : undefined,
-          tags: submission.tags || [],
-          wordCount: submission.word_count,
-          chapterReference: submission.chapter_reference
-        }))
+    console.log('🌐 Fetching all workflow data...')
+    setIsLoading(true)
 
-        // Also fetch editor pending changes for owners
-        let editorChanges: WorkflowItem[] = []
-        const currentUserRoles = getAllRoleNames()
-        console.log('Debug: Role check for editor changes:', { 
-          activeTab, 
-          userRole, 
-          currentUserRoles, 
-          isOwnerByProject,
-          shouldFetchEditorChanges: activeTab === 'pending_approvals' && (userRole === 'owner' || isOwnerByProject || currentUserRoles.includes('owner') || currentUserRoles.includes('Owner'))
-        })
-        
-        if (activeTab === 'pending_approvals' && (userRole === 'owner' || isOwnerByProject || currentUserRoles.includes('owner') || currentUserRoles.includes('Owner'))) {
-          console.log('Fetching editor changes for owner...')
-          try {
-            const response = await fetch(`/api/projects/${projectId}/approvals`)
-            console.log('Editor changes API response:', response.status, response.ok)
-            if (response.ok) {
-              const data = await response.json()
-              console.log('Editor changes data:', data)
-              console.log('Pending changes count:', data.pendingChanges?.length || 0)
-              const { pendingChanges } = data
-              
-              editorChanges = pendingChanges.map((change: any) => ({
-                id: `editor-${change.id}`,
-                type: 'edit' as const,
-                title: change.content_title || `${change.content_type} Edit`,
-                author: {
-                  id: change.editor_id,
-                  name: change.editor?.display_name || 
-                        (change.editor?.first_name && change.editor?.last_name 
-                          ? `${change.editor.first_name} ${change.editor.last_name}` 
-                          : change.editor?.first_name || 'Unknown Editor'),
-                  avatar: change.editor?.avatar_url,
-                  role: 'editor',
-                  roles: ['editor']
-                },
-                status: 'pending_approval' as const,
-                created_at: change.created_at,
-                updated_at: change.updated_at,
-                description: change.change_description || 'Editor submitted changes for approval',
-                content: change.proposed_content,
-                originalContent: change.original_content,
-                priority: 'medium' as const,
-                category: 'content' as const,
-                tags: ['editor-approval'],
-                wordCount: change.content_metadata?.proposed_word_count,
-                chapterReference: change.chapter?.title || change.content_title,
-                // Store additional editor-specific data
-                editorChangeId: change.id,
-                contentType: change.content_type,
-                editorNotes: change.editor_notes
-              }))
-            }
-          } catch (error) {
-            console.error('Failed to fetch editor pending changes:', error)
-          }
-        }
-        
-        // Combine both types of workflow items
-        const allItems = [...transformedItems, ...editorChanges]
-        setWorkflowItems(allItems)
-      } catch (err) {
-        console.error('Failed to fetch workflow data:', err)
-        setWorkflowItems([])
+    try {
+      // Fetch from unified approvals endpoint only
+      const response = await fetch(`/api/projects/${projectId}/approvals`)
+      if (!response.ok) {
+        throw new Error(`Failed to fetch workflow data: ${response.status}`)
       }
+      
+      const data = await response.json()
+      const items = data.items || []
+      
+      // Transform unified API data to match WorkflowItem interface
+      const transformedItems: WorkflowItem[] = items.map((item: any) => ({
+        id: item.type === 'editor_change' ? `editor-${item.id}` : item.id,
+        type: item.type === 'editor_change' ? 'edit' as const : item.type,
+        title: item.title,
+        author: {
+          id: item.author.id,
+          name: item.author.name,
+          avatar: item.author.avatar,
+          role: item.author.role,
+          roles: item.author.roles || [item.author.role]
+        },
+        status: item.type === 'editor_change' ? 
+          (item.status === 'pending' ? 'pending_approval' :
+           item.status === 'approved' ? 'approved' :
+           item.status === 'rejected' ? 'rejected' :
+           item.status === 'needs_revision' ? 'needs_changes' : 'pending_approval') :
+          item.status,
+        created_at: item.created_at,
+        updated_at: item.updated_at,
+        description: item.description,
+        content: item.content,
+        originalContent: item.original_content,
+        reviewNotes: item.editor_notes,
+        priority: item.priority || 'medium',
+        category: item.content_type || item.submission_type || 'content',
+        targetRole: 'owner' as CollaborationRole,
+        tags: item.tags || (item.type === 'editor_change' ? ['editor-approval'] : []),
+        wordCount: item.content_metadata?.proposed_word_count,
+        chapterReference: item.chapter?.title || item.title,
+        editorChangeId: item.type === 'editor_change' ? item.id : undefined,
+        contentType: item.content_type,
+        editorNotes: item.editor_notes,
+        approval_deadline: item.approval_deadline,
+        chapter_id: item.chapter_id
+      }))
+
+      console.log('📋 Fetched', transformedItems.length, 'total workflow items')
+      setAllWorkflowData(transformedItems)
+      setLastFetched(Date.now())
+      
+    } catch (error) {
+      console.error('Error fetching workflow data:', error)
+      setAllWorkflowData([])
+    } finally {
+      setIsLoading(false)
+    }
+  }, [projectId])
+
+  // Filter data based on current tab without re-fetching
+  const filterDataForCurrentTab = useCallback(() => {
+    console.log('🔄 Filtering data for tab:', activeTab)
+    
+    let filteredItems = allWorkflowData
+
+    switch (activeTab) {
+      case 'pending_approvals':
+        filteredItems = allWorkflowData.filter(item => item.status === 'pending_approval')
+        break
+      case 'my_submissions':
+        filteredItems = allWorkflowData.filter(item => item.author.id === userId)
+        break
+      case 'all_requests':
+        // Show everything
+        filteredItems = allWorkflowData
+        break
     }
 
-    loadWorkflowData()
-  }, [projectId, activeTab, userId]) // Reduced dependencies to prevent infinite loop
+    console.log('📋 Filtered to', filteredItems.length, 'items for', activeTab)
+    setWorkflowItems(filteredItems)
+  }, [activeTab, allWorkflowData, userId])
+
+  // Fetch all data once when component mounts or key dependencies change
+  useEffect(() => {
+    if (projectId && userRole) {
+      const age = Date.now() - lastFetched
+      // Only fetch if we don't have data or it's older than 5 minutes
+      if (allWorkflowData.length === 0 || age > 300000) {
+        fetchAllWorkflowData()
+      }
+    }
+  }, [projectId, userRole, fetchAllWorkflowData, allWorkflowData.length, lastFetched])
+
+  // Filter data whenever tab changes or data updates
+  useEffect(() => {
+    if (allWorkflowData.length > 0) {
+      filterDataForCurrentTab()
+    }
+  }, [filterDataForCurrentTab])
+
+  // Simplified fetch function that uses cached data from fetchAllWorkflowData
+  const fetchWorkflowData = useCallback(async (forceRefresh = false) => {
+    if (!projectId) return
+
+    console.log('🔄 fetchWorkflowData called:', { activeTab, forceRefresh })
+
+    // If we need fresh data or don't have any cached data, fetch everything first
+    if (forceRefresh || allWorkflowData.length === 0) {
+      await fetchAllWorkflowData()
+      return
+    }
+
+    // Otherwise, just filter the existing cached data
+    filterDataForCurrentTab()
+  }, [projectId, activeTab, allWorkflowData.length, fetchAllWorkflowData, filterDataForCurrentTab])
+
+  // Load workflow data from API
+  useEffect(() => {
+    console.log('🔄 useEffect triggered:', { projectId, activeTab, userId, userRole, allUserRoles })
+    fetchWorkflowData()
+  }, [fetchWorkflowData]) // Simplified dependencies
+
+  // Optimized tab switching handler - no more API calls, just filtering!
+  const handleTabChange = useCallback((newTab: 'pending_approvals' | 'all_requests' | 'my_submissions') => {
+    console.log('🔄 Tab switch:', activeTab, '->', newTab)
+    setActiveTab(newTab)
+    // The useEffect for filterDataForCurrentTab will handle the filtering automatically
+  }, [activeTab])
 
   const handleApprovalAction = async (itemId: string, action: ApprovalAction) => {
     try {
@@ -263,28 +327,50 @@ export default function ApprovedWorkflow({ projectId, userId, userRole: passedUs
           throw new Error('Editor change ID not found')
         }
 
+        const requestPayload = {
+          pendingChangeId: editorChangeId,
+          decision: action.type === 'approve' ? 'approve' : 
+                   action.type === 'reject' ? 'reject' : 'request_revision',
+          feedbackNotes: action.notes,
+          suggestedChanges: action.type === 'request_changes' ? action.notes : null
+        }
+
+        console.log('Sending approval request:', {
+          url: `/api/projects/${projectId}/approvals`,
+          method: 'POST',
+          payload: requestPayload,
+          fullUrl: window.location.origin + `/api/projects/${projectId}/approvals`
+        })
+
         const response = await fetch(`/api/projects/${projectId}/approvals`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({
-            pendingChangeId: editorChangeId,
-            decision: action.type === 'approve' ? 'approve' : 
-                     action.type === 'reject' ? 'reject' : 'request_revision',
-            feedbackNotes: action.notes,
-            suggestedChanges: action.type === 'request_changes' ? action.notes : null
-          })
+          body: JSON.stringify(requestPayload)
         })
 
         if (!response.ok) {
-          throw new Error('Failed to process editor approval')
+          const errorData = await response.text()
+          console.error('API Error Response:', {
+            status: response.status,
+            statusText: response.statusText,
+            errorData
+          })
+          throw new Error(`Failed to process editor approval: ${response.status} ${response.statusText} - ${errorData}`)
         }
 
         const result = await response.json()
+        console.log('✅ Approval succeeded:', result)
         
-        // Update the local state
-        setWorkflowItems(prev => prev.filter(item => item.id !== itemId))
+        // Clear all cached data and refresh from API
+        console.log('🔄 Clearing cache and refreshing data...')
+        setAllWorkflowData([])
+        setWorkflowItems([])
+        
+        // Trigger a fresh data fetch for all tabs
+        await fetchAllWorkflowData()
+        console.log('✅ Data refreshed successfully')
         
         // Show success notification
         alert(result.message || `Editor changes ${action.type}d successfully!`)
@@ -319,8 +405,12 @@ export default function ApprovedWorkflow({ projectId, userId, userRole: passedUs
         alert(`Item ${action.type}d successfully!`)
       }
     } catch (error) {
-      console.error('Failed to process approval:', error)
-      alert('Failed to process approval')
+      console.error('❌ Failed to process approval:', error)
+      console.error('❌ Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : 'No stack trace'
+      })
+      alert('Failed to process approval: ' + (error instanceof Error ? error.message : 'Unknown error'))
     }
   }
 
@@ -342,10 +432,10 @@ export default function ApprovedWorkflow({ projectId, userId, userRole: passedUs
 
   const getStatusCounts = () => {
     return {
-      pending_approvals: workflowItems.filter(item => item.status === 'pending_approval').length,
-      pending_requests: workflowItems.filter(item => item.status === 'pending_request').length,
-      approved: workflowItems.filter(item => item.status === 'approved').length,
-      needs_changes: workflowItems.filter(item => item.status === 'needs_changes' || item.status === 'rejected').length
+      pending_approvals: allWorkflowData.filter(item => item.status === 'pending_approval').length,
+      pending_requests: allWorkflowData.filter(item => item.status === 'pending_request').length,
+      approved: allWorkflowData.filter(item => item.status === 'approved').length,
+      needs_changes: allWorkflowData.filter(item => item.status === 'needs_changes' || item.status === 'rejected').length
     }
   }
 
@@ -428,16 +518,20 @@ export default function ApprovedWorkflow({ projectId, userId, userRole: passedUs
   }
 
   const canApprove = (item: WorkflowItem) => {
-    // Owner can approve everything - check both direct ownership and role
+    // Only project owners can approve editor submissions to maintain approval workflow integrity
     if (isOwnerByProject || allUserRoles.includes('owner') || allUserRoles.includes('Owner')) return true
     
-    // Role-specific approval permissions
+    // For editor changes (type 'edit'), only owners can approve - editors cannot approve their own work
+    if (item.type === 'edit') {
+      return false // Editors cannot approve their own edits
+    }
+    
+    // Role-specific approval permissions for other types of submissions
     switch (item.type) {
-      case 'edit':
       case 'suggestion':
-        return allUserRoles.includes('coauthor') || allUserRoles.includes('editor')
+        return allUserRoles.includes('coauthor') // Only coauthors can approve suggestions
       case 'translation':
-        return allUserRoles.includes('editor') || allUserRoles.includes('reviewer')
+        return allUserRoles.includes('reviewer') // Only reviewers can approve translations
       case 'review':
         return allUserRoles.includes('coauthor') || allUserRoles.includes('producer')
       case 'task':
@@ -446,6 +540,22 @@ export default function ApprovedWorkflow({ projectId, userId, userRole: passedUs
         return false
     }
   }
+
+  // Determine which tabs should be visible for the current user
+  const getVisibleTabs = () => {
+    const isOwner = isOwnerByProject || allUserRoles.includes('owner') || allUserRoles.includes('Owner')
+    const hasApprovalPermissions = isOwner || allUserRoles.some(role => 
+      ['coauthor', 'editor', 'reviewer', 'producer'].includes(role.toLowerCase())
+    )
+
+    return {
+      showPendingApprovals: hasApprovalPermissions,
+      showAllRequests: isOwner || allUserRoles.length > 0, // Anyone with a role can see all requests
+      showMySubmissions: userId ? true : false // Anyone can see their own submissions if they have a userId
+    }
+  }
+
+  const visibleTabs = getVisibleTabs()
 
   const filteredItems = workflowItems.filter(item => {
     const matchesSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -465,7 +575,7 @@ export default function ApprovedWorkflow({ projectId, userId, userRole: passedUs
     return matchesSearch && matchesStatus && matchesRole && matchesCategory && matchesTab
   })
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
@@ -493,12 +603,51 @@ export default function ApprovedWorkflow({ projectId, userId, userRole: passedUs
             <div className="flex items-center space-x-3">
               {/* Role indicator */}
               <div className="text-sm text-gray-600">
-                Your roles: {allUserRoles.map(role => (
+                Your roles: {allUserRoles.length > 0 ? allUserRoles.map(role => (
                   <span key={role} className={`inline-block px-2 py-1 rounded-full text-xs mr-1 ${getRoleColor(role)}`}>
                     {role}
                   </span>
-                ))}
+                )) : (
+                  <span className="inline-block px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-600">
+                    Viewer
+                  </span>
+                )}
               </div>
+              
+              {/* Role-specific status indicator */}
+              {(() => {
+                const isOwner = isOwnerByProject || allUserRoles.includes('owner') || allUserRoles.includes('Owner')
+                const isEditor = allUserRoles.includes('editor')
+                const hasApprovalRights = isOwner || allUserRoles.some(role => 
+                  ['coauthor', 'reviewer', 'producer'].includes(role.toLowerCase())
+                )
+                
+                if (isOwner) {
+                  return (
+                    <div className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">
+                      ✓ Can approve all submissions
+                    </div>
+                  )
+                } else if (hasApprovalRights) {
+                  return (
+                    <div className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                      ✓ Can review specific submissions
+                    </div>
+                  )
+                } else if (isEditor) {
+                  return (
+                    <div className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                      ✓ Can submit content for approval
+                    </div>
+                  )
+                } else {
+                  return (
+                    <div className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
+                      View-only access
+                    </div>
+                  )
+                }
+              })()}
               
               <PermissionGate projectId={projectId} userId={userId} requiredPermission="write">
                 <button className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition-colors text-sm">
@@ -596,56 +745,59 @@ export default function ApprovedWorkflow({ projectId, userId, userRole: passedUs
         {/* Tabs */}
         <div className="border-b border-gray-200">
           <nav className="flex space-x-8 px-6">
-            <button
-              onClick={() => setActiveTab('pending_approvals')}
-              className={`py-3 border-b-2 text-sm font-medium transition-colors ${
-                activeTab === 'pending_approvals'
-                  ? 'border-orange-500 text-orange-600'
-                  : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
-              }`}
-            >
-              <div className="flex items-center space-x-2">
-                <Clock className="w-4 h-4" />
-                <span>Pending Approvals</span>
-                {counts.pending_approvals > 0 && (
-                  <span className="bg-orange-100 text-orange-600 text-xs px-2 py-1 rounded-full">
-                    {counts.pending_approvals}
+            {visibleTabs.showPendingApprovals && (
+              <button
+                onClick={() => handleTabChange('pending_approvals')}
+                className={`py-3 border-b-2 text-sm font-medium transition-colors ${
+                  activeTab === 'pending_approvals'
+                    ? 'border-orange-500 text-orange-600'
+                    : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
+                }`}
+              >
+                <div className="flex items-center space-x-2">
+                  <Clock className="w-4 h-4" />
+                  <span>Pending Approvals</span>
+                  {counts.pending_approvals > 0 && (
+                    <span className="bg-orange-100 text-orange-600 text-xs px-2 py-1 rounded-full">
+                      {counts.pending_approvals}
+                    </span>
+                  )}
+                </div>
+              </button>
+            )}
+            {visibleTabs.showAllRequests && (
+              <button
+                onClick={() => handleTabChange('all_requests')}
+                className={`py-3 border-b-2 text-sm font-medium transition-colors ${
+                  activeTab === 'all_requests'
+                    ? 'border-orange-500 text-orange-600'
+                    : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
+                }`}
+              >
+                <div className="flex items-center space-x-2">
+                  <FileText className="w-4 h-4" />
+                  <span>All Requests</span>
+                </div>
+              </button>
+            )}
+            {visibleTabs.showMySubmissions && (
+              <button
+                onClick={() => setActiveTab('my_submissions')}
+                className={`py-3 border-b-2 text-sm font-medium transition-colors ${
+                  activeTab === 'my_submissions'
+                    ? 'border-orange-500 text-orange-600'
+                    : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
+                }`}
+              >
+                <div className="flex items-center space-x-2">
+                  <User className="w-4 h-4" />
+                  <span>My Submissions</span>
+                  <span className="bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded-full">
+                    {workflowItems.filter(item => item.author.id === userId).length}
                   </span>
-                )}
-              </div>
-            </button>
-            <button
-              onClick={() => setActiveTab('all_requests')}
-              className={`py-3 border-b-2 text-sm font-medium transition-colors ${
-                activeTab === 'all_requests'
-                  ? 'border-orange-500 text-orange-600'
-                  : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
-              }`}
-            >
-              <div className="flex items-center space-x-2">
-                <FileText className="w-4 h-4" />
-                <span>All Requests</span>
-                <span className="bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded-full">
-                  {workflowItems.length}
-                </span>
-              </div>
-            </button>
-            <button
-              onClick={() => setActiveTab('my_submissions')}
-              className={`py-3 border-b-2 text-sm font-medium transition-colors ${
-                activeTab === 'my_submissions'
-                  ? 'border-orange-500 text-orange-600'
-                  : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
-              }`}
-            >
-              <div className="flex items-center space-x-2">
-                <User className="w-4 h-4" />
-                <span>My Submissions</span>
-                <span className="bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded-full">
-                  {workflowItems.filter(item => item.author.id === userId).length}
-                </span>
-              </div>
-            </button>
+                </div>
+              </button>
+            )}
           </nav>
         </div>
 
@@ -714,19 +866,62 @@ export default function ApprovedWorkflow({ projectId, userId, userRole: passedUs
                 <Clock className="w-8 h-8 text-gray-400" />
               </div>
               <h3 className="text-lg font-medium text-gray-900 mb-2">
-                {activeTab === 'pending_approvals' 
-                  ? 'No Pending Approvals' 
-                  : activeTab === 'my_submissions'
-                  ? 'No Submissions Found'
-                  : 'No Workflow Items Found'}
+                {(() => {
+                  const isOwner = isOwnerByProject || allUserRoles.includes('owner') || allUserRoles.includes('Owner')
+                  
+                  if (activeTab === 'pending_approvals') {
+                    return isOwner ? 'No Pending Approvals' : 'No Items Awaiting Your Review'
+                  } else if (activeTab === 'my_submissions') {
+                    return 'No Submissions Found'
+                  } else {
+                    return 'No Workflow Items Found'
+                  }
+                })()}
               </h3>
               <p className="text-gray-600">
-                {activeTab === 'pending_approvals' 
-                  ? 'All submitted contributions have been reviewed'
-                  : activeTab === 'my_submissions'
-                  ? 'You haven\'t submitted any contributions yet'
-                  : 'No workflow items match your current filters'}
+                {(() => {
+                  const isOwner = isOwnerByProject || allUserRoles.includes('owner') || allUserRoles.includes('Owner')
+                  
+                  if (activeTab === 'pending_approvals') {
+                    return isOwner 
+                      ? 'All submitted contributions have been reviewed'
+                      : 'No contributions are currently awaiting your review. Check back later or visit the "My Submissions" tab to track your own contributions.'
+                  } else if (activeTab === 'my_submissions') {
+                    return 'You haven\'t submitted any contributions yet. Once you submit content for review, it will appear here.'
+                  } else {
+                    return 'No workflow items match your current filters'
+                  }
+                })()}
               </p>
+              
+              {/* Role-specific helpful information */}
+              {(() => {
+                const isOwner = isOwnerByProject || allUserRoles.includes('owner') || allUserRoles.includes('Owner')
+                const isEditor = allUserRoles.includes('editor')
+                
+                if (activeTab === 'pending_approvals' && !isOwner && allUserRoles.length > 0) {
+                  return (
+                    <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                      <h4 className="text-sm font-medium text-blue-800 mb-2">Your Review Permissions</h4>
+                      <p className="text-sm text-blue-600">
+                        As a <strong>{allUserRoles.join(', ')}</strong>, you can review specific types of contributions. 
+                        When items need your approval, they'll appear here.
+                      </p>
+                    </div>
+                  )
+                } else if (activeTab === 'my_submissions' && isEditor) {
+                  return (
+                    <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+                      <h4 className="text-sm font-medium text-green-800 mb-2">Editor Submission Info</h4>
+                      <p className="text-sm text-green-600">
+                        As an Editor, your content changes are automatically submitted for owner approval. 
+                        You'll see the status of your submissions here.
+                      </p>
+                    </div>
+                  )
+                }
+                return null
+              })()}
             </div>
           ) : (
             <div className="space-y-4">

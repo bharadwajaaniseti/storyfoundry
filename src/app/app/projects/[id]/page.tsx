@@ -596,6 +596,58 @@ export default function ProjectPage() {
     }
   }
 
+  const refreshContent = async () => {
+    try {
+      console.log('Refreshing content from database...')
+      const supabase = createSupabaseClient()
+
+      // Load latest project content
+      const { data: contentData, error: contentError } = await supabase
+        .from('project_content')
+        .select('*')
+        .eq('project_id', projectId)
+        .eq('asset_type', 'content')
+        .order('updated_at', { ascending: false })
+        .limit(1)
+
+      if (contentError) {
+        console.log('No content found in project_content table:', contentError.message)
+      }
+
+      if (contentData && contentData.length > 0 && contentData[0].content) {
+        // Use content from project_content table
+        setContent(contentData[0].content || '')
+        console.log('Refreshed content from project_content table')
+      } else {
+        // Fallback to projects.synopsis field
+        console.log('No content in project_content table, checking projects.synopsis fallback...')
+        const { data: projectData } = await supabase
+          .from('projects')
+          .select('synopsis')
+          .eq('id', projectId)
+          .single()
+
+        if (projectData?.synopsis) {
+          setContent(projectData.synopsis)
+          console.log('Refreshed content from projects.synopsis fallback')
+        } else {
+          console.log('No content found in either location')
+          setContent('')
+        }
+      }
+    } catch (error) {
+      console.error('Error refreshing content:', error)
+    }
+  }
+
+  const handleWriteTabClick = () => {
+    // If switching from another tab to write tab, refresh content
+    if (activeTab !== 'write') {
+      refreshContent()
+    }
+    setActiveTab('write')
+  }
+
   const getVisibilityIcon = (visibility: string) => {
     switch (visibility) {
       case 'public': return <Eye className="w-4 h-4 text-green-500" />
@@ -854,7 +906,7 @@ export default function ProjectPage() {
           <div className="mt-4">
             <nav className="flex space-x-6">
               <button
-                onClick={() => setActiveTab('write')}
+                onClick={handleWriteTabClick}
                 className={`pb-2 border-b-2 transition-colors ${
                   activeTab === 'write'
                     ? 'border-orange-500 text-orange-600'
