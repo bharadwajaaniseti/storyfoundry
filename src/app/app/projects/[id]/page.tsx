@@ -1095,7 +1095,7 @@ export default function ProjectPage() {
         {activeTab === 'write' && (
           <>
             {project?.format === 'novel' ? (
-              <div className="-mx-6 -my-8 ml-[-83px]" style={{ height: 'calc(100vh - 200px)' }}>
+              <div className="w-full" style={{ height: 'calc(100vh - 200px)' }}>
                 <NovelWriter 
                   projectId={project.id} 
                   project={{
@@ -1108,7 +1108,7 @@ export default function ProjectPage() {
                 />
               </div>
             ) : (
-              <div className="grid lg:grid-cols-4 gap-8">
+              <div className="grid lg:grid-cols-5 gap-8 items-start">
                 {/* Main Editor */}
                 <div className="lg:col-span-3">
                   <PermissionGate 
@@ -1204,69 +1204,8 @@ export default function ProjectPage() {
                   </PermissionGate>
                 </div>
 
-            {/* Content Sync Status Panel */}
-            <div className="lg:col-span-3 mt-4">
-              <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-sm font-medium text-gray-700 flex items-center">
-                    <Database className="w-4 h-4 mr-2" />
-                    Content Storage Status
-                  </h3>
-                  <button 
-                    onClick={refreshContent}
-                    className="text-gray-400 hover:text-gray-600 p-1 rounded"
-                    title="Refresh sync status"
-                  >
-                    <RefreshCw className="w-4 h-4" />
-                  </button>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
-                  <div className="flex items-center space-x-2">
-                    <div className={`w-2 h-2 rounded-full ${syncStatus.hasProjectSynopsis ? 'bg-green-500' : 'bg-gray-300'}`}></div>
-                    <span className="text-gray-600">Primary Storage</span>
-                    <span className={`font-medium ${syncStatus.hasProjectSynopsis ? 'text-green-600' : 'text-gray-400'}`}>
-                      {syncStatus.hasProjectSynopsis ? 'Active' : 'Empty'}
-                    </span>
-                  </div>
-                  
-                  <div className="flex items-center space-x-2">
-                    <div className={`w-2 h-2 rounded-full ${syncStatus.hasProjectContent ? 'bg-blue-500' : 'bg-gray-300'}`}></div>
-                    <span className="text-gray-600">Table Storage</span>
-                    <span className={`font-medium ${syncStatus.hasProjectContent ? 'text-blue-600' : 'text-gray-400'}`}>
-                      {syncStatus.hasProjectContent ? 'Active' : 'Empty'}
-                    </span>
-                  </div>
-                  
-                  <div className="flex items-center space-x-2">
-                    <div className={`w-2 h-2 rounded-full ${
-                      syncStatus.source === 'dual' ? 'bg-green-500' : 
-                      syncStatus.source === 'synopsis' ? 'bg-blue-500' : 
-                      syncStatus.source === 'content' ? 'bg-yellow-500' : 'bg-red-500'
-                    }`}></div>
-                    <span className="text-gray-600">Sync Status</span>
-                    <span className={`font-medium ${
-                      syncStatus.source === 'dual' ? 'text-green-600' : 
-                      syncStatus.source === 'synopsis' ? 'text-blue-600' : 
-                      syncStatus.source === 'content' ? 'text-yellow-600' : 'text-red-600'
-                    }`}>
-                      {syncStatus.source === 'dual' ? 'Synchronized' : 
-                       syncStatus.source === 'synopsis' ? 'Primary Only' : 
-                       syncStatus.source === 'content' ? 'Table Only' : 'No Content'}
-                    </span>
-                  </div>
-                </div>
-                
-                {syncStatus.lastChecked && (
-                  <div className="mt-2 text-xs text-gray-500">
-                    Last checked: {syncStatus.lastChecked.toLocaleTimeString()}
-                  </div>
-                )}
-              </div>
-            </div>
-
             {/* Role-Specific Sidebar */}
-            <div>
+            <div className="lg:col-span-2">
               <RoleSpecificSidebar
                 projectId={projectId}
                 userId={currentUser?.id}
