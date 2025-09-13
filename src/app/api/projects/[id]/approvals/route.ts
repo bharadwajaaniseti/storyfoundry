@@ -241,49 +241,234 @@ export async function POST(
 
       decisionId = newDecision.id
 
-    // Update pending change status using service role to bypass RLS
-    const serviceSupabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
-    
-    const { data: updatedChange, error: statusError } = await serviceSupabase
-      .from('pending_editor_changes')
-      .update({
-        status: decision === 'approve' ? 'approved' : decision === 'reject' ? 'rejected' : 'needs_revision',
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', pendingChangeId)
-      .select()
+      // Update pending change status using service role to bypass RLS
+      const serviceSupabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      )
+      
+      const { data: updatedChange, error: statusError } = await serviceSupabase
+        .from('pending_editor_changes')
+        .update({
+          status: decision === 'approve' ? 'approved' : decision === 'reject' ? 'rejected' : 'needs_revision',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', pendingChangeId)
+        .select()
 
-    if (statusError) {
-      console.error('Error updating pending change status:', statusError)
-      return NextResponse.json({ 
-        error: 'Failed to update pending change status',
-        details: statusError.message 
-      }, { status: 500 })
-    }
+      if (statusError) {
+        console.error('Error updating pending change status:', statusError)
+        return NextResponse.json({ 
+          error: 'Failed to update pending change status',
+          details: statusError.message 
+        }, { status: 500 })
+      }
 
-    console.log('✅ Successfully updated pending change status:', updatedChange)      // If approved, apply the changes to the actual content
+      console.log('✅ Successfully updated pending change status:', updatedChange)
+      
+      // If approved, apply the changes to the actual content
       if (decision === 'approve') {
         try {
           if (pendingChange.content_type === 'project_content') {
-            // Update project content
-            const { error: contentError } = await supabase
-              .from('project_content')
-              .upsert({
+            console.log('🔄 Updating project content with projects table workaround...')
+            
+            // Get the next version number first
+            const { data: lastVersion } = await serviceSupabase
+              .from('project_content_versions')
+              .select('version_number')
+              .eq('project_id', projectId)
+              .order('version_number', { ascending: false })
+              .limit(1)
+              .single()
+            
+            const nextVersionNumber = (lastVersion?.version_number || 0) + 1
+            console.log('📊 Creating version number:', nextVersionNumber)
+            
+            // Create the version manually FIRST
+            const { data: newVersion, error: versionCreateError } = await serviceSupabase
+              .from('project_content_versions')
+              .insert({
                 project_id: projectId,
-                filename: project.title + '_content.txt',
+                user_id: pendingChange.editor_id,
                 content: pendingChange.proposed_content,
-                asset_type: 'content',
+                version_number: nextVersionNumber,
+                change_summary: 'Approved editor changes: ' + (pendingChange.content_title || pendingChange.content_type),
+                word_count: pendingChange.proposed_content.trim().split(/\s+/).length,
+                character_count: pendingChange.proposed_content.length,
+                tags: ['Approved', 'Collaborator Edit'],
+                approval_status: 'approved',
+                reviewed_at: new Date().toISOString(),
+                reviewed_by: user.id,
+                reviewer_notes: 'Approved via owner approval workflow',
+                is_pending_approval: false,
+                is_major_version: true,
+                changes_made: {
+                  type: 'approval',
+                  approved_by: user.id,
+                  approved_at: new Date().toISOString(),
+                  pending_change_id: pendingChangeId,
+                  status: 'approved'
+                }
+              })
+              .select('id')
+              .single()
+            
+            if (versionCreateError) {
+              console.error('❌ Error creating version:', versionCreateError)
+              return NextResponse.json({ 
+                error: 'Failed to create content version',
+                details: versionCreateError.message 
+              }, { status: 500 })
+            }
+            
+            console.log('✅ Created version manually:', newVersion.id)
+            
+            // Simplified dual storage approach: Update both locations directly
+            console.log('🔄 Updating content in both storage locations...')
+            
+            // Step 1: Update projects.synopsis (primary storage)
+            const { error: projectUpdateError } = await serviceSupabase
+              .from('projects')
+              .update({
+                synopsis: pendingChange.proposed_content,
                 updated_at: new Date().toISOString()
               })
-
-            if (contentError) {
-              console.error('Error updating project content:', contentError)
-            } else {
-              changesApplied = true
+              .eq('id', projectId)
+            
+            if (projectUpdateError) {
+              console.error('❌ Projects table update failed:', projectUpdateError)
+              return NextResponse.json({ 
+                error: 'Failed to update content in projects table',
+                details: projectUpdateError.message 
+              }, { status: 500 })
             }
+            
+            console.log('✅ Updated projects.synopsis')
+            
+            // Step 2: Update/create project_content table entry
+            // The key insight: We'll bypass the trigger by first checking if the record exists
+            // and handling it appropriately
+            
+            let projectContentSynced = false
+            
+            const { data: existingContent, error: checkError } = await supabase
+              .from('project_content')
+              .select('id')
+              .eq('project_id', projectId)
+              .eq('asset_type', 'content')
+              .single()
+
+            if (checkError && checkError.code !== 'PGRST116') {
+              console.log('⚠️  Error checking existing content:', checkError.message)
+            }
+
+            if (existingContent) {
+              // Record exists, update it directly using authenticated supabase client
+              console.log('📝 Updating existing project_content record...')
+              
+              const { error: updateError } = await supabase
+                .from('project_content')
+                .update({
+                  content: pendingChange.proposed_content,
+                  filename: project.title + '_content.txt',
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', existingContent.id) // Use the specific ID to avoid trigger issues
+
+              if (updateError) {
+                console.log('⚠️  project_content update failed:', updateError.message)
+              } else {
+                console.log('✅ Successfully updated project_content table')
+                projectContentSynced = true
+              }
+              
+            } else {
+              // Record doesn't exist, create it using authenticated supabase client  
+              console.log('📝 Creating new project_content record...')
+              
+              const { error: createError } = await supabase
+                .from('project_content')
+                .insert({
+                  project_id: projectId,
+                  filename: project.title + '_content.txt',
+                  content: pendingChange.proposed_content,
+                  asset_type: 'content',
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString()
+                })
+
+              if (createError) {
+                console.log('⚠️  project_content creation failed:', createError.message)
+              } else {
+                console.log('✅ Successfully created project_content record')
+                projectContentSynced = true
+              }
+            }
+            
+            changesApplied = true
+            
+            // Update version with appropriate tags
+            const versionTags = projectContentSynced 
+              ? ['Approved', 'Collaborator Edit', 'Dual Storage'] 
+              : ['Approved', 'Collaborator Edit', 'Projects Table']
+              
+            const versionNotes = projectContentSynced
+              ? 'Approved and stored in both project_content and projects.synopsis'
+              : 'Approved and stored in projects.synopsis (primary storage)'
+              
+            await serviceSupabase
+              .from('project_content_versions')
+              .update({
+                tags: versionTags,
+                reviewer_notes: versionNotes
+              })
+              .eq('id', newVersion.id)
+              
+            console.log(`✅ Content approval completed with ${projectContentSynced ? 'dual' : 'single'} storage`)
+              
+            // Update any existing "Pending Review" version to show it was superseded
+            try {
+              console.log('🔍 Looking for pending version to mark as superseded...')
+              
+              const { data: pendingVersions } = await supabase
+                .from('project_content_versions')
+                .select('id, tags, changes_made')
+                .eq('project_id', projectId)
+                .contains('tags', ['Pending Review'])
+                .neq('id', newVersion.id) // Don't update the version we just created
+                .order('created_at', { ascending: false })
+                .limit(1)
+
+              const pendingVersion = pendingVersions?.[0]
+              if (pendingVersion) {
+                console.log('Found pending version to mark as superseded:', pendingVersion.id)
+                
+                const { error: updateError } = await supabase
+                  .from('project_content_versions')
+                  .update({
+                    tags: ['Superseded'], // Mark as superseded
+                    changes_made: {
+                      ...pendingVersion.changes_made,
+                      superseded_by: newVersion.id,
+                      superseded_at: new Date().toISOString(),
+                      approval_decision_id: decisionId,
+                      status: 'superseded'
+                    }
+                  })
+                  .eq('id', pendingVersion.id)
+
+                if (updateError) {
+                  console.error('Error updating pending version:', updateError)
+                } else {
+                  console.log('✅ Marked pending version as superseded')
+                }
+              } else {
+                console.log('ℹ️  No pending version found to mark as superseded')
+              }
+            } catch (pendingUpdateError) {
+              console.error('Failed to update pending version:', pendingUpdateError)
+            }
+            
           } else if (pendingChange.content_type === 'chapter' && pendingChange.chapter_id) {
             // Update chapter content
             const { error: chapterError } = await supabase
@@ -339,6 +524,46 @@ export async function POST(
         } catch (applyError) {
           console.error('Error applying approved changes:', applyError)
           // Changes were approved but couldn't be applied - this is logged but not fatal
+        }
+      } else if (decision === 'reject') {
+        // Update the pending version tag to "Rejected"
+        try {
+          console.log('Looking for pending version to mark as rejected...')
+          
+          const { data: pendingVersion } = await supabase
+            .from('project_content_versions')
+            .select('id, tags, changes_made')
+            .eq('project_id', projectId)
+            .contains('tags', ['Pending Review'])
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single()
+
+          if (pendingVersion) {
+            console.log('Found pending version to mark as rejected:', pendingVersion.id)
+            
+            const { error: updateError } = await supabase
+              .from('project_content_versions')
+              .update({
+                tags: ['Rejected'], // Update tag to rejected
+                changes_made: {
+                  ...pendingVersion.changes_made,
+                  rejected_by: user.id,
+                  rejected_at: new Date().toISOString(),
+                  approval_decision_id: decisionId,
+                  status: 'rejected'
+                }
+              })
+              .eq('id', pendingVersion.id)
+
+            if (updateError) {
+              console.error('Error updating version to rejected:', updateError)
+            } else {
+              console.log('Successfully updated version to "Rejected"')
+            }
+          }
+        } catch (rejectionUpdateError) {
+          console.error('Failed to update version for rejection:', rejectionUpdateError)
         }
       }
 

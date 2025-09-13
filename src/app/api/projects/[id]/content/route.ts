@@ -7,7 +7,7 @@ export async function PUT(
 ) {
   try {
     const { id: projectId } = await params
-    const { content } = await request.json()
+    const { content, createVersion = false, changeSummary = null } = await request.json()
 
     if (!content && content !== '') {
       return NextResponse.json({ error: 'Content is required' }, { status: 400 })
@@ -111,10 +111,10 @@ export async function PUT(
         console.log('Content saved via RPC function')
       }
 
-      // If content was saved successfully, try to create a version manually as a fallback
-      if (contentSaved) {
+      // If content was saved successfully, create a version only if explicitly requested
+      if (contentSaved && createVersion) {
         try {
-          console.log('Creating version manually...')
+          console.log('Creating version manually (explicitly requested)...')
           
           // Try creating version in project_content_versions table first
           let versionCreated = false
@@ -137,7 +137,7 @@ export async function PUT(
                 user_id: user.id,
                 content,
                 version_number: nextVersionNumber,
-                change_summary: `Auto-saved content (${wordCount} words)`,
+                change_summary: changeSummary || `Manual save (${wordCount} words)`,
                 word_count: wordCount,
                 character_count: characterCount,
                 is_major_version: false
@@ -169,7 +169,7 @@ export async function PUT(
               id: `v${nextVersionNumber}-${Date.now()}`,
               version_number: nextVersionNumber,
               content: content,
-              change_summary: `Auto-saved content (${wordCount} words)`,
+              change_summary: changeSummary || `Manual save (${wordCount} words)`,
               word_count: wordCount,
               character_count: content.length,
               created_at: new Date().toISOString(),
@@ -218,39 +218,41 @@ export async function PUT(
       }
       console.log('Content saved to projects.synopsis as fallback')
       
-      // Try to create a version in project_content_versions table (simplified approach)
-      try {
-        console.log('Attempting to create version in project_content_versions table...')
-        
-        // Get the next version number by counting existing versions
-        const { count: versionCount } = await supabase
-          .from('project_content_versions')
-          .select('*', { count: 'exact', head: true })
-          .eq('project_id', projectId)
+      // Only create version if explicitly requested
+      if (createVersion) {
+        try {
+          console.log('Attempting to create version in project_content_versions table (fallback scenario)...')
+          
+          // Get the next version number by counting existing versions
+          const { count: versionCount } = await supabase
+            .from('project_content_versions')
+            .select('*', { count: 'exact', head: true })
+            .eq('project_id', projectId)
 
-        const nextVersionNumber = (versionCount || 0) + 1
+          const nextVersionNumber = (versionCount || 0) + 1
 
-        const { error: versionError } = await supabase
-          .from('project_content_versions')
-          .insert({
-            project_id: projectId,
-            user_id: user.id,
-            content: content,
-            version_number: nextVersionNumber,
-            change_summary: `Auto-saved content (${wordCount} words)`,
-            word_count: wordCount,
-            character_count: content.length,
-            is_major_version: false,
-            tags: []
-          })
+          const { error: versionError } = await supabase
+            .from('project_content_versions')
+            .insert({
+              project_id: projectId,
+              user_id: user.id,
+              content: content,
+              version_number: nextVersionNumber,
+              change_summary: changeSummary || `Manual save (${wordCount} words)`,
+              word_count: wordCount,
+              character_count: content.length,
+              is_major_version: false,
+              tags: []
+            })
 
-        if (versionError) {
-          console.log('Failed to create version in project_content_versions:', versionError.message)
-        } else {
-          console.log('Version created successfully in project_content_versions - version', nextVersionNumber)
+          if (versionError) {
+            console.log('Failed to create version in project_content_versions:', versionError.message)
+          } else {
+            console.log('Version created successfully in project_content_versions - version', nextVersionNumber)
+          }
+        } catch (versionError) {
+          console.log('Version creation failed:', versionError)
         }
-      } catch (versionError) {
-        console.log('Version creation failed:', versionError)
       }
     } else {
       // Update project metadata

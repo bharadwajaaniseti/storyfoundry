@@ -85,6 +85,57 @@ export async function POST(
       }, { status: 500 })
     }
 
+    // Create a version in the history with "Pending Review" tag
+    let versionId = null
+    if (contentType === 'project_content') {
+      try {
+        // Get the next version number
+        const { data: lastVersion } = await supabase
+          .from('project_content_versions')
+          .select('version_number')
+          .eq('project_id', projectId)
+          .order('version_number', { ascending: false })
+          .limit(1)
+          .single()
+
+        const nextVersionNumber = (lastVersion?.version_number || 0) + 1
+        const wordCount = proposedContent.trim().split(/\s+/).filter((word: string) => word.length > 0).length
+        const characterCount = proposedContent.length
+
+        // Create version with editor attribution and "Pending Review" tag
+        const { data: newVersion, error: versionError } = await supabase
+          .from('project_content_versions')
+          .insert({
+            project_id: projectId,
+            user_id: user.id, // Editor who submitted the changes
+            content: proposedContent,
+            version_number: nextVersionNumber,
+            change_summary: changeDescription || 'Editor changes pending approval',
+            word_count: wordCount,
+            character_count: characterCount,
+            is_major_version: false,
+            tags: ['Pending Review'], // Tag indicating pending approval
+            changes_made: {
+              pending_change_id: changeId,
+              submitted_for_approval: true,
+              submitted_at: new Date().toISOString(),
+              status: 'pending_approval'
+            }
+          })
+          .select('id')
+          .single()
+
+        if (versionError) {
+          console.error('Error creating pending version:', versionError)
+        } else {
+          versionId = newVersion.id
+          console.log('Created version', nextVersionNumber, 'with "Pending Review" tag for editor:', user.id)
+        }
+      } catch (versionCreationError) {
+        console.error('Failed to create pending version:', versionCreationError)
+      }
+    }
+
     // Log the activity
     try {
       await supabase
@@ -102,6 +153,7 @@ export async function POST(
     return NextResponse.json({ 
       success: true, 
       pendingChangeId: changeId,
+      versionId: versionId,
       message: 'Changes submitted for owner approval',
       status: 'pending_approval'
     })

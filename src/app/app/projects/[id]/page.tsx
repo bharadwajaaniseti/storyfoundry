@@ -19,6 +19,9 @@ import {
   History,
   Download,
   Sparkles,
+  CheckCircle,
+  Database,
+  RefreshCw,
   AlertCircle,
   Check
 } from 'lucide-react'
@@ -128,6 +131,21 @@ export default function ProjectPage() {
   const [editingCollaborator, setEditingCollaborator] = useState<any>(null)
   const [userRole, setUserRole] = useState<'owner' | 'editor' | 'other' | null>(null)
   const [originalContent, setOriginalContent] = useState('')
+  
+  // Content sync status tracking
+  const [syncStatus, setSyncStatus] = useState<{
+    hasProjectContent: boolean
+    hasProjectSynopsis: boolean
+    isSync: boolean
+    source: 'dual' | 'synopsis' | 'content' | 'none'
+    lastChecked: Date | null
+  }>({
+    hasProjectContent: false,
+    hasProjectSynopsis: false,
+    isSync: false,
+    source: 'none',
+    lastChecked: null
+  })
 
   // Toast notifications
   const { addToast } = useToast()
@@ -556,34 +574,68 @@ export default function ProjectPage() {
       setRealtimeProject(projectData)
       setLoglineValue(projectData.logline)
 
-      // Load project content
-      const { data: contentData, error: contentError } = await supabase
-        .from('project_content')
-        .select('*')
-        .eq('project_id', projectId)
-        .eq('asset_type', 'content')
-        .order('updated_at', { ascending: false })
-        .limit(1)
+      // Load content from both sources with timestamps to get the most recent
+      const [contentResult] = await Promise.all([
+        supabase
+          .from('project_content')
+          .select('content, updated_at')
+          .eq('project_id', projectId)
+          .eq('asset_type', 'content')
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .single()
+      ])
 
-      if (contentError) {
-        console.log('No content found in project_content table:', contentError.message)
+      const contentData = contentResult.data
+      
+      let selectedContent = ''
+      let selectedSource = 'none'
+
+      // Determine which content to use based on recency and availability
+      const projectContentTime = contentData?.updated_at ? new Date(contentData.updated_at) : null
+      const synopsisTime = projectData?.updated_at ? new Date(projectData.updated_at) : null
+
+      console.log('Initial content comparison:')
+      console.log('  project_content:', contentData?.content ? `${contentData.content.length} chars @ ${projectContentTime}` : 'none')
+      console.log('  projects.synopsis:', projectData?.synopsis ? `${projectData.synopsis.length} chars @ ${synopsisTime}` : 'none')
+
+      // Use the most recently updated content that actually exists
+      if (projectData?.synopsis && synopsisTime && 
+          (!contentData?.content || !projectContentTime || synopsisTime > projectContentTime)) {
+        selectedContent = projectData.synopsis
+        selectedSource = 'projects.synopsis (most recent)'
+      } else if (contentData?.content) {
+        selectedContent = contentData.content
+        selectedSource = 'project_content'
+      } else if (projectData?.synopsis) {
+        selectedContent = projectData.synopsis
+        selectedSource = 'projects.synopsis (fallback)'
       }
 
-      if (contentData && contentData.length > 0 && contentData[0].content) {
-        // Use content from project_content table
-        setContent(contentData[0].content || '')
-        console.log('Loaded content from project_content table')
-      } else {
-        // Fallback to projects.synopsis field
-        console.log('No content in project_content table, checking projects.synopsis fallback...')
-        if (projectData.synopsis) {
-          setContent(projectData.synopsis)
-          console.log('Loaded content from projects.synopsis fallback')
-        } else {
-          console.log('No content found in either location')
-          setContent('')
-        }
+      setContent(selectedContent)
+      console.log(`✅ Initial load from ${selectedSource}`)
+      
+      // Update sync status tracking for initial load
+      const hasProjectContent = !!(contentData?.content)
+      const hasProjectSynopsis = !!(projectData?.synopsis)
+      const isContentSync = hasProjectContent && hasProjectSynopsis && contentData.content === projectData.synopsis
+      
+      let source: 'dual' | 'synopsis' | 'content' | 'none' = 'none'
+      if (hasProjectContent && hasProjectSynopsis) {
+        source = isContentSync ? 'dual' : (selectedSource.includes('synopsis') ? 'synopsis' : 'content')
+      } else if (hasProjectSynopsis) {
+        source = 'synopsis'
+      } else if (hasProjectContent) {
+        source = 'content'
       }
+      
+      setSyncStatus({
+        hasProjectContent,
+        hasProjectSynopsis,
+        isSync: isContentSync,
+        source,
+        lastChecked: new Date()
+      })
 
     } catch (error) {
       console.error('Error loading project:', error)
@@ -621,40 +673,75 @@ export default function ProjectPage() {
       console.log('Refreshing content from database...')
       const supabase = createSupabaseClient()
 
-      // Load latest project content
-      const { data: contentData, error: contentError } = await supabase
-        .from('project_content')
-        .select('*')
-        .eq('project_id', projectId)
-        .eq('asset_type', 'content')
-        .order('updated_at', { ascending: false })
-        .limit(1)
-
-      if (contentError) {
-        console.log('No content found in project_content table:', contentError.message)
-      }
-
-      if (contentData && contentData.length > 0 && contentData[0].content) {
-        // Use content from project_content table
-        setContent(contentData[0].content || '')
-        console.log('Refreshed content from project_content table')
-      } else {
-        // Fallback to projects.synopsis field
-        console.log('No content in project_content table, checking projects.synopsis fallback...')
-        const { data: projectData } = await supabase
+      // Load content from both sources with timestamps
+      const [contentResult, projectResult] = await Promise.all([
+        supabase
+          .from('project_content')
+          .select('content, updated_at')
+          .eq('project_id', projectId)
+          .eq('asset_type', 'content')
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .single(),
+        supabase
           .from('projects')
-          .select('synopsis')
+          .select('synopsis, updated_at')
           .eq('id', projectId)
           .single()
+      ])
 
-        if (projectData?.synopsis) {
-          setContent(projectData.synopsis)
-          console.log('Refreshed content from projects.synopsis fallback')
-        } else {
-          console.log('No content found in either location')
-          setContent('')
-        }
+      const contentData = contentResult.data
+      const projectData = projectResult.data
+      
+      let selectedContent = ''
+      let selectedSource = 'none'
+
+      // Determine which content to use based on recency and availability
+      const projectContentTime = contentData?.updated_at ? new Date(contentData.updated_at) : null
+      const synopsisTime = projectData?.updated_at ? new Date(projectData.updated_at) : null
+
+      console.log('Content comparison:')
+      console.log('  project_content:', contentData?.content ? `${contentData.content.length} chars @ ${projectContentTime}` : 'none')
+      console.log('  projects.synopsis:', projectData?.synopsis ? `${projectData.synopsis.length} chars @ ${synopsisTime}` : 'none')
+
+      // Use the most recently updated content that actually exists
+      if (projectData?.synopsis && synopsisTime && 
+          (!contentData?.content || !projectContentTime || synopsisTime > projectContentTime)) {
+        selectedContent = projectData.synopsis
+        selectedSource = 'projects.synopsis (most recent)'
+      } else if (contentData?.content) {
+        selectedContent = contentData.content
+        selectedSource = 'project_content'
+      } else if (projectData?.synopsis) {
+        selectedContent = projectData.synopsis
+        selectedSource = 'projects.synopsis (fallback)'
       }
+
+      setContent(selectedContent)
+      console.log(`✅ Loaded content from ${selectedSource}`)
+      
+      // Update sync status tracking
+      const hasProjectContent = !!(contentData?.content)
+      const hasProjectSynopsis = !!(projectData?.synopsis)
+      const isContentSync = hasProjectContent && hasProjectSynopsis && contentData.content === projectData.synopsis
+      
+      let source: 'dual' | 'synopsis' | 'content' | 'none' = 'none'
+      if (hasProjectContent && hasProjectSynopsis) {
+        source = isContentSync ? 'dual' : (selectedSource.includes('synopsis') ? 'synopsis' : 'content')
+      } else if (hasProjectSynopsis) {
+        source = 'synopsis'
+      } else if (hasProjectContent) {
+        source = 'content'
+      }
+      
+      setSyncStatus({
+        hasProjectContent,
+        hasProjectSynopsis,
+        isSync: isContentSync,
+        source,
+        lastChecked: new Date()
+      })
+      
     } catch (error) {
       console.error('Error refreshing content:', error)
     }
@@ -1065,6 +1152,39 @@ export default function ProjectPage() {
                                 </button>
                               </div>
                             )}
+                            
+                            {/* Content Sync Status Indicator */}
+                            <div className="flex items-center space-x-2 text-xs">
+                              {syncStatus.source === 'dual' && (
+                                <div className="flex items-center space-x-1 text-green-600" title="Content synchronized in both storage locations">
+                                  <CheckCircle className="w-3 h-3" />
+                                  <Database className="w-3 h-3" />
+                                  <span>Synced</span>
+                                </div>
+                              )}
+                              {syncStatus.source === 'synopsis' && (
+                                <div className="flex items-center space-x-1 text-blue-600" title="Content stored in primary location (projects.synopsis)">
+                                  <Database className="w-3 h-3" />
+                                  <span>Primary</span>
+                                </div>
+                              )}
+                              {syncStatus.source === 'content' && (
+                                <div className="flex items-center space-x-1 text-yellow-600" title="Content stored in legacy location (project_content)">
+                                  <FileText className="w-3 h-3" />
+                                  <span>Legacy</span>
+                                </div>
+                              )}
+                              {syncStatus.lastChecked && (
+                                <button 
+                                  onClick={refreshContent}
+                                  className="text-gray-400 hover:text-gray-600 p-1 rounded"
+                                  title={`Sync checked: ${syncStatus.lastChecked.toLocaleTimeString()}`}
+                                >
+                                  <RefreshCw className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
+                            
                             <div className="flex items-center space-x-2 text-sm text-green-600">
                               <Edit3 className="w-4 h-4" />
                               <span>Edit mode</span>
@@ -1083,6 +1203,67 @@ export default function ProjectPage() {
                     </div>
                   </PermissionGate>
                 </div>
+
+            {/* Content Sync Status Panel */}
+            <div className="lg:col-span-3 mt-4">
+              <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-medium text-gray-700 flex items-center">
+                    <Database className="w-4 h-4 mr-2" />
+                    Content Storage Status
+                  </h3>
+                  <button 
+                    onClick={refreshContent}
+                    className="text-gray-400 hover:text-gray-600 p-1 rounded"
+                    title="Refresh sync status"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                  </button>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                  <div className="flex items-center space-x-2">
+                    <div className={`w-2 h-2 rounded-full ${syncStatus.hasProjectSynopsis ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                    <span className="text-gray-600">Primary Storage</span>
+                    <span className={`font-medium ${syncStatus.hasProjectSynopsis ? 'text-green-600' : 'text-gray-400'}`}>
+                      {syncStatus.hasProjectSynopsis ? 'Active' : 'Empty'}
+                    </span>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <div className={`w-2 h-2 rounded-full ${syncStatus.hasProjectContent ? 'bg-blue-500' : 'bg-gray-300'}`}></div>
+                    <span className="text-gray-600">Table Storage</span>
+                    <span className={`font-medium ${syncStatus.hasProjectContent ? 'text-blue-600' : 'text-gray-400'}`}>
+                      {syncStatus.hasProjectContent ? 'Active' : 'Empty'}
+                    </span>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <div className={`w-2 h-2 rounded-full ${
+                      syncStatus.source === 'dual' ? 'bg-green-500' : 
+                      syncStatus.source === 'synopsis' ? 'bg-blue-500' : 
+                      syncStatus.source === 'content' ? 'bg-yellow-500' : 'bg-red-500'
+                    }`}></div>
+                    <span className="text-gray-600">Sync Status</span>
+                    <span className={`font-medium ${
+                      syncStatus.source === 'dual' ? 'text-green-600' : 
+                      syncStatus.source === 'synopsis' ? 'text-blue-600' : 
+                      syncStatus.source === 'content' ? 'text-yellow-600' : 'text-red-600'
+                    }`}>
+                      {syncStatus.source === 'dual' ? 'Synchronized' : 
+                       syncStatus.source === 'synopsis' ? 'Primary Only' : 
+                       syncStatus.source === 'content' ? 'Table Only' : 'No Content'}
+                    </span>
+                  </div>
+                </div>
+                
+                {syncStatus.lastChecked && (
+                  <div className="mt-2 text-xs text-gray-500">
+                    Last checked: {syncStatus.lastChecked.toLocaleTimeString()}
+                  </div>
+                )}
+              </div>
+            </div>
 
             {/* Role-Specific Sidebar */}
             <div>
