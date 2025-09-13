@@ -211,35 +211,6 @@ export default function RoleSpecificSidebar({
           </div>
         </div>
       )}
-
-      {/* Team Overview - For users with invite permissions */}
-      <PermissionGate 
-        projectId={projectId} 
-        userId={userId} 
-        requiredPermission="invite"
-      >
-        <div className="bg-green-50 rounded-xl border border-green-200 p-6">
-          <div className="flex items-center space-x-2 mb-4">
-            <Users className="w-5 h-5 text-green-600" />
-            <h3 className="text-lg font-semibold text-green-800">Team Management</h3>
-          </div>
-          <div className="space-y-3">
-            <div className="text-sm text-green-700">
-              Quick access to collaboration tools
-            </div>
-            <div className="space-y-2">
-              <button className="w-full bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors text-sm">
-                <Users className="w-4 h-4 inline mr-2" />
-                Invite Collaborator
-              </button>
-              <button className="w-full border border-green-300 text-green-700 py-2 px-4 rounded-lg hover:bg-green-50 transition-colors text-sm">
-                <MessageSquare className="w-4 h-4 inline mr-2" />
-                Team Messages
-              </button>
-            </div>
-          </div>
-        </div>
-      </PermissionGate>
     </div>
   )
 }

@@ -34,8 +34,6 @@ import SendMessageModal from '@/components/send-message-modal'
 import EditCollaboratorModal from '@/components/edit-collaborator-modal'
 import { PermissionGate, RoleBadge } from '@/components/permission-gate'
 import RoleSpecificSidebar from '@/components/role-specific-sidebar'
-import RoleWorkflowManager from '@/components/role-workflow-manager'
-import RolePermissionTester from '@/components/role-permission-tester'
 import ProjectComments from '@/components/project-comments'
 import ProjectHistory from '@/components/project-history'
 import ApprovedWorkflow from '@/components/approved-workflow'
@@ -1153,38 +1151,6 @@ export default function ProjectPage() {
                               </div>
                             )}
                             
-                            {/* Content Sync Status Indicator */}
-                            <div className="flex items-center space-x-2 text-xs">
-                              {syncStatus.source === 'dual' && (
-                                <div className="flex items-center space-x-1 text-green-600" title="Content synchronized in both storage locations">
-                                  <CheckCircle className="w-3 h-3" />
-                                  <Database className="w-3 h-3" />
-                                  <span>Synced</span>
-                                </div>
-                              )}
-                              {syncStatus.source === 'synopsis' && (
-                                <div className="flex items-center space-x-1 text-blue-600" title="Content stored in primary location (projects.synopsis)">
-                                  <Database className="w-3 h-3" />
-                                  <span>Primary</span>
-                                </div>
-                              )}
-                              {syncStatus.source === 'content' && (
-                                <div className="flex items-center space-x-1 text-yellow-600" title="Content stored in legacy location (project_content)">
-                                  <FileText className="w-3 h-3" />
-                                  <span>Legacy</span>
-                                </div>
-                              )}
-                              {syncStatus.lastChecked && (
-                                <button 
-                                  onClick={refreshContent}
-                                  className="text-gray-400 hover:text-gray-600 p-1 rounded"
-                                  title={`Sync checked: ${syncStatus.lastChecked.toLocaleTimeString()}`}
-                                >
-                                  <RefreshCw className="w-3 h-3" />
-                                </button>
-                              )}
-                            </div>
-                            
                             <div className="flex items-center space-x-2 text-sm text-green-600">
                               <Edit3 className="w-4 h-4" />
                               <span>Edit mode</span>
@@ -1644,50 +1610,10 @@ export default function ProjectPage() {
 
                     {/* Action Footer */}
                     <div className="pt-6 border-t border-gray-200">
-                      <div className="flex items-center justify-between">
-                        <div className="text-sm text-gray-600">
-                          Manage collaboration permissions and revenue sharing for your team
-                        </div>
-                        <div className="flex space-x-3">
-                          <button className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:border-orange-300 hover:text-orange-700 transition-colors">
-                            Manage Permissions
-                          </button>
-                          <PermissionGate 
-                            projectId={projectId} 
-                            userId={currentUser?.id} 
-                            requiredPermission="invite"
-                          >
-                            <ProjectCollaborationButton 
-                              projectId={projectId}
-                              projectTitle={project.title}
-                              isOwner={project.owner_id === currentUser?.id}
-                              currentCollaborators={collaborators}
-                              className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-medium"
-                              onInvitationSent={refreshCollaborators}
-                            />
-                          </PermissionGate>
-                        </div>
+                      <div className="text-sm text-gray-600">
+                        Manage collaboration permissions and revenue sharing for your team
                       </div>
                     </div>
-                  </div>
-                )}
-
-                {/* Role-based Workflow Manager */}
-                <div className="mt-8">
-                  <RoleWorkflowManager
-                    projectId={projectId}
-                    userId={currentUser?.id}
-                    project={project}
-                  />
-                </div>
-
-                {/* Permission Tester (Development Only) */}
-                {process.env.NODE_ENV === 'development' && (
-                  <div className="mt-8">
-                    <RolePermissionTester
-                      projectId={projectId}
-                      userId={currentUser?.id}
-                    />
                   </div>
                 )}
 
