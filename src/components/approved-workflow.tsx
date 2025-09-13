@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
+import { useToast } from '@/components/ui/toast'
 import { 
   Clock, 
   CheckCircle, 
@@ -151,6 +152,8 @@ export default function ApprovedWorkflow({ projectId, userId, userRole: passedUs
     processApproval,
     fetchStats 
   } = useWorkflow(projectId)
+
+  const { addToast } = useToast()
   
   const [workflowItems, setWorkflowItems] = useState<WorkflowItem[]>([])
   const [allWorkflowData, setAllWorkflowData] = useState<WorkflowItem[]>([]) // Store all data
@@ -373,7 +376,11 @@ export default function ApprovedWorkflow({ projectId, userId, userRole: passedUs
         console.log('✅ Data refreshed successfully')
         
         // Show success notification
-        alert(result.message || `Editor changes ${action.type}d successfully!`)
+        addToast({
+          type: 'success',
+          title: `Changes ${action.type.charAt(0).toUpperCase() + action.type.slice(1)}d`,
+          message: result.message || `Editor changes ${action.type}d successfully!`
+        })
       } else {
         // Handle regular workflow approval using the hook
         const approval = await processApproval(itemId, {
@@ -402,7 +409,11 @@ export default function ApprovedWorkflow({ projectId, userId, userRole: passedUs
         }))
         
         // Show success notification
-        alert(`Item ${action.type}d successfully!`)
+        addToast({
+          type: 'success',
+          title: `Item ${action.type.charAt(0).toUpperCase() + action.type.slice(1)}d`,
+          message: `Item ${action.type}d successfully!`
+        })
       }
     } catch (error) {
       console.error('❌ Failed to process approval:', error)
@@ -410,7 +421,11 @@ export default function ApprovedWorkflow({ projectId, userId, userRole: passedUs
         message: error instanceof Error ? error.message : 'Unknown error',
         stack: error instanceof Error ? error.stack : 'No stack trace'
       })
-      alert('Failed to process approval: ' + (error instanceof Error ? error.message : 'Unknown error'))
+      addToast({
+        type: 'error',
+        title: 'Approval Failed',
+        message: 'Failed to process approval: ' + (error instanceof Error ? error.message : 'Unknown error')
+      })
     }
   }
 
@@ -423,10 +438,18 @@ export default function ApprovedWorkflow({ projectId, userId, userRole: passedUs
         await handleApprovalAction(itemId, { type: action })
       }
       setSelectedItems(new Set())
-      alert(`${selectedItems.size} items ${action}d successfully!`)
+      addToast({
+        type: 'success',
+        title: 'Bulk Action Complete',
+        message: `${selectedItems.size} items ${action}d successfully!`
+      })
     } catch (error) {
       console.error('Bulk action failed:', error)
-      alert('Bulk action failed')
+      addToast({
+        type: 'error',
+        title: 'Bulk Action Failed',
+        message: 'The bulk action could not be completed. Please try again.'
+      })
     }
   }
 

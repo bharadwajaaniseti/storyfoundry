@@ -39,6 +39,7 @@ import ApprovedWorkflow from '@/components/approved-workflow'
 import { useProjectCollaborators } from '@/hooks/useCollaboration'
 import { useRealtimeProjectContent, useRealtimeProject } from '@/hooks/useRealtimeProject'
 import { useRoleBasedUI } from '@/hooks/usePermissions'
+import { useToast } from '@/components/ui/toast'
 
 interface Project {
   id: string
@@ -127,6 +128,9 @@ export default function ProjectPage() {
   const [editingCollaborator, setEditingCollaborator] = useState<any>(null)
   const [userRole, setUserRole] = useState<'owner' | 'editor' | 'other' | null>(null)
   const [originalContent, setOriginalContent] = useState('')
+
+  // Toast notifications
+  const { addToast } = useToast()
 
   // Collaboration data
   const { collaborators, pendingInvitations, loading: collaboratorsLoading, error: collaboratorsError, refresh: refreshCollaborators } = useProjectCollaborators(projectId)
@@ -391,7 +395,11 @@ export default function ProjectPage() {
 
     // Check if content has changed
     if (originalContent.trim() === content.trim()) {
-      alert('No changes detected to submit for approval. Please make some changes to the content before submitting.')
+      addToast({
+        type: 'warning',
+        title: 'No Changes Detected',
+        message: 'Please make some changes to the content before submitting for approval.'
+      })
       return
     }
 
@@ -421,16 +429,28 @@ export default function ProjectPage() {
 
       if (data.success) {
         setSaveStatus('saved')
-        alert('Changes submitted for owner approval. You will be notified when they are reviewed.')
+        addToast({
+          type: 'success',
+          title: 'Changes Submitted',
+          message: 'Your changes have been submitted for owner approval. You will be notified when they are reviewed.'
+        })
       } else {
         setSaveStatus('error')
         console.error('API Error details:', data)
-        alert(`Failed to submit changes for approval: ${data.error || 'Unknown error'}${data.details ? '\nDetails: ' + data.details : ''}`)
+        addToast({
+          type: 'error',
+          title: 'Submission Failed',
+          message: `Failed to submit changes for approval: ${data.error || 'Unknown error'}${data.details ? '\nDetails: ' + data.details : ''}`
+        })
       }
     } catch (error) {
       console.error('Error submitting for approval:', error)
       setSaveStatus('error')
-      alert('An error occurred while submitting changes for approval: ' + (error instanceof Error ? error.message : String(error)))
+      addToast({
+        type: 'error',
+        title: 'Submission Error',
+        message: 'An error occurred while submitting changes for approval: ' + (error instanceof Error ? error.message : String(error))
+      })
     } finally {
       setIsSaving(false)
       setTimeout(() => setSaveStatus(null), 3000)
