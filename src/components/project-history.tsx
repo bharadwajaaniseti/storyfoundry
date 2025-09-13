@@ -236,12 +236,14 @@ export default function ProjectHistory({ projectId, currentUserId, canRestore = 
     try {
       setIsRestoring(true)
       
-      const response = await fetch(`/api/projects/${projectId}/versions/${version.id}/restore`, {
+      const response = await fetch(`/api/projects/${projectId}/versions/${version.id}`, {
         method: 'POST'
       })
       
       if (!response.ok) {
-        throw new Error('Failed to restore version')
+        const errorData = await response.json().catch(() => ({}))
+        const errorMessage = errorData.error || errorData.message || `HTTP ${response.status}: ${response.statusText}`
+        throw new Error(errorMessage)
       }
 
       addToast({
@@ -259,10 +261,11 @@ export default function ProjectHistory({ projectId, currentUserId, canRestore = 
       
     } catch (err) {
       console.error('Error restoring version:', err)
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred'
       addToast({
         type: 'error',
         title: 'Failed to restore version',
-        message: 'Please try again later.'
+        message: errorMessage
       })
     } finally {
       setIsRestoring(false)
