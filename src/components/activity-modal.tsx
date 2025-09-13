@@ -1,16 +1,30 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { X, Clock, Plus, FileText, Eye, Users, Search, Filter } from 'lucide-react'
+import { 
+  X, Clock, Plus, FileText, Eye, Users, Search, Filter, 
+  CheckCircle, MessageSquare, Upload, Edit3, AlertCircle,
+  Workflow
+} from 'lucide-react'
 
 interface ActivityEvent {
   id: string
-  type: 'project_created' | 'project_updated' | 'project_viewed' | 'collaboration_invited' | 'engagement_received'
+  type: 'project_created' | 'project_updated' | 'project_viewed' | 'collaboration_invited' | 'engagement_received' |
+        'workflow_submission_created' | 'workflow_submission_updated' | 'workflow_approval_created' | 
+        'workflow_comment_added' | 'workflow_attachment_uploaded'
   message: string
   timestamp: string
   project_id?: string
   project_title?: string
   details?: string
+  metadata?: {
+    submission_id?: string
+    submission_type?: string
+    status?: string
+    priority?: string
+    category?: string
+    file_name?: string
+  }
 }
 
 interface ActivityModalProps {
@@ -37,6 +51,10 @@ export default function ActivityModal({ isOpen, onClose, activities }: ActivityM
             return ['project_viewed', 'engagement_received'].includes(activity.type)
           case 'collaborations':
             return ['collaboration_invited'].includes(activity.type)
+          case 'workflows':
+            return ['workflow_submission_created', 'workflow_submission_updated', 
+                    'workflow_approval_created', 'workflow_comment_added', 
+                    'workflow_attachment_uploaded'].includes(activity.type)
           default:
             return true
         }
@@ -82,6 +100,16 @@ export default function ActivityModal({ isOpen, onClose, activities }: ActivityM
         return <Eye className="w-4 h-4 text-orange-600" />
       case 'collaboration_invited':
         return <Users className="w-4 h-4 text-purple-600" />
+      case 'workflow_submission_created':
+        return <Workflow className="w-4 h-4 text-blue-500" />
+      case 'workflow_submission_updated':
+        return <Edit3 className="w-4 h-4 text-amber-500" />
+      case 'workflow_approval_created':
+        return <CheckCircle className="w-4 h-4 text-green-500" />
+      case 'workflow_comment_added':
+        return <MessageSquare className="w-4 h-4 text-indigo-500" />
+      case 'workflow_attachment_uploaded':
+        return <Upload className="w-4 h-4 text-cyan-500" />
       default:
         return <Clock className="w-4 h-4 text-gray-600" />
     }
@@ -137,6 +165,7 @@ export default function ActivityModal({ isOpen, onClose, activities }: ActivityM
                 <option value="projects">Projects</option>
                 <option value="engagement">Engagement</option>
                 <option value="collaborations">Collaborations</option>
+                <option value="workflows">Workflows</option>
               </select>
             </div>
           </div>

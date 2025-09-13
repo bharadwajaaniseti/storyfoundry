@@ -143,17 +143,45 @@ export function hasRole(collaborator: ProjectCollaborator, role: CollaborationRo
   return allRoles.includes(role)
 }
 
+// Helper function to parse permission values that might be strings or booleans
+function parsePermissionValue(value: any): boolean {
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'string') {
+    return value.toLowerCase() === 'true'
+  }
+  return false
+}
+
+// Helper function to normalize permissions object
+function normalizePermissions(permissions: any): CollaborationPermissions {
+  if (!permissions || typeof permissions !== 'object') {
+    return { read: false, write: false, comment: false, invite: false }
+  }
+
+  return {
+    read: parsePermissionValue(permissions.read),
+    write: parsePermissionValue(permissions.write),
+    comment: parsePermissionValue(permissions.comment),
+    invite: parsePermissionValue(permissions.invite)
+  }
+}
+
 // Get effective permissions for a collaborator considering all their roles
 export function getCollaboratorPermissions(collaborator: ProjectCollaborator): CollaborationPermissions {
   // Use computed permissions if available, otherwise calculate from roles
   if (collaborator.computed_permissions) {
-    return collaborator.computed_permissions as CollaborationPermissions
+    return normalizePermissions(collaborator.computed_permissions)
   }
   
   // Use custom permissions if set, otherwise merge role permissions
   if (collaborator.permissions && typeof collaborator.permissions === 'object') {
     try {
-      return collaborator.permissions as unknown as CollaborationPermissions
+      const normalized = normalizePermissions(collaborator.permissions)
+      // Validate that we got meaningful permissions
+      if (normalized.read || normalized.write || normalized.comment || normalized.invite) {
+        return normalized
+      }
+      // If all permissions are false, fall through to role-based calculation
     } catch {
       // Fall through to role-based calculation
     }

@@ -30,33 +30,34 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    if (action === 'accept') {
-      // Get invitation details before accepting
-      const { data: invitation, error: fetchError } = await supabase
-        .from('collaboration_invitations')
-        .select(`
-          *,
-          projects!collaboration_invitations_project_id_fkey (
-            id,
-            title,
-            owner_id,
-            profiles!projects_owner_id_fkey (
-              id,
-              display_name
-            )
-          ),
-          invitee:profiles!collaboration_invitations_invitee_id_fkey (
+    // Get invitation details first
+    const { data: invitation, error: fetchError } = await supabase
+      .from('collaboration_invitations')
+      .select(`
+        *,
+        projects!collaboration_invitations_project_id_fkey (
+          id,
+          title,
+          owner_id,
+          profiles!projects_owner_id_fkey (
             id,
             display_name
           )
-        `)
-        .eq('id', id)
-        .eq('invitee_id', user.id)
-        .single()
+        ),
+        invitee:profiles!collaboration_invitations_invitee_id_fkey (
+          id,
+          display_name
+        )
+      `)
+      .eq('id', id)
+      .eq('invitee_id', user.id)
+      .single()
 
-      if (fetchError || !invitation) {
-        return NextResponse.json({ error: 'Invitation not found' }, { status: 404 })
-      }
+    if (fetchError || !invitation) {
+      return NextResponse.json({ error: 'Invitation not found' }, { status: 404 })
+    }
+
+    if (action === 'accept') {
 
       // Try to use the database function first, fallback to manual handling
       let functionResult = await supabase.rpc('accept_collaboration_invitation', {
@@ -146,6 +147,28 @@ export async function POST(
           return NextResponse.json({ 
             error: 'Failed to update invitation status' 
           }, { status: 500 })
+        }
+
+        // Create decline notification for owner manually
+        if (invitation?.projects?.owner_id) {
+          const { data: userData } = await supabase
+            .from('profiles')
+            .select('display_name')
+            .eq('id', user.id)
+            .single()
+
+          if (userData) {
+            await supabase.from('notifications').insert({
+              user_id: invitation.projects.owner_id,
+              type: 'collaboration_declined',
+              title: 'Collaboration Declined',
+              message: `${userData.display_name} declined your collaboration invitation for ${invitation.projects.title}`,
+              data: {
+                project_id: invitation.project_id,
+                collaborator_id: user.id
+              }
+            })
+          }
         }
 
         return NextResponse.json({ message: 'Invitation declined successfully (manual)' })

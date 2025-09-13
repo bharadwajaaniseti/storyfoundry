@@ -21,8 +21,9 @@ import { createSupabaseClient } from '@/lib/auth'
 import NovelWriter from './novel-writer'
 import NovelOutline from './novel-outline'
 import NovelDashboard from './novel-dashboard'
-import CharacterEditor from './character-editor'
 import NovelSettingsModal from './novel-settings-modal'
+import EditorApprovalInterface from './editor-approval-interface'
+import RoleBasedNovelEditor from './role-based-novel-editor'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 
@@ -86,6 +87,7 @@ const TABS = [
   { key: 'dashboard', label: 'Dashboard', icon: BarChart3, color: 'purple' },
   { key: 'overview', label: 'Overview', icon: Eye, color: 'orange' },
   { key: 'collaborators', label: 'Collaborators', icon: Users, color: 'pink' },
+  { key: 'approvals', label: 'Approvals', icon: Clock, color: 'yellow' },
   { key: 'history', label: 'History', icon: History, color: 'indigo' }
 ]
 
@@ -97,19 +99,26 @@ export default function NovelEditor({ projectId }: NovelEditorProps) {
   const [isLoading, setIsLoading] = useState(true)
   const [totalWordCount, setTotalWordCount] = useState(0)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
-  const [showCharacterEditor, setShowCharacterEditor] = useState(false)
-  const [editingCharacter, setEditingCharacter] = useState<WorldElement | null>(null)
   const [showSettingsModal, setShowSettingsModal] = useState(false)
+  const [userRole, setUserRole] = useState<'owner' | 'editor' | 'other' | null>(null)
+  const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0)
 
   useEffect(() => {
     loadProject()
     loadChapters()
+    checkUserRole()
   }, [projectId])
 
   useEffect(() => {
     const total = chapters.reduce((sum, chapter) => sum + (chapter.word_count || 0), 0)
     setTotalWordCount(total)
   }, [chapters])
+
+  useEffect(() => {
+    if (userRole === 'owner') {
+      loadPendingApprovalsCount()
+    }
+  }, [userRole])
 
   const loadProject = async () => {
     try {
@@ -124,6 +133,60 @@ export default function NovelEditor({ projectId }: NovelEditorProps) {
       setProject(data)
     } catch (error) {
       console.error('Error loading project:', error)
+    }
+  }
+
+  const checkUserRole = async () => {
+    try {
+      const supabase = createSupabaseClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (!user) return
+
+      // Check if user is project owner
+      const { data: project } = await supabase
+        .from('projects')
+        .select('owner_id')
+        .eq('id', projectId)
+        .single()
+
+      if (project?.owner_id === user.id) {
+        setUserRole('owner')
+        return
+      }
+
+      // Check if user is a collaborator and their role
+      const { data: collaborator } = await supabase
+        .from('project_collaborators')
+        .select('role, secondary_roles')
+        .eq('project_id', projectId)
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .single()
+
+      if (collaborator) {
+        const isEditor = collaborator.role === 'editor' || 
+                        (collaborator.secondary_roles && collaborator.secondary_roles.includes('editor'))
+        setUserRole(isEditor ? 'editor' : 'other')
+      } else {
+        setUserRole('other')
+      }
+    } catch (error) {
+      console.error('Error checking user role:', error)
+      setUserRole('other')
+    }
+  }
+
+  const loadPendingApprovalsCount = async () => {
+    try {
+      const response = await fetch(`/api/projects/${projectId}/approvals`)
+      const data = await response.json()
+      
+      if (data.success) {
+        setPendingApprovalsCount(data.pendingChanges?.length || 0)
+      }
+    } catch (error) {
+      console.error('Error loading pending approvals count:', error)
     }
   }
 
@@ -184,70 +247,6 @@ export default function NovelEditor({ projectId }: NovelEditorProps) {
     router.push('/projects')
   }
 
-  const handleShowCharacterEditor = (character?: WorldElement) => {
-    setEditingCharacter(character || null)
-    setShowCharacterEditor(true)
-  }
-
-  const handleCharacterSave = async (character: Character) => {
-    try {
-      const supabase = createSupabaseClient()
-      
-      // Convert character data to world element format
-      const elementData = {
-        project_id: projectId,
-        category: 'characters',
-        name: character.name,
-        description: character.description,
-        attributes: {
-          sections: character.sections,
-          image_url: character.image_url
-        },
-        tags: []
-      }
-
-      if (editingCharacter) {
-        // Update existing character
-        const { error } = await supabase
-          .from('world_elements')
-          .update(elementData)
-          .eq('id', editingCharacter.id)
-
-        if (error) throw error
-      } else {
-        // Create new character
-        const { error } = await supabase
-          .from('world_elements')
-          .insert(elementData)
-
-        if (error) throw error
-      }
-
-      setShowCharacterEditor(false)
-      setEditingCharacter(null)
-      setLastSaved(new Date())
-    } catch (error) {
-      console.error('Error saving character:', error)
-    }
-  }
-
-  const handleCharacterCancel = () => {
-    setShowCharacterEditor(false)
-    setEditingCharacter(null)
-  }
-
-  const convertWorldElementToCharacter = (element: WorldElement): Character => {
-    return {
-      id: element.id,
-      name: element.name,
-      description: element.description,
-      image_url: element.attributes?.image_url,
-      sections: element.attributes?.sections || [],
-      created_at: element.created_at,
-      updated_at: element.updated_at
-    }
-  }
-
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -276,31 +275,16 @@ export default function NovelEditor({ projectId }: NovelEditorProps) {
   const renderTabContent = () => {
     if (!project) return null
     
-    // Show character editor if active
-    if (showCharacterEditor) {
-      return (
-        <CharacterEditor
-          character={editingCharacter ? convertWorldElementToCharacter(editingCharacter) : undefined}
-          projectId={projectId}
-          onSave={handleCharacterSave}
-          onCancel={handleCharacterCancel}
-        />
-      )
-    }
-
     switch (activeTab) {
       case 'chapters':
         return (
           <div className="h-full">
-            <NovelWriter 
+            <RoleBasedNovelEditor 
               projectId={projectId}
-              project={{
-                id: project.id,
-                title: project.title,
-                word_count: totalWordCount,
-                target_word_count: 50000, // Default target
-                format: project.format || 'novel'
-              }}
+              content=""
+              onContentChange={() => {}}
+              onSave={() => {}}
+              isLoading={false}
             />
           </div>
         )
@@ -374,6 +358,31 @@ export default function NovelEditor({ projectId }: NovelEditorProps) {
                   <p className="text-gray-600">Invite others to collaborate on your novel</p>
                 </div>
               </div>
+            </div>
+          </div>
+        )
+      case 'approvals':
+        return (
+          <div className="p-6">
+            <div className="max-w-6xl mx-auto">
+              {userRole === 'owner' ? (
+                <EditorApprovalInterface 
+                  projectId={projectId}
+                  onApprovalProcessed={() => {
+                    loadPendingApprovalsCount()
+                    setLastSaved(new Date())
+                  }}
+                />
+              ) : (
+                <div className="bg-white rounded-lg border border-gray-200 p-6">
+                  <h2 className="text-2xl font-bold text-gray-800 mb-6">Approvals</h2>
+                  <div className="text-center py-12">
+                    <Clock className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-800 mb-2">Access Restricted</h3>
+                    <p className="text-gray-600">Only project owners can view pending approvals</p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )
@@ -453,11 +462,13 @@ export default function NovelEditor({ projectId }: NovelEditorProps) {
               {TABS.map((tab) => {
                 const Icon = tab.icon
                 const isActive = activeTab === tab.key
+                const showBadge = tab.key === 'approvals' && userRole === 'owner' && pendingApprovalsCount > 0
+                
                 return (
                   <button
                     key={tab.key}
                     onClick={() => setActiveTab(tab.key)}
-                    className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors relative ${
                       isActive
                         ? `bg-${tab.color}-100 text-${tab.color}-700 border border-${tab.color}-200`
                         : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
@@ -465,6 +476,11 @@ export default function NovelEditor({ projectId }: NovelEditorProps) {
                   >
                     <Icon className="w-4 h-4" />
                     <span>{tab.label}</span>
+                    {showBadge && (
+                      <Badge className="bg-red-500 text-white text-xs px-1.5 py-0.5 min-w-[1.2rem] h-5">
+                        {pendingApprovalsCount}
+                      </Badge>
+                    )}
                   </button>
                 )
               })}

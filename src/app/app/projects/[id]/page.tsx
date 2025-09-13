@@ -35,8 +35,10 @@ import RoleWorkflowManager from '@/components/role-workflow-manager'
 import RolePermissionTester from '@/components/role-permission-tester'
 import ProjectComments from '@/components/project-comments'
 import ProjectHistory from '@/components/project-history'
+import ApprovedWorkflow from '@/components/approved-workflow'
 import { useProjectCollaborators } from '@/hooks/useCollaboration'
 import { useRealtimeProjectContent, useRealtimeProject } from '@/hooks/useRealtimeProject'
+import { useRoleBasedUI } from '@/hooks/usePermissions'
 
 interface Project {
   id: string
@@ -93,6 +95,19 @@ export default function ProjectPage() {
   // Local state
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
+  
+  // Get permissions for the current user (only after currentUser is loaded)
+  const { userRole: currentUserRole, permissions: currentUserPermissions } = useRoleBasedUI(
+    projectId,
+    currentUser?.id // Pass the userId to ensure hook has user context
+  )
+  
+  console.log('Main page hook result:', { 
+    currentUserRole, 
+    isOwner: currentUserPermissions?.isOwner,
+    hasCurrentUser: !!currentUser,
+    currentUserId: currentUser?.id
+  })
   const [error, setError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error' | null>(null)
@@ -110,9 +125,31 @@ export default function ProjectPage() {
   } | null>(null)
   const [showEditModal, setShowEditModal] = useState(false)
   const [editingCollaborator, setEditingCollaborator] = useState<any>(null)
+  const [userRole, setUserRole] = useState<'owner' | 'editor' | 'other' | null>(null)
+  const [originalContent, setOriginalContent] = useState('')
 
   // Collaboration data
   const { collaborators, pendingInvitations, loading: collaboratorsLoading, error: collaboratorsError, refresh: refreshCollaborators } = useProjectCollaborators(projectId)
+
+  // Load current user
+  useEffect(() => {
+    async function loadCurrentUser() {
+      console.log('Loading current user...')
+      try {
+        const supabase = createSupabaseClient()
+        const { data: { user }, error } = await supabase.auth.getUser()
+        if (error) {
+          console.error('Error getting current user:', error)
+          return
+        }
+        console.log('Current user loaded:', user)
+        setCurrentUser(user)
+      } catch (error) {
+        console.error('Failed to load current user:', error)
+      }
+    }
+    loadCurrentUser()
+  }, [])
 
   // Handler functions for collaboration actions
   const handleSendMessage = (userId: string, userName?: string, userAvatar?: string, userRole?: string) => {
@@ -220,6 +257,185 @@ export default function ProjectPage() {
       loadProject()
     }
   }, [projectId])
+
+  // Check user role when project loads
+  useEffect(() => {
+    if (project && currentUser) {
+      checkUserRole()
+    }
+  }, [project, currentUser])
+
+  // Store original content when content first loads or when user becomes an editor
+  useEffect(() => {
+    if (content && userRole === 'editor' && originalContent !== content) {
+      // Only set original content if we haven't set it yet, or if it's different (page reload case)
+      if (!originalContent || originalContent === '') {
+        setOriginalContent(content)
+        console.log('Set original content for editor:', content.slice(0, 50) + '...')
+      }
+    }
+  }, [content, userRole])
+
+  const checkUserRole = async () => {
+    if (!currentUser || !project) return
+
+    try {
+      // Check if user is project owner
+      if (project.owner_id === currentUser.id) {
+        setUserRole('owner')
+        return
+      }
+
+      // Check if user is a collaborator and their role
+      const supabase = createSupabaseClient()
+      const { data: collaborator } = await supabase
+        .from('project_collaborators')
+        .select('role, secondary_roles')
+        .eq('project_id', projectId)
+        .eq('user_id', currentUser.id)
+        .eq('status', 'active')
+        .single()
+
+      if (collaborator) {
+        const isEditor = collaborator.role === 'editor' || 
+                        (collaborator.secondary_roles && collaborator.secondary_roles.includes('editor'))
+        setUserRole(isEditor ? 'editor' : 'other')
+      } else {
+        setUserRole('other')
+      }
+    } catch (error) {
+      console.error('Error checking user role:', error)
+      setUserRole('other')
+    }
+  }
+
+  const saveContent = async () => {
+    if (!currentUser || !project) return
+
+    // For editors, use approval workflow instead of direct save
+    if (userRole === 'editor') {
+      await submitForApproval()
+      return
+    }
+
+    // For owners and other users with write permission, save directly
+    setIsSaving(true)
+    setSaveStatus('saving')
+
+    try {
+      const supabase = createSupabaseClient()
+
+      // Try to update project_content table first
+      const { data: existingContent } = await supabase
+        .from('project_content')
+        .select('id')
+        .eq('project_id', projectId)
+        .eq('asset_type', 'content')
+        .single()
+
+      if (existingContent) {
+        // Update existing content
+        const { error } = await supabase
+          .from('project_content')
+          .update({
+            content: content,
+            updated_at: new Date().toISOString()
+          })
+          .eq('project_id', projectId)
+          .eq('asset_type', 'content')
+
+        if (error) throw error
+      } else {
+        // Create new content record
+        const { error } = await supabase
+          .from('project_content')
+          .insert({
+            project_id: projectId,
+            filename: `${project.title}_content.txt`,
+            content: content,
+            asset_type: 'content'
+          })
+
+        if (error) throw error
+      }
+
+      // Also update projects.synopsis as fallback
+      await supabase
+        .from('projects')
+        .update({
+          synopsis: content,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', projectId)
+
+      setSaveStatus('saved')
+      setOriginalContent(content) // Update original content after successful save
+      setTimeout(() => setSaveStatus(null), 2000)
+
+    } catch (error) {
+      console.error('Error saving content:', error)
+      setSaveStatus('error')
+      setTimeout(() => setSaveStatus(null), 3000)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const submitForApproval = async () => {
+    if (!currentUser || !project || userRole !== 'editor') return
+
+    console.log('Submit for approval - Debug info:')
+    console.log('Original content:', originalContent)
+    console.log('Current content:', content)
+    console.log('Are they equal?', originalContent.trim() === content.trim())
+
+    // Check if content has changed
+    if (originalContent.trim() === content.trim()) {
+      alert('No changes detected to submit for approval. Please make some changes to the content before submitting.')
+      return
+    }
+
+    setIsSaving(true)
+    setSaveStatus('saving')
+
+    try {
+      const response = await fetch(`/api/projects/${projectId}/editor-changes`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          chapterId: null, // This is general project content, not a specific chapter
+          contentType: 'project_content',
+          originalContent: originalContent,
+          proposedContent: content,
+          changeDescription: 'Project content update',
+          editorNotes: null,
+          contentTitle: 'Project Content'
+        })
+      })
+
+      console.log('Response status:', response.status)
+      const data = await response.json()
+      console.log('Response data:', data)
+
+      if (data.success) {
+        setSaveStatus('saved')
+        alert('Changes submitted for owner approval. You will be notified when they are reviewed.')
+      } else {
+        setSaveStatus('error')
+        console.error('API Error details:', data)
+        alert(`Failed to submit changes for approval: ${data.error || 'Unknown error'}${data.details ? '\nDetails: ' + data.details : ''}`)
+      }
+    } catch (error) {
+      console.error('Error submitting for approval:', error)
+      setSaveStatus('error')
+      alert('An error occurred while submitting changes for approval: ' + (error instanceof Error ? error.message : String(error)))
+    } finally {
+      setIsSaving(false)
+      setTimeout(() => setSaveStatus(null), 3000)
+    }
+  }
 
   // Reload project data when returning from settings or other pages
   useEffect(() => {
@@ -353,71 +569,6 @@ export default function ProjectPage() {
       console.error('Error loading project:', error)
     } finally {
       setIsLoading(false)
-    }
-  }
-
-  const saveContent = async () => {
-    if (!project || isSaving) return
-
-    setIsSaving(true)
-    setSaveStatus('saving')
-
-    try {
-      // Calculate word count using the same method as the frontend display
-      const wordCount = content.trim().split(/\s+/).filter(word => word.length > 0).length
-
-      console.log('Saving content for project:', project.id, 'word count:', wordCount)
-
-      // Use the new API endpoint for saving content
-      const response = await fetch(`/api/projects/${project.id}/content`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ content }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to save content')
-      }
-
-      const result = await response.json()
-      console.log('Content saved via API:', result.savedTo, 'word count:', result.wordCount)
-
-      // Update local project state to reflect the new word count
-      setRealtimeProject({ ...project, word_count: result.wordCount })
-
-      setSaveStatus('saved')
-      setTimeout(() => setSaveStatus(null), 2000)
-
-    } catch (error) {
-      console.error('Error saving content:', error)
-      
-      // More detailed error logging
-      if (error && typeof error === 'object') {
-        const errorObj = error as any
-        console.error('Error details:', {
-          message: errorObj.message || 'Unknown error',
-          code: errorObj.code || 'No code',
-          details: errorObj.details || 'No details',
-          hint: errorObj.hint || 'No hint',
-          stack: errorObj.stack || 'No stack trace'
-        })
-        
-        // If it's a Supabase error, log the full error object
-        if (errorObj.code || errorObj.details || errorObj.hint) {
-          console.error('Full Supabase error object:', errorObj)
-        }
-      } else {
-        console.error('Error type:', typeof error)
-        console.error('Error string representation:', String(error))
-      }
-      
-      setSaveStatus('error')
-      setTimeout(() => setSaveStatus(null), 3000)
-    } finally {
-      setIsSaving(false)
     }
   }
 
@@ -616,21 +767,35 @@ export default function ProjectPage() {
                   {saveStatus === 'saving' && (
                     <>
                       <div className="w-3 h-3 border border-orange-500 border-t-transparent rounded-full animate-spin"></div>
-                      <span className="text-gray-600">Saving...</span>
+                      <span className="text-gray-600">
+                        {userRole === 'editor' ? 'Submitting for approval...' : 'Saving...'}
+                      </span>
                     </>
                   )}
                   {saveStatus === 'saved' && (
                     <>
                       <Check className="w-3 h-3 text-green-500" />
-                      <span className="text-green-600">Saved</span>
+                      <span className="text-green-600">
+                        {userRole === 'editor' ? 'Submitted for approval' : 'Saved'}
+                      </span>
                     </>
                   )}
                   {saveStatus === 'error' && (
                     <>
                       <AlertCircle className="w-3 h-3 text-red-500" />
-                      <span className="text-red-600">Error saving</span>
+                      <span className="text-red-600">
+                        {userRole === 'editor' ? 'Error submitting for approval' : 'Error saving'}
+                      </span>
                     </>
                   )}
+                </div>
+              )}
+
+              {/* Changes indicator for editors */}
+              {userRole === 'editor' && originalContent && content !== originalContent && (
+                <div className="flex items-center space-x-2 text-sm text-orange-600">
+                  <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
+                  <span>Unsaved changes</span>
                 </div>
               )}
 
@@ -643,10 +808,14 @@ export default function ProjectPage() {
                 <button
                   onClick={saveContent}
                   disabled={isSaving}
-                  className="flex items-center space-x-2 px-3 py-2 text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:border-gray-400 transition-colors"
+                  className={`flex items-center space-x-2 px-3 py-2 border rounded-lg transition-colors ${
+                    userRole === 'editor'
+                      ? 'text-purple-600 hover:text-purple-800 border-purple-300 hover:border-purple-400 bg-purple-50 hover:bg-purple-100'
+                      : 'text-gray-600 hover:text-gray-800 border-gray-300 hover:border-gray-400'
+                  }`}
                 >
                   <Save className="w-4 h-4" />
-                  <span>Save</span>
+                  <span>{userRole === 'editor' ? 'Submit for Approval' : 'Save'}</span>
                 </button>
               </PermissionGate>
 
@@ -747,6 +916,16 @@ export default function ProjectPage() {
                 }`}
               >
                 History
+              </button>
+              <button
+                onClick={() => setActiveTab('approved-workflow')}
+                className={`pb-2 border-b-2 transition-colors ${
+                  activeTab === 'approved-workflow'
+                    ? 'border-orange-500 text-orange-600'
+                    : 'border-transparent text-gray-600 hover:text-gray-800'
+                }`}
+              >
+                Approved Workflow
               </button>
             </nav>
           </div>
@@ -1338,6 +1517,20 @@ export default function ProjectPage() {
             currentUserId={currentUser?.id}
             canRestore={project?.owner_id === currentUser?.id || false}
           />
+        )}
+
+        {activeTab === 'approved-workflow' && (
+          <>
+            {console.log('Rendering ApprovedWorkflow with userId:', currentUser?.id)}
+            <ApprovedWorkflow
+              projectId={projectId}
+              userId={currentUser?.id}
+              userRole={currentUserRole}
+              permissions={currentUserPermissions}
+              project={project}
+              currentUser={currentUser}
+            />
+          </>
         )}
       </div>
 

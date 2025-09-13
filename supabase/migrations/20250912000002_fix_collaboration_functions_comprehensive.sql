@@ -19,17 +19,23 @@ BEGIN
   LOOP
     CASE role_name
       WHEN 'owner' THEN
-        role_permissions := '{"read": true, "write": true, "admin": true, "invite": true, "manage_roles": true}';
+        role_permissions := '{"read": true, "write": true, "comment": true, "invite": true}';
+      WHEN 'coauthor' THEN
+        role_permissions := '{"read": true, "write": true, "comment": true, "invite": false}';
       WHEN 'editor' THEN
-        role_permissions := '{"read": true, "write": true, "admin": false, "invite": false, "manage_roles": false}';
-      WHEN 'collaborator' THEN
-        role_permissions := '{"read": true, "write": true, "admin": false, "invite": false, "manage_roles": false}';
+        role_permissions := '{"read": true, "write": true, "comment": true, "invite": false}';
+      WHEN 'translator' THEN
+        role_permissions := '{"read": true, "write": true, "comment": true, "invite": false}';
+      WHEN 'producer' THEN
+        role_permissions := '{"read": true, "write": false, "comment": true, "invite": true}';
       WHEN 'reviewer' THEN
-        role_permissions := '{"read": true, "write": false, "admin": false, "invite": false, "manage_roles": false}';
+        role_permissions := '{"read": true, "write": false, "comment": true, "invite": false}';
+      WHEN 'collaborator' THEN
+        role_permissions := '{"read": true, "write": true, "comment": true, "invite": false}';
       WHEN 'viewer' THEN
-        role_permissions := '{"read": true, "write": false, "admin": false, "invite": false, "manage_roles": false}';
+        role_permissions := '{"read": true, "write": false, "comment": true, "invite": false}';
       ELSE
-        role_permissions := '{"read": true, "write": false, "admin": false, "invite": false, "manage_roles": false}';
+        role_permissions := '{"read": true, "write": false, "comment": true, "invite": false}';
     END CASE;
     
     -- Merge permissions using OR logic

@@ -50,11 +50,15 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    // Get activity for the project
+    // Get activity for the project with enhanced metadata
     const { data: activity, error } = await supabase
       .from('project_activity')
       .select(`
-        *,
+        id,
+        activity_type,
+        description,
+        metadata,
+        created_at,
         user:profiles!project_activity_user_id_fkey (
           id,
           display_name,
@@ -71,7 +75,19 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Failed to fetch activity' }, { status: 500 })
     }
 
-    return NextResponse.json({ activity })
+    // Transform activity data to match frontend interface
+    const transformedActivity = activity?.map(item => ({
+      id: item.id,
+      type: item.activity_type,
+      message: item.description,
+      timestamp: item.created_at,
+      project_id: project_id,
+      details: item.metadata ? JSON.stringify(item.metadata) : undefined,
+      metadata: item.metadata,
+      user: item.user
+    })) || []
+
+    return NextResponse.json({ activity: transformedActivity })
   } catch (error) {
     console.error('API Error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

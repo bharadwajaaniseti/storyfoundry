@@ -430,9 +430,66 @@ export function useRealTimeCollaboration(projectId: string) {
       .subscribe()
   }
 
+  const subscribeToWorkflowSubmissions = (callback: (submission: any) => void) => {
+    return supabase
+      .channel(`workflow-submissions-${projectId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'workflow_submissions',
+          filter: `project_id=eq.${projectId}`
+        },
+        (payload) => {
+          callback(payload.new)
+        }
+      )
+      .subscribe()
+  }
+
+  const subscribeToWorkflowComments = (callback: (comment: any) => void) => {
+    return supabase
+      .channel(`workflow-comments-${projectId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'workflow_comments',
+          filter: `submission_id=in.(SELECT id FROM workflow_submissions WHERE project_id=${projectId})`
+        },
+        (payload) => {
+          callback(payload.new)
+        }
+      )
+      .subscribe()
+  }
+
+  const subscribeToWorkflowApprovals = (callback: (approval: any) => void) => {
+    return supabase
+      .channel(`workflow-approvals-${projectId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'workflow_approvals',
+          filter: `submission_id=in.(SELECT id FROM workflow_submissions WHERE project_id=${projectId})`
+        },
+        (payload) => {
+          callback(payload.new)
+        }
+      )
+      .subscribe()
+  }
+
   return {
     subscribeToMessages,
     subscribeToActivity,
-    subscribeToCollaborators
+    subscribeToCollaborators,
+    subscribeToWorkflowSubmissions,
+    subscribeToWorkflowComments,
+    subscribeToWorkflowApprovals
   }
 }

@@ -54,31 +54,43 @@ export function useProjectPermissions(projectId: string, userId?: string) {
           .eq('id', projectId)
           .single()
 
+        console.log('usePermissions debug:', { 
+          projectId, 
+          userId, 
+          project, 
+          projectOwnerId: project?.owner_id,
+          isOwner: project?.owner_id === userId 
+        })
+
         const isOwner = project?.owner_id === userId
 
         // Check if user is a collaborator
         let collaborator = null
-        try {
-          const { data } = await supabase
-            .from('project_collaborators')
-            .select(`
-              *,
-              profiles!project_collaborators_user_id_fkey (
-                id,
-                display_name,
-                avatar_url,
-                verified_pro
-              )
-            `)
-            .eq('project_id', projectId)
-            .eq('user_id', userId)
-            .eq('status', 'active')
-            .single()
-          
-          collaborator = data
-        } catch (error) {
-          console.log('Collaboration table not available, user will have owner-only access:', error)
-          // If collaboration check fails, user will only get owner permissions if they are the owner
+        // TEMPORARY FIX: Skip collaborator check to prevent infinite loop
+        // This will be re-enabled once RLS policies are fixed
+        if (false && !isOwner) {
+          try {
+            const { data } = await supabase
+              .from('project_collaborators')
+              .select(`
+                *,
+                profiles!project_collaborators_user_id_fkey (
+                  id,
+                  display_name,
+                  avatar_url,
+                  verified_pro
+                )
+              `)
+              .eq('project_id', projectId)
+              .eq('user_id', userId)
+              .eq('status', 'active')
+              .single()
+            
+            collaborator = data
+          } catch (error) {
+            console.log('Collaboration table not available, user will have owner-only access:', error)
+            // If collaboration check fails, user will only get owner permissions if they are the owner
+          }
         }
 
         // Determine permissions
@@ -102,7 +114,7 @@ export function useProjectPermissions(projectId: string, userId?: string) {
           userPermissions = getCollaboratorPermissions(collaborator)
         }
 
-        setPermissions({
+        const finalPermissions = {
           isOwner,
           isCollaborator: !!collaborator,
           collaborator,
@@ -113,7 +125,10 @@ export function useProjectPermissions(projectId: string, userId?: string) {
           canInvite: isOwner || userPermissions.invite,
           canManageCollaborators: isOwner,
           canEditProjectSettings: isOwner
-        })
+        }
+
+        console.log('Setting permissions:', finalPermissions)
+        setPermissions(finalPermissions)
       } catch (error) {
         console.error('Error checking permissions:', error)
       } finally {
@@ -121,7 +136,12 @@ export function useProjectPermissions(projectId: string, userId?: string) {
       }
     }
 
-    checkPermissions()
+    // Add debounce to prevent rapid calls
+    const timeoutId = setTimeout(() => {
+      checkPermissions()
+    }, 100)
+
+    return () => clearTimeout(timeoutId)
   }, [projectId, userId])
 
   return { permissions, loading, refetch: () => setLoading(true) }
@@ -191,7 +211,7 @@ export function useRoleBasedUI(
     return getAllRoles(permissions.collaborator)
   }
 
-  return {
+  const result = {
     permissions,
     loading,
     showElement,
@@ -201,4 +221,13 @@ export function useRoleBasedUI(
     getAllRoleNames,
     userRole: permissions.isOwner ? 'owner' : permissions.collaborator?.role || null
   }
+
+  console.log('useRoleBasedUI result:', { 
+    isOwner: permissions.isOwner,
+    userRole: result.userRole,
+    allRoleNames: getAllRoleNames(),
+    permissionsObject: permissions
+  })
+
+  return result
 }

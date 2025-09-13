@@ -52,6 +52,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import EditorWorkflowManager from './editor-workflow-manager'
 
 interface Chapter {
   id: string
@@ -100,6 +101,8 @@ export default function NovelWriter({ projectId, project }: NovelWriterProps) {
   const [replaceText, setReplaceText] = useState('')
   const [fontSize, setFontSize] = useState(16)
   const [currentAlignment, setCurrentAlignment] = useState('left')
+  const [userRole, setUserRole] = useState<'owner' | 'editor' | 'other' | null>(null)
+  const [originalChapterContent, setOriginalChapterContent] = useState('')
 
   const [showTopHint, setShowTopHint] = useState(false)
   const [showBottomHint, setShowBottomHint] = useState(false)
@@ -245,6 +248,7 @@ export default function NovelWriter({ projectId, project }: NovelWriterProps) {
 
   useEffect(() => {
     loadChapters()
+    checkUserRole()
   }, [projectId])
 
   // Auto-resize textarea when content changes
@@ -253,6 +257,54 @@ export default function NovelWriter({ projectId, project }: NovelWriterProps) {
       autoResizeTextarea(textareaRef)
     }
   }, [activeChapter?.content, textareaRef])
+
+  // Store original content when chapter changes
+  useEffect(() => {
+    if (activeChapter) {
+      setOriginalChapterContent(activeChapter.content)
+    }
+  }, [activeChapter?.id])
+
+  const checkUserRole = async () => {
+    try {
+      const supabase = createSupabaseClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (!user) return
+
+      // Check if user is project owner
+      const { data: projectData } = await supabase
+        .from('projects')
+        .select('owner_id')
+        .eq('id', projectId)
+        .single()
+
+      if (projectData?.owner_id === user.id) {
+        setUserRole('owner')
+        return
+      }
+
+      // Check if user is a collaborator and their role
+      const { data: collaborator } = await supabase
+        .from('project_collaborators')
+        .select('role, secondary_roles')
+        .eq('project_id', projectId)
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .single()
+
+      if (collaborator) {
+        const isEditor = collaborator.role === 'editor' || 
+                        (collaborator.secondary_roles && collaborator.secondary_roles.includes('editor'))
+        setUserRole(isEditor ? 'editor' : 'other')
+      } else {
+        setUserRole('other')
+      }
+    } catch (error) {
+      console.error('Error checking user role:', error)
+      setUserRole('other')
+    }
+  }
 
   const loadChapters = async () => {
     try {
@@ -311,6 +363,12 @@ export default function NovelWriter({ projectId, project }: NovelWriterProps) {
   const saveChapter = async (chapter: Chapter) => {
     if (!chapter) return
 
+    // For editors, we don't save directly - they use the approval workflow
+    if (userRole === 'editor') {
+      // This function is only called for non-editors now
+      return
+    }
+
     setIsSaving(true)
     setSaveStatus('saving')
 
@@ -330,6 +388,10 @@ export default function NovelWriter({ projectId, project }: NovelWriterProps) {
       if (error) throw error
 
       setSaveStatus('saved')
+      
+      // Update original content after successful save
+      setOriginalChapterContent(chapter.content)
+      
       setTimeout(() => setSaveStatus(null), 2000)
     } catch (error) {
       // Error saving chapter
@@ -337,6 +399,18 @@ export default function NovelWriter({ projectId, project }: NovelWriterProps) {
     } finally {
       setIsSaving(false)
     }
+  }
+
+  const handleWorkflowComplete = (success: boolean, message: string) => {
+    if (success) {
+      setSaveStatus('saved')
+      // Show the message to user - in a real app you'd use a toast notification
+      console.log(message)
+    } else {
+      setSaveStatus('error')
+      console.error(message)
+    }
+    setTimeout(() => setSaveStatus(null), 3000)
   }
 
   const updateActiveChapter = (updates: Partial<Chapter>) => {
@@ -710,14 +784,17 @@ export default function NovelWriter({ projectId, project }: NovelWriterProps) {
                       </div>
                     )}
 
-                    <Button
-                      onClick={() => saveChapter(activeChapter)}
-                      disabled={isSaving}
-                      size="sm"
-                    >
-                      <Save className="w-4 h-4 mr-2" />
-                      Save
-                    </Button>
+                    {/* Only show direct save button for non-editors */}
+                    {userRole !== 'editor' && (
+                      <Button
+                        onClick={() => saveChapter(activeChapter)}
+                        disabled={isSaving}
+                        size="sm"
+                      >
+                        <Save className="w-4 h-4 mr-2" />
+                        Save
+                      </Button>
+                    )}
                   </div>
                 </div>
 
@@ -1068,6 +1145,22 @@ export default function NovelWriter({ projectId, project }: NovelWriterProps) {
                   )}
                 </div>
               </div>
+
+              {/* Editor Workflow Manager for editors */}
+              {userRole === 'editor' && activeChapter && (
+                <div className="border-t border-gray-200 bg-gray-50 p-4">
+                  <EditorWorkflowManager
+                    projectId={projectId}
+                    chapterId={activeChapter.id}
+                    contentType="chapter"
+                    originalContent={originalChapterContent}
+                    currentContent={activeChapter.content}
+                    contentTitle={activeChapter.title}
+                    isEditor={true}
+                    onSaveComplete={handleWorkflowComplete}
+                  />
+                </div>
+              )}
             </>
           ) : (
             <div className="flex-1 flex items-center justify-center">
