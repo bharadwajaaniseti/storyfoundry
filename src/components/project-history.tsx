@@ -20,6 +20,66 @@ import {
   AlertCircle
 } from 'lucide-react'
 
+// Helper function to get vibrant colors for different tag types
+const getTagStyles = (tag: string) => {
+  const tagLower = tag.toLowerCase()
+  
+  // Primary action tags
+  if (tagLower.includes('approved')) {
+    return 'px-2 py-1 text-xs bg-green-100 text-green-800 border border-green-200 rounded-full font-medium'
+  }
+  if (tagLower.includes('rejected')) {
+    return 'px-2 py-1 text-xs bg-red-100 text-red-800 border border-red-200 rounded-full font-medium'
+  }
+  if (tagLower.includes('pending')) {
+    return 'px-2 py-1 text-xs bg-yellow-100 text-yellow-800 border border-yellow-200 rounded-full font-medium'
+  }
+  
+  // Storage and sync tags
+  if (tagLower.includes('owner edit')) {
+    return 'px-2 py-1 text-xs bg-purple-100 text-purple-800 border border-purple-200 rounded-full font-medium'
+  }
+  if (tagLower.includes('synced') || tagLower.includes('auto synced')) {
+    return 'px-2 py-1 text-xs bg-blue-100 text-blue-800 border border-blue-200 rounded-full font-medium'
+  }
+  if (tagLower.includes('projects table')) {
+    return 'px-2 py-1 text-xs bg-indigo-100 text-indigo-800 border border-indigo-200 rounded-full font-medium'
+  }
+  
+  // Edit type tags
+  if (tagLower.includes('collaborator edit')) {
+    return 'px-2 py-1 text-xs bg-orange-100 text-orange-800 border border-orange-200 rounded-full font-medium'
+  }
+  if (tagLower.includes('major edit')) {
+    return 'px-2 py-1 text-xs bg-pink-100 text-pink-800 border border-pink-200 rounded-full font-medium'
+  }
+  if (tagLower.includes('minor edit')) {
+    return 'px-2 py-1 text-xs bg-cyan-100 text-cyan-800 border border-cyan-200 rounded-full font-medium'
+  }
+  
+  // Content change indicators
+  if (tagLower.includes('+') && tagLower.includes('words')) {
+    return 'px-2 py-1 text-xs bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-full font-medium'
+  }
+  if (tagLower.includes('-') && tagLower.includes('words')) {
+    return 'px-2 py-1 text-xs bg-amber-100 text-amber-800 border border-amber-200 rounded-full font-medium'
+  }
+  
+  // Special content tags
+  if (tagLower.includes('initial content') || tagLower.includes('auto created')) {
+    return 'px-2 py-1 text-xs bg-slate-100 text-slate-800 border border-slate-200 rounded-full font-medium'
+  }
+  if (tagLower.includes('expansion') || tagLower.includes('major')) {
+    return 'px-2 py-1 text-xs bg-violet-100 text-violet-800 border border-violet-200 rounded-full font-medium'
+  }
+  if (tagLower.includes('trimmed') || tagLower.includes('reduction')) {
+    return 'px-2 py-1 text-xs bg-rose-100 text-rose-800 border border-rose-200 rounded-full font-medium'
+  }
+  
+  // Default styling for unknown tags
+  return 'px-2 py-1 text-xs bg-gray-100 text-gray-700 border border-gray-200 rounded-full font-medium'
+}
+
 interface Version {
   id: string
   version_number: number
@@ -382,7 +442,7 @@ export default function ProjectHistory({ projectId, currentUserId, canRestore = 
                               )}
                               
                               {version.tags.map((tag) => (
-                                <span key={tag} className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded-full">
+                                <span key={tag} className={getTagStyles(tag)}>
                                   {tag}
                                 </span>
                               ))}

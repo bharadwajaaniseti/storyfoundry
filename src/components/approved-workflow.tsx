@@ -34,6 +34,55 @@ import { useWorkflow } from '@/hooks/useWorkflow'
 import { PermissionGate } from '@/components/permission-gate'
 import { hasRole, getAllRoles, type CollaborationRole } from '@/lib/collaboration-utils'
 
+// Helper function to get vibrant colors for different tag types (shared with project-history)
+const getTagStyles = (tag: string) => {
+  const tagLower = tag.toLowerCase()
+  
+  // Primary action tags
+  if (tagLower.includes('approved')) {
+    return 'text-xs bg-green-100 text-green-800 border border-green-200 rounded font-medium px-2 py-1'
+  }
+  if (tagLower.includes('rejected')) {
+    return 'text-xs bg-red-100 text-red-800 border border-red-200 rounded font-medium px-2 py-1'
+  }
+  if (tagLower.includes('pending')) {
+    return 'text-xs bg-yellow-100 text-yellow-800 border border-yellow-200 rounded font-medium px-2 py-1'
+  }
+  
+  // Storage and sync tags
+  if (tagLower.includes('owner edit')) {
+    return 'text-xs bg-purple-100 text-purple-800 border border-purple-200 rounded font-medium px-2 py-1'
+  }
+  if (tagLower.includes('synced') || tagLower.includes('auto synced')) {
+    return 'text-xs bg-blue-100 text-blue-800 border border-blue-200 rounded font-medium px-2 py-1'
+  }
+  if (tagLower.includes('projects table')) {
+    return 'text-xs bg-indigo-100 text-indigo-800 border border-indigo-200 rounded font-medium px-2 py-1'
+  }
+  
+  // Edit type tags
+  if (tagLower.includes('collaborator edit')) {
+    return 'text-xs bg-orange-100 text-orange-800 border border-orange-200 rounded font-medium px-2 py-1'
+  }
+  if (tagLower.includes('major edit')) {
+    return 'text-xs bg-pink-100 text-pink-800 border border-pink-200 rounded font-medium px-2 py-1'
+  }
+  if (tagLower.includes('minor edit')) {
+    return 'text-xs bg-cyan-100 text-cyan-800 border border-cyan-200 rounded font-medium px-2 py-1'
+  }
+  
+  // Content change indicators
+  if (tagLower.includes('+') && tagLower.includes('words')) {
+    return 'text-xs bg-emerald-100 text-emerald-800 border border-emerald-200 rounded font-medium px-2 py-1'
+  }
+  if (tagLower.includes('-') && tagLower.includes('words')) {
+    return 'text-xs bg-amber-100 text-amber-800 border border-amber-200 rounded font-medium px-2 py-1'
+  }
+  
+  // Default styling for unknown tags
+  return 'text-xs bg-gray-100 text-gray-600 border border-gray-200 rounded font-medium px-2 py-1'
+}
+
 interface ApprovedWorkflowProps {
   projectId: string
   userId?: string
@@ -1021,7 +1070,7 @@ export default function ApprovedWorkflow({ projectId, userId, userRole: passedUs
                           {item.tags && item.tags.length > 0 && (
                             <div className="flex flex-wrap gap-1 mb-3">
                               {item.tags.map(tag => (
-                                <span key={tag} className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
+                                <span key={tag} className={getTagStyles(tag)}>
                                   #{tag}
                                 </span>
                               ))}

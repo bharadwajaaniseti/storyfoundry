@@ -345,76 +345,114 @@ export async function POST(
             
             console.log('✅ Updated projects.synopsis')
             
-            // Step 2: Update/create project_content table entry
-            // The key insight: We'll bypass the trigger by first checking if the record exists
-            // and handling it appropriately
+            // Step 2: Update/create project_content table entry using safe sync approach
+            console.log('\n🔄 Step 2: Safely syncing to project_content table...')
             
             let projectContentSynced = false
             
-            const { data: existingContent, error: checkError } = await supabase
-              .from('project_content')
-              .select('id')
-              .eq('project_id', projectId)
-              .eq('asset_type', 'content')
-              .single()
-
-            if (checkError && checkError.code !== 'PGRST116') {
-              console.log('⚠️  Error checking existing content:', checkError.message)
-            }
-
-            if (existingContent) {
-              // Record exists, update it directly using authenticated supabase client
-              console.log('📝 Updating existing project_content record...')
-              
-              const { error: updateError } = await supabase
+            // Use the authenticated client for project_content operations to provide user context
+            // This ensures auth.uid() works properly in the auto-versioning trigger
+            try {
+              const { data: existingContent, error: checkError } = await supabase
                 .from('project_content')
-                .update({
-                  content: pendingChange.proposed_content,
-                  filename: project.title + '_content.txt',
-                  updated_at: new Date().toISOString()
-                })
-                .eq('id', existingContent.id) // Use the specific ID to avoid trigger issues
+                .select('id')
+                .eq('project_id', projectId)
+                .eq('asset_type', 'content')
+                .single()
 
-              if (updateError) {
-                console.log('⚠️  project_content update failed:', updateError.message)
+              if (checkError && checkError.code !== 'PGRST116') {
+                console.log('⚠️  Error checking existing content:', checkError.message)
+              }
+
+              if (existingContent) {
+                // Record exists, update it using authenticated client
+                console.log('📝 Updating existing project_content record with user context...')
+                
+                const { error: updateError } = await supabase
+                  .from('project_content')
+                  .update({
+                    content: pendingChange.proposed_content,
+                    filename: project.title + '_content.txt',
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('id', existingContent.id)
+
+                if (updateError) {
+                  console.log('⚠️  project_content update failed:', updateError.message)
+                  console.log('Error details:', updateError)
+                } else {
+                  console.log('✅ Successfully updated project_content table with versioning')
+                  projectContentSynced = true
+                }
+                
               } else {
-                console.log('✅ Successfully updated project_content table')
-                projectContentSynced = true
+                // Record doesn't exist, create it using authenticated client  
+                console.log('📝 Creating new project_content record with user context...')
+                
+                const { error: createError } = await supabase
+                  .from('project_content')
+                  .insert({
+                    project_id: projectId,
+                    filename: project.title + '_content.txt',
+                    content: pendingChange.proposed_content,
+                    asset_type: 'content',
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                  })
+
+                if (createError) {
+                  console.log('⚠️  project_content creation failed:', createError.message)
+                  console.log('Error details:', createError)
+                } else {
+                  console.log('✅ Successfully created project_content record with versioning')
+                  projectContentSynced = true
+                }
               }
               
-            } else {
-              // Record doesn't exist, create it using authenticated supabase client  
-              console.log('📝 Creating new project_content record...')
-              
-              const { error: createError } = await supabase
-                .from('project_content')
-                .insert({
-                  project_id: projectId,
-                  filename: project.title + '_content.txt',
-                  content: pendingChange.proposed_content,
-                  asset_type: 'content',
-                  created_at: new Date().toISOString(),
-                  updated_at: new Date().toISOString()
-                })
-
-              if (createError) {
-                console.log('⚠️  project_content creation failed:', createError.message)
-              } else {
-                console.log('✅ Successfully created project_content record')
-                projectContentSynced = true
-              }
+            } catch (syncError) {
+              console.log('⚠️  Project content sync attempt failed:', (syncError as Error).message)
             }
             
             changesApplied = true
             
-            // Update version with appropriate tags
-            const versionTags = projectContentSynced 
-              ? ['Approved', 'Collaborator Edit', 'Dual Storage'] 
-              : ['Approved', 'Collaborator Edit', 'Projects Table']
+            // Calculate word count for enhanced tagging
+            const currentWordCount = pendingChange.proposed_content.split(/\s+/).filter((word: string) => word.length > 0).length
+            const previousWordCount = pendingChange.original_content?.split(/\s+/).filter((word: string) => word.length > 0).length || 0
+            const wordDiff = currentWordCount - previousWordCount
+            
+            // Update version with appropriate tags including word count indicators
+            const versionTags = []
+            
+            // Core approval tags
+            versionTags.push('Approved', 'Collaborator Edit')
+            
+            // Add owner edit tag since owner is approving
+            versionTags.push('Owner Edit')
+            
+            // Storage type tags
+            if (projectContentSynced) {
+              versionTags.push('Synced')
+            } else {
+              versionTags.push('Projects Table')
+            }
+            
+            // Word count change indicators for better UX
+            if (wordDiff > 0) {
+              versionTags.push(`+${wordDiff} words`)
+            } else if (wordDiff < 0) {
+              versionTags.push(`${wordDiff} words`)
+            }
+            
+            // Content change magnitude tags
+            if (Math.abs(wordDiff) > 100) {
+              versionTags.push('Major Edit')
+            } else if (Math.abs(wordDiff) > 20) {
+              versionTags.push('Minor Edit')
+            }
               
             const versionNotes = projectContentSynced
-              ? 'Approved and stored in both project_content and projects.synopsis'
-              : 'Approved and stored in projects.synopsis (primary storage)'
+              ? `Approved and stored in both project_content and projects.synopsis (${currentWordCount} words, ${wordDiff >= 0 ? '+' : ''}${wordDiff} change)`
+              : `Approved and stored in projects.synopsis (primary storage) (${currentWordCount} words, ${wordDiff >= 0 ? '+' : ''}${wordDiff} change)`
               
             await serviceSupabase
               .from('project_content_versions')
