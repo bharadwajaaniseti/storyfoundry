@@ -2479,11 +2479,17 @@ function NovelPageInner() {
         )
 
       case 'locations':
-        return (
-          <LocationsPanel 
-            projectId={project.id}
-          />
-        )
+        {
+          const elementsForLocations = getElementsForCategory('locations')
+          const worldItemsForLocations = elementsForLocations.filter((e): e is WorldElement => (e as Chapter).chapter_number === undefined)
+          const foldersForLocations = getFoldersForCategory('locations')
+          return (
+            <LocationsPanel 
+              projectId={project.id}
+              openCreateOnOpen={foldersForLocations.length === 0 && worldItemsForLocations.length === 0}
+            />
+          )
+        }
 
       case 'chapters':
         return (
