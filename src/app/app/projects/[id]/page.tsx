@@ -130,6 +130,13 @@ export default function ProjectPage() {
   const [userRole, setUserRole] = useState<'owner' | 'editor' | 'other' | null>(null)
   const [originalContent, setOriginalContent] = useState('')
   
+  // Comment functionality state
+  const [comments, setComments] = useState<any[]>([])
+  const [commentText, setCommentText] = useState('')
+  const [sidebarCommentText, setSidebarCommentText] = useState('')
+  const [isLoadingComments, setIsLoadingComments] = useState(true)
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false)
+  
   // Content sync status tracking
   const [syncStatus, setSyncStatus] = useState<{
     hasProjectContent: boolean
@@ -151,6 +158,26 @@ export default function ProjectPage() {
   // Collaboration data
   const { collaborators, pendingInvitations, loading: collaboratorsLoading, error: collaboratorsError, refresh: refreshCollaborators } = useProjectCollaborators(projectId)
 
+  // Comment loading function
+  const loadComments = async () => {
+    if (!projectId) return
+    
+    setIsLoadingComments(true)
+    try {
+      const response = await fetch(`/api/projects/${projectId}/comments`)
+      if (response.ok) {
+        const data = await response.json()
+        setComments(data.comments || [])
+      } else {
+        console.error('Failed to load comments:', response.statusText)
+      }
+    } catch (error) {
+      console.error('Error loading comments:', error)
+    } finally {
+      setIsLoadingComments(false)
+    }
+  }
+
   // Load current user
   useEffect(() => {
     async function loadCurrentUser() {
@@ -170,6 +197,73 @@ export default function ProjectPage() {
     }
     loadCurrentUser()
   }, [])
+
+  // Load comments for the project
+  useEffect(() => {
+    loadComments()
+  }, [projectId])
+
+  // Real-time comment subscription
+  useEffect(() => {
+    if (!projectId) return
+
+    const supabase = createSupabaseClient()
+    const channel = supabase
+      .channel(`project-comments-${projectId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'collaboration_project_comments',
+          filter: `project_id=eq.${projectId}`
+        },
+        async (payload) => {
+          console.log('Real-time comment update:', payload)
+          if (payload.eventType === 'INSERT') {
+            // Fetch the complete comment with user data
+            const { data: newComment } = await supabase
+              .from('collaboration_project_comments')
+              .select(`
+                id,
+                content,
+                created_at,
+                updated_at,
+                parent_id,
+                user:profiles!collaboration_project_comments_user_id_fkey (
+                  id,
+                  display_name,
+                  avatar_url,
+                  verified_pro
+                )
+              `)
+              .eq('id', payload.new.id)
+              .single()
+
+            if (newComment && newComment.user && !Array.isArray(newComment.user)) {
+              setComments(prev => [...prev, newComment as any])
+            }
+          } else if (payload.eventType === 'UPDATE') {
+            setComments(prev => 
+              prev.map(comment => 
+                comment.id === payload.new.id 
+                  ? { ...comment, ...payload.new }
+                  : comment
+              )
+            )
+          } else if (payload.eventType === 'DELETE') {
+            setComments(prev => 
+              prev.filter(comment => comment.id !== payload.old.id)
+            )
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [projectId])
 
   // Handler functions for collaboration actions
   const handleSendMessage = (userId: string, userName?: string, userAvatar?: string, userRole?: string) => {
@@ -218,6 +312,52 @@ export default function ProjectPage() {
       }
     } catch (error) {
       throw error
+    }
+  }
+
+  // Comment functionality
+  const submitComment = async (text: string, isFromSidebar = false) => {
+    if (!text.trim() || !currentUser) return
+
+    try {
+      setIsSubmittingComment(true)
+      const response = await fetch(`/api/projects/${projectId}/comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: text.trim()
+        })
+      })
+
+      if (response.ok) {
+        // Clear the appropriate textarea
+        if (isFromSidebar) {
+          setSidebarCommentText('')
+        } else {
+          setCommentText('')
+        }
+        
+        addToast({
+          type: 'success',
+          title: 'Comment added',
+          message: 'Your comment has been posted successfully.'
+        })
+      } else {
+        // Get the error message from the API response
+        const errorData = await response.json().catch(() => ({}))
+        const errorMessage = errorData.error || 'Failed to post comment'
+        throw new Error(errorMessage)
+      }
+    } catch (error) {
+      console.error('Error submitting comment:', error)
+      const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred'
+      addToast({
+        type: 'error',
+        title: 'Failed to post comment',
+        message: errorMessage
+      })
+    } finally {
+      setIsSubmittingComment(false)
     }
   }
 
@@ -295,6 +435,69 @@ export default function ProjectPage() {
       }
     }
   }, [content, userRole])
+
+  // Set up real-time comment subscription
+  useEffect(() => {
+    if (!projectId) return
+
+    const supabase = createSupabaseClient()
+
+    // Set up real-time subscription for comments
+    const channel = supabase
+      .channel(`collaboration_project_comments:${projectId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'collaboration_project_comments',
+          filter: `project_id=eq.${projectId}`
+        },
+        async (payload) => {
+          if (payload.eventType === 'INSERT') {
+            // Fetch the new comment with user data
+            const { data: newComment } = await supabase
+              .from('collaboration_project_comments')
+              .select(`
+                id,
+                content,
+                created_at,
+                updated_at,
+                parent_id,
+                user:profiles (
+                  id,
+                  display_name,
+                  avatar_url,
+                  verified_pro
+                )
+              `)
+              .eq('id', payload.new.id)
+              .single()
+
+            if (newComment && newComment.user && !Array.isArray(newComment.user)) {
+              setComments(prev => [newComment as any, ...prev])
+            }
+          } else if (payload.eventType === 'UPDATE') {
+            setComments(prev => 
+              prev.map(comment => 
+                comment.id === payload.new.id 
+                  ? { ...comment, ...payload.new }
+                  : comment
+              )
+            )
+          } else if (payload.eventType === 'DELETE') {
+            setComments(prev => 
+              prev.filter(comment => comment.id !== payload.old.id)
+            )
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [projectId])
 
   const checkUserRole = async () => {
     if (!currentUser || !project) return
@@ -1177,6 +1380,11 @@ export default function ProjectPage() {
                 userId={currentUser?.id}
                 project={project}
                 content={content}
+                comments={comments}
+                commentText={sidebarCommentText}
+                onCommentTextChange={setSidebarCommentText}
+                onSubmitComment={(text) => submitComment(text, true)}
+                isSubmittingComment={isSubmittingComment}
               />
             </div>
           </div>

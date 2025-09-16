@@ -10,20 +10,31 @@ interface Comment {
   created_at: string
   updated_at: string
   parent_id: string | null
+  linked_comment_id: string | null
   user: {
     id: string
     display_name: string
     avatar_url?: string
     verified_pro: boolean
   }
+  linked_comment?: {
+    id: string
+    content: string
+    created_at: string
+    user: {
+      display_name: string
+    }
+  }
 }
 
 interface ProjectCommentsProps {
   projectId: string
   userId?: string
+  type?: 'collaboration' | 'reader'
+  linkedCommentId?: string
 }
 
-export default function ProjectComments({ projectId, userId }: ProjectCommentsProps) {
+export default function ProjectComments({ projectId, userId, type = 'collaboration', linkedCommentId }: ProjectCommentsProps) {
   const [comments, setComments] = useState<Comment[]>([])
   const [newComment, setNewComment] = useState('')
   const [isLoading, setIsLoading] = useState(true)
@@ -37,7 +48,11 @@ export default function ProjectComments({ projectId, userId }: ProjectCommentsPr
     // Load initial comments
     const loadComments = async () => {
       try {
-        const response = await fetch(`/api/projects/comments?projectId=${projectId}`)
+        const endpoint = type === 'collaboration' 
+          ? `/api/projects/${projectId}/comments`
+          : `/api/projects/${projectId}/reader-comments`
+        
+        const response = await fetch(endpoint)
         if (response.ok) {
           const data = await response.json()
           setComments(data.comments || [])
@@ -57,13 +72,13 @@ export default function ProjectComments({ projectId, userId }: ProjectCommentsPr
 
     // Set up real-time subscription
     const channel = supabase
-      .channel(`collaboration_project_comments_${projectId}`)
+      .channel(`${type}_project_comments_${projectId}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
-          table: 'collaboration_project_comments',
+          table: type === 'collaboration' ? 'collaboration_project_comments' : 'project_comments',
           filter: `project_id=eq.${projectId}`
         },
         async (payload) => {
@@ -71,15 +86,21 @@ export default function ProjectComments({ projectId, userId }: ProjectCommentsPr
           
           if (payload.eventType === 'INSERT') {
             // Fetch the full comment data with user info
+            const tableName = type === 'collaboration' ? 'collaboration_project_comments' : 'project_comments'
+            const userRelation = type === 'collaboration' 
+              ? 'profiles!collaboration_project_comments_user_id_fkey'
+              : 'profiles!project_comments_user_id_fkey'
+            
             const { data: newComment } = await supabase
-              .from('collaboration_project_comments')
+              .from(tableName)
               .select(`
                 id,
                 content,
                 created_at,
                 updated_at,
                 parent_id,
-                user:profiles (
+                ${type === 'collaboration' ? 'linked_comment_id,' : 'collaboration_response_id,'}
+                user:${userRelation} (
                   id,
                   display_name,
                   avatar_url,
@@ -122,12 +143,16 @@ export default function ProjectComments({ projectId, userId }: ProjectCommentsPr
     setIsSubmitting(true)
 
     try {
-      const response = await fetch('/api/projects/comments', {
+      const endpoint = type === 'collaboration' 
+        ? `/api/projects/${projectId}/comments`
+        : `/api/projects/${projectId}/reader-comments`
+      
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          projectId,
-          content: newComment.trim()
+          content: newComment.trim(),
+          ...(linkedCommentId && type === 'collaboration' && { linkedCommentId })
         })
       })
 
@@ -135,11 +160,15 @@ export default function ProjectComments({ projectId, userId }: ProjectCommentsPr
         setNewComment('')
         // Comment will be added via real-time subscription
       } else {
-        throw new Error('Failed to post comment')
+        // Get the error message from the API response
+        const errorData = await response.json().catch(() => ({}))
+        const errorMessage = errorData.error || 'Failed to post comment'
+        throw new Error(errorMessage)
       }
     } catch (error) {
       console.error('Error posting comment:', error)
-      alert('Failed to post comment')
+      const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred'
+      alert(`Failed to post comment: ${errorMessage}`)
     } finally {
       setIsSubmitting(false)
     }
@@ -168,8 +197,15 @@ export default function ProjectComments({ projectId, userId }: ProjectCommentsPr
     <div className="bg-white rounded-xl border border-gray-200 p-6">
       <div className="flex items-center space-x-2 mb-6">
         <MessageSquare className="w-5 h-5 text-blue-600" />
-        <h3 className="text-lg font-semibold text-gray-800">Comments</h3>
+        <h3 className="text-lg font-semibold text-gray-800">
+          {type === 'collaboration' ? 'Team Comments' : 'Reader Comments'}
+        </h3>
         <span className="text-sm text-gray-500">({comments.length})</span>
+        {linkedCommentId && type === 'collaboration' && (
+          <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
+            Responding to reader comment
+          </span>
+        )}
       </div>
 
       {/* Comment Form */}
@@ -244,6 +280,19 @@ export default function ProjectComments({ projectId, userId }: ProjectCommentsPr
                       <span>{formatTime(comment.created_at)}</span>
                     </div>
                   </div>
+                  
+                  {/* Show linked comment reference for collaboration comments */}
+                  {type === 'collaboration' && comment.linked_comment && (
+                    <div className="mb-2 p-2 bg-blue-50 border-l-2 border-blue-200 rounded text-xs">
+                      <div className="text-blue-600 font-medium">
+                        Responding to: {comment.linked_comment.user.display_name}
+                      </div>
+                      <div className="text-gray-600 truncate">
+                        "{comment.linked_comment.content.substring(0, 100)}..."
+                      </div>
+                    </div>
+                  )}
+                  
                   <p className="text-gray-700 whitespace-pre-wrap">{comment.content}</p>
                 </div>
               </div>

@@ -19,18 +19,43 @@ import {
   Eye
 } from 'lucide-react'
 
+interface Comment {
+  id: string
+  content: string
+  created_at: string
+  updated_at: string
+  parent_id: string | null
+  user?: {
+    id: string
+    display_name: string
+    avatar_url?: string
+    verified_pro: boolean
+  }
+  author_name?: string
+}
+
 interface RoleSpecificSidebarProps {
   projectId: string
   userId?: string
   project: any
   content: string
+  comments?: Comment[]
+  commentText?: string
+  onCommentTextChange?: (text: string) => void
+  onSubmitComment?: (text: string) => void
+  isSubmittingComment?: boolean
 }
 
 export default function RoleSpecificSidebar({ 
   projectId, 
   userId, 
   project, 
-  content 
+  content,
+  comments = [],
+  commentText = '',
+  onCommentTextChange,
+  onSubmitComment,
+  isSubmittingComment = false
 }: RoleSpecificSidebarProps) {
   const { userRole, getAllRoleNames } = useRoleBasedUI(projectId, userId)
   
@@ -163,14 +188,47 @@ export default function RoleSpecificSidebar({
                 <p className="text-xs text-blue-600">Rate the current content quality</p>
               </div>
             )}
-            <div className="space-y-2">
+            <div className="space-y-3">
+              {/* Display existing comments */}
+              {comments.length > 0 && (
+                <div className="max-h-48 overflow-y-auto space-y-2">
+                  {comments.map((comment) => (
+                    <div key={comment.id} className="bg-white p-3 rounded-lg border border-blue-200">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm font-medium text-blue-800">
+                          {comment.user?.display_name || 'Anonymous'}
+                        </span>
+                        <span className="text-xs text-blue-600">
+                          {new Date(comment.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-700">{comment.content}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {/* Add new comment */}
               <textarea 
+                value={commentText}
+                onChange={(e) => onCommentTextChange?.(e.target.value)}
                 placeholder={allRoles.includes('reviewer') ? "Provide detailed feedback..." : "Add a comment..."}
                 className="w-full p-3 border border-blue-300 rounded-lg text-sm resize-none"
                 rows={3}
               />
-              <button className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors text-sm">
-                {allRoles.includes('reviewer') ? 'Submit Review' : 'Add Comment'}
+              <button 
+                onClick={() => {
+                  if (commentText.trim() && onSubmitComment) {
+                    onSubmitComment(commentText)
+                  }
+                }}
+                disabled={!commentText.trim() || isSubmittingComment}
+                className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed transition-colors text-sm"
+              >
+                {isSubmittingComment 
+                  ? 'Submitting...' 
+                  : allRoles.includes('reviewer') ? 'Submit Review' : 'Add Comment'
+                }
               </button>
             </div>
           </div>
