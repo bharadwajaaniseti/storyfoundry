@@ -721,12 +721,7 @@ export default function ApprovedWorkflow({ projectId, userId, userRole: passedUs
                 }
               })()}
               
-              <PermissionGate projectId={projectId} userId={userId} requiredPermission="write">
-                <button className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition-colors text-sm">
-                  <Settings className="w-4 h-4 inline mr-2" />
-                  Configure Workflow
-                </button>
-              </PermissionGate>
+              {/* Configure Workflow button removed (placeholder) */}
             </div>
           </div>
           

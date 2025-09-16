@@ -143,16 +143,7 @@ export default function RoleWorkflowManager({
               Track progress and manage role-based tasks
             </p>
           </div>
-          <PermissionGate 
-            projectId={projectId} 
-            userId={userId} 
-            requiredPermission="write"
-          >
-            <button className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors">
-              <Settings className="w-4 h-4 inline mr-2" />
-              Configure Workflow
-            </button>
-          </PermissionGate>
+          {/* Configure Workflow button removed until feature implemented */}
         </div>
       </div>
 
