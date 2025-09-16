@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
+import RoleTag from './role-tag'
 import { useRoleBasedUI } from '@/hooks/usePermissions'
 import { PermissionGate } from '@/components/permission-gate'
 import { 
@@ -185,9 +186,7 @@ export default function RoleWorkflowManager({
                     <div className="flex items-center space-x-3 mb-2">
                       {getStatusIcon(step.status)}
                       <h3 className="font-semibold text-gray-800">{step.title}</h3>
-                      <span className={`px-2 py-1 text-xs rounded-full ${getRoleColor(step.assignedRole)}`}>
-                        {step.assignedRole}
-                      </span>
+                      <RoleTag role={step.assignedRole} />
                     </div>
                     <p className="text-gray-600 text-sm mb-2">{step.description}</p>
                     {step.dueDate && (
@@ -244,9 +243,7 @@ export default function RoleWorkflowManager({
                         <div className="flex items-center space-x-3 mb-2">
                           {getStatusIcon(step.status)}
                           <h3 className="font-semibold text-gray-800">{step.title}</h3>
-                          <span className={`px-2 py-1 text-xs rounded-full ${getRoleColor(step.assignedRole)}`}>
-                            {step.assignedRole}
-                          </span>
+                          <RoleTag role={step.assignedRole} />
                         </div>
                         <p className="text-gray-600 text-sm">{step.description}</p>
                         {step.dueDate && (
@@ -309,9 +306,7 @@ export default function RoleWorkflowManager({
                         <div className="flex-1">
                           <div className="flex items-center space-x-3 mb-2">
                             <h3 className="font-semibold text-gray-800">{step.title}</h3>
-                            <span className={`px-2 py-1 text-xs rounded-full ${getRoleColor(step.assignedRole)}`}>
-                              {step.assignedRole}
-                            </span>
+                            <RoleTag role={step.assignedRole} />
                           </div>
                           <div className="flex items-center space-x-4 text-sm">
                             <div className="flex items-center space-x-1">

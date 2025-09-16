@@ -35,7 +35,9 @@ import SendMessageModal from '@/components/send-message-modal'
 import EditCollaboratorModal from '@/components/edit-collaborator-modal'
 import EditInvitationModal from '@/components/edit-invitation-modal'
 import { useProjectCollaborators } from '@/hooks/useCollaboration'
-import { ToastProvider, useToast } from '@/components/toast'
+import { ToastProvider, useToast } from '@/components/ui/toast'
+import { useRoleBasedUI } from '@/hooks/usePermissions'
+import RoleTag from '@/components/role-tag'
 
 // Type definitions
 interface Project {
@@ -238,6 +240,7 @@ function NovelPageInner() {
   // Collaboration data
   const { collaborators, pendingInvitations, loading: collaboratorsLoading, error: collaboratorsError, refresh: refreshCollaborators, updateCollaborator, removeCollaborator } = useProjectCollaborators(project?.id || '')
   const toast = useToast()
+  const { getAllRoleNames, userRole } = useRoleBasedUI(project?.id || '', currentUser?.id)
 
   // Load project data
   useEffect(() => {
@@ -1941,7 +1944,15 @@ function NovelPageInner() {
         case 'history':
           return <ProjectHistory projectId={project.id} />
         case 'approved-workflow':
-          return <ApprovedWorkflow projectId={project.id} />
+          return (
+            <ApprovedWorkflow
+              projectId={project.id}
+              project={project}
+              currentUser={currentUser}
+              userId={currentUser?.id}
+              userRole={userRole}
+            />
+          )
         default:
           break
       }
@@ -2652,6 +2663,21 @@ function NovelPageInner() {
                 <Button size="sm" variant="ghost" className="text-gray-400 hover:text-gray-600 hover:bg-gray-100" onClick={() => setShowSettingsModal(true)}>
                   <Settings className="w-4 h-4" />
                 </Button>
+                {/* User avatar + role tag */}
+                <div className="flex items-center space-x-3 pr-2">
+                  {currentUser ? (
+                    <>
+                      <img
+                        src={currentUser?.user_metadata?.avatar_url || currentUser?.avatar_url || project?.owner?.avatar_url || ''}
+                        alt={currentUser?.user_metadata?.full_name || currentUser?.display_name || 'User'}
+                        className="w-8 h-8 rounded-full border border-gray-200"
+                      />
+                      <div className="hidden sm:block">
+                        <RoleTag role={(getAllRoleNames && getAllRoleNames()[0]) || (userRole ? (userRole as string) : 'Viewer')} />
+                      </div>
+                    </>
+                  ) : null}
+                </div>
               </div>
             </div>
 

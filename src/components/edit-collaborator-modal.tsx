@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import RoleTag from './role-tag'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   Dialog,
@@ -171,15 +172,9 @@ export default function EditCollaboratorModal({
                   {collaborator.profiles?.display_name || 'Unknown User'}
                 </h3>
                 <div className="flex items-center space-x-3">
-                  <Badge 
-                    className="capitalize font-medium px-3 py-1 text-xs"
-                    style={{ 
-                      backgroundColor: getRoleColor(collaborator.role),
-                      color: 'white'
-                    }}
-                  >
-                    {collaborator.role}
-                  </Badge>
+                  <div>
+                    <RoleTag role={collaborator.role} />
+                  </div>
                   {collaborator.profiles?.verified_pro && (
                     <Badge className="bg-gradient-to-r from-blue-500 to-purple-600 text-white text-xs px-2 py-1">
                       <Crown className="w-3 h-3 mr-1" />

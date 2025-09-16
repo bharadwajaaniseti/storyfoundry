@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
+import RoleTag from './role-tag'
 import { useToast } from '@/components/ui/toast'
 import { 
   Clock, 
@@ -30,6 +31,7 @@ import {
   Flag
 } from 'lucide-react'
 import { useRoleBasedUI } from '@/hooks/usePermissions'
+import { useProjectCollaborators } from '@/hooks/useCollaboration'
 import { useWorkflow } from '@/hooks/useWorkflow'
 import { PermissionGate } from '@/components/permission-gate'
 import { hasRole, getAllRoles, type CollaborationRole } from '@/lib/collaboration-utils'
@@ -206,8 +208,29 @@ export default function ApprovedWorkflow({ projectId, userId, userRole: passedUs
   
   const [workflowItems, setWorkflowItems] = useState<WorkflowItem[]>([])
   const [allWorkflowData, setAllWorkflowData] = useState<WorkflowItem[]>([]) // Store all data
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(false)
   const [lastFetched, setLastFetched] = useState<number>(0)
+  const fetchInProgressRef = React.useRef<boolean>(false)
+  // Keep project collaborators in sync so we can map author IDs to current roles
+  const { collaborators: projectCollaborators } = useProjectCollaborators(projectId || '')
+
+  useEffect(() => {
+    if (!projectCollaborators || projectCollaborators.length === 0) return
+    setAllWorkflowData(prev => prev.map(item => {
+      const found = projectCollaborators.find(c => c.user_id === item.author.id || c.id === item.author.id)
+      if (!found) return item
+      return {
+        ...item,
+        author: {
+          ...item.author,
+          name: found.profiles?.display_name || item.author.name,
+          avatar: found.profiles?.avatar_url || item.author.avatar,
+          role: found.role || item.author.role,
+          roles: (found.all_roles as string[]) || (found.secondary_roles as string[]) || item.author.roles
+        }
+      }
+    }))
+  }, [projectCollaborators])
   
   // Determine default tab based on user role
   const getDefaultTab = useCallback(() => {
@@ -235,7 +258,14 @@ export default function ApprovedWorkflow({ projectId, userId, userRole: passedUs
   const fetchAllWorkflowData = useCallback(async () => {
     if (!projectId) return
 
+    // Prevent overlapping fetches
+    if (fetchInProgressRef.current) {
+      console.log('Fetch already in progress (fetchAllWorkflowData); skipping')
+      return
+    }
+
     console.log('🌐 Fetching all workflow data...')
+    fetchInProgressRef.current = true
     setIsLoading(true)
 
     try {
@@ -246,20 +276,37 @@ export default function ApprovedWorkflow({ projectId, userId, userRole: passedUs
       }
       
       const data = await response.json()
-      const items = data.items || []
+  const items = data.items || []
+  // Try to use collaborator data if available to ensure roles are accurate
+  const { collaborators: projectCollaborators = [] } = (window as any).__PROJECT_COLLAB_DATA__ || { collaborators: [] }
       
       // Transform unified API data to match WorkflowItem interface
       const transformedItems: WorkflowItem[] = items.map((item: any) => ({
         id: item.type === 'editor_change' ? `editor-${item.id}` : item.id,
         type: item.type === 'editor_change' ? 'edit' as const : item.type,
         title: item.title,
-        author: {
-          id: item.author.id,
-          name: item.author.name,
-          avatar: item.author.avatar,
-          role: item.author.role,
-          roles: item.author.roles || [item.author.role]
-        },
+        author: (() => {
+          const authorId = item.author?.id
+          // prefer project collaborator record when available
+          const found = projectCollaborators.find((c: any) => c.user_id === authorId || c.id === authorId)
+          if (found) {
+            return {
+              id: found.user_id || found.id,
+              name: found.profiles?.display_name || item.author.name,
+              avatar: found.profiles?.avatar_url || item.author.avatar,
+              role: found.role || item.author.role,
+              roles: found.all_roles || found.secondary_roles || item.author.roles || [found.role || item.author.role]
+            }
+          }
+
+          return {
+            id: item.author.id,
+            name: item.author.name,
+            avatar: item.author.avatar,
+            role: item.author.role,
+            roles: item.author.roles || [item.author.role]
+          }
+        })(),
         status: item.type === 'editor_change' ? 
           (item.status === 'pending' ? 'pending_approval' :
            item.status === 'approved' ? 'approved' :
@@ -293,7 +340,12 @@ export default function ApprovedWorkflow({ projectId, userId, userRole: passedUs
       console.error('Error fetching workflow data:', error)
       setAllWorkflowData([])
     } finally {
-      setIsLoading(false)
+      fetchInProgressRef.current = false
+      try {
+        setIsLoading(false)
+      } catch (e) {
+        console.error('Failed to clear isLoading state', e)
+      }
     }
   }, [projectId])
 
@@ -324,8 +376,8 @@ export default function ApprovedWorkflow({ projectId, userId, userRole: passedUs
   useEffect(() => {
     if (projectId && userRole) {
       const age = Date.now() - lastFetched
-      // Only fetch if we don't have data or it's older than 5 minutes
-      if (allWorkflowData.length === 0 || age > 300000) {
+      // Only fetch if we've never fetched yet or the cached data is older than 5 minutes
+      if (lastFetched === 0 || age > 300000) {
         fetchAllWorkflowData()
       }
     }
@@ -344,8 +396,17 @@ export default function ApprovedWorkflow({ projectId, userId, userRole: passedUs
 
     console.log('🔄 fetchWorkflowData called:', { activeTab, forceRefresh })
 
-    // If we need fresh data or don't have any cached data, fetch everything first
-    if (forceRefresh || allWorkflowData.length === 0) {
+
+    // Avoid refetching too frequently: if we fetched recently and no forceRefresh, skip
+    const age = Date.now() - lastFetched
+    if (!forceRefresh && lastFetched !== 0 && age < 30000) { // 30s cache
+      console.log('Using cached workflow data (age ms):', age)
+      filterDataForCurrentTab()
+      return
+    }
+
+    // If we need fresh data or we've never fetched yet, fetch everything first
+    if (forceRefresh || lastFetched === 0 || age > 300000) {
       await fetchAllWorkflowData()
       return
     }
@@ -357,8 +418,24 @@ export default function ApprovedWorkflow({ projectId, userId, userRole: passedUs
   // Load workflow data from API
   useEffect(() => {
     console.log('🔄 useEffect triggered:', { projectId, activeTab, userId, userRole, allUserRoles })
+
+    if (!projectId) {
+      // Nothing to load yet — ensure we are not stuck showing a spinner
+      setIsLoading(false)
+      return
+    }
+
+    // Avoid overlapping fetches
+    if (isLoading) {
+      console.log('Fetch already in progress; skipping')
+      return
+    }
+
+    // Call fetchWorkflowData (function identity changes shouldn't retrigger this effect)
     fetchWorkflowData()
-  }, [fetchWorkflowData]) // Simplified dependencies
+
+    // Only re-run when these concrete values change
+  }, [projectId, activeTab, userId, userRole, lastFetched, allUserRoles, isLoading])
 
   // Optimized tab switching handler - no more API calls, just filtering!
   const handleTabChange = useCallback((newTab: 'pending_approvals' | 'all_requests' | 'my_submissions') => {
@@ -676,13 +753,9 @@ export default function ApprovedWorkflow({ projectId, userId, userRole: passedUs
               {/* Role indicator */}
               <div className="text-sm text-gray-600">
                 Your roles: {allUserRoles.length > 0 ? allUserRoles.map(role => (
-                  <span key={role} className={`inline-block px-2 py-1 rounded-full text-xs mr-1 ${getRoleColor(role)}`}>
-                    {role}
-                  </span>
+                  <RoleTag key={role} role={role} />
                 )) : (
-                  <span className="inline-block px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-600">
-                    Viewer
-                  </span>
+                  <RoleTag role="Viewer" />
                 )}
               </div>
               
@@ -1021,9 +1094,7 @@ export default function ApprovedWorkflow({ projectId, userId, userRole: passedUs
                             <span className={`px-2 py-1 text-xs font-medium rounded-full border ${getStatusColor(item.status)}`}>
                               {item.status.replace('_', ' ').toUpperCase()}
                             </span>
-                            <span className={`text-xs px-2 py-1 rounded-full ${getRoleColor(item.author.role)}`}>
-                              {item.author.role}
-                            </span>
+                            <RoleTag role={item.author.role} />
                             <div className="flex items-center space-x-1">
                               {getCategoryIcon(item.category)}
                               <span className="text-xs text-gray-500">{item.category}</span>
