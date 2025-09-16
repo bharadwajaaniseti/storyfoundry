@@ -200,3 +200,149 @@ export async function POST(
     }
   }
 }
+
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params
+    
+    let body
+    try {
+      body = await request.json()
+    } catch (parseError) {
+      console.error('Failed to parse request body:', parseError)
+      return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
+    }
+    
+    const { role, royalty_split } = body
+
+    if (!role || typeof royalty_split !== 'number') {
+      return NextResponse.json({ error: 'Missing or invalid role or royalty_split' }, { status: 400 })
+    }
+
+    const supabase = await createSupabaseServer()
+    
+    // Get current user
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Fetch invitation and project to verify permissions
+    const { data: invitation, error: invError } = await supabase
+      .from('collaboration_invitations')
+      .select(`*, projects!collaboration_invitations_project_id_fkey ( id, owner_id )`)
+      .eq('id', id)
+      .single()
+
+    if (invError || !invitation) {
+      return NextResponse.json({ error: 'Invitation not found' }, { status: 404 })
+    }
+
+    // Only project owner can update invitations
+    if (!invitation.projects || invitation.projects.owner_id !== user.id) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    }
+
+    // Only update pending invitations
+    if (invitation.status !== 'pending') {
+      return NextResponse.json({ error: 'Can only update pending invitations' }, { status: 400 })
+    }
+
+    // Update the invitation
+    const { data: updatedInvitation, error: updateError } = await supabase
+      .from('collaboration_invitations')
+      .update({ 
+        role,
+        royalty_split
+      })
+      .eq('id', id)
+      .select(`
+        *,
+        invitee:profiles!collaboration_invitations_invitee_id_fkey (
+          id,
+          display_name,
+          avatar_url
+        )
+      `)
+      .single()
+
+    if (updateError) {
+      console.error('Error updating invitation:', updateError)
+      return NextResponse.json({ 
+        error: 'Failed to update invitation'
+      }, { status: 500 })
+    }    return NextResponse.json({ 
+      message: 'Invitation updated successfully',
+      invitation: updatedInvitation
+    })
+  } catch (error) {
+    console.error('API Error (PATCH invitation):', error)
+    return NextResponse.json({ 
+      error: error instanceof Error ? error.message : 'Internal server error' 
+    }, { status: 500 })
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params
+
+    const supabase = await createSupabaseServer()
+
+    // Get current user
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Fetch invitation and project
+    const { data: invitation, error: invError } = await supabase
+      .from('collaboration_invitations')
+      .select(`*, projects!collaboration_invitations_project_id_fkey ( id, owner_id )`)
+      .eq('id', id)
+      .single()
+
+    if (invError || !invitation) {
+      return NextResponse.json({ error: 'Invitation not found' }, { status: 404 })
+    }
+
+    // Only project owner can cancel an invitation
+    if (!invitation.projects || invitation.projects.owner_id !== user.id) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    }
+
+    const { error: deleteError } = await supabase
+      .from('collaboration_invitations')
+      .delete()
+      .eq('id', id)
+
+    if (deleteError) {
+      console.error('Error deleting invitation:', deleteError)
+      return NextResponse.json({ error: 'Failed to delete invitation' }, { status: 500 })
+    }
+
+    // Optionally create notification for invitee
+    try {
+      await supabase.from('notifications').insert({
+        user_id: invitation.invitee_id,
+        type: 'collaboration_invite_cancelled',
+        title: 'Invitation Cancelled',
+        message: `An invitation to collaborate on project was cancelled by the owner.`,
+        data: { invitation_id: id, project_id: invitation.project_id }
+      })
+    } catch (e) {
+      console.warn('Failed to create cancellation notification', e)
+    }
+
+    return NextResponse.json({ message: 'Invitation cancelled' })
+  } catch (error) {
+    console.error('API Error (DELETE invitation):', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}

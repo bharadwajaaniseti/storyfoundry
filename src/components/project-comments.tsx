@@ -157,8 +157,11 @@ export default function ProjectComments({ projectId, userId, type = 'collaborati
       })
 
       if (response.ok) {
+        const data = await response.json().catch(() => ({}))
+        if (data && data.comment) {
+          setComments(prev => [...prev, data.comment])
+        }
         setNewComment('')
-        // Comment will be added via real-time subscription
       } else {
         // Get the error message from the API response
         const errorData = await response.json().catch(() => ({}))

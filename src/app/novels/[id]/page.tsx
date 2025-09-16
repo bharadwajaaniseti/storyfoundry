@@ -6,7 +6,8 @@ import {
   ArrowLeft, BookOpen, Users, Save, Settings, Eye, FileText, Map, Clock, 
   Target, MapPin, User, Calendar, Search, Bookmark, Plus, Edit3, Trash2, 
   ChevronDown, ChevronRight, Folder, Edit, Palette, Globe, Shield, Heart, 
-  Brain, Zap, Upload, Crown, Download, Copy, ExternalLink
+  Brain, Zap, Upload, Crown, Download, Copy, ExternalLink, AlertCircle,
+  Check, Sparkles, MessageSquare, TrendingUp
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -26,6 +27,15 @@ import NovelSettingsModal from '@/components/novel-settings-modal'
 import InputModal from '@/components/ui/input-modal'
 import DeleteModal from '@/components/ui/delete-modal'
 import ProjectCollaborationButton from '@/components/project-collaboration-button'
+import ProjectCollaborators from '@/components/project-collaborators'
+import ProjectHistory from '@/components/project-history'
+import ApprovedWorkflow from '@/components/approved-workflow'
+import ProjectComments from '@/components/project-comments'
+import SendMessageModal from '@/components/send-message-modal'
+import EditCollaboratorModal from '@/components/edit-collaborator-modal'
+import EditInvitationModal from '@/components/edit-invitation-modal'
+import { useProjectCollaborators } from '@/hooks/useCollaboration'
+import { ToastProvider, useToast } from '@/components/toast'
 
 // Type definitions
 interface Project {
@@ -118,7 +128,7 @@ const SIDEBAR_OPTIONS = [
   { id: 'philosophies', label: 'Philosophies', icon: Brain, hasAdd: true, color: 'violet', description: 'Explore the underlying principles and worldviews that shape your story.' },
 ]
 
-export default function NovelPage() {
+function NovelPageInner() {
   const router = useRouter()
   const params = useParams()
   
@@ -126,7 +136,9 @@ export default function NovelPage() {
   const [project, setProject] = useState<Project | null>(null)
   const [loading, setLoading] = useState(true)
   const [activePanel, setActivePanel] = useState<string>('dashboard')
+  const [activeTab, setActiveTab] = useState<string>('')
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [currentUser, setCurrentUser] = useState<any>(null)
   
   // Data state
   const [worldElements, setWorldElements] = useState<WorldElement[]>([])
@@ -210,6 +222,23 @@ export default function NovelPage() {
     onConfirm: () => {}
   })
 
+  // Message and collaborator modal states
+  const [showMessageModal, setShowMessageModal] = useState(false)
+  const [messageRecipient, setMessageRecipient] = useState<{
+    id: string
+    display_name: string | null
+    avatar_url: string | null
+    role: string
+  } | null>(null)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editingCollaborator, setEditingCollaborator] = useState<any>(null)
+  const [showEditInvitationModal, setShowEditInvitationModal] = useState(false)
+  const [editingInvitation, setEditingInvitation] = useState<any>(null)
+
+  // Collaboration data
+  const { collaborators, pendingInvitations, loading: collaboratorsLoading, error: collaboratorsError, refresh: refreshCollaborators, updateCollaborator, removeCollaborator } = useProjectCollaborators(project?.id || '')
+  const toast = useToast()
+
   // Load project data
   useEffect(() => {
     const loadProjectData = async () => {
@@ -220,6 +249,10 @@ export default function NovelPage() {
         // Check user authentication and permissions
         const supabase = createSupabaseClient()
         const { data: { user } } = await supabase.auth.getUser()
+        
+        if (user) {
+          setCurrentUser(user)
+        }
         
         // Fetch project
         const response = await fetch(`/api/projects/${projectId}`)
@@ -1491,8 +1524,428 @@ export default function NovelPage() {
     }
   }, [project])
 
+  // Collaboration handler functions
+  const handleSendMessage = (userId: string, displayName: string | null, avatarUrl: string | null, role: string) => {
+    setMessageRecipient({
+      id: userId,
+      display_name: displayName,
+      avatar_url: avatarUrl,
+      role: role
+    })
+    setShowMessageModal(true)
+  }
+
+  const handleCancelInvitation = async (invitationId: string) => {
+    try {
+      const response = await fetch(`/api/collaborations/invitations/${invitationId}`, {
+        method: 'DELETE'
+      })
+      
+      if (response.ok) {
+        // Refresh the collaborators list to update the UI
+        refreshCollaborators()
+      } else {
+        console.error('Failed to cancel invitation')
+      }
+    } catch (error) {
+      console.error('Error canceling invitation:', error)
+    }
+  }
+
+  const handleEditInvitation = (invitation: any) => {
+    setEditingInvitation(invitation)
+    setShowEditInvitationModal(true)
+  }
+
+  const handleUpdateInvitation = async (invitationId: string, updates: { role?: string; royalty_split?: number }) => {
+    try {
+      const response = await fetch(`/api/collaborations/invitations/${invitationId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      })
+      
+      if (response.ok) {
+        // Refresh the collaborators list to update the UI
+        refreshCollaborators()
+        setShowEditInvitationModal(false)
+        setEditingInvitation(null)
+      } else {
+        const errorData = await response.text()
+        console.error('Failed to update invitation:', response.status, errorData)
+      }
+    } catch (error) {
+      console.error('Error updating invitation:', error)
+    }
+  }
+
   const renderPanelContent = useCallback(() => {
     if (!project) return null
+
+    // Show collaboration content if any collaboration tab is active
+    if (activeTab) {
+      switch (activeTab) {
+        case 'collaborators':
+          return (
+            <div className="h-full bg-gray-50 p-6 overflow-y-auto">
+              <div className="max-w-4xl mx-auto">
+                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                  {/* Header */}
+                  <div className="px-8 py-6 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-orange-50">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-2xl font-bold text-gray-900 mb-2">Project Collaborators</h2>
+                        <p className="text-gray-600">Manage who can contribute to your project</p>
+                        {process.env.NODE_ENV === 'development' && collaborators.length > 0 && collaborators[0]?.id?.startsWith('mock-') && (
+                          <div className="mt-3 px-3 py-2 bg-blue-100 border border-blue-200 rounded-lg">
+                            <p className="text-sm text-blue-800">
+                              🧪 <strong>Development Mode:</strong> Showing mock collaboration data because database is unavailable
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                      <ProjectCollaborationButton 
+                        projectId={project.id}
+                        projectTitle={project.title}
+                        isOwner={true}
+                        currentCollaborators={collaborators}
+                        className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-200"
+                        onInvitationSent={refreshCollaborators}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Content */}
+                  <div className="p-8">
+                    {collaboratorsLoading ? (
+                      <div className="text-center py-12">
+                        <div className="w-8 h-8 border-2 border-orange-300 border-t-orange-600 rounded-full animate-spin mx-auto mb-4"></div>
+                        <p className="text-gray-600">Loading collaborators...</p>
+                      </div>
+                    ) : collaboratorsError ? (
+                      <div className="text-center py-16">
+                        <div className="relative mx-auto mb-6">
+                          <div className="w-20 h-20 bg-gradient-to-br from-red-50 to-orange-50 rounded-2xl flex items-center justify-center mx-auto shadow-sm">
+                            <AlertCircle className="w-10 h-10 text-red-400" />
+                          </div>
+                        </div>
+                        <h3 className="text-xl font-semibold text-gray-900 mb-3">Oops! Something went wrong</h3>
+                        <p className="text-gray-600 mb-2">We couldn't load your collaborators right now.</p>
+                        <p className="text-sm text-red-600 mb-6 font-mono bg-red-50 px-3 py-2 rounded-lg inline-block">{collaboratorsError}</p>
+                        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                          <button 
+                            onClick={() => window.location.reload()}
+                            className="px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transition-all duration-200"
+                          >
+                            Try Again
+                          </button>
+                          <button className="px-6 py-3 border-2 border-gray-300 text-gray-700 font-medium rounded-lg hover:border-orange-300 hover:text-orange-700 transition-colors">
+                            Contact Support
+                          </button>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-4">
+                          Don't worry - your collaborators are still there! This is just a temporary loading issue.
+                        </p>
+                      </div>
+                    ) : (collaborators.length === 0 && pendingInvitations.length === 0) ? (
+                      /* Empty State */
+                      <div className="text-center py-20">
+                        {/* Animated Icon Container */}
+                        <div className="relative mx-auto mb-8">
+                          <div className="w-24 h-24 bg-gradient-to-br from-orange-100 via-amber-50 to-orange-100 rounded-3xl flex items-center justify-center mx-auto shadow-lg animate-pulse">
+                            <Users className="w-12 h-12 text-orange-600" />
+                          </div>
+                          {/* Floating Elements */}
+                          <div className="absolute -top-2 -right-2 w-6 h-6 bg-gradient-to-br from-purple-400 to-purple-600 rounded-full flex items-center justify-center animate-bounce">
+                            <Sparkles className="w-3 h-3 text-white" />
+                          </div>
+                          <div className="absolute -bottom-1 -left-1 w-5 h-5 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center animate-bounce delay-300">
+                            <MessageSquare className="w-2.5 h-2.5 text-white" />
+                          </div>
+                        </div>
+
+                        <h3 className="text-2xl font-bold text-gray-900 mb-4">
+                          Ready to build your dream team? ✨
+                        </h3>
+                        <p className="text-lg text-gray-700 mb-3 max-w-lg mx-auto">
+                          Great stories are born from collaboration! 
+                        </p>
+                        <p className="text-gray-600 mb-8 max-w-xl mx-auto leading-relaxed">
+                          Invite talented writers, skilled editors, creative translators, and experienced producers to join your project. 
+                          Share revenue, combine expertise, and create something amazing together.
+                        </p>
+
+                        {/* Feature Highlights */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10 max-w-3xl mx-auto">
+                          <div className="text-center p-4">
+                            <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-blue-200 rounded-xl flex items-center justify-center mx-auto mb-3">
+                              <Users className="w-6 h-6 text-blue-600" />
+                            </div>
+                            <h4 className="font-semibold text-gray-900 mb-2">Find Your Tribe</h4>
+                            <p className="text-sm text-gray-600">Connect with writers, editors, and creators who share your vision</p>
+                          </div>
+                          <div className="text-center p-4">
+                            <div className="w-12 h-12 bg-gradient-to-br from-green-100 to-green-200 rounded-xl flex items-center justify-center mx-auto mb-3">
+                              <Sparkles className="w-6 h-6 text-green-600" />
+                            </div>
+                            <h4 className="font-semibold text-gray-900 mb-2">Share Revenue</h4>
+                            <p className="text-sm text-gray-600">Set up fair revenue sharing and build a sustainable creative partnership</p>
+                          </div>
+                          <div className="text-center p-4">
+                            <div className="w-12 h-12 bg-gradient-to-br from-purple-100 to-purple-200 rounded-xl flex items-center justify-center mx-auto mb-3">
+                              <TrendingUp className="w-6 h-6 text-purple-600" />
+                            </div>
+                            <h4 className="font-semibold text-gray-900 mb-2">Grow Together</h4>
+                            <p className="text-sm text-gray-600">Track contributions and watch your project flourish with diverse skills</p>
+                          </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+                          <ProjectCollaborationButton 
+                            projectId={project.id}
+                            projectTitle={project.title}
+                            isOwner={true}
+                            currentCollaborators={collaborators}
+                            className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-semibold px-8 py-3 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200"
+                            onInvitationSent={refreshCollaborators}
+                          />
+                          <button className="px-6 py-3 border-2 border-orange-200 text-orange-700 font-medium rounded-lg hover:border-orange-300 hover:bg-orange-50 transition-all duration-200 flex items-center space-x-2">
+                            <FileText className="w-4 h-4" />
+                            <span>Learn About Collaboration</span>
+                          </button>
+                        </div>
+
+                        {/* Encouraging Note */}
+                        <div className="mt-8 p-4 bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl border border-orange-100 max-w-md mx-auto">
+                          <p className="text-sm text-orange-800">
+                            💡 <strong>Pro tip:</strong> The best collaborations start with clear communication and shared goals. 
+                            Take time to discuss roles and expectations with your team!
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Collaborators List */
+                      <div className="space-y-6">
+                        {/* Stats Overview */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
+                                <Users className="w-5 h-5 text-white" />
+                              </div>
+                              <div>
+                                <p className="text-sm text-blue-600 font-medium">Total Collaborators</p>
+                                <p className="text-2xl font-bold text-blue-900">{collaborators.length + pendingInvitations.length}</p>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-4 border border-green-100">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center">
+                                <Check className="w-5 h-5 text-white" />
+                              </div>
+                              <div>
+                                <p className="text-sm text-green-600 font-medium">Active Members</p>
+                                <p className="text-2xl font-bold text-green-900">
+                                  {collaborators.filter(c => c.status === 'active').length}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="bg-gradient-to-br from-purple-50 to-violet-50 rounded-xl p-4 border border-purple-100">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-10 h-10 bg-purple-500 rounded-lg flex items-center justify-center">
+                                <Sparkles className="w-5 h-5 text-white" />
+                              </div>
+                              <div>
+                                <p className="text-sm text-purple-600 font-medium">Revenue Share</p>
+                                <p className="text-2xl font-bold text-purple-900">
+                                  {collaborators.reduce((total, c) => total + (c.royalty_split || 0), 0)}%
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Active Collaborators */}
+                        {collaborators.length > 0 && (
+                          <div>
+                            <h4 className="text-lg font-semibold text-gray-900 mb-4">Active Collaborators</h4>
+                            <div className="grid gap-4">
+                              {collaborators.map((collaborator) => (
+                                <div key={collaborator.id} className="bg-gray-50 rounded-xl p-5 border border-gray-200 hover:border-orange-200 hover:bg-orange-50/30 transition-all duration-200">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center space-x-4">
+                                      <div className="w-12 h-12 bg-gradient-to-br from-orange-400 to-orange-600 rounded-full flex items-center justify-center">
+                                        <User className="w-6 h-6 text-white" />
+                                      </div>
+                                      <div>
+                                        <h5 className="font-semibold text-gray-900">{collaborator.profiles?.display_name || 'Unknown User'}</h5>
+                                        <div className="flex items-center space-x-3 mt-1">
+                                          <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                                            collaborator.role === 'coauthor' ? 'bg-yellow-100 text-yellow-800' :
+                                            collaborator.role === 'editor' ? 'bg-blue-100 text-blue-800' :
+                                            collaborator.role === 'translator' ? 'bg-green-100 text-green-800' :
+                                            collaborator.role === 'producer' ? 'bg-purple-100 text-purple-800' :
+                                            'bg-gray-100 text-gray-800'
+                                          }`}>
+                                            {collaborator.role}
+                                          </span>
+                                          {collaborator.royalty_split && collaborator.royalty_split > 0 && (
+                                            <span className="text-xs text-gray-600">
+                                              {collaborator.royalty_split}% revenue share
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                      <button 
+                                        onClick={() => {
+                                          setMessageRecipient({
+                                            id: collaborator.user_id,
+                                            display_name: collaborator.profiles?.display_name || null,
+                                            avatar_url: collaborator.profiles?.avatar_url || null,
+                                            role: collaborator.role
+                                          })
+                                          setShowMessageModal(true)
+                                        }}
+                                        className="p-2 text-gray-600 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+                                        title="Send Message"
+                                      >
+                                        <MessageSquare className="w-4 h-4" />
+                                      </button>
+                                      <button 
+                                        onClick={() => {
+                                          setEditingCollaborator(collaborator)
+                                          setShowEditModal(true)
+                                        }}
+                                        className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+                                        title="Edit Role & Permissions"
+                                      >
+                                        <Settings className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Pending Invitations */}
+                        {pendingInvitations.length > 0 && (
+                          <div className="space-y-4 mb-8">
+                            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center space-x-2">
+                              <Clock className="w-5 h-5 text-orange-500" />
+                              <span>Pending Invitations ({pendingInvitations.length})</span>
+                            </h3>
+                            {pendingInvitations.map((invitation) => (
+                              <div key={invitation.id} className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl p-6 border border-orange-200">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center space-x-4">
+                                    <div className="relative">
+                                      <div className="w-14 h-14 bg-gradient-to-br from-orange-400 to-amber-500 rounded-xl flex items-center justify-center">
+                                        <span className="text-white font-bold text-lg">
+                                          {invitation.profiles?.display_name?.slice(0, 2).toUpperCase() || invitation.invitee?.display_name?.slice(0, 2).toUpperCase() || 'U'}
+                                        </span>
+                                      </div>
+                                      <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-orange-500 rounded-full border-2 border-white flex items-center justify-center">
+                                        <Clock className="w-3 h-3 text-white" />
+                                      </div>
+                                    </div>
+
+                                    <div className="flex-1">
+                                      <div className="flex items-center space-x-3 mb-1">
+                                        <h4 className="font-semibold text-gray-900">
+                                          {invitation.profiles?.display_name || invitation.invitee?.display_name || 'Unknown User'}
+                                        </h4>
+                                        <span className="px-3 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-700">
+                                          {invitation.role?.toUpperCase()}
+                                        </span>
+                                        {invitation.royalty_split && invitation.royalty_split > 0 && (
+                                          <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
+                                            {invitation.royalty_split}% revenue
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center space-x-4 text-sm text-gray-600">
+                                        <span className="flex items-center space-x-1">
+                                          <Clock className="w-4 h-4" />
+                                          <span>Invited {new Date(invitation.created_at).toLocaleDateString()}</span>
+                                        </span>
+                                        <span className="flex items-center space-x-1 text-orange-600">
+                                          <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></div>
+                                          <span>Pending Response</span>
+                                        </span>
+                                      </div>
+                                      {invitation.message && (
+                                        <p className="text-sm text-gray-600 mt-2 italic">
+                                          "{invitation.message}"
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center space-x-2">
+                                    <button 
+                                      onClick={() => handleSendMessage(
+                                        invitation.invitee_id, 
+                                        invitation.profiles?.display_name || invitation.invitee?.display_name || null,
+                                        invitation.profiles?.avatar_url || invitation.invitee?.avatar_url || null,
+                                        invitation.role
+                                      )}
+                                      className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                      title="Send Message"
+                                    >
+                                      <MessageSquare className="w-4 h-4" />
+                                    </button>
+                                    <button 
+                                      onClick={() => handleEditInvitation(invitation)}
+                                      className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+                                      title="Edit Invitation"
+                                    >
+                                      <Settings className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Project Comments */}
+                        <div className="mt-8">
+                          <ProjectComments
+                            projectId={project.id}
+                            userId={currentUser?.id}
+                          />
+                        </div>
+
+                        {/* Action Footer */}
+                        <div className="pt-6 border-t border-gray-200">
+                          <div className="text-sm text-gray-600">
+                            Manage collaboration permissions and revenue sharing for your team
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )
+        case 'history':
+          return <ProjectHistory projectId={project.id} />
+        case 'approved-workflow':
+          return <ApprovedWorkflow projectId={project.id} />
+        default:
+          break
+      }
+    }
 
     switch (activePanel) {
       case 'dashboard':
@@ -1958,7 +2411,7 @@ export default function NovelPage() {
           </div>
         )
     }
-  }, [activePanel, project, getElementsForCategory, chapters, worldElements.length, navigateToWorldElement, selectedElement, clearSelectedElement, handleCharactersChange, handleChaptersChange, triggerNewChapter])
+  }, [activePanel, activeTab, project, getElementsForCategory, chapters, worldElements.length, navigateToWorldElement, selectedElement, clearSelectedElement, handleCharactersChange, handleChaptersChange, triggerNewChapter])
 
   if (loading) {
     return (
@@ -2027,6 +2480,11 @@ export default function NovelPage() {
                 }`}>
                   <button
                     onClick={() => {
+                      // Ensure any active tab or selection is cleared so panel navigation wins
+                      setSidebarOpen(true)
+                      clearSelectedElement()
+                      setActiveTab('')
+
                       if (canExpand) {
                         toggleCategoryExpansion(option.id)
                       } else {
@@ -2144,8 +2602,20 @@ export default function NovelPage() {
                   <h2 className="text-lg font-semibold text-gray-900">
                     {project.title}
                   </h2>
-                  <p className="text-sm text-gray-500">
-                    {SIDEBAR_OPTIONS.find(p => p.id === activePanel)?.label || 'Novel Editor'}
+                  <p className="text-sm text-gray-500 flex items-center gap-2">
+                    <span
+                      className="cursor-pointer underline hover:text-gray-800"
+                      onClick={() => {
+                        // Ensure sidebar is visible and clear selection/tab so dashboard renders reliably
+                        setSidebarOpen(true)
+                        clearSelectedElement()
+                        setActiveTab('')
+                        setActivePanel('dashboard')
+                      }}
+                      title="Go to Dashboard"
+                    >
+                      {SIDEBAR_OPTIONS.find(p => p.id === activePanel)?.label || 'Novel Editor'}
+                    </span>
                   </p>
                 </div>
               </div>
@@ -2182,6 +2652,62 @@ export default function NovelPage() {
                 <Button size="sm" variant="ghost" className="text-gray-400 hover:text-gray-600 hover:bg-gray-100" onClick={() => setShowSettingsModal(true)}>
                   <Settings className="w-4 h-4" />
                 </Button>
+              </div>
+            </div>
+
+            {/* Tab Navigation */}
+            <div className="flex items-center justify-between border-t border-gray-100 px-6 py-3">
+              <div className="flex items-center">
+                <p className="text-sm text-gray-500">
+                  {activeTab ? 
+                    (activeTab === 'collaborators' ? 'Collaborators' : 
+                     activeTab === 'history' ? 'History' : 
+                     activeTab === 'approved-workflow' ? 'Approved Workflow' : 
+                     SIDEBAR_OPTIONS.find(p => p.id === activePanel)?.label || 'Novel Editor') :
+                    (SIDEBAR_OPTIONS.find(p => p.id === activePanel)?.label || 'Novel Editor')
+                  }
+                </p>
+              </div>
+              
+              <div className="flex items-center">
+                <button
+                  onClick={() => setActiveTab('collaborators')}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    activeTab === 'collaborators'
+                      ? 'text-orange-600 border-orange-500 hover:text-orange-700'
+                      : 'text-gray-600 border-transparent hover:text-gray-800 hover:border-gray-300'
+                  }`}
+                >
+                  Collaborators
+                </button>
+                <button
+                  onClick={() => setActiveTab('history')}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    activeTab === 'history'
+                      ? 'text-orange-600 border-orange-500 hover:text-orange-700'
+                      : 'text-gray-600 border-transparent hover:text-gray-800 hover:border-gray-300'
+                  }`}
+                >
+                  History
+                </button>
+                <button
+                  onClick={() => setActiveTab('approved-workflow')}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    activeTab === 'approved-workflow'
+                      ? 'text-orange-600 border-orange-500 hover:text-orange-700'
+                      : 'text-gray-600 border-transparent hover:text-gray-800 hover:border-gray-300'
+                  }`}
+                >
+                  Approved Workflow
+                </button>
+                {activeTab && (
+                  <button
+                    onClick={() => setActiveTab('')}
+                    className="ml-4 px-3 py-1 text-xs text-gray-500 hover:text-gray-700 border border-gray-300 rounded"
+                  >
+                    Back to Editor
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -2814,6 +3340,90 @@ export default function NovelPage() {
         onProjectUpdate={handleProjectUpdate}
         onProjectDelete={handleProjectDelete}
       />
+
+      {/* Send Message Modal */}
+      {showMessageModal && messageRecipient && (
+        <SendMessageModal
+          isOpen={showMessageModal}
+          onClose={() => {
+            setShowMessageModal(false)
+            setMessageRecipient(null)
+          }}
+          recipient={messageRecipient}
+        />
+      )}
+
+      {/* Edit Collaborator Modal */}
+      {showEditModal && editingCollaborator && (
+        <EditCollaboratorModal
+          isOpen={showEditModal}
+          onClose={() => {
+            setShowEditModal(false)
+            setEditingCollaborator(null)
+          }}
+          collaborator={editingCollaborator}
+          onSave={async (updates) => {
+            try {
+              if (updateCollaborator && editingCollaborator?.id) {
+                await updateCollaborator(editingCollaborator.id, updates)
+              }
+            } catch (err) {
+              console.error('Failed to update collaborator:', err)
+              toast.show(err instanceof Error ? err.message : 'Failed to update collaborator', 'error')
+            } finally {
+              refreshCollaborators()
+              toast.show('Collaborator updated', 'success')
+              setShowEditModal(false)
+              setEditingCollaborator(null)
+            }
+          }}
+          onRemove={async () => {
+            try {
+              if (removeCollaborator && editingCollaborator?.id) {
+                await removeCollaborator(editingCollaborator.id)
+              }
+            } catch (err) {
+              console.error('Failed to remove collaborator:', err)
+              toast.show(err instanceof Error ? err.message : 'Failed to remove collaborator', 'error')
+            } finally {
+              refreshCollaborators()
+              toast.show('Collaborator removed', 'success')
+              setShowEditModal(false)
+              setEditingCollaborator(null)
+            }
+          }}
+          currentTotalSplit={collaborators.reduce((total, c) => total + (c.royalty_split || 0), 0)}
+        />
+      )}
+
+      {/* Edit Invitation Modal */}
+      {showEditInvitationModal && editingInvitation && (
+        <EditInvitationModal
+          isOpen={showEditInvitationModal}
+          onClose={() => {
+            setShowEditInvitationModal(false)
+            setEditingInvitation(null)
+          }}
+          invitation={editingInvitation}
+          onSave={async (updates) => {
+            await handleUpdateInvitation(editingInvitation.id, updates)
+          }}
+          onCancel={async () => {
+            await handleCancelInvitation(editingInvitation.id)
+            setShowEditInvitationModal(false)
+            setEditingInvitation(null)
+          }}
+          currentTotalSplit={collaborators.reduce((total, c) => total + (c.royalty_split || 0), 0)}
+        />
+      )}
     </div>
+  )
+}
+
+export default function NovelPage() {
+  return (
+    <ToastProvider>
+      <NovelPageInner />
+    </ToastProvider>
   )
 }

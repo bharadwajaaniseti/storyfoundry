@@ -186,10 +186,10 @@ export default function InviteCollaboratorModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl border-0 p-0 bg-transparent shadow-none">
-        <div className="bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 overflow-hidden">
+      <DialogContent className="max-w-2xl max-h-[90vh] border-0 p-0 bg-transparent shadow-none">
+        <div className="bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 overflow-hidden flex flex-col max-h-[90vh]">
           {/* Header */}
-          <div className="relative px-8 py-6 bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600">
+          <div className="relative px-8 py-6 bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 flex-shrink-0">
             <div className="absolute inset-0 bg-gradient-to-r from-orange-500/90 to-amber-500/90"></div>
             <div className="relative flex items-center space-x-4">
               <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
@@ -206,7 +206,8 @@ export default function InviteCollaboratorModal({
             </div>
           </div>
 
-          <div className="p-8">
+          {/* Scrollable Content */}
+          <div className="flex-1 overflow-y-auto p-8">
             {!selectedUser ? (
               // User Search Section
               <div className="space-y-6">
@@ -242,54 +243,56 @@ export default function InviteCollaboratorModal({
 
                 {/* Search Results */}
                 {searchResults.length > 0 && (
-                  <div className="space-y-3 max-h-80 overflow-y-auto">
+                  <div className="space-y-3">
                     <h4 className="text-sm font-semibold text-gray-700 px-2">Found {searchResults.length} creator{searchResults.length !== 1 ? 's' : ''}</h4>
-                    {searchResults.map((profile) => (
-                      <div
-                        key={profile.id}
-                        onClick={() => setSelectedUser(profile)}
-                        className="group flex items-center space-x-4 p-4 rounded-xl border-2 border-gray-100 hover:border-orange-200 hover:bg-orange-50/50 cursor-pointer transition-all duration-200 hover:scale-[1.02] hover:shadow-md"
-                      >
-                        <div className="relative">
-                          <Avatar className="w-12 h-12 ring-2 ring-gray-200 group-hover:ring-orange-300 transition-all duration-200">
-                            <AvatarImage src={profile.avatar_url} />
-                            <AvatarFallback className="bg-gradient-to-br from-orange-400 to-amber-500 text-white font-semibold">
-                              {profile.display_name?.slice(0, 2).toUpperCase() || 'U'}
-                            </AvatarFallback>
-                          </Avatar>
-                          {profile.verified_pro && (
-                            <div className="absolute -top-1 -right-1 w-5 h-5 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                              <Crown className="w-3 h-3 text-white" />
-                            </div>
-                          )}
-                        </div>
-                        
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center space-x-3 mb-1">
-                            <h4 className="font-semibold text-gray-900 truncate group-hover:text-orange-700 transition-colors">
-                              {profile.display_name}
-                            </h4>
+                    <div className="space-y-3">
+                      {searchResults.map((profile) => (
+                        <div
+                          key={profile.id}
+                          onClick={() => setSelectedUser(profile)}
+                          className="group flex items-center space-x-4 p-4 rounded-xl border-2 border-gray-100 hover:border-orange-200 hover:bg-orange-50/50 cursor-pointer transition-all duration-200 hover:scale-[1.02] hover:shadow-md"
+                        >
+                          <div className="relative">
+                            <Avatar className="w-12 h-12 ring-2 ring-gray-200 group-hover:ring-orange-300 transition-all duration-200">
+                              <AvatarImage src={profile.avatar_url} />
+                              <AvatarFallback className="bg-gradient-to-br from-orange-400 to-amber-500 text-white font-semibold">
+                                {profile.display_name?.slice(0, 2).toUpperCase() || 'U'}
+                              </AvatarFallback>
+                            </Avatar>
                             {profile.verified_pro && (
-                              <Badge className="bg-gradient-to-r from-blue-500 to-purple-600 text-white text-xs px-2 py-1">
-                                <Crown className="w-3 h-3 mr-1" />
-                                Pro
-                              </Badge>
+                              <div className="absolute -top-1 -right-1 w-5 h-5 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                                <Crown className="w-3 h-3 text-white" />
+                              </div>
                             )}
                           </div>
-                          {profile.bio && (
-                            <p className="text-sm text-gray-600 truncate group-hover:text-gray-700 transition-colors">
-                              {profile.bio}
-                            </p>
-                          )}
-                        </div>
+                          
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center space-x-3 mb-1">
+                              <h4 className="font-semibold text-gray-900 truncate group-hover:text-orange-700 transition-colors">
+                                {profile.display_name}
+                              </h4>
+                              {profile.verified_pro && (
+                                <Badge className="bg-gradient-to-r from-blue-500 to-purple-600 text-white text-xs px-2 py-1">
+                                  <Crown className="w-3 h-3 mr-1" />
+                                  Pro
+                                </Badge>
+                              )}
+                            </div>
+                            {profile.bio && (
+                              <p className="text-sm text-gray-600 truncate group-hover:text-gray-700 transition-colors">
+                                {profile.bio}
+                              </p>
+                            )}
+                          </div>
 
-                        <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                          <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
-                            <UserCheck className="w-4 h-4 text-white" />
+                          <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                            <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
+                              <UserCheck className="w-4 h-4 text-white" />
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 )}
 
@@ -420,39 +423,43 @@ export default function InviteCollaboratorModal({
                     <span className="text-red-700 text-sm">{error}</span>
                   </div>
                 )}
-
-                {/* Action Buttons */}
-                <div className="flex space-x-4 pt-4 border-t border-gray-200">
-                  <Button 
-                    variant="outline" 
-                    onClick={handleClose}
-                    className="flex-1 py-3 border-2 border-gray-300 hover:border-gray-400 hover:bg-gray-50 transition-all duration-200"
-                  >
-                    Cancel
-                  </Button>
-                  <Button 
-                    onClick={handleSendInvitation} 
-                    disabled={sending}
-                    className="flex-1 py-3 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <div className="flex items-center justify-center space-x-2">
-                      {sending ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                          <span>Sending...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Mail className="w-4 h-4" />
-                          <span>Send Invitation</span>
-                        </>
-                      )}
-                    </div>
-                  </Button>
-                </div>
               </div>
             )}
           </div>
+
+          {/* Fixed Footer - Action Buttons (only shown when user is selected) */}
+          {selectedUser && (
+            <div className="flex-shrink-0 p-6 border-t border-gray-200 bg-white/80 backdrop-blur-sm">
+              <div className="flex space-x-4">
+                <Button 
+                  variant="outline" 
+                  onClick={handleClose}
+                  className="flex-1 py-3 border-2 border-gray-300 hover:border-gray-400 hover:bg-gray-50 transition-all duration-200"
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleSendInvitation} 
+                  disabled={sending}
+                  className="flex-1 py-3 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <div className="flex items-center justify-center space-x-2">
+                    {sending ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <span>Sending...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Mail className="w-4 h-4" />
+                        <span>Send Invitation</span>
+                      </>
+                    )}
+                  </div>
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>
