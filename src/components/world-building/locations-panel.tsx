@@ -102,6 +102,51 @@ interface LocationsPanelProps {
   openCreateOnOpen?: boolean;
 }
 
+/** ---------------- TagInput Component ---------------- */
+interface TagInputProps {
+  onAddTag: (value: string) => boolean;
+  placeholder: string;
+  label: string;
+}
+
+const TagInput: React.FC<TagInputProps> = ({ onAddTag, placeholder, label }) => {
+  const [inputValue, setInputValue] = useState("");
+
+  const handleAdd = () => {
+    if (onAddTag(inputValue)) {
+      setInputValue("");
+    }
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleAdd();
+    }
+  };
+
+  return (
+    <div className="group flex items-start gap-3">
+      <input
+        type="text"
+        value={inputValue}
+        placeholder={placeholder}
+        onChange={(e) => setInputValue(e.target.value)}
+        onKeyPress={handleKeyPress}
+        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
+      />
+      <button
+        onClick={handleAdd}
+        disabled={!inputValue.trim()}
+        className="p-2 text-orange-600 hover:text-orange-700 hover:bg-orange-50 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+        title={`Add ${label.toLowerCase()}`}
+      >
+        <Plus className="w-4 h-4" />
+      </button>
+    </div>
+  );
+};
+
 /** ---------------- Field (top-level) ---------------- */
 interface FieldProps {
   attrId: string;
@@ -126,39 +171,62 @@ const Field: React.FC<FieldProps> = React.memo(({ attrId, editing, setEditing, g
     setEditing((ed) => (ed ? { ...ed, attributes: { ...(ed.attributes || {}), [attrId]: v } } : ed));
 
   if (type === "Multi-Text") {
-    const arr = Array.isArray(value) ? value : [value];
+    const arr = Array.isArray(value) ? value.filter(Boolean) : []; // Filter out empty values
+    
+    const addTag = (inputValue: string) => {
+      const trimmedValue = inputValue.trim();
+      if (trimmedValue && !arr.includes(trimmedValue)) {
+        setValue([...arr, trimmedValue]);
+        return true; // Success
+      }
+      return false; // Failed to add
+    };
+    
+    const removeTag = (indexToRemove: number) => {
+      const newArr = arr.filter((_, idx) => idx !== indexToRemove);
+      setValue(newArr);
+    };
+    
     return (
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-700">{label}</label>
-        {arr.map((item: string, idx: number) => (
-          <div key={`${attrId}-${idx}`} className="group flex items-start gap-3">
-            <input
-              type="text"
-              value={item}
-              placeholder={`Add ${label.toLowerCase()}`}
-              onChange={(e) => {
-                const next = [...arr];
-                next[idx] = e.target.value;
-                setValue(next);
-              }}
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
-            />
-            <button
-              onClick={() => onRemove(attrId)}
-              className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all duration-200 opacity-0 group-hover:opacity-100"
-              title={`Remove ${label}`}
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
+        <div className="flex items-center justify-between">
+          <label className="block text-sm font-medium text-gray-700">{label}</label>
+          <button
+            onClick={() => onRemove(attrId)}
+            className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all duration-200"
+            title={`Remove ${label} attribute`}
+          >
+            <Trash2 className="w-3 h-3" />
+          </button>
+        </div>
+        
+        {/* Display existing tags */}
+        {arr.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-2">
+            {arr.map((tag: string, idx: number) => (
+              <div
+                key={`${attrId}-tag-${idx}`}
+                className="inline-flex items-center gap-1 bg-orange-50 text-orange-700 px-2 py-1 rounded-md text-sm border border-orange-200"
+              >
+                <span>{tag}</span>
+                <button
+                  onClick={() => removeTag(idx)}
+                  className="text-orange-500 hover:text-orange-700 transition-colors"
+                  title={`Remove ${tag}`}
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
           </div>
-        ))}
-        <button
-          type="button"
-          onClick={() => setValue([...(arr || []), ""])}
-          className="text-sm text-orange-600 hover:text-orange-700 font-medium"
-        >
-          + Add {label}
-        </button>
+        )}
+        
+        {/* Single input field for adding new tags */}
+        <TagInput
+          onAddTag={addTag}
+          placeholder={`Add ${label.toLowerCase()}...`}
+          label={label}
+        />
       </div>
     );
   }
@@ -819,87 +887,6 @@ export default function LocationsPanel({
 
         <div className="container mx-auto px-6 py-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Basic Information */}
-            <div className={`${getPanelClassName('basic')} relative`} style={getPanelStyle('basic')}>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-800">Basic Information</h3>
-                <div className="flex items-center gap-2 relative">
-                  <button
-                    onClick={() => setShowBasicModal(true)}
-                    className="text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded-lg p-2 transition-all duration-200"
-                    title="Add"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => toggleDropdown('basic')}
-                    className="text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded-lg p-2 transition-all duration-200"
-                  >
-                    <MoreVertical className="h-4 w-4" />
-                  </button>
-                  {activeDropdown === 'basic' && (
-                    <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
-                      <button
-                        onClick={() => handleMenuAction('setColor', 'basic')}
-                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-t-lg"
-                      >
-                        Set Panel Color
-                      </button>
-                      <button
-                        onClick={() => handleMenuAction('delete', 'basic')}
-                        className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-b-lg"
-                      >
-                        Delete Panel
-                      </button>
-                    </div>
-                  )}
-                  {showColorPicker === 'basic' && (
-                    <div className="absolute right-0 top-full mt-1 w-64 bg-white border border-gray-200 rounded-lg shadow-lg z-20 p-4 color-picker-container">
-                      <h4 className="text-sm font-medium text-gray-700 mb-3">Choose Panel Color</h4>
-                      
-                      {/* Custom Color Picker */}
-                      <div className="mb-4 p-3 border border-gray-200 rounded-lg bg-gray-50">
-                        <label className="block text-xs font-medium text-gray-600 mb-2">Custom Color</label>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="color"
-                            value={customColors.basic || '#ffffff'}
-                            onChange={(e) => handleCustomColorChange('basic', e.target.value)}
-                            className="w-10 h-10 rounded-lg border border-gray-300 cursor-pointer"
-                            title="Choose custom color"
-                          />
-                          <span className="text-xs text-gray-500">Pick any color</span>
-                        </div>
-                      </div>
-
-                      {/* Predefined Colors */}
-                      <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-2">Preset Colors</label>
-                        <div className="grid grid-cols-4 gap-2">
-                          {predefinedColors.map((color) => (
-                            <button
-                              key={color.name}
-                              onClick={() => handleColorSelect('basic', color.value)}
-                              className={`w-12 h-12 rounded-lg border-2 ${color.class} hover:scale-110 transition-transform duration-200 ${panelColors.basic === color.value ? 'ring-2 ring-orange-500' : 'border-gray-300'}`}
-                              title={color.name}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div className="space-y-4">
-                {selectedBasic.length === 0 && (
-                  <div className="text-sm text-gray-500">No attributes selected. Click Add to include fields.</div>
-                )}
-                {selectedBasic.map((id) => (
-                  <Field key={`basic-${id}`} attrId={id} editing={editing} setEditing={setEditing} getAllForCategory={getAllForCategory} onRemove={removeBasicAttribute} />
-                ))}
-              </div>
-            </div>
-
             {/* Location Details */}
             <div className={`${getPanelClassName('details')} relative`} style={getPanelStyle('details')}>
               <div className="flex items-center justify-between mb-4">
@@ -977,6 +964,87 @@ export default function LocationsPanel({
                 )}
                 {selectedDetails.map((id) => (
                   <Field key={`details-${id}`} attrId={id} editing={editing} setEditing={setEditing} getAllForCategory={getAllForCategory} onRemove={removeDetailsAttribute} />
+                ))}
+              </div>
+            </div>
+
+            {/* Basic Information */}
+            <div className={`${getPanelClassName('basic')} relative`} style={getPanelStyle('basic')}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-800">Basic Information</h3>
+                <div className="flex items-center gap-2 relative">
+                  <button
+                    onClick={() => setShowBasicModal(true)}
+                    className="text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded-lg p-2 transition-all duration-200"
+                    title="Add"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => toggleDropdown('basic')}
+                    className="text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded-lg p-2 transition-all duration-200"
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </button>
+                  {activeDropdown === 'basic' && (
+                    <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
+                      <button
+                        onClick={() => handleMenuAction('setColor', 'basic')}
+                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-t-lg"
+                      >
+                        Set Panel Color
+                      </button>
+                      <button
+                        onClick={() => handleMenuAction('delete', 'basic')}
+                        className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-b-lg"
+                      >
+                        Delete Panel
+                      </button>
+                    </div>
+                  )}
+                  {showColorPicker === 'basic' && (
+                    <div className="absolute right-0 top-full mt-1 w-64 bg-white border border-gray-200 rounded-lg shadow-lg z-20 p-4 color-picker-container">
+                      <h4 className="text-sm font-medium text-gray-700 mb-3">Choose Panel Color</h4>
+                      
+                      {/* Custom Color Picker */}
+                      <div className="mb-4 p-3 border border-gray-200 rounded-lg bg-gray-50">
+                        <label className="block text-xs font-medium text-gray-600 mb-2">Custom Color</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={customColors.basic || '#ffffff'}
+                            onChange={(e) => handleCustomColorChange('basic', e.target.value)}
+                            className="w-10 h-10 rounded-lg border border-gray-300 cursor-pointer"
+                            title="Choose custom color"
+                          />
+                          <span className="text-xs text-gray-500">Pick any color</span>
+                        </div>
+                      </div>
+
+                      {/* Predefined Colors */}
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-2">Preset Colors</label>
+                        <div className="grid grid-cols-4 gap-2">
+                          {predefinedColors.map((color) => (
+                            <button
+                              key={color.name}
+                              onClick={() => handleColorSelect('basic', color.value)}
+                              className={`w-12 h-12 rounded-lg border-2 ${color.class} hover:scale-110 transition-transform duration-200 ${panelColors.basic === color.value ? 'ring-2 ring-orange-500' : 'border-gray-300'}`}
+                              title={color.name}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="space-y-4">
+                {selectedBasic.length === 0 && (
+                  <div className="text-sm text-gray-500">No attributes selected. Click Add to include fields.</div>
+                )}
+                {selectedBasic.map((id) => (
+                  <Field key={`basic-${id}`} attrId={id} editing={editing} setEditing={setEditing} getAllForCategory={getAllForCategory} onRemove={removeBasicAttribute} />
                 ))}
               </div>
             </div>
