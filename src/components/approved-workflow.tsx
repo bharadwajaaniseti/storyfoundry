@@ -349,6 +349,24 @@ export default function ApprovedWorkflow({ projectId, userId, userRole: passedUs
     }
   }, [projectId])
 
+  // Listen for collaborator updates dispatched from other parts of the app
+  useEffect(() => {
+    const handler = (e: any) => {
+      try {
+        if (!projectId) return
+        const detailProjectId = e?.detail?.projectId
+        if (detailProjectId && detailProjectId !== projectId) return
+        console.log('Received collaborators:updated event, refreshing workflow data')
+        fetchAllWorkflowData()
+      } catch (err) {
+        console.error('Error handling collaborators:updated event', err)
+      }
+    }
+
+    window.addEventListener('collaborators:updated', handler)
+    return () => window.removeEventListener('collaborators:updated', handler)
+  }, [projectId, fetchAllWorkflowData])
+
   // Filter data based on current tab without re-fetching
   const filterDataForCurrentTab = useCallback(() => {
     console.log('🔄 Filtering data for tab:', activeTab)

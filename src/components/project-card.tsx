@@ -51,7 +51,7 @@ export default function ProjectCard({
     console.log('NOVEL CLICKED:', project.title)
     console.log('Full project data:', project)
     // Navigate to the dedicated novel page
-    router.push(`/app/novels/${project.id}`)
+    router.push(`/novels/${project.id}`)
   }
 
   const cardContent = (

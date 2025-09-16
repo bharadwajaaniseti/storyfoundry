@@ -223,7 +223,7 @@ export default function CollaborationsPage() {
                                   <BookOpen className="w-5 h-5 text-blue-600" />
                                   <div>
                                     <Link 
-                                      href={`/app/projects/${collaboration.project.id}`}
+                                      href={collaboration.project.format && collaboration.project.format.toLowerCase() === 'novel' ? `/novels/${collaboration.project.id}` : `/app/projects/${collaboration.project.id}`}
                                       className="text-lg font-semibold text-gray-800 hover:text-blue-600 transition-colors"
                                     >
                                       {collaboration.project.title}
@@ -261,7 +261,7 @@ export default function CollaborationsPage() {
                                   {collaboration.project.format}
                                 </Badge>
                                 <Button variant="outline" size="sm" asChild>
-                                  <Link href={`/app/projects/${collaboration.project.id}`}>
+                                  <Link href={collaboration.project.format && collaboration.project.format.toLowerCase() === 'novel' ? `/novels/${collaboration.project.id}` : `/app/projects/${collaboration.project.id}`}>
                                     View Project
                                   </Link>
                                 </Button>

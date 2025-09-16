@@ -7,7 +7,7 @@ import {
   Target, MapPin, User, Calendar, Search, Bookmark, Plus, Edit3, Trash2, 
   ChevronDown, ChevronRight, Folder, Edit, Palette, Globe, Shield, Heart, 
   Brain, Zap, Upload, Crown, Download, Copy, ExternalLink, AlertCircle,
-  Check, Sparkles, MessageSquare, TrendingUp
+  Check, Sparkles, MessageSquare, LogOut, TrendingUp
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -35,9 +35,12 @@ import SendMessageModal from '@/components/send-message-modal'
 import EditCollaboratorModal from '@/components/edit-collaborator-modal'
 import EditInvitationModal from '@/components/edit-invitation-modal'
 import { useProjectCollaborators } from '@/hooks/useCollaboration'
+import { getCollaboratorPermissions } from '@/lib/collaboration-utils'
 import { ToastProvider, useToast } from '@/components/ui/toast'
 import { useRoleBasedUI } from '@/hooks/usePermissions'
 import RoleTag from '@/components/role-tag'
+import UserAvatar from '@/components/user-avatar'
+import NotificationBell from '@/components/notification-bell'
 
 // Type definitions
 interface Project {
@@ -141,6 +144,8 @@ function NovelPageInner() {
   const [activeTab, setActiveTab] = useState<string>('')
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [currentUser, setCurrentUser] = useState<any>(null)
+  const [userProfile, setUserProfile] = useState<any>(null)
+  const [isProjectOwner, setIsProjectOwner] = useState(false)
   
   // Data state
   const [worldElements, setWorldElements] = useState<WorldElement[]>([])
@@ -255,6 +260,18 @@ function NovelPageInner() {
         
         if (user) {
           setCurrentUser(user)
+          // also fetch the user's profile (display_name, first/last name, avatar)
+          try {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('id, first_name, last_name, display_name, avatar_url, role')
+              .eq('id', user.id)
+              .single()
+            if (profile) setUserProfile(profile)
+          } catch (e) {
+            // ignore profile fetch errors here
+            console.warn('Failed to load user profile', e)
+          }
         }
         
         // Fetch project
@@ -269,20 +286,59 @@ function NovelPageInner() {
         
         const projectData = await response.json()
         
-        // Check if user is the owner - if not, redirect to read page
-        if (!user || projectData.owner_id !== user.id) {
-          // Redirect non-owners to the read-only view
+        // Check if user is the owner or an active collaborator with write permission
+        if (!user) {
           router.push(`/novels/${projectId}/read`)
           return
         }
-        
-        setProject(projectData)
+
+        const isOwner = projectData.owner_id === user.id
+        console.log('User role check:', { isOwner, userId: user.id, projectOwnerId: projectData.owner_id })
+        setIsProjectOwner(isOwner)
+        if (isOwner) {
+          setProject(projectData)
+        } else {
+          try {
+            // Check if the current user is an active collaborator with write permission
+            const supabase = createSupabaseClient()
+            const { data: collabRow, error: collabErr } = await supabase
+              .from('project_collaborators')
+              .select(`*, profiles!project_collaborators_user_id_fkey(id, display_name, avatar_url, verified_pro)`)
+              .eq('project_id', projectId)
+              .eq('user_id', user.id)
+              .eq('status', 'active')
+              .single()
+
+            console.log('Collaborator check:', { collabRow, collabErr })
+            if (!collabErr && collabRow) {
+              const perms = getCollaboratorPermissions(collabRow as any)
+              console.log('Collaborator permissions:', perms)
+              if (perms.write || perms.read) {
+                // Allow collaborators with write (or at least read) to access the editor page
+                setProject(projectData)
+              } else {
+                router.push(`/novels/${projectId}/read`)
+                return
+              }
+            } else {
+              // Not a collaborator -> redirect to read-only
+              router.push(`/novels/${projectId}/read`)
+              return
+            }
+          } catch (e) {
+            console.error('Error checking collaborator permissions', e)
+            router.push(`/novels/${projectId}/read`)
+            return
+          }
+        }
         
         // Load world elements and chapters
+        console.log('Loading world data for project:', projectId)
         await Promise.all([
           loadWorldElements(projectId),
           loadChapters(projectId)
         ])
+        console.log('World data loading completed')
         
       } catch (error) {
         setProject(null)
@@ -307,9 +363,14 @@ function NovelPageInner() {
         .order('sort_order', { ascending: true })
         .order('name', { ascending: true })
 
-      if (error) throw error
+      if (error) {
+        console.error('Error loading world elements:', error)
+        throw error
+      }
+      console.log('Loaded world elements:', data?.length || 0, 'items')
       setWorldElements(data || [])
     } catch (error) {
+      console.error('Failed to load world elements:', error)
     }
   }
 
@@ -323,7 +384,10 @@ function NovelPageInner() {
         .order('chapter_number', { ascending: true })
         .order('sort_order', { ascending: true })
 
-      if (error) throw error
+      if (error) {
+        console.error('Error loading chapters:', error)
+        throw error
+      }
       
       // Ensure chapters have category field
       const chaptersWithCategory = (data || []).map(chapter => ({
@@ -331,8 +395,10 @@ function NovelPageInner() {
         category: chapter.category || 'chapters'
       }))
       
+      console.log('Loaded chapters:', chaptersWithCategory.length, 'items')
       setChapters(chaptersWithCategory)
     } catch (error) {
+      console.error('Failed to load chapters:', error)
     }
   }
 
@@ -1569,16 +1635,20 @@ function NovelPageInner() {
       })
       
       if (response.ok) {
-        // Refresh the collaborators list to update the UI
-        refreshCollaborators()
+  // Refresh the collaborators list to update the UI
+  await refreshCollaborators()
+  try { window.dispatchEvent(new CustomEvent('collaborators:updated', { detail: { projectId: project?.id } })) } catch (e) { }
+  toast.addToast?.({ type: 'success', title: 'Invitation Updated', message: 'Invitation updated successfully' })
         setShowEditInvitationModal(false)
         setEditingInvitation(null)
       } else {
         const errorData = await response.text()
         console.error('Failed to update invitation:', response.status, errorData)
+        toast.addToast?.({ type: 'error', title: 'Update Failed', message: errorData || 'Failed to update invitation' })
       }
     } catch (error) {
       console.error('Error updating invitation:', error)
+      toast.addToast?.({ type: 'error', title: 'Update Failed', message: error instanceof Error ? error.message : 'Error updating invitation' })
     }
   }
 
@@ -1607,14 +1677,16 @@ function NovelPageInner() {
                           </div>
                         )}
                       </div>
-                      <ProjectCollaborationButton 
-                        projectId={project.id}
-                        projectTitle={project.title}
-                        isOwner={true}
-                        currentCollaborators={collaborators}
-                        className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-200"
-                        onInvitationSent={refreshCollaborators}
-                      />
+                      {isProjectOwner && (
+                        <ProjectCollaborationButton 
+                          projectId={project.id}
+                          projectTitle={project.title}
+                          isOwner={isProjectOwner}
+                          currentCollaborators={collaborators}
+                          className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-200"
+                          onInvitationSent={refreshCollaborators}
+                        />
+                      )}
                     </div>
                   </div>
 
@@ -1667,65 +1739,109 @@ function NovelPageInner() {
                           </div>
                         </div>
 
-                        <h3 className="text-2xl font-bold text-gray-900 mb-4">
-                          Ready to build your dream team? ✨
-                        </h3>
-                        <p className="text-lg text-gray-700 mb-3 max-w-lg mx-auto">
-                          Great stories are born from collaboration! 
-                        </p>
-                        <p className="text-gray-600 mb-8 max-w-xl mx-auto leading-relaxed">
-                          Invite talented writers, skilled editors, creative translators, and experienced producers to join your project. 
-                          Share revenue, combine expertise, and create something amazing together.
-                        </p>
+                        {isProjectOwner ? (
+                          // Owner empty state - can invite collaborators
+                          <>
+                            <h3 className="text-2xl font-bold text-gray-900 mb-4">
+                              Ready to build your dream team? ✨
+                            </h3>
+                            <p className="text-lg text-gray-700 mb-3 max-w-lg mx-auto">
+                              Great stories are born from collaboration! 
+                            </p>
+                            <p className="text-gray-600 mb-8 max-w-xl mx-auto leading-relaxed">
+                              Invite talented writers, skilled editors, creative translators, and experienced producers to join your project. 
+                              Share revenue, combine expertise, and create something amazing together.
+                            </p>
 
-                        {/* Feature Highlights */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10 max-w-3xl mx-auto">
-                          <div className="text-center p-4">
-                            <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-blue-200 rounded-xl flex items-center justify-center mx-auto mb-3">
-                              <Users className="w-6 h-6 text-blue-600" />
+                            {/* Feature Highlights */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10 max-w-3xl mx-auto">
+                              <div className="text-center p-4">
+                                <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-blue-200 rounded-xl flex items-center justify-center mx-auto mb-3">
+                                  <Users className="w-6 h-6 text-blue-600" />
+                                </div>
+                                <h4 className="font-semibold text-gray-900 mb-2">Find Your Tribe</h4>
+                                <p className="text-sm text-gray-600">Connect with writers, editors, and creators who share your vision</p>
+                              </div>
+                              <div className="text-center p-4">
+                                <div className="w-12 h-12 bg-gradient-to-br from-green-100 to-green-200 rounded-xl flex items-center justify-center mx-auto mb-3">
+                                  <Sparkles className="w-6 h-6 text-green-600" />
+                                </div>
+                                <h4 className="font-semibold text-gray-900 mb-2">Share Revenue</h4>
+                                <p className="text-sm text-gray-600">Set up fair revenue sharing and build a sustainable creative partnership</p>
+                              </div>
+                              <div className="text-center p-4">
+                                <div className="w-12 h-12 bg-gradient-to-br from-purple-100 to-purple-200 rounded-xl flex items-center justify-center mx-auto mb-3">
+                                  <TrendingUp className="w-6 h-6 text-purple-600" />
+                                </div>
+                                <h4 className="font-semibold text-gray-900 mb-2">Grow Together</h4>
+                                <p className="text-sm text-gray-600">Track contributions and watch your project flourish with diverse skills</p>
+                              </div>
                             </div>
-                            <h4 className="font-semibold text-gray-900 mb-2">Find Your Tribe</h4>
-                            <p className="text-sm text-gray-600">Connect with writers, editors, and creators who share your vision</p>
-                          </div>
-                          <div className="text-center p-4">
-                            <div className="w-12 h-12 bg-gradient-to-br from-green-100 to-green-200 rounded-xl flex items-center justify-center mx-auto mb-3">
-                              <Sparkles className="w-6 h-6 text-green-600" />
-                            </div>
-                            <h4 className="font-semibold text-gray-900 mb-2">Share Revenue</h4>
-                            <p className="text-sm text-gray-600">Set up fair revenue sharing and build a sustainable creative partnership</p>
-                          </div>
-                          <div className="text-center p-4">
-                            <div className="w-12 h-12 bg-gradient-to-br from-purple-100 to-purple-200 rounded-xl flex items-center justify-center mx-auto mb-3">
-                              <TrendingUp className="w-6 h-6 text-purple-600" />
-                            </div>
-                            <h4 className="font-semibold text-gray-900 mb-2">Grow Together</h4>
-                            <p className="text-sm text-gray-600">Track contributions and watch your project flourish with diverse skills</p>
-                          </div>
-                        </div>
 
-                        {/* Action Buttons */}
-                        <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-                          <ProjectCollaborationButton 
-                            projectId={project.id}
-                            projectTitle={project.title}
-                            isOwner={true}
-                            currentCollaborators={collaborators}
-                            className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-semibold px-8 py-3 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200"
-                            onInvitationSent={refreshCollaborators}
-                          />
-                          <button className="px-6 py-3 border-2 border-orange-200 text-orange-700 font-medium rounded-lg hover:border-orange-300 hover:bg-orange-50 transition-all duration-200 flex items-center space-x-2">
-                            <FileText className="w-4 h-4" />
-                            <span>Learn About Collaboration</span>
-                          </button>
-                        </div>
+                            {/* Action Buttons */}
+                            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+                              <ProjectCollaborationButton 
+                                projectId={project.id}
+                                projectTitle={project.title}
+                                isOwner={isProjectOwner}
+                                currentCollaborators={collaborators}
+                                className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-semibold px-8 py-3 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200"
+                                onInvitationSent={refreshCollaborators}
+                              />
+                              <button className="px-6 py-3 border-2 border-orange-200 text-orange-700 font-medium rounded-lg hover:border-orange-300 hover:bg-orange-50 transition-all duration-200 flex items-center space-x-2">
+                                <FileText className="w-4 h-4" />
+                                <span>Learn About Collaboration</span>
+                              </button>
+                            </div>
 
-                        {/* Encouraging Note */}
-                        <div className="mt-8 p-4 bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl border border-orange-100 max-w-md mx-auto">
-                          <p className="text-sm text-orange-800">
-                            💡 <strong>Pro tip:</strong> The best collaborations start with clear communication and shared goals. 
-                            Take time to discuss roles and expectations with your team!
-                          </p>
-                        </div>
+                            {/* Encouraging Note */}
+                            <div className="mt-8 p-4 bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl border border-orange-100 max-w-md mx-auto">
+                              <p className="text-sm text-orange-800">
+                                💡 <strong>Pro tip:</strong> The best collaborations start with clear communication and shared goals. 
+                                Take time to discuss roles and expectations with your team!
+                              </p>
+                            </div>
+                          </>
+                        ) : (
+                          // Non-owner empty state - readonly view
+                          <>
+                            <h3 className="text-2xl font-bold text-gray-900 mb-4">
+                              No collaborators yet 🤝
+                            </h3>
+                            <p className="text-lg text-gray-700 mb-3 max-w-lg mx-auto">
+                              This project doesn't have any collaborators at the moment.
+                            </p>
+                            <p className="text-gray-600 mb-8 max-w-xl mx-auto leading-relaxed">
+                              When the project owner invites team members, you'll be able to see who's working on this project and their roles.
+                            </p>
+
+                            {/* Read-only Features */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10 max-w-2xl mx-auto">
+                              <div className="text-center p-4">
+                                <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-blue-200 rounded-xl flex items-center justify-center mx-auto mb-3">
+                                  <Eye className="w-6 h-6 text-blue-600" />
+                                </div>
+                                <h4 className="font-semibold text-gray-900 mb-2">View Team</h4>
+                                <p className="text-sm text-gray-600">See who's working on this project and their contributions</p>
+                              </div>
+                              <div className="text-center p-4">
+                                <div className="w-12 h-12 bg-gradient-to-br from-green-100 to-green-200 rounded-xl flex items-center justify-center mx-auto mb-3">
+                                  <MessageSquare className="w-6 h-6 text-green-600" />
+                                </div>
+                                <h4 className="font-semibold text-gray-900 mb-2">Stay Updated</h4>
+                                <p className="text-sm text-gray-600">Get notified when new team members join the project</p>
+                              </div>
+                            </div>
+
+                            {/* Info Note */}
+                            <div className="mt-8 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100 max-w-md mx-auto">
+                              <p className="text-sm text-blue-800">
+                                ℹ️ Only project owners can invite and manage collaborators. 
+                                You can view team information and track project progress here.
+                              </p>
+                            </div>
+                          </>
+                        )}
                       </div>
                     ) : (
                       /* Collaborators List */
@@ -1821,16 +1937,18 @@ function NovelPageInner() {
                                       >
                                         <MessageSquare className="w-4 h-4" />
                                       </button>
-                                      <button 
-                                        onClick={() => {
-                                          setEditingCollaborator(collaborator)
-                                          setShowEditModal(true)
-                                        }}
-                                        className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
-                                        title="Edit Role & Permissions"
-                                      >
-                                        <Settings className="w-4 h-4" />
-                                      </button>
+                                      {isProjectOwner && (
+                                        <button 
+                                          onClick={() => {
+                                            setEditingCollaborator(collaborator)
+                                            setShowEditModal(true)
+                                          }}
+                                          className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+                                          title="Edit Role & Permissions"
+                                        >
+                                          <Settings className="w-4 h-4" />
+                                        </button>
+                                      )}
                                     </div>
                                   </div>
                                 </div>
@@ -1906,13 +2024,15 @@ function NovelPageInner() {
                                     >
                                       <MessageSquare className="w-4 h-4" />
                                     </button>
-                                    <button 
-                                      onClick={() => handleEditInvitation(invitation)}
-                                      className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
-                                      title="Edit Invitation"
-                                    >
-                                      <Settings className="w-4 h-4" />
-                                    </button>
+                                    {isProjectOwner && (
+                                      <button 
+                                        onClick={() => handleEditInvitation(invitation)}
+                                        className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+                                        title="Edit Invitation"
+                                      >
+                                        <Settings className="w-4 h-4" />
+                                      </button>
+                                    )}
                                   </div>
                                 </div>
                               </div>
@@ -2413,11 +2533,121 @@ function NovelPageInner() {
         )
 
       default:
+        // Render a generic world-elements panel for categories that don't
+        // have a dedicated panel component yet (e.g., arcs, magic, items...).
+        const categoryLabel = SIDEBAR_OPTIONS.find(o => o.id === activePanel)?.label || activePanel
+  const elements = getElementsForCategory(activePanel)
+  // Only keep WorldElement items here (filter out Chapter objects)
+  const worldItems = elements.filter((e): e is WorldElement => (e as Chapter).chapter_number === undefined)
+  const folders = getFoldersForCategory(activePanel)
+
         return (
-          <div className="h-full bg-white p-6">
-            <div className="text-center text-gray-500">
-              <h3 className="text-lg font-medium mb-2">Feature Coming Soon</h3>
-              <p>This section is under development.</p>
+          <div className="h-full bg-white p-6 overflow-y-auto">
+            <div className="max-w-5xl mx-auto">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">{categoryLabel}</h2>
+                  <p className="text-sm text-gray-500">Manage your {categoryLabel.toLowerCase()}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    onClick={() => {
+                      // Open the create flow for this category
+                      if (activePanel === 'chapters') {
+                        setActivePanel('chapters')
+                        setTriggerNewChapter(true)
+                        setTimeout(() => setTriggerNewChapter(false), 100)
+                      } else if (activePanel === 'characters') {
+                        handleShowCharacterEditor()
+                      } else {
+                        // Create a generic world element
+                        createWorldElement(activePanel, `New ${categoryLabel.slice(0, -1)}`)
+                      }
+                    }}
+                    className="bg-orange-500 hover:bg-orange-600 text-white"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    New {categoryLabel.slice(0, -1)}
+                  </Button>
+                </div>
+              </div>
+
+              {folders.length === 0 && worldItems.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-gray-600">No {categoryLabel.toLowerCase()} yet.</p>
+                  <div className="mt-4">
+                    <Button onClick={() => createWorldElement(activePanel, `New ${categoryLabel.slice(0, -1)}`)} className="bg-orange-500 hover:bg-orange-600 text-white">
+                      Create First {categoryLabel.slice(0, -1)}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Folders */}
+                  {folders.map(folder => (
+                    <div key={folder.id} className="p-3 bg-gray-50 rounded-lg border border-gray-100">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <Folder className="w-5 h-5 text-gray-500" />
+                          <div>
+                            <div className="font-medium text-gray-900">{folder.name}</div>
+                            <div className="text-xs text-gray-500">Folder</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => toggleFolderExpansion(folder.id)} className="text-sm text-gray-600 hover:text-gray-800">Open</button>
+                          <button onClick={() => {
+                            setInputModal({
+                              isOpen: true,
+                              type: 'rename',
+                              title: 'Rename Folder',
+                              defaultValue: folder.name,
+                              onConfirm: (newName) => updateWorldElement(folder.id, { name: newName })
+                            })
+                          }} className="text-sm text-gray-600 hover:text-gray-800">Rename</button>
+                        </div>
+                      </div>
+
+                      {expandedFolders.includes(folder.id) && (
+                        <div className="mt-3 ml-6 space-y-2">
+                          {worldElements.filter(el => el.parent_folder_id === folder.id && el.category === activePanel && !el.is_folder).map(el => (
+                            <div key={el.id} className="flex items-center justify-between p-2 rounded hover:bg-gray-100">
+                              <div className="flex items-center gap-3">
+                                <FileText className="w-4 h-4 text-gray-500" />
+                                <div className="truncate">
+                                  <div className="font-medium text-gray-800">{el.name}</div>
+                                  <div className="text-xs text-gray-500 truncate">{el.description}</div>
+                                </div>
+                              </div>
+                              <div className="text-sm text-gray-600">
+                                <button onClick={() => { setSelectedElement(el); setActivePanel(activePanel) }} className="mr-3">Open</button>
+                                <button onClick={() => { setDeleteModal({ isOpen: true, type: 'element', title: 'Delete Element', itemName: el.name, onConfirm: () => deleteWorldElement(el.id) }) }}>Delete</button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+
+                  {/* Root Elements */}
+                  {worldItems.filter(el => !el.is_folder).map(el => (
+                    <div key={el.id} className="p-3 bg-white rounded-lg border border-gray-100 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <FileText className="w-5 h-5 text-gray-500" />
+                        <div>
+                          <div className="font-medium text-gray-900">{el.name}</div>
+                          <div className="text-xs text-gray-500 truncate" style={{ maxWidth: 500 }}>{el.description}</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Button size="sm" variant="outline" onClick={() => { setSelectedElement(el); setActivePanel(activePanel) }}>Open</Button>
+                        <Button size="sm" variant="ghost" onClick={() => { setDeleteModal({ isOpen: true, type: 'element', title: 'Delete Element', itemName: el.name, onConfirm: () => deleteWorldElement(el.id) }) }}>Delete</Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )
@@ -2632,13 +2862,15 @@ function NovelPageInner() {
               </div>
 
               <div className="flex items-center gap-3">
-                <ProjectCollaborationButton 
-                  projectId={project.id}
-                  projectTitle={project.title}
-                  isOwner={true}
-                  currentCollaborators={[]}
-                  className="text-sm"
-                />
+                {isProjectOwner && (
+                  <ProjectCollaborationButton 
+                    projectId={project.id}
+                    projectTitle={project.title}
+                    isOwner={isProjectOwner}
+                    currentCollaborators={[]}
+                    className="text-sm"
+                  />
+                )}
                 <Button 
                   variant="ghost" 
                   size="sm"
@@ -2663,19 +2895,57 @@ function NovelPageInner() {
                 <Button size="sm" variant="ghost" className="text-gray-400 hover:text-gray-600 hover:bg-gray-100" onClick={() => setShowSettingsModal(true)}>
                   <Settings className="w-4 h-4" />
                 </Button>
-                {/* User avatar + role tag */}
-                <div className="flex items-center space-x-3 pr-2">
+                {/* Notifications and User Menu */}
+                <div className="flex items-center space-x-4">
+                  <NotificationBell />
+
                   {currentUser ? (
-                    <>
-                      <img
-                        src={currentUser?.user_metadata?.avatar_url || currentUser?.avatar_url || project?.owner?.avatar_url || ''}
-                        alt={currentUser?.user_metadata?.full_name || currentUser?.display_name || 'User'}
-                        className="w-8 h-8 rounded-full border border-gray-200"
-                      />
-                      <div className="hidden sm:block">
-                        <RoleTag role={(getAllRoleNames && getAllRoleNames()[0]) || (userRole ? (userRole as string) : 'Viewer')} />
+                    <div className="relative group">
+                      <button className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-100 transition-colors">
+                        <UserAvatar
+                          user={{
+                            avatar_url: userProfile?.avatar_url || currentUser?.user_metadata?.avatar_url || currentUser?.avatar_url || null,
+                            display_name: userProfile?.display_name || currentUser?.user_metadata?.full_name || currentUser?.display_name || (currentUser?.email ? currentUser.email.split('@')[0] : 'User')
+                          }}
+                          size="sm"
+                        />
+                        <div className="hidden sm:flex flex-col items-start space-y-1">
+                          <span className="text-sm font-medium text-gray-700">
+                            {userProfile?.display_name || currentUser?.user_metadata?.full_name || currentUser?.display_name || (currentUser?.email ? currentUser.email.split('@')[0] : 'User')}
+                          </span>
+                          <div>
+                            <RoleTag role={userRole ? (userRole as string) : ((getAllRoleNames && getAllRoleNames()[0]) || 'Viewer')} />
+                          </div>
+                        </div>
+                      </button>
+
+                      <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                        <div className="py-2">
+                          <a
+                            href="/app/settings"
+                            className="flex items-center space-x-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                          >
+                            <Settings className="w-4 h-4" />
+                            <span>Settings</span>
+                          </a>
+                          <button
+                            onClick={async () => {
+                              try {
+                                const supabase = createSupabaseClient()
+                                await supabase.auth.signOut()
+                                window.location.href = '/'
+                              } catch (err) {
+                                console.error('Sign out error:', err)
+                              }
+                            }}
+                            className="flex items-center space-x-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors w-full text-left"
+                          >
+                            <LogOut className="w-4 h-4" />
+                            <span>Sign Out</span>
+                          </button>
+                        </div>
                       </div>
-                    </>
+                    </div>
                   ) : null}
                 </div>
               </div>
@@ -2687,8 +2957,6 @@ function NovelPageInner() {
                 <p className="text-sm text-gray-500">
                   {activeTab ? 
                     (activeTab === 'collaborators' ? 'Collaborators' : 
-                     activeTab === 'history' ? 'History' : 
-                     activeTab === 'approved-workflow' ? 'Approved Workflow' : 
                      SIDEBAR_OPTIONS.find(p => p.id === activePanel)?.label || 'Novel Editor') :
                     (SIDEBAR_OPTIONS.find(p => p.id === activePanel)?.label || 'Novel Editor')
                   }
@@ -2705,26 +2973,6 @@ function NovelPageInner() {
                   }`}
                 >
                   Collaborators
-                </button>
-                <button
-                  onClick={() => setActiveTab('history')}
-                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                    activeTab === 'history'
-                      ? 'text-orange-600 border-orange-500 hover:text-orange-700'
-                      : 'text-gray-600 border-transparent hover:text-gray-800 hover:border-gray-300'
-                  }`}
-                >
-                  History
-                </button>
-                <button
-                  onClick={() => setActiveTab('approved-workflow')}
-                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                    activeTab === 'approved-workflow'
-                      ? 'text-orange-600 border-orange-500 hover:text-orange-700'
-                      : 'text-gray-600 border-transparent hover:text-gray-800 hover:border-gray-300'
-                  }`}
-                >
-                  Approved Workflow
                 </button>
                 {activeTab && (
                   <button
@@ -3388,20 +3636,22 @@ function NovelPageInner() {
             setEditingCollaborator(null)
           }}
           collaborator={editingCollaborator}
-          onSave={async (updates) => {
+            onSave={async (updates) => {
             try {
               if (updateCollaborator && editingCollaborator?.id) {
                 await updateCollaborator(editingCollaborator.id, updates)
               }
             } catch (err) {
               console.error('Failed to update collaborator:', err)
-              toast.show(err instanceof Error ? err.message : 'Failed to update collaborator', 'error')
-            } finally {
-              refreshCollaborators()
-              toast.show('Collaborator updated', 'success')
-              setShowEditModal(false)
-              setEditingCollaborator(null)
-            }
+                toast.addToast?.({ type: 'error', title: 'Update Failed', message: err instanceof Error ? err.message : 'Failed to update collaborator' })
+              } finally {
+                await refreshCollaborators()
+                // Notify other components (ApprovedWorkflow) that collaborators changed
+                try { window.dispatchEvent(new CustomEvent('collaborators:updated', { detail: { projectId: project?.id } })) } catch (e) { }
+                toast.addToast?.({ type: 'success', title: 'Updated', message: 'Collaborator updated' })
+                setShowEditModal(false)
+                setEditingCollaborator(null)
+              }
           }}
           onRemove={async () => {
             try {
@@ -3410,10 +3660,11 @@ function NovelPageInner() {
               }
             } catch (err) {
               console.error('Failed to remove collaborator:', err)
-              toast.show(err instanceof Error ? err.message : 'Failed to remove collaborator', 'error')
+              toast.addToast?.({ type: 'error', title: 'Remove Failed', message: err instanceof Error ? err.message : 'Failed to remove collaborator' })
             } finally {
-              refreshCollaborators()
-              toast.show('Collaborator removed', 'success')
+              await refreshCollaborators()
+              try { window.dispatchEvent(new CustomEvent('collaborators:updated', { detail: { projectId: project?.id } })) } catch (e) { }
+              toast.addToast?.({ type: 'success', title: 'Removed', message: 'Collaborator removed' })
               setShowEditModal(false)
               setEditingCollaborator(null)
             }

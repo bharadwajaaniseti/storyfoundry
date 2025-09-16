@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useToast } from '@/components/ui/toast'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -61,6 +62,7 @@ export default function EditCollaboratorModal({
   const [royaltySplit, setRoyaltySplit] = useState<number>(collaborator.royalty_split || 0)
   const [saving, setSaving] = useState(false)
   const [removing, setRemoving] = useState(false)
+  const { addToast } = useToast()
 
   const otherCollaboratorsSplit = currentTotalSplit - (collaborator.royalty_split || 0)
   const maxSplit = 100 - otherCollaboratorsSplit
@@ -85,7 +87,8 @@ export default function EditCollaboratorModal({
       
       onClose()
     } catch (error) {
-      alert('Failed to update collaborator')
+      console.error('Failed to save collaborator in modal:', error)
+      addToast({ type: 'error', title: 'Save Failed', message: error instanceof Error ? error.message : 'Failed to update collaborator' })
     } finally {
       setSaving(false)
     }
@@ -101,7 +104,8 @@ export default function EditCollaboratorModal({
       await onRemove()
       onClose()
     } catch (error) {
-      alert('Failed to remove collaborator')
+      console.error('Failed to remove collaborator in modal:', error)
+      addToast({ type: 'error', title: 'Remove Failed', message: error instanceof Error ? error.message : 'Failed to remove collaborator' })
     } finally {
       setRemoving(false)
     }

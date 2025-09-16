@@ -56,12 +56,29 @@ export async function GET(
     }
 
     // Check if user has access to this project
-    const hasAccess = 
+    let hasAccess = 
       project.owner_id === user.id || // Owner
       project.visibility === 'public' || // Public project
       project.visibility === 'preview' // Preview allowed
 
+    // If not already allowed, check if user is a collaborator
     if (!hasAccess) {
+      const { data: collaboration } = await supabase
+        .from('project_collaborators')
+        .select('status, role')
+        .eq('project_id', id)
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .single()
+
+      if (collaboration) {
+        hasAccess = true // Any active collaborator can access the project
+        console.log('User has collaborator access:', collaboration)
+      }
+    }
+
+    if (!hasAccess) {
+      console.log('Access denied for user:', user.id, 'to project:', id)
       return Response.json({ error: 'Access denied' }, { status: 403 })
     }
 

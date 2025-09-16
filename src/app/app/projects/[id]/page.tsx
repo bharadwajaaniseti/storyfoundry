@@ -94,6 +94,17 @@ export default function ProjectPage() {
   const setContent = setRealtimeContent
   const project = realtimeProject
 
+  // If this is a novel project, redirect legacy /app/projects/:id to canonical /novels/:id
+  useEffect(() => {
+    try {
+      if (project && typeof project.format === 'string' && project.format.toLowerCase() === 'novel') {
+        router.replace(`/novels/${projectId}`)
+      }
+    } catch (e) {
+      console.warn('Redirect to canonical novel route failed', e)
+    }
+  }, [project, projectId, router])
+
   // Local state
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)

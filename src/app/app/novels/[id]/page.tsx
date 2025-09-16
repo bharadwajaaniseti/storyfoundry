@@ -24,6 +24,14 @@ export default function NovelPage() {
       try {
         const projectId = params.id as string
         if (!projectId) return
+        // Redirect legacy /app/novels/:id routes to canonical /novels/:id
+        try {
+          router.replace(`/novels/${projectId}`)
+          return
+        } catch (e) {
+          // ignore router errors and continue
+          console.warn('Redirect to canonical novel route failed', e)
+        }
         
         // Try to fetch from API first
         try {

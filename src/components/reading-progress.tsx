@@ -688,7 +688,7 @@ export default function ReadingProgress({ userId }: ReadingProgressProps) {
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
-                          window.location.href = `/app/projects/${item.project_id}`
+                          window.location.href = `/novels/${item.project_id}`
                         }}
                         className="flex items-center justify-center w-full bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium py-2 px-4 rounded transition-all duration-200"
                       >
