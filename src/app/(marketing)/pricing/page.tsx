@@ -23,7 +23,7 @@ const readerPlans = [
   },
   {
     name: 'Reader Plus',
-    price: { monthly: 0, yearly: 00 },
+    price: { monthly: 0, yearly: 0 },
     description: 'Enhanced reading experience with exclusive access',
     features: [
       'Everything in Reader Free',
@@ -44,7 +44,7 @@ const readerPlans = [
 const writerPlans = [
   {
     name: 'Writer Starter',
-    price: { monthly: 0, yearly: 000 },
+    price: { monthly: 0, yearly: 0 },
     description: 'Perfect for individual creators and writers',
     features: [
       'Up to 5 active projects',
@@ -61,7 +61,7 @@ const writerPlans = [
   },
   {
     name: 'Writer Professional',
-    price: { monthly: 00, yearly: 000 },
+    price: { monthly: 0, yearly: 0 },
     description: 'Ideal for serious creators and small teams',
     features: [
       'Unlimited projects',
@@ -81,7 +81,7 @@ const writerPlans = [
   },
   {
     name: 'Writer Enterprise',
-    price: { monthly: 000, yearly: 0000 },
+    price: { monthly: 0, yearly: 0 },
     description: 'For studios and large creative teams',
     features: [
       'Everything in Writer Professional',
