@@ -639,7 +639,7 @@ export default function SettingsPage() {
                         <>
                           <div className="p-4 border border-gray-200 rounded-lg">
                             <h4 className="font-medium text-gray-800 mb-2">Premium Reading Monthly</h4>
-                            <p className="text-2xl font-bold text-gray-800 mb-2">$9<span className="text-sm font-normal text-gray-600">/month</span></p>
+                            <p className="text-2xl font-bold text-gray-800 mb-2">$0<span className="text-sm font-normal text-gray-600">/month</span></p>
                             <ul className="text-sm text-gray-600 space-y-1">
                               <li>• Unlimited story access</li>
                               <li>• Advanced reading analytics</li>
@@ -654,7 +654,7 @@ export default function SettingsPage() {
                               <h4 className="font-medium text-gray-800">Premium Reading Yearly</h4>
                               <span className="text-xs bg-purple-500 text-white px-2 py-1 rounded-full">Save 25%</span>
                             </div>
-                            <p className="text-2xl font-bold text-gray-800 mb-2">$7<span className="text-sm font-normal text-gray-600">/month</span></p>
+                            <p className="text-2xl font-bold text-gray-800 mb-2">$0<span className="text-sm font-normal text-gray-600">/month</span></p>
                             <ul className="text-sm text-gray-600 space-y-1">
                               <li>• Everything in Premium Monthly</li>
                               <li>• 3 months free</li>
@@ -667,7 +667,7 @@ export default function SettingsPage() {
                         <>
                           <div className="p-4 border border-gray-200 rounded-lg">
                             <h4 className="font-medium text-gray-800 mb-2">Pro Monthly</h4>
-                            <p className="text-2xl font-bold text-gray-800 mb-2">$19<span className="text-sm font-normal text-gray-600">/month</span></p>
+                            <p className="text-2xl font-bold text-gray-800 mb-2">$00<span className="text-sm font-normal text-gray-600">/month</span></p>
                             <ul className="text-sm text-gray-600 space-y-1">
                               <li>• Unlimited projects</li>
                               <li>• Advanced AI features</li>
@@ -681,7 +681,7 @@ export default function SettingsPage() {
                               <h4 className="font-medium text-gray-800">Pro Yearly</h4>
                               <span className="text-xs bg-orange-500 text-white px-2 py-1 rounded-full">Save 20%</span>
                             </div>
-                            <p className="text-2xl font-bold text-gray-800 mb-2">$15<span className="text-sm font-normal text-gray-600">/month</span></p>
+                            <p className="text-2xl font-bold text-gray-800 mb-2">$00<span className="text-sm font-normal text-gray-600">/month</span></p>
                             <ul className="text-sm text-gray-600 space-y-1">
                               <li>• Everything in Pro Monthly</li>
                               <li>• 2 months free</li>

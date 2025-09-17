@@ -58,7 +58,7 @@ export default function ReaderUpgradeModal({ isOpen, onClose }: ReaderUpgradeMod
     },
     plus: {
       name: 'Reader Plus',
-      price: { monthly: 9.99, yearly: 99.99 },
+      price: { monthly: 0.00, yearly: 00.00 },
       description: 'Enhanced reading experience with exclusive access',
       features: [
         'Everything in Reader Free',

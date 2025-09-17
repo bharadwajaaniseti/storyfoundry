@@ -12,7 +12,7 @@ interface WriterUpgradeModalProps {
 const writerPlans = [
   {
     name: 'Writer Starter',
-    price: { monthly: 29, yearly: 290 },
+    price: { monthly: 00, yearly: 000 },
     description: 'Perfect for individual creators and writers',
     features: [
       'Up to 5 active projects',
@@ -29,7 +29,7 @@ const writerPlans = [
   },
   {
     name: 'Writer Professional',
-    price: { monthly: 79, yearly: 790 },
+    price: { monthly: 00, yearly: 000 },
     description: 'Ideal for serious creators and small teams',
     features: [
       'Unlimited projects',
@@ -49,7 +49,7 @@ const writerPlans = [
   },
   {
     name: 'Writer Enterprise',
-    price: { monthly: 199, yearly: 1990 },
+    price: { monthly: 00, yearly: 000 },
     description: 'For studios and large creative teams',
     features: [
       'Everything in Writer Professional',
