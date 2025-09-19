@@ -1,0 +1,3 @@
+}
+
+// Main Maps Panel component - Canvas only layout

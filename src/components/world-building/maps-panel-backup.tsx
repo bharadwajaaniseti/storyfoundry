@@ -2188,32 +2188,36 @@ function EnhancedDecorationRenderer({
 
       // Grid Overlays
       case 'grid':
+        const gridSize = annotation.gridSize || 'medium'
+        const gridSpacing = gridSize === 'small' ? 20 : gridSize === 'large' ? 60 : 40
+        const gridLines = Math.floor(actualSize / gridSpacing) + 1
+        
         return (
           <g>
             {/* Vertical lines */}
-            {Array.from({length: 5}, (_, i) => (
+            {Array.from({length: gridLines}, (_, i) => (
               <line 
                 key={`v${i}`}
-                x1={x - halfSize + (i * actualSize/4)} 
+                x1={x - halfSize + (i * gridSpacing)} 
                 y1={y - halfSize} 
-                x2={x - halfSize + (i * actualSize/4)} 
+                x2={x - halfSize + (i * gridSpacing)} 
                 y2={y + halfSize}
-                stroke={annotation.color}
+                stroke={annotation.gridColor || annotation.color}
                 strokeWidth="1"
-                opacity={0.6}
+                opacity={annotation.gridOpacity || 0.6}
               />
             ))}
             {/* Horizontal lines */}
-            {Array.from({length: 5}, (_, i) => (
+            {Array.from({length: gridLines}, (_, i) => (
               <line 
                 key={`h${i}`}
                 x1={x - halfSize} 
-                y1={y - halfSize + (i * actualSize/4)} 
+                y1={y - halfSize + (i * gridSpacing)} 
                 x2={x + halfSize} 
-                y2={y - halfSize + (i * actualSize/4)}
-                stroke={annotation.color}
+                y2={y - halfSize + (i * gridSpacing)}
+                stroke={annotation.gridColor || annotation.color}
                 strokeWidth="1"
-                opacity={0.6}
+                opacity={annotation.gridOpacity || 0.6}
               />
             ))}
           </g>
@@ -2755,114 +2759,114 @@ function AnnotationRenderer({
 // Decoration Panel Component
 function DecorationPanel({ onAddDecoration }: { onAddDecoration: (decorationType: string) => void }) {
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-      {/* Grid Options */}
-      <div>
-        <h3 className="text-sm font-medium text-gray-700 mb-3">Grid</h3>
-        <div className="space-y-2">
+    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 max-w-full overflow-x-auto">
+      {/* Grid Section */}
+      <div className="mb-6">
+        <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+          <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+          Grid
+        </h3>
+        <div className="flex gap-3">
           <button
             onClick={() => onAddDecoration('grid')}
-            className="w-full flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg hover:border-blue-300 hover:shadow-sm transition-all group"
           >
-            <div className="w-8 h-8 border border-gray-400 grid grid-cols-2 gap-px">
-              <div className="bg-gray-200"></div>
-              <div className="bg-gray-200"></div>
-              <div className="bg-gray-200"></div>
-              <div className="bg-gray-200"></div>
+            <div className="w-6 h-6 border border-gray-400 grid grid-cols-2 gap-px">
+              <div className="bg-gray-300"></div>
+              <div className="bg-gray-300"></div>
+              <div className="bg-gray-300"></div>
+              <div className="bg-gray-300"></div>
             </div>
-            <div>
-              <div className="text-sm font-medium text-gray-900">Square Grid</div>
-              <div className="text-xs text-gray-500">Grid Size, Grid Color, Grid Opacity, Hide Grid</div>
-            </div>
+            <span className="text-sm font-medium text-gray-700 group-hover:text-blue-700">Square Grid</span>
           </button>
           
           <button
             onClick={() => onAddDecoration('hex-grid')}
-            className="w-full flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg hover:border-blue-300 hover:shadow-sm transition-all group"
           >
-            <div className="w-8 h-8 flex items-center justify-center">
-              <div className="text-lg">⬡</div>
+            <div className="w-6 h-6 flex items-center justify-center text-gray-600">
+              <span className="text-lg">⬡</span>
             </div>
-            <div>
-              <div className="text-sm font-medium text-gray-900">Hex Grid</div>
-              <div className="text-xs text-gray-500">Hexagonal grid pattern</div>
-            </div>
+            <span className="text-sm font-medium text-gray-700 group-hover:text-blue-700">Hex Grid</span>
           </button>
         </div>
       </div>
 
-      {/* Legend & Scale */}
-      <div>
-        <h3 className="text-sm font-medium text-gray-700 mb-3">Legend & Scale</h3>
-        <div className="space-y-2">
+      {/* Legend & Scale Section */}
+      <div className="mb-6">
+        <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+          <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+          Legend & Scale
+        </h3>
+        <div className="flex gap-3">
           <button
             onClick={() => onAddDecoration('legend-box')}
-            className="w-full flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg hover:border-green-300 hover:shadow-sm transition-all group"
           >
-            <div className="w-8 h-8 bg-white border border-gray-400 flex items-center justify-center">
-              <div className="text-xs">📋</div>
+            <div className="w-6 h-6 bg-white border border-gray-400 flex items-center justify-center rounded">
+              <span className="text-xs">📋</span>
             </div>
-            <div>
-              <div className="text-sm font-medium text-gray-900">Add Legend</div>
-              <div className="text-xs text-gray-500">Edit Legend, Show Scale in Legend</div>
-            </div>
+            <span className="text-sm font-medium text-gray-700 group-hover:text-green-700">Add Legend</span>
           </button>
           
           <button
             onClick={() => onAddDecoration('scale-bar')}
-            className="w-full flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg hover:border-green-300 hover:shadow-sm transition-all group"
           >
-            <div className="w-8 h-8 flex items-center justify-center">
-              <div className="w-6 h-1 bg-gray-600"></div>
+            <div className="w-6 h-6 flex items-center justify-center">
+              <div className="w-4 h-1 bg-gray-600 rounded"></div>
             </div>
-            <div>
-              <div className="text-sm font-medium text-gray-900">Add Scale</div>
-              <div className="text-xs text-gray-500">Edit Scale, Border Style</div>
-            </div>
+            <span className="text-sm font-medium text-gray-700 group-hover:text-green-700">Add Scale</span>
           </button>
         </div>
       </div>
 
-      {/* Compass */}
-      <div>
-        <h3 className="text-sm font-medium text-gray-700 mb-3">Compass</h3>
-        <div className="space-y-2">
+      {/* Compass Section */}
+      <div className="mb-6">
+        <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+          <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
+          Compass
+        </h3>
+        <div className="flex gap-3">
           <button
             onClick={() => onAddDecoration('compass-simple')}
-            className="w-full flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg hover:border-purple-300 hover:shadow-sm transition-all group"
           >
-            <div className="w-8 h-8 flex items-center justify-center">
-              <div className="text-lg">🧭</div>
+            <div className="w-6 h-6 flex items-center justify-center">
+              <span className="text-base">🧭</span>
             </div>
-            <div className="text-sm font-medium text-gray-900">Simple Compass 1</div>
+            <span className="text-sm font-medium text-gray-700 group-hover:text-purple-700">Simple</span>
           </button>
           
           <button
             onClick={() => onAddDecoration('compass-detailed')}
-            className="w-full flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg hover:border-purple-300 hover:shadow-sm transition-all group"
           >
-            <div className="w-8 h-8 flex items-center justify-center">
-              <div className="text-lg">⭐</div>
+            <div className="w-6 h-6 flex items-center justify-center">
+              <span className="text-base">⭐</span>
             </div>
-            <div className="text-sm font-medium text-gray-900">Simple Compass 2</div>
+            <span className="text-sm font-medium text-gray-700 group-hover:text-purple-700">Detailed</span>
           </button>
           
           <button
             onClick={() => onAddDecoration('compass-fantasy')}
-            className="w-full flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg hover:border-purple-300 hover:shadow-sm transition-all group"
           >
-            <div className="w-8 h-8 flex items-center justify-center">
-              <div className="text-lg">✨</div>
+            <div className="w-6 h-6 flex items-center justify-center">
+              <span className="text-base">✨</span>
             </div>
-            <div className="text-sm font-medium text-gray-900">Fantasy</div>
+            <span className="text-sm font-medium text-gray-700 group-hover:text-purple-700">Fantasy</span>
           </button>
         </div>
       </div>
 
-      {/* Basic Shapes */}
+      {/* Basic Shapes Section */}
       <div>
-        <h3 className="text-sm font-medium text-gray-700 mb-3">Basic Shapes</h3>
-        <div className="grid grid-cols-3 gap-2">
+        <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+          <span className="w-2 h-2 bg-orange-500 rounded-full"></span>
+          Basic Shapes
+        </h3>
+        <div className="grid grid-cols-6 gap-2">
           {[
             { type: 'circle', icon: '●', label: 'Circle' },
             { type: 'square', icon: '■', label: 'Square' },
@@ -2874,11 +2878,11 @@ function DecorationPanel({ onAddDecoration }: { onAddDecoration: (decorationType
             <button
               key={shape.type}
               onClick={() => onAddDecoration(shape.type)}
-              className="flex flex-col items-center gap-1 p-2 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
+              className="flex flex-col items-center gap-1 p-2 bg-white border border-gray-200 rounded hover:border-orange-300 hover:shadow-sm transition-all group"
               title={shape.label}
             >
-              <div className="text-lg">{shape.icon}</div>
-              <div className="text-xs text-gray-600">{shape.label}</div>
+              <div className="text-lg text-gray-600 group-hover:text-orange-600">{shape.icon}</div>
+              <div className="text-xs text-gray-500 group-hover:text-orange-600">{shape.label}</div>
             </button>
           ))}
         </div>
@@ -3202,41 +3206,639 @@ function StaticColorPicker({
 
             {/* Decoration Controls (for decorations only) */}
             {isDecoration && (
-              <>
-                {/* Quick Actions */}
+              <div className="space-y-4">
+                {/* Decoration Type Selector */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-2">Quick Actions</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-2">Decoration Type</label>
                   <div className="grid grid-cols-2 gap-2">
+                    {/* Grid Options */}
                     <button
-                      onClick={() => onColorUpdate('decorationType', 'legend')}
-                      className={`p-2 text-xs border rounded hover:bg-gray-50 transition-colors ${
-                        selectedAnnotation.decorationType === 'legend'
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-gray-200'
+                      onClick={() => onColorUpdate('decorationType', 'grid')}
+                      className={`flex items-center gap-2 px-3 py-2 text-xs border rounded-lg transition-all ${
+                        selectedAnnotation.decorationType === 'grid'
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-gray-200 hover:border-gray-300'
                       }`}
                     >
-                      📋 Add Legend
+                      <span className="text-sm">⬜</span>
+                      <span>Grid</span>
                     </button>
                     <button
-                      onClick={() => onColorUpdate('decorationType', 'scale')}
-                      className={`p-2 text-xs border rounded hover:bg-gray-50 transition-colors ${
-                        selectedAnnotation.decorationType === 'scale'
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-gray-200'
+                      onClick={() => onColorUpdate('decorationType', 'compass-simple')}
+                      className={`flex items-center gap-2 px-3 py-2 text-xs border rounded-lg transition-all ${
+                        selectedAnnotation.decorationType === 'compass-simple'
+                          ? 'border-purple-500 bg-purple-50 text-purple-700'
+                          : 'border-gray-200 hover:border-gray-300'
                       }`}
                     >
-                      📏 Add Scale
+                      <span className="text-sm">🧭</span>
+                      <span>Compass</span>
+                    </button>
+                    <button
+                      onClick={() => onColorUpdate('decorationType', 'legend-box')}
+                      className={`flex items-center gap-2 px-3 py-2 text-xs border rounded-lg transition-all ${
+                        selectedAnnotation.decorationType === 'legend-box'
+                          ? 'border-green-500 bg-green-50 text-green-700'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <span className="text-sm">📋</span>
+                      <span>Legend</span>
+                    </button>
+                    <button
+                      onClick={() => onColorUpdate('decorationType', 'scale-bar')}
+                      className={`flex items-center gap-2 px-3 py-2 text-xs border rounded-lg transition-all ${
+                        selectedAnnotation.decorationType === 'scale-bar'
+                          ? 'border-green-500 bg-green-50 text-green-700'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <span className="text-sm">📏</span>
+                      <span>Scale</span>
                     </button>
                   </div>
                 </div>
 
-                {/* Compass Options */}
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-2">Compass & Navigation</label>
-                  <div className="grid grid-cols-3 gap-1">
-                    {[
-                      { type: 'compass-simple-1', icon: '🧭', label: 'Simple 1' },
-                      { type: 'compass-simple-2', icon: '⭐', label: 'Simple 2' },
+                {/* Grid-specific controls */}
+                {(selectedAnnotation.decorationType === 'grid' || selectedAnnotation.decorationType === 'hex-grid') && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-3">
+                    <h4 className="text-xs font-semibold text-blue-800 flex items-center gap-2">
+                      <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                      Grid Settings
+                    </h4>
+                    
+                    {/* Grid Size */}
+                    <div>
+                      <label className="block text-xs text-blue-700 mb-1 font-medium">Grid Size</label>
+                      <div className="grid grid-cols-3 gap-1">
+                        {['small', 'medium', 'large'].map((size) => (
+                          <button
+                            key={size}
+                            onClick={() => onColorUpdate('gridSize', size)}
+                            className={`px-2 py-1 text-xs border rounded transition-colors ${
+                              (selectedAnnotation.gridSize || 'medium') === size
+                                ? 'border-blue-600 bg-blue-100 text-blue-800'
+                                : 'border-blue-300 bg-white hover:border-blue-400'
+                            }`}
+                          >
+                            {size.charAt(0).toUpperCase() + size.slice(1)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Grid Color */}
+                    <div>
+                      <label className="block text-xs text-blue-700 mb-1 font-medium">Grid Color</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={selectedAnnotation.gridColor || selectedAnnotation.color || '#666666'}
+                          onChange={(e) => onColorUpdate('gridColor', e.target.value)}
+                          className="w-8 h-6 rounded border border-blue-300 cursor-pointer"
+                        />
+                        <input
+                          type="text"
+                          value={selectedAnnotation.gridColor || selectedAnnotation.color || '#666666'}
+                          onChange={(e) => onColorUpdate('gridColor', e.target.value)}
+                          className="flex-1 text-xs px-2 py-1 border border-blue-300 rounded bg-white"
+                          placeholder="#666666"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Grid Opacity */}
+                    <div>
+                      <label className="block text-xs text-blue-700 mb-1 font-medium">Grid Opacity</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range"
+                          min="0.1"
+                          max="1"
+                          step="0.1"
+                          value={selectedAnnotation.gridOpacity || 0.6}
+                          onChange={(e) => onColorUpdate('gridOpacity', parseFloat(e.target.value))}
+                          className="flex-1 h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer"
+                        />
+                        <span className="text-xs text-blue-700 font-medium min-w-[35px]">
+                          {Math.round((selectedAnnotation.gridOpacity || 0.6) * 100)}%
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Hide/Show Grid */}
+                    <div>
+                      <button
+                        onClick={() => {
+                          const newOpacity = selectedAnnotation.gridOpacity === 0 ? 0.6 : 0
+                          onColorUpdate('gridOpacity', newOpacity)
+                        }}
+                        className={`w-full px-3 py-2 text-xs border rounded-lg transition-colors ${
+                          selectedAnnotation.gridOpacity === 0
+                            ? 'border-blue-300 bg-white text-blue-600'
+                            : 'border-blue-600 bg-blue-100 text-blue-800'
+                        }`}
+                      >
+                        {selectedAnnotation.gridOpacity === 0 ? 'Show Grid' : 'Hide Grid'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* General decoration controls for non-grid items */}
+                {selectedAnnotation.decorationType && selectedAnnotation.decorationType !== 'grid' && selectedAnnotation.decorationType !== 'hex-grid' && (
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-3">
+                    <h4 className="text-xs font-semibold text-gray-700 flex items-center gap-2">
+                      <span className="w-2 h-2 bg-gray-500 rounded-full"></span>
+                      Decoration Settings
+                    </h4>
+
+                    {/* Size Control */}
+                    <div>
+                      <label className="block text-xs text-gray-700 mb-1 font-medium">Size</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range"
+                          min="20"
+                          max="200"
+                          step="10"
+                          value={selectedAnnotation.size || 50}
+                          onChange={(e) => onColorUpdate('size', parseFloat(e.target.value))}
+                          className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                        />
+                        <span className="text-xs text-gray-600 font-medium min-w-[35px]">
+                          {selectedAnnotation.size || 50}px
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Color */}
+                    <div>
+                      <label className="block text-xs text-gray-700 mb-1 font-medium">Color</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={selectedAnnotation.color || '#3b82f6'}
+                          onChange={(e) => onColorUpdate('color', e.target.value)}
+                          className="w-8 h-6 rounded border border-gray-300 cursor-pointer"
+                        />
+                        <input
+                          type="text"
+                          value={selectedAnnotation.color || '#3b82f6'}
+                          onChange={(e) => onColorUpdate('color', e.target.value)}
+                          className="flex-1 text-xs px-2 py-1 border border-gray-300 rounded bg-white"
+                          placeholder="#3b82f6"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Opacity */}
+                    <div>
+                      <label className="block text-xs text-gray-700 mb-1 font-medium">Opacity</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range"
+                          min="0"
+                          max="1"
+                          step="0.1"
+                          value={selectedAnnotation.fillOpacity || 0.8}
+                          onChange={(e) => onColorUpdate('fillOpacity', parseFloat(e.target.value))}
+                          className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                        />
+                        <span className="text-xs text-gray-600 font-medium min-w-[35px]">
+                          {Math.round((selectedAnnotation.fillOpacity || 0.8) * 100)}%
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Rotation */}
+                    <div>
+                      <label className="block text-xs text-gray-700 mb-1 font-medium">Rotation</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range"
+                          min="0"
+                          max="360"
+                          step="15"
+                          value={selectedAnnotation.rotation || 0}
+                          onChange={(e) => onColorUpdate('rotation', parseFloat(e.target.value))}
+                          className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                        />
+                        <span className="text-xs text-gray-600 font-medium min-w-[40px]">
+                          {selectedAnnotation.rotation || 0}°
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Opacity Control */}
+            {(isZone || isLabel) && (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-2">Opacity</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={selectedAnnotation.opacity || 0.3}
+                    onChange={(e) => onOpacityUpdate(parseFloat(e.target.value))}
+                    className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                  />
+                  <span className="text-xs text-gray-600 font-medium min-w-[35px]">
+                    {Math.round((selectedAnnotation.opacity || 0.3) * 100)}%
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Main Maps Panel component - Canvas only layout
+function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string }) {
+  const supabase = createSupabaseClient()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  
+  // State management
+  const [selectedMap, setSelectedMap] = useState<MapData | null>(null)
+  const [allMaps, setAllMaps] = useState<MapData[]>([])
+  const [viewport, setViewport] = useState<ViewportState>({ scale: 1, translate: { x: 0, y: 0 } })
+  const [loading, setLoading] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [showMapList, setShowMapList] = useState(false)
+  
+  // Annotation tool state
+  const [activeTool, setActiveTool] = useState<ToolMode>('select')
+  const [annotations, setAnnotations] = useState<(Pin | Label | Zone | Measurement | Decoration)[]>([])
+  const [selectedAnnotation, setSelectedAnnotation] = useState<any | null>(null)
+  const annotationSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  
+  // Debounced save function to prevent duplicate saves
+  const debouncedSave = useCallback((mapId: string, attributes: any) => {
+    if (annotationSaveTimeoutRef.current) {
+      clearTimeout(annotationSaveTimeoutRef.current)
+    }
+    
+    annotationSaveTimeoutRef.current = setTimeout(() => {
+      updateMapAttributes(mapId, attributes)
+    }, 100) // 100ms debounce
+  }, [])
+  
+  // Annotation handlers
+  const handleAnnotationAdd = (annotation: Pin | Label | Zone | Measurement | Decoration) => {
+    setAnnotations(prev => [...prev, annotation])
+    // Save to map's attributes field with debounce
+    if (selectedMap) {
+      const newAttributes = { 
+        ...selectedMap.attributes, 
+        annotations: [...annotations, annotation] 
+      }
+      debouncedSave(selectedMap.id, newAttributes)
+    }
+  }
+  
+  const handleAnnotationUpdate = (id: string, updates: any) => {
+    const updatedAnnotations = annotations.map(ann => ann.id === id ? { ...ann, ...updates } as typeof ann : ann)
+    setAnnotations(updatedAnnotations)
+    // Save to map's attributes field with debounce
+    if (selectedMap) {
+      const newAttributes = { 
+        ...selectedMap.attributes, 
+        annotations: updatedAnnotations 
+      }
+      debouncedSave(selectedMap.id, newAttributes)
+    }
+  }
+  
+  const handleAnnotationDelete = (id: string) => {
+    const filteredAnnotations = annotations.filter(ann => ann.id !== id)
+    setAnnotations(filteredAnnotations)
+    // Save to map's attributes field with debounce
+    if (selectedMap) {
+      const newAttributes = { 
+        ...selectedMap.attributes, 
+        annotations: filteredAnnotations 
+      }
+      debouncedSave(selectedMap.id, newAttributes)
+    }
+  }
+  
+  const handleClearAllAnnotations = () => {
+    setAnnotations([])
+    setSelectedAnnotation(null) // Clear selection when clearing all
+    // Clear from map's attributes field with debounce
+    if (selectedMap) {
+      const newAttributes = { 
+        ...selectedMap.attributes, 
+        annotations: [] 
+      }
+      debouncedSave(selectedMap.id, newAttributes)
+    }
+  }
+
+  // Map management functions
+  const loadMaps = async () => {
+    try {
+      setLoading(true)
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      
+      const { data, error } = await supabase
+        .from('world_elements')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('project_id', projectId)
+        .eq('element_type', 'map')
+        .order('created_at', { ascending: false })
+      
+      if (error) throw error
+      setAllMaps(data || [])
+    } catch (error) {
+      console.error('Error loading maps:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Load maps on component mount
+  useEffect(() => {
+    if (projectId) {
+      loadMaps()
+    }
+  }, [projectId])
+
+  // Keyboard shortcuts for map navigation
+  useEffect(() => {
+    if (!selectedMap) return
+    
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle if no input is focused
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return
+      }
+      
+      // Zoom in/out with + and -
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key === '=' || e.key === '+') {
+          e.preventDefault()
+          const newScale = Math.min(4, viewport.scale * 1.25)
+          setViewport(prev => ({ ...prev, scale: newScale }))
+        } else if (e.key === '-') {
+          e.preventDefault()
+          const newScale = Math.max(0.1, viewport.scale / 1.25)
+          setViewport(prev => ({ ...prev, scale: newScale }))
+        } else if (e.key === '0') {
+          e.preventDefault()
+          setViewport({ scale: 1, translate: { x: 0, y: 0 } })
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [selectedMap, viewport.scale])
+  
+  const updateMapAttributes = async (mapId: string, attributes: any) => {
+    try {
+      // Check if user is authenticated
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError || !user) {
+        console.error('User not authenticated:', authError)
+        return
+      }
+      
+      // Save to database
+      const { data, error } = await supabase
+        .from('world_elements')
+        .update({ attributes })
+        .eq('id', mapId)
+        .eq('user_id', user.id)
+        .select()
+        .single()
+      
+      if (error) throw error
+      
+      // Update local state if this is the currently selected map
+      if (selectedMap && selectedMap.id === mapId) {
+        setSelectedMap(data)
+      }
+    } catch (error) {
+      console.error('Error updating map attributes:', error)
+    }
+  }
+
+  // Color picker helpers
+  const handleColorUpdate = (type: string, value: any) => {
+    if (!selectedAnnotation) return
+    
+    let updates: any = {}
+    let updateKey: string = type
+    
+    switch (type) {
+      case 'color':
+      case 'gridColor':
+      case 'fillColor':
+        updateKey = 'color'
+        updates = { [updateKey]: value }
+        break
+      case 'borderStyle':
+        updates = { borderStyle: value }
+        break
+      case 'borderWidth':
+        updates = { borderWidth: value }
+        break
+      case 'unit':
+        updates = { unit: value }
+        break
+      case 'customUnit':
+        updates = { customUnit: value }
+        break
+      case 'scale':
+        updates = { scale: value }
+        break
+      case 'showLabel':
+        updates = { showLabel: value }
+        break
+      case 'decorationType':
+        updates = { decorationType: value }
+        break
+      case 'strokeColor':
+        updates = { strokeColor: value }
+        break
+      case 'strokeWidth':
+        updates = { strokeWidth: value }
+        break
+      case 'fillOpacity':
+        updates = { fillOpacity: value }
+        break
+      case 'strokeOpacity':
+        updates = { strokeOpacity: value }
+        break
+      case 'rotation':
+        updates = { rotation: value }
+        break
+      case 'shadow':
+        updates = { shadow: value }
+        break
+      case 'textOverlay':
+        updates = { textOverlay: value }
+        break
+      case 'size':
+        updates = { size: value }
+        break
+      default:
+        return
+    }
+    
+    handleAnnotationUpdate(selectedAnnotation.id, updates)
+  }
+
+  const handleOpacityUpdate = (opacity: number) => {
+    if (!selectedAnnotation) return
+    handleAnnotationUpdate(selectedAnnotation.id, { opacity })
+  }
+
+  // Load the specific map if mapId is provided
+  useEffect(() => {
+    if (!mapId) return
+    
+    const loadMap = async () => {
+      setLoading(true)
+      try {
+        const { data, error } = await supabase
+          .from('world_elements')
+          .select('*')
+          .eq('id', mapId)
+          .single()
+        
+        if (error) throw error
+        
+        setSelectedMap(data)
+        // Load saved viewport or use defaults
+        if (data.attributes?.viewport) {
+          setViewport(data.attributes.viewport)
+        } else {
+          setViewport({ scale: 1, translate: { x: 0, y: 0 } })
+        }
+        
+        // Load saved annotations
+        if (data.attributes?.annotations) {
+          setAnnotations(data.attributes.annotations)
+        } else {
+          setAnnotations([])
+        }
+      } catch (error) {
+        console.error('Error loading map:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    
+    loadMap()
+  }, [mapId])
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !projectId) {
+      console.log('Upload aborted - file:', !!file, 'projectId:', !!projectId)
+      return
+    }
+    
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file (PNG, JPG, WebP)')
+      return
+    }
+
+    await handleCreateMap(file)
+  }
+
+  const handleUpload = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleCreateBlank = () => {
+    handleCreateMap(null, 'Untitled Map')
+  }
+
+  const handleCreateMap = async (file: File | null, customTitle?: string) => {
+    if (!projectId) return
+    
+    try {
+      setUploading(true)
+      
+      let name = customTitle
+      let description = ''
+      let imageUrl = null
+      
+      if (file) {
+        name = prompt('Enter map name:', file.name.replace(/\\.[^/.]+$/, "")) || customTitle
+        if (!name) return
+        description = prompt('Enter description (optional):', '') || ''
+        
+        // Upload image
+        const fileExt = file.name.split('.').pop()
+        const fileName = `${Date.now()}.${fileExt}`
+        const filePath = `maps/${fileName}`
+        
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('world-images')
+          .upload(filePath, file)
+        
+        if (uploadError) throw uploadError
+        
+        // Get public URL
+        const { data: urlData } = supabase.storage
+          .from('world-images')
+          .getPublicUrl(filePath)
+        
+        imageUrl = urlData.publicUrl
+      }
+      
+      // Create world element
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('User not authenticated')
+      
+      const { data, error } = await supabase
+        .from('world_elements')
+        .insert({
+          name: name || 'Untitled Map',
+          description,
+          element_type: 'map',
+          image_url: imageUrl,
+          user_id: user.id,
+          project_id: projectId,
+          attributes: {
+            viewport: { scale: 1, translate: { x: 0, y: 0 } },
+            annotations: []
+          }
+        })
+        .select()
+        .single()
+      
+      if (error) throw error
+      
+      setSelectedMap(data)
+      setViewport({ scale: 1, translate: { x: 0, y: 0 } })
+      setAnnotations([])
+      await loadMaps()
+    } catch (error) {
+      console.error('Error creating map:', error)
+      alert('Failed to create map. Please try again.')
+    } finally {
+      setUploading(false)
+    }
+  }
+}
+
+
+
                       { type: 'compass-simple-3', icon: '�', label: 'Simple 3' },
                       { type: 'compass-fantasy', icon: '✨', label: 'Fantasy' },
                       { type: 'compass-future', icon: '🔮', label: 'Future' },
@@ -4135,7 +4737,20 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
         )}
         
         <div className="flex items-center gap-3">
-          {/* Maps List Toggle */}          
+          {/* Maps List Toggle */}
+          {allMaps.length > 0 && (
+            <button
+              className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800 hover:bg-white rounded-lg border border-gray-200 transition-colors duration-200"
+              onClick={() => setShowMapList(!showMapList)}
+              title="Toggle maps list"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+              </svg>
+              Maps
+            </button>
+          )}
+          
           {uploading && (
             <div className="flex items-center gap-2 text-sm text-orange-600 font-medium">
               <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
