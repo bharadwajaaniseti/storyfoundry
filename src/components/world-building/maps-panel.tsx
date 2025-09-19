@@ -66,11 +66,14 @@ interface Zone {
 interface Measurement {
   id: string
   type: 'measurement'
+  measurementType: 'distance' | 'area' | 'perimeter'
   points: { x: number; y: number }[]
   unit: 'px' | 'ft' | 'm' | 'km' | 'mi' | 'custom'
   customUnit?: string
   scale?: number // pixels per unit
   color: string
+  showLabel: boolean
+  labelPosition?: 'auto' | 'start' | 'middle' | 'end'
 }
 
 interface Decoration {
@@ -602,7 +605,7 @@ function MapCanvas({
             {activeTool === 'pin' && '📍 Pin: Click to place • Double-click to edit label'}
             {activeTool === 'label' && '🏷️ Label: Click to place • Auto-edit mode'}
             {activeTool === 'zone' && '🗾 Zone: Click to place • Double-click edge to add point • Drag points to edit'}
-            {activeTool === 'measurement' && '📏 Measurement: Click to place • Drag endpoints to adjust'}
+            {activeTool === 'measurement' && '📏 Measurement: Click to start • Move to preview • Click to finish • ESC to cancel'}
             {activeTool === 'decoration' && '🎨 Decoration: Click to place • Select to change shape/size'}
           </div>
         </div>
@@ -653,6 +656,17 @@ function AnnotationOverlay({
   const lastProcessedClickRef = useRef<string>('')
   const [isDragging, setIsDragging] = useState(false)
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
+  
+  // Measurement tool state
+  const [activeMeasurement, setActiveMeasurement] = useState<{
+    startPoint: { x: number; y: number } | null
+    previewPoint: { x: number; y: number } | null
+    measurementType: 'distance' | 'area' | 'perimeter'
+  }>({
+    startPoint: null,
+    previewPoint: null,
+    measurementType: 'distance'
+  })
 
   // Consolidated keyboard handler for annotation management
   useEffect(() => {
@@ -676,12 +690,19 @@ function AnnotationOverlay({
             setEditingAnnotation(selectedAnnotation.id)
           }
         }
+      } else if (e.key === 'Escape' && activeMeasurement.startPoint) {
+        // Cancel measurement creation
+        setActiveMeasurement({
+          startPoint: null,
+          previewPoint: null,
+          measurementType: 'distance'
+        })
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedAnnotation, annotations, onAnnotationDelete, onAnnotationSelect])
+  }, [selectedAnnotation, annotations, onAnnotationDelete, onAnnotationSelect, activeMeasurement])
 
   const handleCanvasClick = (e: React.MouseEvent) => {
     // Create unique click identifier based on coordinates and time
@@ -780,21 +801,39 @@ function AnnotationOverlay({
         break
         
       case 'measurement':
-        // For measurement, we need to handle two-point creation
-        // Start with a simple line measurement
-        const measurement: Measurement = {
-          id,
-          type: 'measurement',
-          points: [
-            { x: x * mapDimensions.width, y: y * mapDimensions.height },
-            { x: x * mapDimensions.width + 100, y: y * mapDimensions.height }
-          ],
-          unit: 'px',
-          scale: 1,
-          color: '#f59e0b'
+        // New measurement flow: click to start, move to preview, click to finish
+        const clickPoint = { x: x * mapDimensions.width, y: y * mapDimensions.height }
+        
+        if (!activeMeasurement.startPoint) {
+          // First click: start measurement
+          setActiveMeasurement({
+            ...activeMeasurement,
+            startPoint: clickPoint,
+            previewPoint: clickPoint
+          })
+        } else {
+          // Second click: finish measurement
+          const measurement: Measurement = {
+            id,
+            type: 'measurement',
+            measurementType: activeMeasurement.measurementType,
+            points: [activeMeasurement.startPoint, clickPoint],
+            unit: 'px',
+            scale: 1,
+            color: '#f59e0b',
+            showLabel: true,
+            labelPosition: 'auto'
+          }
+          onAnnotationAdd(measurement)
+          onAnnotationSelect({ id, type: 'measurement' })
+          
+          // Reset measurement state
+          setActiveMeasurement({
+            startPoint: null,
+            previewPoint: null,
+            measurementType: 'distance'
+          })
         }
-        onAnnotationAdd(measurement)
-        onAnnotationSelect({ id, type: 'measurement' })
         break
         
       case 'decoration':
@@ -814,6 +853,20 @@ function AnnotationOverlay({
     }
   }
 
+  const handleCanvasMouseMove = (e: React.MouseEvent) => {
+    // Update measurement preview when in measurement mode
+    if (activeTool === 'measurement' && activeMeasurement.startPoint) {
+      const rect = e.currentTarget.getBoundingClientRect()
+      const x = (e.clientX - rect.left) / rect.width
+      const y = (e.clientY - rect.top) / rect.height
+      
+      setActiveMeasurement({
+        ...activeMeasurement,
+        previewPoint: { x: x * mapDimensions.width, y: y * mapDimensions.height }
+      })
+    }
+  }
+
   // Separate HTML-based and SVG-based annotations
   const htmlAnnotations = annotations.filter(annotation => 
     isPinAnnotation(annotation) || isLabelAnnotation(annotation)
@@ -826,6 +879,7 @@ function AnnotationOverlay({
     <div 
       className="absolute inset-0 pointer-events-auto"
       onClick={handleCanvasClick}
+      onMouseMove={handleCanvasMouseMove}
       style={{ 
         cursor: activeTool !== 'select' ? 'crosshair' : 'default',
         width: mapDimensions.width,
@@ -910,6 +964,53 @@ function AnnotationOverlay({
             
             return null
           })}
+          
+          {/* Measurement Preview */}
+          {activeTool === 'measurement' && activeMeasurement.startPoint && activeMeasurement.previewPoint && (
+            <g>
+              <line
+                x1={activeMeasurement.startPoint.x}
+                y1={activeMeasurement.startPoint.y}
+                x2={activeMeasurement.previewPoint.x}
+                y2={activeMeasurement.previewPoint.y}
+                stroke="#f59e0b"
+                strokeWidth={2}
+                strokeDasharray="5,5"
+                opacity={0.8}
+              />
+              <circle
+                cx={activeMeasurement.startPoint.x}
+                cy={activeMeasurement.startPoint.y}
+                r={4}
+                fill="#f59e0b"
+                opacity={0.8}
+              />
+              <circle
+                cx={activeMeasurement.previewPoint.x}
+                cy={activeMeasurement.previewPoint.y}
+                r={4}
+                fill="#f59e0b"
+                opacity={0.8}
+              />
+              {/* Live distance preview */}
+              <text
+                x={(activeMeasurement.startPoint.x + activeMeasurement.previewPoint.x) / 2}
+                y={(activeMeasurement.startPoint.y + activeMeasurement.previewPoint.y) / 2 - 10}
+                textAnchor="middle"
+                className="text-xs font-medium"
+                fill="#f59e0b"
+                style={{
+                  filter: 'drop-shadow(1px 1px 2px rgba(255,255,255,0.8))',
+                  userSelect: 'none'
+                }}
+              >
+                {Math.round(Math.sqrt(
+                  Math.pow(activeMeasurement.previewPoint.x - activeMeasurement.startPoint.x, 2) + 
+                  Math.pow(activeMeasurement.previewPoint.y - activeMeasurement.startPoint.y, 2)
+                ))}px
+              </text>
+            </g>
+          )}
         </svg>
       )}
     </div>
@@ -1411,15 +1512,6 @@ function EnhancedMeasurementRenderer({
   const [isDraggingStart, setIsDraggingStart] = useState(false)
   const [isDraggingEnd, setIsDraggingEnd] = useState(false)
 
-  const units = [
-    { value: 'px', label: 'Pixels' },
-    { value: 'ft', label: 'Feet' },
-    { value: 'm', label: 'Meters' },
-    { value: 'km', label: 'Kilometers' },
-    { value: 'mi', label: 'Miles' },
-    { value: 'custom', label: 'Custom' }
-  ]
-
   if (annotation.points.length < 2) return null
 
   const [start, end] = annotation.points
@@ -1499,20 +1591,22 @@ function EnhancedMeasurementRenderer({
         onMouseDown={handleEndDrag}
       />
       
-      {/* Distance label */}
-      <text
-        x={midpoint.x}
-        y={midpoint.y - 10}
-        textAnchor="middle"
-        className="text-xs font-medium"
-        fill={annotation.color}
-        style={{
-          filter: 'drop-shadow(1px 1px 2px rgba(255,255,255,0.8))',
-          userSelect: 'none'
-        }}
-      >
-        {formatDistance(realDistance, annotation.unit)}
-      </text>
+      {/* Distance label - only show if showLabel is true */}
+      {annotation.showLabel && (
+        <text
+          x={midpoint.x}
+          y={midpoint.y - 10}
+          textAnchor="middle"
+          className="text-xs font-medium"
+          fill={annotation.color}
+          style={{
+            filter: 'drop-shadow(1px 1px 2px rgba(255,255,255,0.8))',
+            userSelect: 'none'
+          }}
+        >
+          {formatDistance(realDistance, annotation.unit)}
+        </text>
+      )}
       
       {/* Delete button when selected */}
       {isSelected && (
@@ -1526,55 +1620,6 @@ function EnhancedMeasurementRenderer({
           >
             ×
           </button>
-        </foreignObject>
-      )}
-      
-      {/* Property Controls */}
-      {isSelected && (
-        <foreignObject x={midpoint.x - 100} y={midpoint.y + 20} width="200" height="120">
-          <div className="bg-white border rounded-lg shadow-lg p-2 text-xs">
-            <div className="mb-2">
-              <label className="block text-gray-600">Unit</label>
-              <select
-                value={annotation.unit}
-                onChange={(e) => onUpdate({ unit: e.target.value })}
-                className="w-full border rounded px-1 py-0.5"
-              >
-                {units.map(unit => (
-                  <option key={unit.value} value={unit.value}>{unit.label}</option>
-                ))}
-              </select>
-            </div>
-            
-            {annotation.unit === 'custom' && (
-              <div className="mb-2">
-                <label className="block text-gray-600">Custom Unit</label>
-                <input
-                  type="text"
-                  value={annotation.customUnit || ''}
-                  onChange={(e) => onUpdate({ customUnit: e.target.value })}
-                  className="w-full border rounded px-1 py-0.5"
-                  placeholder="Enter unit name"
-                />
-              </div>
-            )}
-            
-            <div className="mb-2">
-              <label className="block text-gray-600">Scale (pixels per unit)</label>
-              <input
-                type="number"
-                value={annotation.scale || 1}
-                onChange={(e) => onUpdate({ scale: parseFloat(e.target.value) || 1 })}
-                className="w-full border rounded px-1 py-0.5"
-                min="0.1"
-                step="0.1"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-gray-600">Raw Distance: {Math.round(distance)}px</label>
-            </div>
-          </div>
         </foreignObject>
       )}
     </g>
@@ -2327,7 +2372,7 @@ function StaticColorPicker({
   onOpacityUpdate 
 }: {
   selectedAnnotation: any | null
-  onColorUpdate: (type: 'fill' | 'border' | 'color' | 'borderStyle' | 'borderWidth', value: string | number) => void
+  onColorUpdate: (type: 'fill' | 'border' | 'color' | 'borderStyle' | 'borderWidth' | 'unit' | 'customUnit' | 'scale' | 'showLabel', value: string | number | boolean) => void
   onOpacityUpdate: (opacity: number) => void
 }) {
   const [isMinimized, setIsMinimized] = useState(false)
@@ -2381,6 +2426,7 @@ function StaticColorPicker({
   const isZone = selectedAnnotation.type === 'zone'
   const isPin = selectedAnnotation.type === 'pin'
   const isLabel = selectedAnnotation.type === 'label'
+  const isMeasurement = selectedAnnotation.type === 'measurement'
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -2573,6 +2619,64 @@ function StaticColorPicker({
               </div>
             )}
 
+            {/* Measurement Controls (for measurements only) */}
+            {isMeasurement && (
+              <>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-2">Unit</label>
+                  <select
+                    value={selectedAnnotation.unit || 'px'}
+                    onChange={(e) => onColorUpdate('unit', e.target.value)}
+                    className="w-full border border-gray-300 rounded px-2 py-1 text-xs"
+                  >
+                    <option value="px">Pixels</option>
+                    <option value="ft">Feet</option>
+                    <option value="m">Meters</option>
+                    <option value="km">Kilometers</option>
+                    <option value="mi">Miles</option>
+                    <option value="custom">Custom</option>
+                  </select>
+                </div>
+                
+                {selectedAnnotation.unit === 'custom' && (
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-2">Custom Unit</label>
+                    <input
+                      type="text"
+                      value={selectedAnnotation.customUnit || ''}
+                      onChange={(e) => onColorUpdate('customUnit', e.target.value)}
+                      className="w-full border border-gray-300 rounded px-2 py-1 text-xs"
+                      placeholder="Enter unit name"
+                    />
+                  </div>
+                )}
+                
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-2">Scale (pixels per unit)</label>
+                  <input
+                    type="number"
+                    value={selectedAnnotation.scale || 1}
+                    onChange={(e) => onColorUpdate('scale', parseFloat(e.target.value) || 1)}
+                    className="w-full border border-gray-300 rounded px-2 py-1 text-xs"
+                    min="0.1"
+                    step="0.1"
+                  />
+                </div>
+                
+                <div>
+                  <label className="flex items-center gap-2 text-xs">
+                    <input
+                      type="checkbox"
+                      checked={selectedAnnotation.showLabel !== false}
+                      onChange={(e) => onColorUpdate('showLabel', e.target.checked)}
+                      className="w-3 h-3"
+                    />
+                    Show Distance Label
+                  </label>
+                </div>
+              </>
+            )}
+
             {/* Opacity Control */}
             {(isZone || isLabel) && (
               <div>
@@ -2684,7 +2788,7 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
   }
 
   // Color picker handlers
-  const handleColorUpdate = (type: 'fill' | 'border' | 'color' | 'borderStyle' | 'borderWidth', value: string | number) => {
+  const handleColorUpdate = (type: 'fill' | 'border' | 'color' | 'borderStyle' | 'borderWidth' | 'unit' | 'customUnit' | 'scale' | 'showLabel', value: string | number | boolean) => {
     if (!selectedAnnotation) return
     
     let updateKey: string
@@ -2708,6 +2812,18 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
         break
       case 'borderWidth':
         updates = { borderWidth: value }
+        break
+      case 'unit':
+        updates = { unit: value }
+        break
+      case 'customUnit':
+        updates = { customUnit: value }
+        break
+      case 'scale':
+        updates = { scale: value }
+        break
+      case 'showLabel':
+        updates = { showLabel: value }
         break
       default:
         return
