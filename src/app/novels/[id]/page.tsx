@@ -229,6 +229,8 @@ function NovelPageInner() {
     onConfirm: () => {}
   })
 
+  const [forceOpenLocationsCreate, setForceOpenLocationsCreate] = useState(false)
+
   // Message and collaborator modal states
   const [showMessageModal, setShowMessageModal] = useState(false)
   const [messageRecipient, setMessageRecipient] = useState<{
@@ -349,6 +351,29 @@ function NovelPageInner() {
 
     loadProjectData()
   }, [params, router])
+
+  useEffect(() => {
+    const handler = (e: CustomEvent) => {
+      if (!params?.id) return
+      // only respond for this project
+      if (e.detail?.projectId !== params.id) return
+      setActivePanel('locations')
+      setForceOpenLocationsCreate(true)
+      // reset after a short tick so the prop can be consumed by LocationsPanel
+      setTimeout(() => setForceOpenLocationsCreate(false), 100)
+      // also dispatch a direct 'startLocationsCreate' event after a short delay
+      setTimeout(() => {
+        try {
+          window.dispatchEvent(new CustomEvent('startLocationsCreate', { detail: { projectId: params.id } }))
+        } catch (err) {
+          console.warn('Failed to dispatch startLocationsCreate', err)
+        }
+      }, 120)
+    }
+
+    window.addEventListener('openLocationsCreate', handler as EventListener)
+    return () => window.removeEventListener('openLocationsCreate', handler as EventListener)
+  }, [params])
 
   // Data loading functions
   const loadWorldElements = async (projectId: string) => {
@@ -1587,6 +1612,12 @@ function NovelPageInner() {
     }
   }, [project])
 
+  const handleLocationsChange = useCallback(() => {
+    if (project) {
+      loadWorldElements(project.id)
+    }
+  }, [project])
+
   const handleChaptersChange = useCallback(() => {
     if (project) {
       loadChapters(project.id)
@@ -2305,7 +2336,16 @@ function NovelPageInner() {
                           { label: 'Magic/Items', count: getElementsForCategory('magic').length + getElementsForCategory('items').length, icon: Zap, color: 'yellow' }
                         ].map(item => (
                           <div key={item.label} className="text-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
-                               onClick={() => setActivePanel(item.label.toLowerCase())}>
+                               onClick={() => {
+                                 setActivePanel(item.label.toLowerCase())
+                                 if (item.label === 'Locations') {
+                                   try {
+                                     window.dispatchEvent(new CustomEvent('openLocationsCreate', { detail: { projectId: params?.id } }))
+                                   } catch (err) {
+                                     console.warn('Failed to dispatch openLocationsCreate', err)
+                                   }
+                                 }
+                               }}>
                             <item.icon className={`w-8 h-8 text-${item.color}-500 mx-auto mb-2`} />
                             <div className="text-2xl font-bold text-gray-900">{item.count}</div>
                             <div className="text-sm text-gray-600">{item.label}</div>
@@ -2386,7 +2426,15 @@ function NovelPageInner() {
                         <Button 
                           variant="outline" 
                           className="w-full justify-start"
-                          onClick={() => setActivePanel('locations')}
+                          onClick={() => {
+                            clearSelectedElement()
+                            setActivePanel('locations')
+                            try {
+                              window.dispatchEvent(new CustomEvent('openLocationsCreate', { detail: { projectId: params?.id } }))
+                            } catch (err) {
+                              console.warn('Failed to dispatch openLocationsCreate from Quick Actions', err)
+                            }
+                          }}
                         >
                           <MapPin className="w-4 h-4 mr-2" />
                           Add Location
@@ -2483,12 +2531,15 @@ function NovelPageInner() {
           const elementsForLocations = getElementsForCategory('locations')
           const worldItemsForLocations = elementsForLocations.filter((e): e is WorldElement => (e as Chapter).chapter_number === undefined)
           const foldersForLocations = getFoldersForCategory('locations')
-          return (
-            <LocationsPanel 
-              projectId={project.id}
-              openCreateOnOpen={foldersForLocations.length === 0 && worldItemsForLocations.length === 0}
-            />
-          )
+              return (
+                <LocationsPanel 
+                  projectId={project.id}
+                  selectedElement={selectedElement}
+                  onLocationsChange={handleLocationsChange}
+                  onClearSelection={() => setSelectedElement(null)}
+                  openCreateOnOpen={forceOpenLocationsCreate || (foldersForLocations.length === 0 && worldItemsForLocations.length === 0)}
+                />
+              )
         }
 
       case 'chapters':

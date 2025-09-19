@@ -598,6 +598,56 @@ export default function LocationsPanel({
     loadLocations();
   }, [projectId]);
 
+  // Add real-time subscription for instant updates (simplified to avoid conflicts)
+  useEffect(() => {
+    if (!projectId) return;
+
+    const supabase = createSupabaseClient();
+    const channel = supabase
+      .channel(`locations-panel-${projectId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'world_elements',
+          filter: `project_id=eq.${projectId}.and.category=eq.locations`,
+        },
+        async (payload) => {
+          console.log('Real-time location update in panel:', payload);
+          
+          if (payload.eventType === 'INSERT') {
+            // Add new location to the list
+            setLocations((prev) => {
+              // Check if location already exists to avoid duplicates
+              const exists = prev.some(loc => loc.id === payload.new.id);
+              if (exists) return prev;
+              return [payload.new as WorldElement, ...prev];
+            });
+          } else if (payload.eventType === 'UPDATE') {
+            // Update existing location
+            setLocations((prev) => 
+              prev.map(loc => 
+                loc.id === payload.new.id 
+                  ? { ...loc, ...payload.new } as WorldElement
+                  : loc
+              )
+            );
+          } else if (payload.eventType === 'DELETE') {
+            // Remove deleted location
+            setLocations((prev) => 
+              prev.filter(loc => loc.id !== payload.old.id)
+            );
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [projectId]);
+
   // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -627,6 +677,16 @@ export default function LocationsPanel({
   useEffect(() => {
     if (openCreateOnOpen) startCreate();
   }, [openCreateOnOpen]);
+
+  useEffect(() => {
+    const handler = (e: CustomEvent) => {
+      if (e.detail?.projectId !== projectId) return
+      startCreate()
+    }
+
+    window.addEventListener('startLocationsCreate', handler as EventListener)
+    return () => window.removeEventListener('startLocationsCreate', handler as EventListener)
+  }, [projectId])
 
   const loadLocations = async () => {
     try {
@@ -691,10 +751,20 @@ export default function LocationsPanel({
         if (error) throw error;
         setEditing({ ...editing, id: data.id, created_at: data.created_at, updated_at: data.updated_at });
         setLocations((prev) => [data, ...prev]);
+        
+        // Broadcast the change for other components
+        window.dispatchEvent(new CustomEvent('locationCreated', { 
+          detail: { location: data, projectId } 
+        }));
       } else {
         const { data, error } = await supabase.from("world_elements").update(payload).eq("id", editing.id).select().single();
         if (error) throw error;
         setLocations((prev) => prev.map((x) => (x.id === data.id ? data : x)));
+        
+        // Broadcast the change for other components
+        window.dispatchEvent(new CustomEvent('locationUpdated', { 
+          detail: { location: data, projectId } 
+        }));
       }
 
       onLocationsChange?.();
@@ -709,8 +779,26 @@ export default function LocationsPanel({
 
   const remove = async (id: string) => {
     if (!confirm("Delete this location?")) return;
-    const { error } = await supabase.from("world_elements").delete().eq("id", id);
-    if (!error) setLocations((prev) => prev.filter((x) => x.id !== id));
+    
+    try {
+      const { error } = await supabase.from("world_elements").delete().eq("id", id);
+      if (error) throw error;
+      
+      // Update local state immediately for better UX
+      setLocations((prev) => prev.filter((x) => x.id !== id));
+      
+      // Broadcast the change for other components
+      window.dispatchEvent(new CustomEvent('locationDeleted', { 
+        detail: { locationId: id, projectId } 
+      }));
+      
+      // Call the callback to notify parent components
+      onLocationsChange?.();
+    } catch (error) {
+      console.error("Error deleting location:", error);
+      // If deletion failed, reload locations to ensure consistency
+      loadLocations();
+    }
   };
 
   const getAllForCategory = (cat: keyof typeof ATTRIBUTE_DEFS) => {

@@ -26,6 +26,7 @@ import {
 import { createSupabaseClient } from '@/lib/auth'
 import TimelineManager from './timeline-manager'
 import NewCharacter from './new-character'
+import NewLocation from './new-location'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -79,12 +80,108 @@ export default function WorldBuildingSidebar({ projectId, isOpen, onToggle, onSh
   const [isLoading, setIsLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('elements')
   const [showNewCharacter, setShowNewCharacter] = useState(false)
+  const [showNewLocation, setShowNewLocation] = useState(false)
 
   useEffect(() => {
-    if (isOpen) {
-      loadElements()
-    }
-  }, [projectId, isOpen])
+    // Always load elements for accurate counts, regardless of sidebar state
+    loadElements()
+  }, [projectId])
+
+  // Add real-time subscription for instant updates (always active for count updates)
+  useEffect(() => {
+    if (!projectId) return;
+
+    const supabase = createSupabaseClient();
+    const channel = supabase
+      .channel(`world-elements-${projectId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'world_elements',
+          filter: `project_id=eq.${projectId}`,
+        },
+        async (payload) => {
+          console.log('Real-time world element update in sidebar:', payload);
+          
+          if (payload.eventType === 'INSERT') {
+            // Add new element to the list
+            setElements((prev) => {
+              // Check if element already exists to avoid duplicates
+              const exists = prev.some(el => el.id === payload.new.id);
+              if (exists) return prev;
+              return [...prev, payload.new as WorldElement];
+            });
+          } else if (payload.eventType === 'UPDATE') {
+            // Update existing element
+            setElements((prev) => 
+              prev.map(el => 
+                el.id === payload.new.id 
+                  ? { ...el, ...payload.new } as WorldElement
+                  : el
+              )
+            );
+          } else if (payload.eventType === 'DELETE') {
+            // Remove deleted element
+            setElements((prev) => 
+              prev.filter(el => el.id !== payload.old.id)
+            );
+            // Clear selection if the deleted element was selected
+            if (selectedElement?.id === payload.old.id) {
+              setSelectedElement(null);
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [projectId, selectedElement?.id]); // Added selectedElement?.id to dependencies
+
+  // Add custom event listeners as fallback for cross-component communication
+  useEffect(() => {
+    const handleLocationCreated = (event: CustomEvent) => {
+      if (event.detail.projectId !== projectId) return;
+      const location = event.detail.location;
+      setElements((prev) => {
+        const exists = prev.some(el => el.id === location.id);
+        if (exists) return prev;
+        return [...prev, location];
+      });
+    };
+
+    const handleLocationUpdated = (event: CustomEvent) => {
+      if (event.detail.projectId !== projectId) return;
+      const location = event.detail.location;
+      setElements((prev) => 
+        prev.map(el => 
+          el.id === location.id ? location : el
+        )
+      );
+    };
+
+    const handleLocationDeleted = (event: CustomEvent) => {
+      if (event.detail.projectId !== projectId) return;
+      const locationId = event.detail.locationId;
+      setElements((prev) => prev.filter(el => el.id !== locationId));
+      if (selectedElement?.id === locationId) {
+        setSelectedElement(null);
+      }
+    };
+
+    window.addEventListener('locationCreated', handleLocationCreated as EventListener);
+    window.addEventListener('locationUpdated', handleLocationUpdated as EventListener);
+    window.addEventListener('locationDeleted', handleLocationDeleted as EventListener);
+
+    return () => {
+      window.removeEventListener('locationCreated', handleLocationCreated as EventListener);
+      window.removeEventListener('locationUpdated', handleLocationUpdated as EventListener);
+      window.removeEventListener('locationDeleted', handleLocationDeleted as EventListener);
+    };
+  }, [projectId, selectedElement?.id]);
 
   const loadElements = async () => {
     try {
@@ -203,6 +300,38 @@ export default function WorldBuildingSidebar({ projectId, isOpen, onToggle, onSh
     setShowNewCharacter(false)
   }
 
+  const handleNewLocationSave = async (locationData: { name: string; description: string }) => {
+    try {
+      const supabase = createSupabaseClient()
+      const newElement = {
+        project_id: projectId,
+        category: 'locations',
+        name: locationData.name,
+        description: locationData.description,
+        attributes: getDefaultAttributes('locations'),
+        tags: []
+      }
+
+      const { data, error } = await supabase
+        .from('world_elements')
+        .insert(newElement)
+        .select()
+        .single()
+
+      if (error) throw error
+
+      setElements([...elements, data])
+      setSelectedElement(data)
+      setShowNewLocation(false)
+    } catch (error) {
+      console.error('Error creating location:', error)
+    }
+  }
+
+  const handleNewLocationCancel = () => {
+    setShowNewLocation(false)
+  }
+
   const getDefaultAttributes = (category: string) => {
     switch (category) {
       case 'characters':
@@ -295,7 +424,7 @@ export default function WorldBuildingSidebar({ projectId, isOpen, onToggle, onSh
     )
   }
 
-  // Show NewCharacter component when creating a character
+  // Show NewCharacter or NewLocation component when creating
   if (showNewCharacter) {
     return (
       <div className="fixed left-0 top-0 h-screen w-80 bg-white border-r border-gray-200 shadow-lg z-50">
@@ -303,6 +432,18 @@ export default function WorldBuildingSidebar({ projectId, isOpen, onToggle, onSh
           projectId={projectId}
           onSave={handleNewCharacterSave}
           onCancel={handleNewCharacterCancel}
+        />
+      </div>
+    )
+  }
+
+  if (showNewLocation) {
+    return (
+      <div className="fixed left-0 top-0 h-screen w-80 bg-white border-r border-gray-200 shadow-lg z-50">
+        <NewLocation
+          projectId={projectId}
+          onSave={handleNewLocationSave}
+          onCancel={handleNewLocationCancel}
         />
       </div>
     )
@@ -414,6 +555,9 @@ export default function WorldBuildingSidebar({ projectId, isOpen, onToggle, onSh
                           onClick={() => {
                             if (category.key === 'characters') {
                               setShowNewCharacter(true)
+                            } else if (category.key === 'locations') {
+                              // always open the full-page Locations create editor
+                              window.dispatchEvent(new CustomEvent('openLocationsCreate', { detail: { projectId } }))
                             } else {
                               const name = prompt(`New ${category.label.slice(0, -1)} name:`)
                               if (name) createElement(category.key, name)
