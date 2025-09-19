@@ -884,9 +884,10 @@ function AnnotationOverlay({
             top: 0, 
             width: '100%', 
             height: '100%', 
-            pointerEvents: 'none',
+            pointerEvents: 'auto',
             zIndex: 10 
           }}
+          viewBox={`0 0 ${mapDimensions.width} ${mapDimensions.height}`}
         >
           {svgAnnotations.map((annotation, index) => {
             const key = annotation.id
@@ -897,43 +898,40 @@ function AnnotationOverlay({
             
             if (isZoneAnnotation(annotation)) {
               return (
-                <g key={key} style={{ pointerEvents: 'auto' }}>
-                  <EnhancedZoneRenderer
-                    annotation={annotation}
-                    isSelected={isSelected}
-                    onSelect={onSelect}
-                    onUpdate={onUpdate}
-                    onDelete={onDelete}
-                  />
-                </g>
+                <EnhancedZoneRenderer
+                  key={key}
+                  annotation={annotation}
+                  isSelected={isSelected}
+                  onSelect={onSelect}
+                  onUpdate={onUpdate}
+                  onDelete={onDelete}
+                />
               )
             }
             
             if (isDecorationAnnotation(annotation)) {
               return (
-                <g key={key} style={{ pointerEvents: 'auto' }}>
-                  <EnhancedDecorationRenderer
-                    annotation={annotation}
-                    isSelected={isSelected}
-                    onSelect={onSelect}
-                    onUpdate={onUpdate}
-                    onDelete={onDelete}
-                  />
-                </g>
+                <EnhancedDecorationRenderer
+                  key={key}
+                  annotation={annotation}
+                  isSelected={isSelected}
+                  onSelect={onSelect}
+                  onUpdate={onUpdate}
+                  onDelete={onDelete}
+                />
               )
             }
             
             if (isMeasurementAnnotation(annotation)) {
               return (
-                <g key={key} style={{ pointerEvents: 'auto' }}>
-                  <EnhancedMeasurementRenderer
-                    annotation={annotation}
-                    isSelected={isSelected}
-                    onSelect={onSelect}
-                    onUpdate={onUpdate}
-                    onDelete={onDelete}
-                  />
-                </g>
+                <EnhancedMeasurementRenderer
+                  key={key}
+                  annotation={annotation}
+                  isSelected={isSelected}
+                  onSelect={onSelect}
+                  onUpdate={onUpdate}
+                  onDelete={onDelete}
+                />
               )
             }
             
@@ -1639,13 +1637,36 @@ function EnhancedZoneRenderer({
     const handleMouseMove = (e: MouseEvent) => {
       e.preventDefault()
       
-      // Get the SVG element to convert screen coordinates to SVG coordinates
-      const svgElement = document.querySelector('svg')
-      if (!svgElement) return
+      // Use the same image finding logic as point dragging
+      const allImages = document.querySelectorAll('img')
+      let imageElement = null
+      let imageRect = null
       
-      const rect = svgElement.getBoundingClientRect()
-      const svgX = e.clientX - rect.left
-      const svgY = e.clientY - rect.top
+      // Find the image that's actually visible and in the viewport
+      for (let img of allImages) {
+        const rect = img.getBoundingClientRect()
+        
+        // Check if mouse is within this image's bounds
+        if (e.clientX >= rect.left && e.clientX <= rect.right && 
+            e.clientY >= rect.top && e.clientY <= rect.bottom) {
+          imageElement = img
+          imageRect = rect
+          break
+        }
+      }
+      
+      if (!imageElement || !imageRect) {
+        imageElement = allImages[0] as HTMLImageElement
+        imageRect = imageElement.getBoundingClientRect()
+      }
+      
+      // Calculate coordinates relative to the image
+      const relativeX = e.clientX - imageRect.left
+      const relativeY = e.clientY - imageRect.top
+      
+      // Convert to image natural coordinate system
+      const svgX = (relativeX / imageRect.width) * imageElement.naturalWidth
+      const svgY = (relativeY / imageRect.height) * imageElement.naturalHeight
       
       const newCentroidX = svgX - dragOffset.x
       const newCentroidY = svgY - dragOffset.y
@@ -1689,16 +1710,56 @@ function EnhancedZoneRenderer({
     const handleMouseMove = (e: MouseEvent) => {
       e.preventDefault()
       
-      // Get the SVG element to convert screen coordinates to SVG coordinates
-      const svgElement = document.querySelector('svg')
-      if (!svgElement) return
+      // Let's try to find the actual image that's visible on screen
+      const allImages = document.querySelectorAll('img')
+      console.log('Found images:', allImages.length)
       
-      const rect = svgElement.getBoundingClientRect()
-      const x = e.clientX - rect.left
-      const y = e.clientY - rect.top
+      let imageElement = null
+      let imageRect = null
+      
+      // Find the image that's actually visible and in the viewport
+      for (let img of allImages) {
+        const rect = img.getBoundingClientRect()
+        console.log('Image rect:', rect.left, rect.top, rect.width, rect.height)
+        
+        // Check if mouse is within this image's bounds
+        if (e.clientX >= rect.left && e.clientX <= rect.right && 
+            e.clientY >= rect.top && e.clientY <= rect.bottom) {
+          imageElement = img
+          imageRect = rect
+          console.log('Found correct image!')
+          break
+        }
+      }
+      
+      if (!imageElement || !imageRect) {
+        console.log('No suitable image found, using first image')
+        imageElement = allImages[0] as HTMLImageElement
+        imageRect = imageElement.getBoundingClientRect()
+      }
+      
+      console.log('Using image rect:', imageRect.left, imageRect.top, imageRect.width, imageRect.height)
+      console.log('Image natural:', imageElement.naturalWidth, imageElement.naturalHeight)
+      console.log('Mouse:', e.clientX, e.clientY)
+      
+      // Calculate coordinates relative to the image
+      const relativeX = e.clientX - imageRect.left
+      const relativeY = e.clientY - imageRect.top
+      
+      console.log('Relative:', relativeX, relativeY)
+      
+      // Convert to image natural coordinate system
+      const x = (relativeX / imageRect.width) * imageElement.naturalWidth
+      const y = (relativeY / imageRect.height) * imageElement.naturalHeight
+      
+      console.log('Final coords:', x, y)
+      
+      // Ensure coordinates stay within bounds
+      const clampedX = Math.max(0, Math.min(x, imageElement.naturalWidth))
+      const clampedY = Math.max(0, Math.min(y, imageElement.naturalHeight))
       
       const newPoints = [...annotation.points]
-      newPoints[draggedPointIndex] = { x, y }
+      newPoints[draggedPointIndex] = { x: clampedX, y: clampedY }
       onUpdate({ points: newPoints })
     }
 
@@ -1735,15 +1796,38 @@ function EnhancedZoneRenderer({
     if (!isSelected) return
     e.stopPropagation()
     
-    // Get the SVG element to convert screen coordinates to SVG coordinates
-    const svgElement = e.currentTarget.closest('svg')
-    if (!svgElement) return
+    // Use the same image finding logic as the dragging effect
+    const allImages = document.querySelectorAll('img')
+    let imageElement = null
+    let imageRect = null
     
-    const rect = svgElement.getBoundingClientRect()
-    const svgX = e.clientX - rect.left
-    const svgY = e.clientY - rect.top
+    // Find the image that's actually visible and in the viewport
+    for (let img of allImages) {
+      const rect = img.getBoundingClientRect()
+      
+      // Check if mouse is within this image's bounds
+      if (e.clientX >= rect.left && e.clientX <= rect.right && 
+          e.clientY >= rect.top && e.clientY <= rect.bottom) {
+        imageElement = img
+        imageRect = rect
+        break
+      }
+    }
     
-    // Calculate current centroid in SVG coordinates
+    if (!imageElement || !imageRect) {
+      imageElement = allImages[0] as HTMLImageElement
+      imageRect = imageElement.getBoundingClientRect()
+    }
+    
+    // Calculate coordinates relative to the image
+    const relativeX = e.clientX - imageRect.left
+    const relativeY = e.clientY - imageRect.top
+    
+    // Convert to image natural coordinate system
+    const svgX = (relativeX / imageRect.width) * imageElement.naturalWidth
+    const svgY = (relativeY / imageRect.height) * imageElement.naturalHeight
+    
+    // Calculate current centroid
     const currentCentroid = {
       x: annotation.points.reduce((sum, p) => sum + p.x, 0) / annotation.points.length,
       y: annotation.points.reduce((sum, p) => sum + p.y, 0) / annotation.points.length
@@ -1760,13 +1844,20 @@ function EnhancedZoneRenderer({
     if (!isSelected) return
     e.stopPropagation()
     
-    // Get the SVG element to convert screen coordinates to SVG coordinates
-    const svgElement = e.currentTarget.closest('svg')
-    if (!svgElement) return
+    // Find the image container to get the correct bounds
+    const imageContainer = document.querySelector('.relative')
+    const imageElement = imageContainer?.querySelector('img')
+    if (!imageElement || !imageContainer) return
     
-    const rect = svgElement.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
+    const containerRect = imageContainer.getBoundingClientRect()
+    
+    // Calculate coordinates relative to the image container
+    const relativeX = e.clientX - containerRect.left
+    const relativeY = e.clientY - containerRect.top
+    
+    // Convert to image natural coordinate system
+    const x = (relativeX / containerRect.width) * imageElement.naturalWidth
+    const y = (relativeY / containerRect.height) * imageElement.naturalHeight
     
     // Find the best position to insert the new point
     let insertIndex = annotation.points.length
@@ -1823,6 +1914,7 @@ function EnhancedZoneRenderer({
             strokeWidth={2}
             className="cursor-move"
             onMouseDown={(e) => {
+              console.log('Point mousedown triggered for index:', index)
               e.stopPropagation()
               setDraggedPointIndex(index)
             }}
