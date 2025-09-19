@@ -19,6 +19,40 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    // Verify project access and permissions
+    const { data: projectData, error: projectError } = await supabase
+      .from('projects')
+      .select('owner_id, title')
+      .eq('id', projectId)
+      .single()
+
+    if (projectError) {
+      console.error('Project access error:', projectError)
+      return NextResponse.json({ error: 'Project not found or access denied' }, { status: 403 })
+    }
+
+    const isOwner = projectData.owner_id === user.id
+    let hasPermission = isOwner
+
+    if (!isOwner) {
+      // Check if user is an active collaborator with write permission
+      const { data: collabData, error: collabError } = await supabase
+        .from('project_collaborators')
+        .select('status, permissions')
+        .eq('project_id', projectId)
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .single()
+
+      if (collabData && !collabError) {
+        hasPermission = true
+      }
+    }
+
+    if (!hasPermission) {
+      return NextResponse.json({ error: 'Permission denied: Only project owners and active collaborators can upload maps' }, { status: 403 })
+    }
+
     // Validate basic constraints (size/type) - keep light server-side validation
     const MAX = 20 * 1024 * 1024
     if (file.size > MAX) {

@@ -375,6 +375,20 @@ function NovelPageInner() {
     return () => window.removeEventListener('openLocationsCreate', handler as EventListener)
   }, [params])
 
+  // Listen for map creation events to refresh world elements
+  useEffect(() => {
+    const handler = (e: CustomEvent) => {
+      if (!params?.id) return
+      // only respond for this project
+      if (e.detail?.projectId !== params.id) return
+      // Refresh world elements when a new map is created
+      loadWorldElements(params.id)
+    }
+
+    window.addEventListener('mapCreated', handler as EventListener)
+    return () => window.removeEventListener('mapCreated', handler as EventListener)
+  }, [params])
+
   // Data loading functions
   const loadWorldElements = async (projectId: string) => {
     try {
@@ -2565,6 +2579,7 @@ function NovelPageInner() {
         return (
           <MapsPanel 
             projectId={project.id}
+            mapId={selectedElement?.id}
           />
         )
 
@@ -2900,21 +2915,7 @@ function NovelPageInner() {
                   <h2 className="text-lg font-semibold text-gray-900">
                     {project.title}
                   </h2>
-                  <p className="text-sm text-gray-500 flex items-center gap-2">
-                    <span
-                      className="cursor-pointer underline hover:text-gray-800"
-                      onClick={() => {
-                        // Ensure sidebar is visible and clear selection/tab so dashboard renders reliably
-                        setSidebarOpen(true)
-                        clearSelectedElement()
-                        setActiveTab('')
-                        setActivePanel('dashboard')
-                      }}
-                      title="Go to Dashboard"
-                    >
-                      {SIDEBAR_OPTIONS.find(p => p.id === activePanel)?.label || 'Novel Editor'}
-                    </span>
-                  </p>
+                  
                 </div>
               </div>
 

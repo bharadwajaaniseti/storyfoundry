@@ -176,10 +176,24 @@ export default function WorldBuildingSidebar({ projectId, isOpen, onToggle, onSh
     window.addEventListener('locationUpdated', handleLocationUpdated as EventListener);
     window.addEventListener('locationDeleted', handleLocationDeleted as EventListener);
 
+    // Handle map creation events
+    const handleMapCreated = (event: CustomEvent) => {
+      if (event.detail.projectId !== projectId) return;
+      const map = event.detail.map;
+      setElements((prev) => {
+        const exists = prev.some(el => el.id === map.id);
+        if (exists) return prev;
+        return [...prev, map];
+      });
+    };
+
+    window.addEventListener('mapCreated', handleMapCreated as EventListener);
+
     return () => {
       window.removeEventListener('locationCreated', handleLocationCreated as EventListener);
       window.removeEventListener('locationUpdated', handleLocationUpdated as EventListener);
       window.removeEventListener('locationDeleted', handleLocationDeleted as EventListener);
+      window.removeEventListener('mapCreated', handleMapCreated as EventListener);
     };
   }, [projectId, selectedElement?.id]);
 
