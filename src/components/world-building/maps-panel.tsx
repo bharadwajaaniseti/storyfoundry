@@ -58,6 +58,8 @@ interface Zone {
   points: { x: number; y: number }[]
   fillColor: string
   borderColor: string
+  borderStyle?: 'solid' | 'dashed' | 'dotted' | 'double'
+  borderWidth?: number
   opacity: number
 }
 
@@ -314,7 +316,9 @@ function MapCanvas({
   activeTool,
   onAnnotationAdd,
   onAnnotationUpdate,
-  onAnnotationDelete
+  onAnnotationDelete,
+  onAnnotationSelect,
+  selectedAnnotation
 }: { 
   map: MapData | null
   viewport: ViewportState
@@ -324,6 +328,8 @@ function MapCanvas({
   onAnnotationAdd: (annotation: Pin | Label | Zone | Measurement | Decoration) => void
   onAnnotationUpdate: (id: string, updates: any) => void
   onAnnotationDelete: (id: string) => void
+  onAnnotationSelect: (annotation: any | null) => void
+  selectedAnnotation: any | null
 }) {
   const canvasRef = useRef<HTMLDivElement>(null)
   const imageRef = useRef<HTMLImageElement>(null)
@@ -448,82 +454,9 @@ function MapCanvas({
       ;(e.target as Element).setPointerCapture?.(e.pointerId)
       e.preventDefault()
     } else if (e.button === 0 && activeTool !== 'select') {
-      // Primary button with active tool - place annotation
-      console.log('Creating annotation with tool:', activeTool)
-      e.preventDefault()
-      e.stopPropagation()
-      
-      const coords = screenToMapCoords(e.clientX, e.clientY)
-      const id = crypto.randomUUID()
-      
-      switch (activeTool) {
-        case 'pin':
-          onAnnotationAdd({
-            id,
-            type: 'pin',
-            x: coords.x,
-            y: coords.y,
-            label: 'New Pin',
-            icon: '📍',
-            color: '#3b82f6'
-          })
-          break
-          
-        case 'label':
-          onAnnotationAdd({
-            id,
-            type: 'label',
-            x: coords.x,
-            y: coords.y,
-            text: 'New Label',
-            fontSize: 16,
-            color: '#000000',
-            backgroundColor: '#ffffff'
-          })
-          break
-          
-        case 'zone':
-          const zoneData: Zone = {
-            id,
-            type: 'zone',
-            points: [
-              { x: coords.x - 100, y: coords.y - 100 },
-              { x: coords.x + 100, y: coords.y - 100 },
-              { x: coords.x + 100, y: coords.y + 100 },
-              { x: coords.x - 100, y: coords.y + 100 }
-            ],
-            fillColor: '#10b981',
-            borderColor: '#059669',
-            opacity: 0.8
-          }
-          onAnnotationAdd(zoneData)
-          break
-          
-        case 'measurement':
-          onAnnotationAdd({
-            id,
-            type: 'measurement',
-            points: [
-              { x: coords.x - 50, y: coords.y },
-              { x: coords.x + 50, y: coords.y }
-            ],
-            unit: 'm',
-            color: '#ef4444'
-          })
-          break
-          
-        case 'decoration':
-          onAnnotationAdd({
-            id,
-            type: 'decoration',
-            x: coords.x,
-            y: coords.y,
-            shape: 'circle',
-            size: 20,
-            color: '#8b5cf6'
-          })
-          break
-      }
+      // Annotation creation is handled by AnnotationOverlay, not here
+      console.log('Annotation creation delegated to AnnotationOverlay for tool:', activeTool)
+      return
     } else if (e.button === 0 && activeTool === 'select') {
       // Select mode - allow events to bubble to annotations
       console.log('Select mode - allowing event to bubble')
@@ -647,6 +580,8 @@ function MapCanvas({
           onAnnotationAdd={onAnnotationAdd}
           onAnnotationUpdate={onAnnotationUpdate}
           onAnnotationDelete={onAnnotationDelete}
+          selectedAnnotation={selectedAnnotation}
+          onAnnotationSelect={onAnnotationSelect}
           mapDimensions={
             map?.image_url && imageRef.current 
               ? { 
@@ -698,7 +633,9 @@ function AnnotationOverlay({
   onAnnotationAdd, 
   onAnnotationUpdate, 
   onAnnotationDelete,
-  mapDimensions 
+  mapDimensions,
+  selectedAnnotation,
+  onAnnotationSelect
 }: {
   annotations: (Pin | Label | Zone | Measurement | Decoration)[]
   activeTool: ToolMode
@@ -706,9 +643,14 @@ function AnnotationOverlay({
   onAnnotationUpdate: (id: string, updates: any) => void
   onAnnotationDelete: (id: string) => void
   mapDimensions: { width: number, height: number }
+  selectedAnnotation: any | null
+  onAnnotationSelect: (annotation: any | null) => void
 }) {
-  const [selectedAnnotation, setSelectedAnnotation] = useState<string | null>(null)
   const [editingAnnotation, setEditingAnnotation] = useState<string | null>(null)
+  const [lastClickTime, setLastClickTime] = useState<number>(0)
+  const CLICK_DEBOUNCE_MS = 500 // Prevent multiple clicks within 500ms
+  const processingClickRef = useRef(false)
+  const lastProcessedClickRef = useRef<string>('')
   const [isDragging, setIsDragging] = useState(false)
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
 
@@ -723,15 +665,15 @@ function AnnotationOverlay({
       if (selectedAnnotation) {
         if (e.key === 'Delete' || e.key === 'Backspace') {
           e.preventDefault()
-          onAnnotationDelete(selectedAnnotation)
-          setSelectedAnnotation(null)
+          onAnnotationDelete(selectedAnnotation.id)
+          onAnnotationSelect(null)
         } else if (e.key === 'Escape') {
-          setSelectedAnnotation(null)
+          onAnnotationSelect(null)
           setEditingAnnotation(null)
         } else if (e.key === 'Enter') {
-          const annotation = annotations.find(ann => ann.id === selectedAnnotation)
+          const annotation = annotations.find(ann => ann.id === selectedAnnotation.id)
           if (annotation && (annotation.type === 'pin' || annotation.type === 'label')) {
-            setEditingAnnotation(selectedAnnotation)
+            setEditingAnnotation(selectedAnnotation.id)
           }
         }
       }
@@ -739,12 +681,41 @@ function AnnotationOverlay({
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedAnnotation, annotations, onAnnotationDelete])
+  }, [selectedAnnotation, annotations, onAnnotationDelete, onAnnotationSelect])
 
   const handleCanvasClick = (e: React.MouseEvent) => {
+    // Create unique click identifier based on coordinates and time
+    const clickId = `${e.clientX}-${e.clientY}-${activeTool}-${Date.now()}`
+    
+    // Prevent duplicate execution with ref guard
+    if (processingClickRef.current) {
+      return
+    }
+    
+    // Check if this exact click was already processed
+    if (lastProcessedClickRef.current === clickId) {
+      return
+    }
+    
+    // Debounce rapid clicks to prevent duplicate annotations
+    const now = Date.now()
+    if (now - lastClickTime < CLICK_DEBOUNCE_MS) {
+      return
+    }
+    
+    // Set processing flag and record this click
+    processingClickRef.current = true
+    lastProcessedClickRef.current = clickId
+    setLastClickTime(now)
+    
+    // Clear processing flag after a short delay
+    setTimeout(() => {
+      processingClickRef.current = false
+    }, 100)
+    
     if (activeTool === 'select') {
       // Deselect when clicking on empty space
-      setSelectedAnnotation(null)
+      onAnnotationSelect(null)
       setEditingAnnotation(null)
       return
     }
@@ -754,7 +725,7 @@ function AnnotationOverlay({
     const y = (e.clientY - rect.top) / rect.height
     
     // Create new annotation based on active tool
-    const id = `${activeTool}_${Date.now()}`
+    const id = `${activeTool}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
     
     switch (activeTool) {
       case 'pin':
@@ -768,7 +739,7 @@ function AnnotationOverlay({
           icon: '📍'
         }
         onAnnotationAdd(pin)
-        setSelectedAnnotation(id)
+        onAnnotationSelect({ id, type: 'pin' })
         break
         
       case 'label':
@@ -784,7 +755,7 @@ function AnnotationOverlay({
           rotation: 0
         }
         onAnnotationAdd(label)
-        setSelectedAnnotation(id)
+        onAnnotationSelect({ id, type: 'label' })
         setEditingAnnotation(id)
         break
         
@@ -800,10 +771,12 @@ function AnnotationOverlay({
           ],
           fillColor: '#10b981',
           borderColor: '#059669',
+          borderStyle: 'solid',
+          borderWidth: 2,
           opacity: 0.8
         }
         onAnnotationAdd(zone)
-        setSelectedAnnotation(id)
+        onAnnotationSelect({ id, type: 'zone' })
         break
         
       case 'measurement':
@@ -821,7 +794,7 @@ function AnnotationOverlay({
           color: '#f59e0b'
         }
         onAnnotationAdd(measurement)
-        setSelectedAnnotation(id)
+        onAnnotationSelect({ id, type: 'measurement' })
         break
         
       case 'decoration':
@@ -836,7 +809,7 @@ function AnnotationOverlay({
           rotation: 0
         }
         onAnnotationAdd(decoration)
-        setSelectedAnnotation(id)
+        onAnnotationSelect({ id, type: 'decoration' })
         break
     }
   }
@@ -864,8 +837,8 @@ function AnnotationOverlay({
         <AnnotationRenderer
           key={annotation.id}
           annotation={annotation}
-          isSelected={selectedAnnotation === annotation.id}
-          onSelect={() => setSelectedAnnotation(annotation.id)}
+          isSelected={selectedAnnotation?.id === annotation.id}
+          onSelect={() => onAnnotationSelect(annotation)}
           onUpdate={(updates) => onAnnotationUpdate(annotation.id, updates)}
           onDelete={() => onAnnotationDelete(annotation.id)}
           editingAnnotation={editingAnnotation}
@@ -891,8 +864,8 @@ function AnnotationOverlay({
         >
           {svgAnnotations.map((annotation, index) => {
             const key = annotation.id
-            const isSelected = selectedAnnotation === annotation.id
-            const onSelect = () => setSelectedAnnotation(annotation.id)
+            const isSelected = selectedAnnotation?.id === annotation.id
+            const onSelect = () => onAnnotationSelect(annotation)
             const onUpdate = (updates: any) => onAnnotationUpdate(annotation.id, updates)
             const onDelete = () => onAnnotationDelete(annotation.id)
             
@@ -1627,8 +1600,14 @@ function EnhancedZoneRenderer({
   const [isDraggingZone, setIsDraggingZone] = useState(false)
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
 
-  const fillColors = ['#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#8b5cf6', '#ec4899', '#64748b', '#06b6d4']
-  const borderColors = ['#1d4ed8', '#dc2626', '#16a34a', '#d97706', '#7c3aed', '#db2777', '#475569', '#0891b2']
+  const fillColors = [
+    '#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#8b5cf6', '#ec4899', '#64748b', '#06b6d4',
+    '#f97316', '#84cc16', '#06b6d4', '#d946ef', '#71717a', '#ef4444', '#10b981', '#3b82f6'
+  ]
+  const borderColors = [
+    '#1d4ed8', '#dc2626', '#16a34a', '#d97706', '#7c3aed', '#db2777', '#475569', '#0891b2',
+    '#ea580c', '#65a30d', '#0e7490', '#c026d3', '#52525b', '#dc2626', '#059669', '#2563eb'
+  ]
 
   // Global mouse event handlers for smooth zone dragging
   useEffect(() => {
@@ -1844,20 +1823,36 @@ function EnhancedZoneRenderer({
     if (!isSelected) return
     e.stopPropagation()
     
-    // Find the image container to get the correct bounds
-    const imageContainer = document.querySelector('.relative')
-    const imageElement = imageContainer?.querySelector('img')
-    if (!imageElement || !imageContainer) return
+    // Use the same image finding logic as the dragging effect
+    const allImages = document.querySelectorAll('img')
+    let imageElement = null
+    let imageRect = null
     
-    const containerRect = imageContainer.getBoundingClientRect()
+    // Find the image that's actually visible and in the viewport
+    for (let img of allImages) {
+      const rect = img.getBoundingClientRect()
+      
+      // Check if mouse is within this image's bounds
+      if (e.clientX >= rect.left && e.clientX <= rect.right && 
+          e.clientY >= rect.top && e.clientY <= rect.bottom) {
+        imageElement = img
+        imageRect = rect
+        break
+      }
+    }
     
-    // Calculate coordinates relative to the image container
-    const relativeX = e.clientX - containerRect.left
-    const relativeY = e.clientY - containerRect.top
+    if (!imageElement || !imageRect) {
+      imageElement = allImages[0] as HTMLImageElement
+      imageRect = imageElement.getBoundingClientRect()
+    }
+    
+    // Calculate coordinates relative to the image
+    const relativeX = e.clientX - imageRect.left
+    const relativeY = e.clientY - imageRect.top
     
     // Convert to image natural coordinate system
-    const x = (relativeX / containerRect.width) * imageElement.naturalWidth
-    const y = (relativeY / containerRect.height) * imageElement.naturalHeight
+    const x = (relativeX / imageRect.width) * imageElement.naturalWidth
+    const y = (relativeY / imageRect.height) * imageElement.naturalHeight
     
     // Find the best position to insert the new point
     let insertIndex = annotation.points.length
@@ -1893,7 +1888,10 @@ function EnhancedZoneRenderer({
         d={pathData}
         fill={annotation.fillColor}
         stroke={annotation.borderColor}
-        strokeWidth={isSelected ? 3 : 2}
+        strokeWidth={isSelected ? (annotation.borderWidth || 2) + 1 : (annotation.borderWidth || 2)}
+        strokeDasharray={annotation.borderStyle === 'dashed' ? '8,4' : 
+                        annotation.borderStyle === 'dotted' ? '2,2' : 
+                        annotation.borderStyle === 'double' ? '6,3,2,3' : 'none'}
         fillOpacity={annotation.opacity}
         onClick={handleClick}
         onMouseDown={handleZoneMouseDown}
@@ -1951,55 +1949,6 @@ function EnhancedZoneRenderer({
         >
           <title>Delete Zone</title>
         </circle>
-      )}
-      
-      {/* Property Controls */}
-      {isSelected && (
-        <foreignObject x={centroid.x + 20} y={centroid.y - 60} width="200" height="120">
-          <div className="bg-white border rounded-lg shadow-lg p-2 text-xs">
-            <div className="mb-2">
-              <label className="block text-gray-600">Fill Color</label>
-              <div className="grid grid-cols-4 gap-1">
-                {fillColors.map((color) => (
-                  <button
-                    key={color}
-                    onClick={() => onUpdate({ fillColor: color })}
-                    className="w-6 h-6 rounded border-2 border-gray-300 hover:border-gray-500"
-                    style={{ backgroundColor: color }}
-                  />
-                ))}
-              </div>
-            </div>
-            
-            <div className="mb-2">
-              <label className="block text-gray-600">Border Color</label>
-              <div className="grid grid-cols-4 gap-1">
-                {borderColors.map((color) => (
-                  <button
-                    key={color}
-                    onClick={() => onUpdate({ borderColor: color })}
-                    className="w-6 h-6 rounded border-2 border-gray-300 hover:border-gray-500"
-                    style={{ backgroundColor: color }}
-                  />
-                ))}
-              </div>
-            </div>
-            
-            <div>
-              <label className="block text-gray-600">Opacity</label>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.1"
-                value={annotation.opacity}
-                onChange={(e) => onUpdate({ opacity: parseFloat(e.target.value) })}
-                className="w-full"
-              />
-              <span className="text-gray-500">{Math.round(annotation.opacity * 100)}%</span>
-            </div>
-          </div>
-        </foreignObject>
       )}
     </g>
   )
@@ -2371,6 +2320,286 @@ function AnnotationRenderer({
   return null
 }
 
+// Static Color Picker Component
+function StaticColorPicker({ 
+  selectedAnnotation,
+  onColorUpdate,
+  onOpacityUpdate 
+}: {
+  selectedAnnotation: any | null
+  onColorUpdate: (type: 'fill' | 'border' | 'color' | 'borderStyle' | 'borderWidth', value: string | number) => void
+  onOpacityUpdate: (opacity: number) => void
+}) {
+  const [isMinimized, setIsMinimized] = useState(false)
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false)
+      }
+    }
+
+    if (isDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [isDropdownOpen])
+
+  // Generate a color wheel with HSL colors
+  const generateColorWheel = () => {
+    const colors = []
+    // Primary hues with high saturation and medium lightness
+    for (let hue = 0; hue < 360; hue += 30) {
+      colors.push(`hsl(${hue}, 70%, 50%)`)
+    }
+    // Add some neutral colors
+    colors.push('#000000', '#404040', '#808080', '#c0c0c0')
+    return colors
+  }
+
+  const generateSecondaryColors = () => {
+    const colors = []
+    // Darker variants for borders
+    for (let hue = 0; hue < 360; hue += 30) {
+      colors.push(`hsl(${hue}, 60%, 40%)`)
+    }
+    // Add some neutral colors
+    colors.push('#1a1a1a', '#2a2a2a', '#5a5a5a', '#9a9a9a')
+    return colors
+  }
+
+  const fillColors = generateColorWheel()
+  const borderColors = generateSecondaryColors()
+
+  if (!selectedAnnotation) {
+    return null
+  }
+
+  const isZone = selectedAnnotation.type === 'zone'
+  const isPin = selectedAnnotation.type === 'pin'
+  const isLabel = selectedAnnotation.type === 'label'
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      {/* Color Picker Button */}
+      <button
+        onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+        className="flex items-center gap-2 px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+      >
+        <div 
+          className="w-4 h-4 rounded border border-gray-300" 
+          style={{ 
+            backgroundColor: selectedAnnotation.fillColor || selectedAnnotation.color || '#3b82f6' 
+          }}
+        ></div>
+        <span className="text-gray-700">{selectedAnnotation.type} Colors</span>
+        <svg 
+          className={`w-4 h-4 text-gray-500 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} 
+          fill="none" 
+          stroke="currentColor" 
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {/* Dropdown Panel */}
+      {isDropdownOpen && (
+        <div className="absolute top-full left-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg p-4 z-50 min-w-[320px]">
+          <div className="space-y-4">
+            {/* Fill/Main Color */}
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-2">
+                {isZone ? 'Fill Color' : isPin ? 'Pin Color' : 'Text Color'}
+              </label>
+              
+              {/* Color Wheel */}
+              <div className="grid grid-cols-8 gap-1 mb-3">
+                {fillColors.map((color, index) => (
+                  <button
+                    key={`fill-${index}-${color}`}
+                    onClick={() => onColorUpdate(isZone ? 'fill' : 'color', color)}
+                    className={`w-6 h-6 rounded border-2 hover:border-gray-500 transition-all hover:scale-110 ${
+                      (selectedAnnotation.fillColor || selectedAnnotation.color) === color 
+                        ? 'border-blue-500 ring-1 ring-blue-300' 
+                        : 'border-gray-300'
+                    }`}
+                    style={{ backgroundColor: color }}
+                    title={color}
+                  />
+                ))}
+              </div>
+              
+              {/* Custom Color Input */}
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-gray-600">Custom:</label>
+                <input
+                  type="color"
+                  value={selectedAnnotation.fillColor || selectedAnnotation.color || '#3b82f6'}
+                  onChange={(e) => onColorUpdate(isZone ? 'fill' : 'color', e.target.value)}
+                  className="w-8 h-6 rounded border border-gray-300 cursor-pointer"
+                />
+                <input
+                  type="text"
+                  value={selectedAnnotation.fillColor || selectedAnnotation.color || '#3b82f6'}
+                  onChange={(e) => onColorUpdate(isZone ? 'fill' : 'color', e.target.value)}
+                  className="flex-1 text-xs px-2 py-1 border border-gray-300 rounded"
+                  placeholder="#hexcolor"
+                />
+              </div>
+            </div>
+
+            {/* Border Color (for zones and labels) */}
+            {(isZone || isLabel) && (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-2">
+                  {isZone ? 'Border Color' : 'Background Color'}
+                </label>
+                
+                {/* Color Wheel */}
+                <div className="grid grid-cols-8 gap-1 mb-3">
+                  {borderColors.map((color, index) => (
+                    <button
+                      key={`border-${index}-${color}`}
+                      onClick={() => onColorUpdate('border', color)}
+                      className={`w-6 h-6 rounded border-2 hover:border-gray-500 transition-all hover:scale-110 ${
+                        selectedAnnotation.borderColor === color 
+                          ? 'border-blue-500 ring-1 ring-blue-300' 
+                          : 'border-gray-300'
+                      }`}
+                      style={{ backgroundColor: color }}
+                      title={color}
+                    />
+                  ))}
+                </div>
+                
+                {/* Custom Color Input */}
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-gray-600">Custom:</label>
+                  <input
+                    type="color"
+                    value={selectedAnnotation.borderColor || '#1d4ed8'}
+                    onChange={(e) => onColorUpdate('border', e.target.value)}
+                    className="w-8 h-6 rounded border border-gray-300 cursor-pointer"
+                  />
+                  <input
+                    type="text"
+                    value={selectedAnnotation.borderColor || '#1d4ed8'}
+                    onChange={(e) => onColorUpdate('border', e.target.value)}
+                    className="flex-1 text-xs px-2 py-1 border border-gray-300 rounded"
+                    placeholder="#hexcolor"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Border Style (for zones only) */}
+            {isZone && (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-2">Border Style</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => onColorUpdate('borderStyle', 'solid')}
+                    className={`px-3 py-2 text-xs border rounded flex items-center justify-center ${
+                      (selectedAnnotation.borderStyle || 'solid') === 'solid'
+                        ? 'border-blue-500 bg-blue-50 text-blue-700'
+                        : 'border-gray-300 hover:border-gray-400'
+                    }`}
+                  >
+                    <div className="w-6 h-0 border-t-2 border-gray-600"></div>
+                    <span className="ml-2">Solid</span>
+                  </button>
+                  
+                  <button
+                    onClick={() => onColorUpdate('borderStyle', 'dashed')}
+                    className={`px-3 py-2 text-xs border rounded flex items-center justify-center ${
+                      selectedAnnotation.borderStyle === 'dashed'
+                        ? 'border-blue-500 bg-blue-50 text-blue-700'
+                        : 'border-gray-300 hover:border-gray-400'
+                    }`}
+                  >
+                    <div className="w-6 h-0 border-t-2 border-dashed border-gray-600"></div>
+                    <span className="ml-2">Dashed</span>
+                  </button>
+                  
+                  <button
+                    onClick={() => onColorUpdate('borderStyle', 'dotted')}
+                    className={`px-3 py-2 text-xs border rounded flex items-center justify-center ${
+                      selectedAnnotation.borderStyle === 'dotted'
+                        ? 'border-blue-500 bg-blue-50 text-blue-700'
+                        : 'border-gray-300 hover:border-gray-400'
+                    }`}
+                  >
+                    <div className="w-6 h-0 border-t-2 border-dotted border-gray-600"></div>
+                    <span className="ml-2">Dotted</span>
+                  </button>
+                  
+                  <button
+                    onClick={() => onColorUpdate('borderStyle', 'double')}
+                    className={`px-3 py-2 text-xs border rounded flex items-center justify-center ${
+                      selectedAnnotation.borderStyle === 'double'
+                        ? 'border-blue-500 bg-blue-50 text-blue-700'
+                        : 'border-gray-300 hover:border-gray-400'
+                    }`}
+                  >
+                    <div className="w-6 h-0 border-t-4 border-double border-gray-600"></div>
+                    <span className="ml-2">Double</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Border Width (for zones only) */}
+            {isZone && (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-2">Border Width</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="range"
+                    min="1"
+                    max="10"
+                    step="1"
+                    value={selectedAnnotation.borderWidth || 2}
+                    onChange={(e) => onColorUpdate('borderWidth', parseInt(e.target.value))}
+                    className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                  />
+                  <span className="text-xs text-gray-600 font-medium min-w-[25px]">
+                    {selectedAnnotation.borderWidth || 2}px
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Opacity Control */}
+            {(isZone || isLabel) && (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-2">Opacity</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={selectedAnnotation.opacity || 0.3}
+                    onChange={(e) => onOpacityUpdate(parseFloat(e.target.value))}
+                    className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                  />
+                  <span className="text-xs text-gray-600 font-medium min-w-[35px]">
+                    {Math.round((selectedAnnotation.opacity || 0.3) * 100)}%
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Main Maps Panel component - Canvas only layout
 function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string }) {
   const supabase = createSupabaseClient()
@@ -2387,6 +2616,7 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
   // Annotation tool state
   const [activeTool, setActiveTool] = useState<ToolMode>('select')
   const [annotations, setAnnotations] = useState<(Pin | Label | Zone | Measurement | Decoration)[]>([])
+  const [selectedAnnotation, setSelectedAnnotation] = useState<any | null>(null)
   const annotationSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   
   // Debounced save function to prevent duplicate saves
@@ -2442,6 +2672,7 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
   
   const handleClearAllAnnotations = () => {
     setAnnotations([])
+    setSelectedAnnotation(null) // Clear selection when clearing all
     // Clear from map's attributes field with debounce
     if (selectedMap) {
       const newAttributes = { 
@@ -2450,6 +2681,47 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
       }
       debouncedSave(selectedMap.id, newAttributes)
     }
+  }
+
+  // Color picker handlers
+  const handleColorUpdate = (type: 'fill' | 'border' | 'color' | 'borderStyle' | 'borderWidth', value: string | number) => {
+    if (!selectedAnnotation) return
+    
+    let updateKey: string
+    let updates: any
+    
+    switch (type) {
+      case 'fill':
+        updateKey = 'fillColor'
+        updates = { [updateKey]: value }
+        break
+      case 'border':
+        updateKey = 'borderColor'
+        updates = { [updateKey]: value }
+        break
+      case 'color':
+        updateKey = 'color'
+        updates = { [updateKey]: value }
+        break
+      case 'borderStyle':
+        updates = { borderStyle: value }
+        break
+      case 'borderWidth':
+        updates = { borderWidth: value }
+        break
+      default:
+        return
+    }
+    
+    handleAnnotationUpdate(selectedAnnotation.id, updates)
+    setSelectedAnnotation({ ...selectedAnnotation, ...updates })
+  }
+
+  const handleOpacityUpdate = (opacity: number) => {
+    if (!selectedAnnotation) return
+    
+    handleAnnotationUpdate(selectedAnnotation.id, { opacity })
+    setSelectedAnnotation({ ...selectedAnnotation, opacity })
   }
 
   // Keyboard shortcuts for zoom (in MapsPanel scope)
@@ -2866,6 +3138,17 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
               onClearAll={handleClearAllAnnotations}
             />
           )}
+          
+          {/* Color picker in toolbar */}
+          {selectedAnnotation && (
+            <div className="ml-4 pl-4 border-l border-gray-300">
+              <StaticColorPicker 
+                selectedAnnotation={selectedAnnotation}
+                onColorUpdate={handleColorUpdate}
+                onOpacityUpdate={handleOpacityUpdate}
+              />
+            </div>
+          )}
         </div>
         
         <div className="flex items-center gap-3">
@@ -2903,16 +3186,21 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
             </div>
           </div>
         ) : selectedMap ? (
-          <MapCanvas 
-            map={selectedMap}
-            viewport={viewport}
-            onViewportChange={setViewport}
-            annotations={annotations}
-            activeTool={activeTool}
-            onAnnotationAdd={handleAnnotationAdd}
-            onAnnotationUpdate={handleAnnotationUpdate}
-            onAnnotationDelete={handleAnnotationDelete}
-          />
+          <div className="flex-1">
+            {/* Main canvas area - full width */}
+            <MapCanvas 
+              map={selectedMap}
+              viewport={viewport}
+              onViewportChange={setViewport}
+              annotations={annotations}
+              activeTool={activeTool}
+              onAnnotationAdd={handleAnnotationAdd}
+              onAnnotationUpdate={handleAnnotationUpdate}
+              onAnnotationDelete={handleAnnotationDelete}
+              onAnnotationSelect={setSelectedAnnotation}
+              selectedAnnotation={selectedAnnotation}
+            />
+          </div>
         ) : allMaps.length > 0 ? (
           <div className="h-full w-full flex items-center justify-center bg-gray-50">
             <div className="text-center text-gray-500 max-w-md">
