@@ -199,11 +199,17 @@ export default function WorldBuildingSidebar({
 
     // Handle research file creation events
     const handleResearchFileCreated = (event: CustomEvent) => {
+      console.log('Received researchFileCreated event:', event.detail)
       if (event.detail.projectId !== projectId) return;
       const researchFile = event.detail.researchFile;
+      console.log('Adding research file to sidebar:', researchFile)
       setElements((prev) => {
         const exists = prev.some(el => el.id === researchFile.id);
-        if (exists) return prev;
+        if (exists) {
+          console.log('Research file already exists in sidebar')
+          return prev;
+        }
+        console.log('Adding new research file to sidebar')
         return [...prev, researchFile];
       });
     };

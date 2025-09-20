@@ -333,8 +333,14 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
       loadResearchFiles()
       
       // Trigger a custom event to refresh sidebar elements
+      // Convert to WorldElement format for sidebar
+      const worldElement = {
+        ...data,
+        tags: data.tags || []
+      }
+      console.log('Dispatching researchFileCreated event:', worldElement)
       window.dispatchEvent(new CustomEvent('researchFileCreated', {
-        detail: { researchFile: newResearchFile, projectId }
+        detail: { researchFile: worldElement, projectId }
       }))
     } catch (error) {
       console.error('Error:', error)
