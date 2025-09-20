@@ -195,11 +195,16 @@ function ZoomControl({ scale, onScaleChange, onFitToScreen }: {
 }
 
 // Map Tools Toolbar - Campfire-style annotation tools
-function MapToolsBar({ activeTool, onToolChange, onClearAll }: {
+function MapToolsBar({ activeTool, onToolChange, onClearAll, selectedDecorationType, onDecorationTypeChange }: {
   activeTool: ToolMode
   onToolChange: (tool: ToolMode) => void
   onClearAll: () => void
+  selectedDecorationType: string
+  onDecorationTypeChange: (decorationType: string) => void
 }) {
+  const [decorationDropdownOpen, setDecorationDropdownOpen] = useState(false)
+  const decorationButtonRef = useRef<HTMLButtonElement>(null)
+
   const tools = [
     { 
       id: 'select' as ToolMode, 
@@ -233,43 +238,87 @@ function MapToolsBar({ activeTool, onToolChange, onClearAll }: {
     },
     { 
       id: 'decoration' as ToolMode, 
-      label: 'Decorations', 
+      label: 'Place Decoration', 
       icon: '🎨',
-      description: 'Add decorative elements'
+      description: 'Click to place selected decoration'
     }
   ]
 
+  const handleDecorationClick = () => {
+    setDecorationDropdownOpen(!decorationDropdownOpen)
+  }
+
+  const handleDecorationSelect = (decorationType: string) => {
+    // Store the selected decoration type and switch to decoration tool mode
+    onDecorationTypeChange(decorationType)
+    setDecorationDropdownOpen(false)
+    onToolChange('decoration') // Switch to decoration tool for click-to-place
+  }
+
   return (
-    <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg p-1 shadow-sm">
-      {tools.map((tool) => (
+    <>
+      <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg p-1 shadow-sm">
+        {tools.map((tool) => (
+          <button
+            key={tool.id}
+            onClick={() => onToolChange(tool.id)}
+            className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+              activeTool === tool.id
+                ? 'bg-orange-100 text-orange-700 border border-orange-200'
+                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800'
+            }`}
+            title={tool.description}
+          >
+            <span className="text-base">{tool.icon}</span>
+            <span className="hidden sm:inline">{tool.label}</span>
+          </button>
+        ))}
+        
+        {/* Decorations Dropdown Button */}
         <button
-          key={tool.id}
-          onClick={() => onToolChange(tool.id)}
+          ref={decorationButtonRef}
+          onClick={handleDecorationClick}
           className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
-            activeTool === tool.id
+            decorationDropdownOpen
               ? 'bg-orange-100 text-orange-700 border border-orange-200'
               : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800'
           }`}
-          title={tool.description}
+          title="Add decorative elements"
         >
-          <span className="text-base">{tool.icon}</span>
-          <span className="hidden sm:inline">{tool.label}</span>
+          <span className="text-base">🎨</span>
+          <span className="hidden sm:inline">Decorations</span>
+          <svg 
+            className={`w-3 h-3 transition-transform ${decorationDropdownOpen ? 'rotate-180' : ''}`}
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
         </button>
-      ))}
-      
-      <div className="w-px h-6 bg-gray-200 mx-1"></div>
-      
-      <button
-        onClick={onClearAll}
-        className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-red-600 hover:bg-red-50 transition-colors duration-200"
-        title="Clear all annotations"
-      >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-        </svg>
-        <span className="hidden sm:inline">Clear</span>
-      </button>
-    </div>
+        
+        <div className="w-px h-6 bg-gray-200 mx-1"></div>
+        
+        <button
+          onClick={onClearAll}
+          className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-red-600 hover:bg-red-50 transition-colors duration-200"
+          title="Clear all annotations"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+          <span className="hidden sm:inline">Clear</span>
+        </button>
+      </div>
+
+      {/* Floating Decoration Dropdown */}
+      <FloatingDecorationDropdown 
+        isOpen={decorationDropdownOpen}
+        onClose={() => setDecorationDropdownOpen(false)}
+        onAddDecoration={handleDecorationSelect}
+        triggerRef={decorationButtonRef}
+      />
+    </>
   )
 }
 
@@ -328,6 +377,7 @@ function MapCanvas({
   onViewportChange,
   annotations,
   activeTool,
+  selectedDecorationType,
   onAnnotationAdd,
   onAnnotationUpdate,
   onAnnotationDelete,
@@ -339,6 +389,7 @@ function MapCanvas({
   onViewportChange: (viewport: ViewportState) => void
   annotations: (Pin | Label | Zone | Measurement | Decoration)[]
   activeTool: ToolMode
+  selectedDecorationType: string
   onAnnotationAdd: (annotation: Pin | Label | Zone | Measurement | Decoration) => void
   onAnnotationUpdate: (id: string, updates: any) => void
   onAnnotationDelete: (id: string) => void
@@ -591,6 +642,7 @@ function MapCanvas({
         <AnnotationOverlay 
           annotations={annotations}
           activeTool={activeTool}
+          selectedDecorationType={selectedDecorationType}
           onAnnotationAdd={onAnnotationAdd}
           onAnnotationUpdate={onAnnotationUpdate}
           onAnnotationDelete={onAnnotationDelete}
@@ -617,7 +669,7 @@ function MapCanvas({
             {activeTool === 'label' && '🏷️ Label: Click to place • Auto-edit mode'}
             {activeTool === 'zone' && '🗾 Zone: Click to place • Double-click edge to add point • Drag points to edit'}
             {activeTool === 'measurement' && '📏 Measurement: Click to start • Move to preview • Click to finish • ESC to cancel'}
-            {activeTool === 'decoration' && '🎨 Decoration: Click to place • Select to change shape/size'}
+            {activeTool === 'decoration' && `🎨 Decoration: Click to place ${selectedDecorationType} • Use dropdown to change type`}
           </div>
         </div>
       </div>
@@ -644,6 +696,7 @@ const isMeasurementAnnotation = (annotation: Pin | Label | Zone | Measurement | 
 function AnnotationOverlay({ 
   annotations, 
   activeTool, 
+  selectedDecorationType,
   onAnnotationAdd, 
   onAnnotationUpdate, 
   onAnnotationDelete,
@@ -653,6 +706,7 @@ function AnnotationOverlay({
 }: {
   annotations: (Pin | Label | Zone | Measurement | Decoration)[]
   activeTool: ToolMode
+  selectedDecorationType: string
   onAnnotationAdd: (annotation: Pin | Label | Zone | Measurement | Decoration) => void
   onAnnotationUpdate: (id: string, updates: any) => void
   onAnnotationDelete: (id: string) => void
@@ -848,15 +902,33 @@ function AnnotationOverlay({
         break
         
       case 'decoration':
+        // Set terrain-appropriate colors
+        let decorationColor = '#3b82f6' // default blue
+        let strokeColor = '#1e40af'
+        
+        if (selectedDecorationType === 'mountain') {
+          decorationColor = '#8b5cf6' // purple for mountains
+          strokeColor = '#6d28d9'
+        } else if (selectedDecorationType === 'forest') {
+          decorationColor = '#22c55e' // green for forest
+          strokeColor = '#16a34a'
+        } else if (selectedDecorationType === 'water') {
+          decorationColor = '#06b6d4' // cyan for water
+          strokeColor = '#0891b2'
+        } else if (selectedDecorationType === 'building') {
+          decorationColor = '#f59e0b' // amber for buildings
+          strokeColor = '#d97706'
+        }
+        
         const decoration: Decoration = {
           id,
           type: 'decoration',
           x: x * mapDimensions.width,
           y: y * mapDimensions.height,
-          decorationType: 'circle',
+          shape: selectedDecorationType as any,
           size: 50,
-          color: '#3b82f6',
-          strokeColor: '#1e40af',
+          color: decorationColor,
+          strokeColor: strokeColor,
           strokeWidth: 2,
           fillOpacity: 0.8,
           strokeOpacity: 1.0,
@@ -864,7 +936,7 @@ function AnnotationOverlay({
           style: 'solid',
           shadow: false,
           layer: 1,
-          textOverlay: ''
+          text: ''
         }
         onAnnotationAdd(decoration)
         onAnnotationSelect({ id, type: 'decoration' })
@@ -2063,9 +2135,34 @@ function EnhancedDecorationRenderer({
   onDelete: () => void
 }) {
   const [isDragging, setIsDragging] = useState(false)
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
   
   // Calculate actual size at component level
   const actualSize = annotation.size || 30
+
+  // Handle dragging with window event listeners (like Pin component)
+  useEffect(() => {
+    if (!isDragging) return
+
+    const handleMouseMove = (e: MouseEvent) => {
+      e.preventDefault()
+      const newX = e.clientX - dragOffset.x
+      const newY = e.clientY - dragOffset.y
+      onUpdate({ x: newX, y: newY })
+    }
+
+    const handleMouseUp = () => {
+      setIsDragging(false)
+    }
+
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [isDragging, dragOffset, onUpdate])
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -2073,22 +2170,18 @@ function EnhancedDecorationRenderer({
   }
 
   const handleMouseDown = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    
     if (isSelected) {
+      // Start dragging
       setIsDragging(true)
+      setDragOffset({
+        x: e.clientX - annotation.x,
+        y: e.clientY - annotation.y
+      })
+    } else {
+      onSelect()
     }
-  }
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (isDragging) {
-      const rect = e.currentTarget.getBoundingClientRect()
-      const x = e.clientX - rect.left
-      const y = e.clientY - rect.top
-      onUpdate({ x, y })
-    }
-  }
-
-  const handleMouseUp = () => {
-    setIsDragging(false)
   }
 
   const createGradient = () => {
@@ -2135,9 +2228,7 @@ function EnhancedDecorationRenderer({
     const baseProps = {
       onClick: handleClick,
       onMouseDown: handleMouseDown,
-      onMouseMove: handleMouseMove,
-      onMouseUp: handleMouseUp,
-      className: `cursor-pointer ${isSelected ? 'stroke-2' : ''}`,
+      className: `${isDragging ? 'cursor-grabbing' : isSelected ? 'cursor-grab' : 'cursor-pointer'} ${isSelected ? 'ring-2 ring-blue-500 ring-offset-2' : ''}`,
       style: { 
         filter: isSelected ? 'drop-shadow(0 0 6px rgba(59,130,246,0.5))' : 
                 annotation.shadow ? 'drop-shadow(2px 2px 4px rgba(0,0,0,0.3))' : 'none',
@@ -2156,7 +2247,7 @@ function EnhancedDecorationRenderer({
     const halfSize = actualSize / 2
     const quarterSize = actualSize / 4
 
-    switch (annotation.decorationType || annotation.shape) {
+    switch (annotation.shape as string) {
       case 'circle':
         return <circle cx={x} cy={y} r={halfSize} {...baseProps} />
       
@@ -2314,6 +2405,43 @@ function EnhancedDecorationRenderer({
           </g>
         )
 
+      // Basic terrain shapes
+      case 'mountain':
+        return (
+          <g>
+            <path d={`M ${x - halfSize} ${y + halfSize} L ${x} ${y - halfSize} L ${x + halfSize} ${y + halfSize} Z`} 
+                  fill={annotation.color} fillOpacity={annotation.fillOpacity} {...baseProps} />
+            <path d={`M ${x - quarterSize} ${y + halfSize} L ${x + quarterSize} ${y - quarterSize} L ${x + halfSize} ${y + halfSize} Z`} 
+                  fill={annotation.color} fillOpacity="0.7" />
+          </g>
+        )
+
+      case 'forest':
+        return (
+          <g>
+            <circle cx={x} cy={y} r={halfSize * 0.8} fill={annotation.color} fillOpacity={annotation.fillOpacity} {...baseProps} />
+            <circle cx={x - quarterSize} cy={y + quarterSize} r={halfSize * 0.6} fill={annotation.color} fillOpacity="0.7" />
+            <circle cx={x + quarterSize} cy={y + quarterSize} r={halfSize * 0.6} fill={annotation.color} fillOpacity="0.7" />
+          </g>
+        )
+
+      case 'water':
+        return (
+          <g>
+            <ellipse cx={x} cy={y} rx={halfSize} ry={halfSize * 0.7} fill={annotation.color} fillOpacity={annotation.fillOpacity} {...baseProps} />
+            <path d={`M ${x - halfSize} ${y} Q ${x - quarterSize} ${y - quarterSize/2} ${x} ${y} Q ${x + quarterSize} ${y + quarterSize/2} ${x + halfSize} ${y}`} 
+                  stroke={annotation.color} strokeWidth="2" fill="none" />
+          </g>
+        )
+
+      case 'building':
+        return (
+          <g>
+            <rect x={x - halfSize} y={y - halfSize} width={actualSize} height={actualSize} fill={annotation.color} fillOpacity={annotation.fillOpacity} {...baseProps} />
+            <rect x={x - quarterSize} y={y - halfSize - quarterSize} width={halfSize} height={quarterSize} fill={annotation.color} fillOpacity="0.8" />
+          </g>
+        )
+
       // Terrain Icons (simplified geometric representations)
       case 'mountain-icon':
         return (
@@ -2420,7 +2548,7 @@ function EnhancedDecorationRenderer({
       {renderShape()}
       
       {/* Text overlay */}
-      {annotation.textOverlay && (
+      {annotation.text && (
         <text
           x={annotation.x}
           y={annotation.y + actualSize + (annotation.fontSize || 12) + 5}
@@ -2433,7 +2561,7 @@ function EnhancedDecorationRenderer({
             fontFamily: 'serif'
           }}
         >
-          {annotation.textOverlay}
+          {annotation.text}
         </text>
       )}
       
@@ -2754,132 +2882,244 @@ function AnnotationRenderer({
 
 // Decoration Panel Component
 function DecorationPanel({ onAddDecoration }: { onAddDecoration: (decorationType: string) => void }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [activeCategory, setActiveCategory] = useState<string | null>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false)
+        setActiveCategory(null)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const decorationCategories = {
+    shapes: {
+      label: 'Basic Shapes',
+      icon: '◯',
+      items: [
+        { type: 'circle', icon: '●', label: 'Circle' },
+        { type: 'square', icon: '■', label: 'Square' },
+        { type: 'triangle', icon: '▲', label: 'Triangle' },
+        { type: 'diamond', icon: '♦', label: 'Diamond' },
+        { type: 'star', icon: '★', label: 'Star' },
+        { type: 'arrow', icon: '→', label: 'Arrow' }
+      ]
+    },
+    navigation: {
+      label: 'Navigation',
+      icon: '🧭',
+      items: [
+        { type: 'compass-simple', icon: '🧭', label: 'Compass' },
+        { type: 'scale-bar', icon: '📏', label: 'Scale Bar' },
+        { type: 'legend-box', icon: '📋', label: 'Legend' }
+      ]
+    },
+    terrain: {
+      label: 'Terrain',
+      icon: '🏔️',
+      items: [
+        { type: 'mountain', icon: '🏔️', label: 'Mountain' },
+        { type: 'forest', icon: '🌲', label: 'Forest' },
+        { type: 'water', icon: '🌊', label: 'Water' },
+        { type: 'building', icon: '🏛️', label: 'Building' }
+      ]
+    },
+    utility: {
+      label: 'Utility',
+      icon: '⬜',
+      items: [
+        { type: 'grid', icon: '⬜', label: 'Grid' },
+        { type: 'hex-grid', icon: '⬡', label: 'Hex Grid' },
+        { type: 'border', icon: '⬜', label: 'Border' }
+      ]
+    }
+  }
+
+  const handleDecorationSelect = (decorationType: string) => {
+    onAddDecoration(decorationType)
+    setIsOpen(false)
+    setActiveCategory(null)
+  }
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-      {/* Grid Options */}
-      <div>
-        <h3 className="text-sm font-medium text-gray-700 mb-3">Grid</h3>
-        <div className="space-y-2">
-          <button
-            onClick={() => onAddDecoration('grid')}
-            className="w-full flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            <div className="w-8 h-8 border border-gray-400 grid grid-cols-2 gap-px">
-              <div className="bg-gray-200"></div>
-              <div className="bg-gray-200"></div>
-              <div className="bg-gray-200"></div>
-              <div className="bg-gray-200"></div>
-            </div>
-            <div>
-              <div className="text-sm font-medium text-gray-900">Square Grid</div>
-              <div className="text-xs text-gray-500">Grid Size, Grid Color, Grid Opacity, Hide Grid</div>
-            </div>
-          </button>
-          
-          <button
-            onClick={() => onAddDecoration('hex-grid')}
-            className="w-full flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            <div className="w-8 h-8 flex items-center justify-center">
-              <div className="text-lg">⬡</div>
-            </div>
-            <div>
-              <div className="text-sm font-medium text-gray-900">Hex Grid</div>
-              <div className="text-xs text-gray-500">Hexagonal grid pattern</div>
-            </div>
-          </button>
-        </div>
-      </div>
+    <div className="relative" ref={dropdownRef}>
+      {/* This is just a placeholder - the actual button is in the toolbar */}
+      <div className="hidden"></div>
+    </div>
+  )
+}
 
-      {/* Legend & Scale */}
-      <div>
-        <h3 className="text-sm font-medium text-gray-700 mb-3">Legend & Scale</h3>
-        <div className="space-y-2">
-          <button
-            onClick={() => onAddDecoration('legend-box')}
-            className="w-full flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            <div className="w-8 h-8 bg-white border border-gray-400 flex items-center justify-center">
-              <div className="text-xs">📋</div>
-            </div>
-            <div>
-              <div className="text-sm font-medium text-gray-900">Add Legend</div>
-              <div className="text-xs text-gray-500">Edit Legend, Show Scale in Legend</div>
-            </div>
-          </button>
-          
-          <button
-            onClick={() => onAddDecoration('scale-bar')}
-            className="w-full flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            <div className="w-8 h-8 flex items-center justify-center">
-              <div className="w-6 h-1 bg-gray-600"></div>
-            </div>
-            <div>
-              <div className="text-sm font-medium text-gray-900">Add Scale</div>
-              <div className="text-xs text-gray-500">Edit Scale, Border Style</div>
-            </div>
-          </button>
-        </div>
-      </div>
+// Floating Decoration Dropdown Component
+function FloatingDecorationDropdown({ 
+  isOpen, 
+  onClose, 
+  onAddDecoration, 
+  triggerRef 
+}: { 
+  isOpen: boolean
+  onClose: () => void
+  onAddDecoration: (decorationType: string) => void
+  triggerRef: React.RefObject<HTMLButtonElement | null>
+}) {
+  const [activeCategory, setActiveCategory] = useState<string | null>(null)
+  const [position, setPosition] = useState({ top: 0, left: 0 })
+  const dropdownRef = useRef<HTMLDivElement>(null)
 
-      {/* Compass */}
-      <div>
-        <h3 className="text-sm font-medium text-gray-700 mb-3">Compass</h3>
-        <div className="space-y-2">
-          <button
-            onClick={() => onAddDecoration('compass-simple')}
-            className="w-full flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            <div className="w-8 h-8 flex items-center justify-center">
-              <div className="text-lg">🧭</div>
-            </div>
-            <div className="text-sm font-medium text-gray-900">Simple Compass 1</div>
-          </button>
-          
-          <button
-            onClick={() => onAddDecoration('compass-detailed')}
-            className="w-full flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            <div className="w-8 h-8 flex items-center justify-center">
-              <div className="text-lg">⭐</div>
-            </div>
-            <div className="text-sm font-medium text-gray-900">Simple Compass 2</div>
-          </button>
-          
-          <button
-            onClick={() => onAddDecoration('compass-fantasy')}
-            className="w-full flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            <div className="w-8 h-8 flex items-center justify-center">
-              <div className="text-lg">✨</div>
-            </div>
-            <div className="text-sm font-medium text-gray-900">Fantasy</div>
-          </button>
-        </div>
-      </div>
+  // Position dropdown relative to trigger
+  useEffect(() => {
+    if (isOpen && triggerRef.current && dropdownRef.current) {
+      const triggerRect = triggerRef.current.getBoundingClientRect()
+      const dropdownRect = dropdownRef.current.getBoundingClientRect()
+      
+      let top = triggerRect.bottom + 4
+      let left = triggerRect.left
+      
+      // Adjust if dropdown would go off screen
+      if (left + dropdownRect.width > window.innerWidth) {
+        left = window.innerWidth - dropdownRect.width - 10
+      }
+      if (top + dropdownRect.height > window.innerHeight) {
+        top = triggerRect.top - dropdownRect.height - 4
+      }
+      
+      setPosition({ top, left })
+    }
+  }, [isOpen, triggerRef])
 
-      {/* Basic Shapes */}
-      <div>
-        <h3 className="text-sm font-medium text-gray-700 mb-3">Basic Shapes</h3>
-        <div className="grid grid-cols-3 gap-2">
-          {[
-            { type: 'circle', icon: '●', label: 'Circle' },
-            { type: 'square', icon: '■', label: 'Square' },
-            { type: 'triangle', icon: '▲', label: 'Triangle' },
-            { type: 'diamond', icon: '♦', label: 'Diamond' },
-            { type: 'star', icon: '★', label: 'Star' },
-            { type: 'arrow', icon: '→', label: 'Arrow' }
-          ].map((shape) => (
-            <button
-              key={shape.type}
-              onClick={() => onAddDecoration(shape.type)}
-              className="flex flex-col items-center gap-1 p-2 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
-              title={shape.label}
-            >
-              <div className="text-lg">{shape.icon}</div>
-              <div className="text-xs text-gray-600">{shape.label}</div>
-            </button>
+  // Close on outside click
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node) &&
+          triggerRef.current && !triggerRef.current.contains(event.target as Node)) {
+        onClose()
+      }
+    }
+    if (isOpen) {
+      // Use 'click' instead of 'mousedown' to allow button clicks to process first
+      document.addEventListener('click', handleClickOutside)
+      return () => document.removeEventListener('click', handleClickOutside)
+    }
+  }, [isOpen, onClose, triggerRef])
+
+  const decorationCategories = {
+    shapes: {
+      label: 'Basic Shapes',
+      icon: '◯',
+      items: [
+        { type: 'circle', icon: '●', label: 'Circle' },
+        { type: 'square', icon: '■', label: 'Square' },
+        { type: 'triangle', icon: '▲', label: 'Triangle' },
+        { type: 'diamond', icon: '♦', label: 'Diamond' },
+        { type: 'star', icon: '★', label: 'Star' },
+        { type: 'arrow', icon: '→', label: 'Arrow' }
+      ]
+    },
+    navigation: {
+      label: 'Navigation',
+      icon: '🧭',
+      items: [
+        { type: 'compass-simple', icon: '🧭', label: 'Compass' },
+        { type: 'scale-bar', icon: '📏', label: 'Scale Bar' },
+        { type: 'legend-box', icon: '📋', label: 'Legend' }
+      ]
+    },
+    terrain: {
+      label: 'Terrain',
+      icon: '🏔️',
+      items: [
+        { type: 'mountain', icon: '🏔️', label: 'Mountain' },
+        { type: 'forest', icon: '🌲', label: 'Forest' },
+        { type: 'water', icon: '🌊', label: 'Water' },
+        { type: 'building', icon: '🏛️', label: 'Building' }
+      ]
+    },
+    utility: {
+      label: 'Utility',
+      icon: '⬜',
+      items: [
+        { type: 'grid', icon: '⬜', label: 'Grid' },
+        { type: 'hex-grid', icon: '⬡', label: 'Hex Grid' },
+        { type: 'border', icon: '⬜', label: 'Border' }
+      ]
+    }
+  }
+
+  const handleDecorationSelect = (decorationType: string) => {
+    onAddDecoration(decorationType)
+    setActiveCategory(null) // Reset active category
+    onClose()
+  }
+
+  // Reset active category when dropdown closes
+  useEffect(() => {
+    if (!isOpen) {
+      setActiveCategory(null)
+    }
+  }, [isOpen])
+
+  if (!isOpen) return null
+
+  return (
+    <div 
+      ref={dropdownRef}
+      className="fixed z-50 bg-white border border-gray-200 rounded-lg shadow-lg"
+      style={{ top: position.top, left: position.left }}
+    >
+      <div className="p-2 min-w-[200px]">
+        <div className="text-xs font-medium text-gray-700 mb-2 px-2">Choose Decoration</div>
+        
+        {/* Categories */}
+        <div className="space-y-1">
+          {Object.entries(decorationCategories).map(([key, category]) => (
+            <div key={key} className="relative">
+              <button
+                className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                onMouseEnter={() => setActiveCategory(key)}
+                onClick={() => setActiveCategory(activeCategory === key ? null : key)}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-base">{category.icon}</span>
+                  <span>{category.label}</span>
+                </div>
+                <svg 
+                  className={`w-4 h-4 transition-transform ${activeCategory === key ? 'rotate-90' : ''}`}
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+              
+              {/* Nested Items */}
+              {activeCategory === key && (
+                <div className="absolute left-full top-0 ml-1 bg-white border border-gray-200 rounded-lg shadow-lg min-w-[160px] z-10">
+                  <div className="p-1">
+                    {category.items.map((item) => (
+                      <button
+                        key={item.type}
+                        onMouseDown={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          console.log('Decoration selected:', item.type)
+                          handleDecorationSelect(item.type)
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 rounded-md transition-colors"
+                      >
+                        <span className="text-base">{item.icon}</span>
+                        <span>{item.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           ))}
         </div>
       </div>
@@ -3529,6 +3769,7 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
   
   // Annotation tool state
   const [activeTool, setActiveTool] = useState<ToolMode>('select')
+  const [selectedDecorationType, setSelectedDecorationType] = useState<string>('circle')
   const [annotations, setAnnotations] = useState<(Pin | Label | Zone | Measurement | Decoration)[]>([])
   const [selectedAnnotation, setSelectedAnnotation] = useState<any | null>(null)
   const annotationSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -3585,6 +3826,10 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
   }
   
   const handleClearAllAnnotations = () => {
+    console.log('Clearing all annotations...')
+    console.log('Current annotations count:', annotations.length)
+    console.log('Selected map ID:', selectedMap?.id)
+    
     setAnnotations([])
     setSelectedAnnotation(null) // Clear selection when clearing all
     // Clear from map's attributes field with debounce
@@ -3593,6 +3838,7 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
         ...selectedMap.attributes, 
         annotations: [] 
       }
+      console.log('Saving empty annotations to database for map:', selectedMap.id)
       debouncedSave(selectedMap.id, newAttributes)
     }
   }
@@ -3710,6 +3956,8 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
   
   const updateMapAttributes = async (mapId: string, attributes: any) => {
     try {
+      console.log('updateMapAttributes called with:', { mapId, annotations: attributes.annotations?.length || 0 })
+      
       // Check if user is authenticated
       const { data: { user }, error: authError } = await supabase.auth.getUser()
       if (authError || !user) {
@@ -3733,6 +3981,8 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
         console.error('No rows updated - Map ID might not exist:', mapId)
         return
       }
+      
+      console.log('Successfully updated map attributes:', { mapId, updatedAnnotations: data[0].attributes.annotations?.length || 0 })
     } catch (error) {
       console.error('Failed to save annotations:', error)
     }
@@ -4089,6 +4339,8 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
               activeTool={activeTool}
               onToolChange={setActiveTool}
               onClearAll={handleClearAllAnnotations}
+              selectedDecorationType={selectedDecorationType}
+              onDecorationTypeChange={setSelectedDecorationType}
             />
           )}
           
@@ -4103,36 +4355,6 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
             </div>
           )}
         </div>
-        
-        {/* Decoration Panel - Show when decoration tool is active */}
-        {activeTool === 'decoration' && (
-          <div className="border-t border-gray-200 bg-white p-4">
-            <DecorationPanel 
-              onAddDecoration={(decorationType) => {
-                // Add decoration at center of visible area
-                const decoration: Decoration = {
-                  id: `decoration-${Date.now()}`,
-                  type: 'decoration',
-                  x: 400, // Center of typical viewport
-                  y: 300,
-                  decorationType: decorationType,
-                  size: 50,
-                  color: '#3b82f6',
-                  strokeColor: '#1e40af',
-                  strokeWidth: 2,
-                  fillOpacity: 0.8,
-                  strokeOpacity: 1.0,
-                  rotation: 0,
-                  style: 'solid',
-                  shadow: false,
-                  layer: 1,
-                  textOverlay: ''
-                }
-                handleAnnotationAdd(decoration)
-              }}
-            />
-          </div>
-        )}
         
         <div className="flex items-center gap-3">
           {/* Maps List Toggle */}          
@@ -4164,6 +4386,7 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
               onViewportChange={setViewport}
               annotations={annotations}
               activeTool={activeTool}
+              selectedDecorationType={selectedDecorationType}
               onAnnotationAdd={handleAnnotationAdd}
               onAnnotationUpdate={handleAnnotationUpdate}
               onAnnotationDelete={handleAnnotationDelete}
