@@ -90,8 +90,11 @@ export default function WorldBuildingSidebar({
   const [showNewCharacter, setShowNewCharacter] = useState(false)
   const [showNewLocation, setShowNewLocation] = useState(false)
 
+  console.log('WorldBuildingSidebar component mounted/re-rendered for project:', projectId)
+
   useEffect(() => {
     // Always load elements for accurate counts, regardless of sidebar state
+    console.log('WorldBuildingSidebar initial effect triggered for project:', projectId)
     loadElements()
   }, [projectId])
 
