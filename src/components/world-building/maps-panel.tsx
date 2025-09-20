@@ -2922,6 +2922,33 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
     }
     console.log('User authenticated:', user.id)
     
+    // Test database connectivity first - try a simple read
+    console.log('Testing database connectivity with read operation...')
+    try {
+      const readTest = await supabase
+        .from('world_elements')
+        .select('id, name')
+        .eq('id', mapId)
+        .limit(1)
+      
+      console.log('Read test result:', readTest)
+      
+      if (readTest.error) {
+        console.error('Read test failed:', readTest.error)
+        throw new Error(`Database read failed: ${readTest.error.message}`)
+      }
+      
+      if (!readTest.data || readTest.data.length === 0) {
+        console.error('Map not found during read test')
+        throw new Error(`Map with ID ${mapId} not found`)
+      }
+      
+      console.log('Read test successful - database is accessible')
+    } catch (readError) {
+      console.error('Read test failed with error:', readError)
+      throw readError
+    }
+    
     // Save to database with timeout
     console.log('Attempting to update world_elements table with id:', mapId)
     
@@ -3269,6 +3296,26 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
               onScaleChange={handleScaleChange}
               onFitToScreen={handleFitToScreen}
             />
+          )}
+          
+          {/* Temporary Database Test Button */}
+          {selectedMap && (
+            <button
+              onClick={async () => {
+                console.log('=== DATABASE TEST BUTTON CLICKED ===')
+                try {
+                  const testAttributes = { ...selectedMap.attributes, testField: Date.now() }
+                  await updateMapAttributes(selectedMap.id, testAttributes)
+                  addToast({ type: 'success', title: 'Database Test', message: 'Connection successful!' })
+                } catch (error) {
+                  console.error('Database test failed:', error)
+                  addToast({ type: 'error', title: 'Database Test Failed', message: error instanceof Error ? error.message : 'Unknown error' })
+                }
+              }}
+              className="px-3 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600"
+            >
+              Test DB
+            </button>
           )}
           
           {/* Map Info */}
