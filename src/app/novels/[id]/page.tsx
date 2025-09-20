@@ -161,6 +161,7 @@ function NovelPageInner() {
   const [showCharacterEditor, setShowCharacterEditor] = useState(false)
   const [editingCharacter, setEditingCharacter] = useState<WorldElement | null>(null)
   const [triggerNewChapter, setTriggerNewChapter] = useState(false)
+  const [triggerNewResearchFile, setTriggerNewResearchFile] = useState(false)
   const [showSettingsModal, setShowSettingsModal] = useState(false)
   
   // Context menu state
@@ -2572,6 +2573,8 @@ function NovelPageInner() {
         return (
           <ResearchPanel 
             projectId={project.id}
+            selectedElement={selectedElement}
+            triggerCreateFile={triggerNewResearchFile}
           />
         )
 
@@ -2840,6 +2843,13 @@ function NovelPageInner() {
                               setTriggerNewChapter(true)
                               // Reset trigger after a brief moment
                               setTimeout(() => setTriggerNewChapter(false), 100)
+                            }
+                            
+                            // For research, trigger file creation directly
+                            if (option.id === 'research') {
+                              setTriggerNewResearchFile(true)
+                              // Reset trigger after a brief moment
+                              setTimeout(() => setTriggerNewResearchFile(false), 100)
                             }
                             
                             // The component will handle the creation UI internally

@@ -33,7 +33,6 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import ResearchManager from './research-manager'
 
 interface WorldElement {
   id: string
@@ -53,6 +52,8 @@ interface WorldBuildingSidebarProps {
   isOpen: boolean
   onToggle: () => void
   onShowCharacterEditor?: (character?: WorldElement) => void
+  onElementSelect?: (element: WorldElement) => void
+  onNavigateToPanel?: (panel: string) => void
 }
 
 const CATEGORIES = [
@@ -70,7 +71,14 @@ const CATEGORIES = [
   { key: 'philosophies', label: 'Philosophies', icon: Brain, color: 'violet' }
 ]
 
-export default function WorldBuildingSidebar({ projectId, isOpen, onToggle, onShowCharacterEditor }: WorldBuildingSidebarProps) {
+export default function WorldBuildingSidebar({ 
+  projectId, 
+  isOpen, 
+  onToggle, 
+  onShowCharacterEditor, 
+  onElementSelect,
+  onNavigateToPanel 
+}: WorldBuildingSidebarProps) {
   const [elements, setElements] = useState<WorldElement[]>([])
   const [selectedCategory, setSelectedCategory] = useState('characters')
   const [selectedElement, setSelectedElement] = useState<WorldElement | null>(null)
@@ -596,7 +604,61 @@ export default function WorldBuildingSidebar({ projectId, isOpen, onToggle, onSh
         </TabsContent>
         
         <TabsContent value="research" className="flex-1 m-0 p-4">
-          <ResearchManager projectId={projectId} />
+          {/* Research Files List */}
+          {isLoading ? (
+            <div className="flex items-center justify-center h-32">
+              <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {elements
+                .filter(el => el.category === 'research' && el.attributes?.research_type === 'file')
+                .map((researchFile) => (
+                  <button
+                    key={researchFile.id}
+                    onClick={() => {
+                      setSelectedElement(researchFile)
+                      if (onElementSelect) {
+                        onElementSelect(researchFile)
+                      }
+                      if (onNavigateToPanel) {
+                        onNavigateToPanel('research')
+                      }
+                    }}
+                    className={`w-full text-left p-3 rounded-lg text-sm transition-colors ${
+                      selectedElement?.id === researchFile.id
+                        ? 'bg-purple-100 text-purple-800'
+                        : 'hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="p-2 bg-purple-100 rounded-lg">
+                        <BookOpen className="w-4 h-4 text-purple-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium truncate">{researchFile.name}</div>
+                        {researchFile.description && (
+                          <div className="text-gray-500 text-xs truncate mt-1">
+                            {researchFile.description}
+                          </div>
+                        )}
+                        <div className="text-xs text-gray-400 mt-1">
+                          Updated {new Date(researchFile.updated_at).toLocaleDateString()}
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              
+              {elements.filter(el => el.category === 'research' && el.attributes?.research_type === 'file').length === 0 && (
+                <div className="text-center py-8">
+                  <BookOpen className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                  <p className="text-gray-500 text-sm">No research files yet</p>
+                  <p className="text-gray-400 text-xs mt-1">Create files in the Research panel</p>
+                </div>
+              )}
+            </div>
+          )}
         </TabsContent>
       </Tabs>
 
