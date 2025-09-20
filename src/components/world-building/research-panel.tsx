@@ -338,8 +338,15 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
         ...data,
         tags: data.tags || []
       }
+      console.log('Dispatching researchFileCreated event:', worldElement)
+      console.log('Project ID:', projectId)
       window.dispatchEvent(new CustomEvent('researchFileCreated', {
         detail: { researchFile: worldElement, projectId }
+      }))
+
+      // Also trigger a sidebar reload as a backup
+      window.dispatchEvent(new CustomEvent('reloadSidebar', {
+        detail: { projectId }
       }))
     } catch (error) {
       console.error('Error:', error)

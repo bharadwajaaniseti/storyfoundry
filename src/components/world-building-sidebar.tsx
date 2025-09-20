@@ -199,16 +199,37 @@ export default function WorldBuildingSidebar({
 
     // Handle research file creation events
     const handleResearchFileCreated = (event: CustomEvent) => {
-      if (event.detail.projectId !== projectId) return;
+      console.log('Sidebar received researchFileCreated event:', event.detail)
+      console.log('Current sidebar projectId:', projectId)
+      if (event.detail.projectId !== projectId) {
+        console.log('Project ID mismatch, ignoring event')
+        return;
+      }
       const researchFile = event.detail.researchFile;
+      console.log('Adding research file to sidebar:', researchFile)
       setElements((prev) => {
         const exists = prev.some(el => el.id === researchFile.id);
-        if (exists) return prev;
-        return [...prev, researchFile];
+        if (exists) {
+          console.log('Research file already exists in sidebar')
+          return prev;
+        }
+        console.log('Adding new research file to sidebar, current count:', prev.length)
+        const newElements = [...prev, researchFile];
+        console.log('New elements count:', newElements.length)
+        return newElements;
       });
     };
 
+    // Handle sidebar reload requests
+    const handleSidebarReload = (event: CustomEvent) => {
+      console.log('Sidebar received reload request')
+      if (event.detail.projectId !== projectId) return;
+      console.log('Reloading sidebar elements')
+      loadElements();
+    };
+
     window.addEventListener('researchFileCreated', handleResearchFileCreated as EventListener);
+    window.addEventListener('reloadSidebar', handleSidebarReload as EventListener);
 
     return () => {
       window.removeEventListener('locationCreated', handleLocationCreated as EventListener);
@@ -216,11 +237,13 @@ export default function WorldBuildingSidebar({
       window.removeEventListener('locationDeleted', handleLocationDeleted as EventListener);
       window.removeEventListener('mapCreated', handleMapCreated as EventListener);
       window.removeEventListener('researchFileCreated', handleResearchFileCreated as EventListener);
+      window.removeEventListener('reloadSidebar', handleSidebarReload as EventListener);
     };
   }, [projectId, selectedElement?.id]);
 
   const loadElements = async () => {
     try {
+      console.log('Loading sidebar elements for project:', projectId)
       const supabase = createSupabaseClient()
       const { data, error } = await supabase
         .from('world_elements')
@@ -230,6 +253,8 @@ export default function WorldBuildingSidebar({
         .order('name', { ascending: true })
 
       if (error) throw error
+      console.log('Loaded sidebar elements:', data?.length, 'items')
+      console.log('Research files in sidebar data:', data?.filter(el => el.category === 'research' && el.attributes?.research_type === 'file'))
       setElements(data || [])
     } catch (error) {
       console.error('Error loading world elements:', error)
