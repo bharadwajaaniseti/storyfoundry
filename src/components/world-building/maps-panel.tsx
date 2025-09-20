@@ -2691,11 +2691,24 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
       }
     } catch (error) {
       console.error('=== SAVE ERROR CAUGHT ===', error)
+      
+      // Determine error message based on error type
+      let errorMessage = 'Could not save to database'
+      if (error instanceof Error) {
+        if (error.message.includes('timeout')) {
+          errorMessage = 'Database save timed out - please check your connection'
+        } else if (error.message.includes('not authenticated')) {
+          errorMessage = 'Authentication failed - please refresh the page'
+        } else {
+          errorMessage = `Save failed: ${error.message}`
+        }
+      }
+      
       // Always show error toasts immediately
       addToast({
         type: 'error', 
         title: 'Save Failed',
-        message: 'Could not save to database'
+        message: errorMessage
       })
     }
     console.log('=== saveImmediatelyWithSmartToast END ===')
@@ -2909,14 +2922,25 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
     }
     console.log('User authenticated:', user.id)
     
-    // Save to database
+    // Save to database with timeout
     console.log('Attempting to update world_elements table with id:', mapId)
-    const { data, error } = await supabase
+    
+    // Create timeout promise
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Database call timeout after 10 seconds')), 10000)
+    })
+    
+    // Create database promise
+    const dbPromise = supabase
       .from('world_elements')
       .update({ attributes })
       .eq('id', mapId)
       .select()
     
+    console.log('Starting database call with timeout...')
+    const { data, error } = await Promise.race([dbPromise, timeoutPromise]) as any
+    
+    console.log('Database response received!')
     console.log('Database response:', { data, error })
     
     if (error) {
