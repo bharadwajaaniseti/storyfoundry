@@ -2845,8 +2845,7 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
         console.log('Showing immediate toast for:', operationType)
         addToast({
           type: 'success',
-          title: successMessage,
-          message: 'Successfully saved to database'
+          title: successMessage
         })
       } else {
         // For continuous operations (updates), debounce toasts
@@ -2866,8 +2865,7 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
           console.log('Showing debounced toast:', successMessage)
           addToast({
             type: 'success',
-            title: lastToastMessageRef.current[toastKey],
-            message: 'Successfully saved to database'
+            title: lastToastMessageRef.current[toastKey]
           })
           delete toastTimeoutsRef.current[toastKey]
           delete lastToastMessageRef.current[toastKey]
