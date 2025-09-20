@@ -2616,8 +2616,6 @@ function NovelPageInner() {
         return (
           <ResearchPanel 
             projectId={project.id}
-            selectedElement={selectedElement}
-            triggerCreateFile={triggerNewResearchFile}
           />
         )
 

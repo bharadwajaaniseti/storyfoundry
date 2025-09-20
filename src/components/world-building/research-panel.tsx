@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import React, { useState, useEffect, useRef } from 'react'
 import { 
@@ -22,6 +22,7 @@ import {
   Star,
   StarIcon,
   Tag,
+  Hash,
   Calendar,
   Clock,
   ChevronRight,
@@ -141,6 +142,10 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
     url: ''
   })
 
+  // State for holding selected files before upload
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
+  const [uploadingFiles, setUploadingFiles] = useState(false)
+
   const addToast = (toast: { type: 'success' | 'error' | 'info', title: string, message?: string }) => {
     const id = Math.random().toString(36).substr(2, 9)
     setToasts(prev => [...prev, { ...toast, id }])
@@ -205,7 +210,7 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
       console.log('Research files query result:', { data, error })
 
       if (error) {
-        console.error('Error loading research files:', error)
+        console.error('Error loading research files:', error.message || 'Failed to load research files')
         addToast({
           type: 'error',
           title: 'Failed to load research files',
@@ -447,7 +452,40 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
     }
 
     try {
+      setUploadingFiles(true)
       const supabase = createSupabaseClient()
+      let fileUrls: string[] = []
+
+      // Handle file uploads for images, documents, videos
+      if ((createType === 'image' || createType === 'document' || createType === 'video') && selectedFiles.length > 0) {
+        addToast({
+          type: 'info',
+          title: `Uploading ${selectedFiles.length} file${selectedFiles.length > 1 ? 's' : ''}...`
+        })
+
+        const uploadPromises = selectedFiles.map(async (file, index) => {
+          const fileName = `research/${projectId}/${selectedFile.id}/${Date.now()}-${index}-${file.name}`
+          
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from('research')
+            .upload(fileName, file)
+
+          if (uploadError) {
+            console.error(`Error uploading file ${file.name}:`, uploadError)
+            console.error('Full upload error details:', uploadError)
+            throw new Error(`Failed to upload ${file.name}: ${uploadError.message || 'Storage permission denied'}`)
+          }
+
+          const { data: urlData } = supabase.storage
+            .from('research')
+            .getPublicUrl(fileName)
+
+          return urlData.publicUrl
+        })
+
+        fileUrls = await Promise.all(uploadPromises)
+      }
+
       const contentData = {
         project_id: projectId,
         category: 'research',
@@ -460,7 +498,10 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
           research_type: 'content',
           research_file_id: selectedFile.id,
           type: createType,
-          url: contentFormData.url.trim()
+          url: contentFormData.url.trim(),
+          file_urls: fileUrls, // Store all file URLs
+          file_names: selectedFiles.map(f => f.name), // Store original file names
+          file_count: selectedFiles.length
         }
       }
 
@@ -499,19 +540,31 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
 
         addToast({
           type: 'success',
-          title: 'Content created'
+          title: fileUrls.length > 0 ? `Content created with ${fileUrls.length} file${fileUrls.length > 1 ? 's' : ''}` : 'Content created'
         })
       }
 
+      // Reset form and file selection
       setIsCreatingContent(false)
       setEditingContent(null)
+      setSelectedFiles([])
+      setContentFormData({
+        name: '',
+        description: '',
+        content: '',
+        tags: '',
+        url: ''
+      })
       loadResearchContent(selectedFile.id)
     } catch (error) {
       console.error('Error:', error)
       addToast({
         type: 'error',
-        title: 'Failed to save content'
+        title: 'Failed to save content',
+        message: error instanceof Error ? error.message : 'An unexpected error occurred'
       })
+    } finally {
+      setUploadingFiles(false)
     }
   }
 
@@ -590,77 +643,79 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
     }
   }
 
-  const handleFileUpload = async (file: File, type: string) => {
-    if (!selectedFile) return
+  const handleFileUpload = async (files: FileList, type: string) => {
+    if (!selectedFile || files.length === 0) return
 
     try {
       addToast({
         type: 'info',
-        title: 'Uploading file...'
+        title: `Uploading ${files.length} file${files.length > 1 ? 's' : ''}...`
       })
 
       const supabase = createSupabaseClient()
-      const fileName = `research/${projectId}/${selectedFile.id}/${Date.now()}-${file.name}`
-      
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('project-files')
-        .upload(fileName, file)
+      const uploadPromises = Array.from(files).map(async (file, index) => {
+        const fileName = `research/${projectId}/${selectedFile.id}/${Date.now()}-${index}-${file.name}`
+        
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('research')
+          .upload(fileName, file)
 
-      if (uploadError) {
-        console.error('Error uploading file:', uploadError)
-        addToast({
-          type: 'error',
-          title: 'Failed to upload file'
-        })
-        return
-      }
-
-      const { data: urlData } = supabase.storage
-        .from('project-files')
-        .getPublicUrl(fileName)
-
-      const contentData = {
-        project_id: projectId,
-        category: 'research',
-        parent_id: selectedFile.id,
-        name: file.name,
-        description: `Uploaded ${type}`,
-        content: '',
-        tags: [],
-        is_favorite: false,
-        file_url: urlData.publicUrl,
-        attributes: {
-          type: type,
-          file_name: file.name,
-          file_size: file.size,
-          file_type: file.type
+        if (uploadError) {
+          console.error(`Error uploading file ${file.name}:`, uploadError)
+          console.error('Full upload error details:', uploadError)
+          throw new Error(`Failed to upload ${file.name}: ${uploadError.message || 'Storage permission denied'}`)
         }
-      }
 
-      const { error } = await supabase
-        .from('world_elements')
-        .insert([contentData])
+        const { data: urlData } = supabase.storage
+          .from('research')
+          .getPublicUrl(fileName)
 
-      if (error) {
-        console.error('Error creating file content:', error)
-        addToast({
-          type: 'error',
-          title: 'Failed to save file'
-        })
-        return
-      }
+        const contentData = {
+          project_id: projectId,
+          category: 'research',
+          name: file.name,
+          description: `Uploaded ${type}`,
+          content: '',
+          tags: [],
+          is_favorite: false,
+          attributes: {
+            research_type: 'content',
+            research_file_id: selectedFile.id,
+            type: type,
+            file_name: file.name,
+            file_size: file.size,
+            file_type: file.type,
+            file_url: urlData.publicUrl
+          }
+        }
 
+        const { error: dbError } = await supabase
+          .from('world_elements')
+          .insert([contentData])
+
+        if (dbError) {
+          console.error(`Error saving file ${file.name} to database:`, dbError)
+          throw new Error(`Failed to save ${file.name}`)
+        }
+
+        return file.name
+      })
+
+      const uploadedFiles = await Promise.all(uploadPromises)
+      
       addToast({
         type: 'success',
-        title: 'File uploaded successfully'
+        title: `Successfully uploaded ${uploadedFiles.length} file${uploadedFiles.length > 1 ? 's' : ''}`,
+        message: uploadedFiles.join(', ')
       })
 
       loadResearchContent(selectedFile.id)
     } catch (error) {
-      console.error('Error uploading file:', error)
+      console.error('Error during batch upload:', error)
       addToast({
         type: 'error',
-        title: 'Failed to upload file'
+        title: 'Upload failed',
+        message: error instanceof Error ? error.message : 'Some files failed to upload'
       })
     }
   }
@@ -689,54 +744,73 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
   // Research file creation form
   if (isCreatingFile) {
     return (
-      <div className="h-full bg-white p-6">
-        <div className="max-w-2xl mx-auto">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900">New Research File</h2>
-              <p className="text-gray-600">Create a new research file to organize your materials</p>
+      <div className="min-h-screen bg-gray-50">
+        {/* Header */}
+        <header className="bg-white border-b border-gray-200">
+          <div className="container mx-auto px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-800">Create New Research File</h1>
+                <p className="text-gray-600">Create a new research file to organize your story materials</p>
+              </div>
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={() => setIsCreatingFile(false)}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
-            <Button onClick={() => setIsCreatingFile(false)} variant="outline">
-              Cancel
-            </Button>
           </div>
+        </header>
 
-          <div className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Name *
-              </label>
-              <Input
-                value={fileFormData.name}
-                onChange={(e) => setFileFormData({ ...fileFormData, name: e.target.value })}
-                placeholder="Enter research file name..."
-                className="w-full"
-              />
-            </div>
+        <div className="container mx-auto px-6 py-8">
+          <div className="max-w-2xl mx-auto">
+            <div className="bg-white border border-gray-200 rounded-lg p-6">
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={fileFormData.name}
+                    onChange={(e) => setFileFormData({ ...fileFormData, name: e.target.value })}
+                    placeholder="Enter research file name..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
+                  />
+                </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Description
-              </label>
-              <Textarea
-                value={fileFormData.description}
-                onChange={(e) => setFileFormData({ ...fileFormData, description: e.target.value })}
-                placeholder="Describe what this research file will contain..."
-                className="w-full h-24"
-              />
-            </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Description
+                  </label>
+                  <textarea
+                    value={fileFormData.description}
+                    onChange={(e) => setFileFormData({ ...fileFormData, description: e.target.value })}
+                    placeholder="Describe what this research file will contain..."
+                    rows={4}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500 resize-none"
+                  />
+                </div>
 
-            <div className="flex justify-end space-x-3">
-              <Button onClick={() => setIsCreatingFile(false)} variant="outline">
-                Cancel
-              </Button>
-              <Button 
-                onClick={createResearchFile}
-                disabled={!fileFormData.name.trim()}
-                className="bg-purple-600 hover:bg-purple-700"
-              >
-                Create Research File
-              </Button>
+                <div className="flex justify-end space-x-3">
+                  <button
+                    onClick={() => setIsCreatingFile(false)}
+                    className="px-4 py-2 text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={createResearchFile}
+                    disabled={!fileFormData.name.trim()}
+                    className="flex items-center space-x-2 bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <span>Create Research File</span>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -757,10 +831,10 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
             <p className="text-gray-600 mb-6 max-w-md">
               Select a research file from the sidebar to view its contents, or create a new one using the + button.
             </p>
-            <Button onClick={() => setIsCreatingFile(true)} className="bg-purple-600 hover:bg-purple-700">
-              <Plus className="w-4 h-4 mr-2" />
-              Create Research File
-            </Button>
+            <button onClick={() => setIsCreatingFile(true)} className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2">
+              <Plus className="w-4 h-4" />
+              <span>Create Research File</span>
+            </button>
           </div>
         </div>
       </div>
@@ -813,8 +887,8 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
                       <Button
                         key={type.id}
                         variant={createType === type.id ? "default" : "outline"}
-                        className={`h-auto py-4 flex flex-col items-center space-y-2 ${
-                          createType === type.id ? 'bg-purple-600 hover:bg-purple-700' : ''
+                        className={`h-auto py-4 flex flex-col items-center space-y-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors ${
+                          createType === type.id ? 'bg-orange-500 text-white hover:bg-orange-600' : ''
                         }`}
                         onClick={() => setCreateType(type.id)}
                       >
@@ -834,20 +908,21 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Upload File</label>
                 <div 
-                  className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-purple-400 transition-colors cursor-pointer"
+                  className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-orange-400 transition-colors cursor-pointer"
                   onClick={() => fileInputRef.current?.click()}
                 >
                   <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                  <p className="text-gray-600">Click to upload or drag and drop</p>
+                  <p className="text-gray-600">Click to upload multiple files or drag and drop</p>
                   <p className="text-sm text-gray-500 mt-1">
-                    {createType === 'image' && 'PNG, JPG, GIF up to 10MB'}
-                    {createType === 'document' && 'PDF, DOC, TXT up to 25MB'}
-                    {createType === 'video' && 'MP4, MOV, AVI up to 100MB'}
+                    {createType === 'image' && 'PNG, JPG, GIF up to 10MB each'}
+                    {createType === 'document' && 'PDF, DOC, TXT up to 25MB each'}
+                    {createType === 'video' && 'MP4, MOV, AVI up to 100MB each'}
                   </p>
                 </div>
                 <input
                   ref={fileInputRef}
                   type="file"
+                  multiple
                   className="hidden"
                   accept={
                     createType === 'image' ? 'image/*' :
@@ -855,13 +930,38 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
                     createType === 'video' ? 'video/*' : ''
                   }
                   onChange={(e) => {
-                    const file = e.target.files?.[0]
-                    if (file) {
-                      handleFileUpload(file, createType)
-                      setIsCreatingContent(false)
+                    const files = e.target.files
+                    if (files && files.length > 0) {
+                      setSelectedFiles(Array.from(files))
+                      // Don't upload immediately or close the modal
                     }
                   }}
                 />
+
+                {/* Show selected files */}
+                {selectedFiles.length > 0 && (
+                  <div className="mt-4">
+                    <h4 className="text-sm font-medium text-gray-700 mb-2">
+                      Selected Files ({selectedFiles.length})
+                    </h4>
+                    <div className="space-y-2">
+                      {selectedFiles.map((file, index) => (
+                        <div key={index} className="flex items-center justify-between bg-gray-50 p-2 rounded">
+                          <span className="text-sm text-gray-700">{file.name}</span>
+                          <button
+                            onClick={() => {
+                              const newFiles = selectedFiles.filter((_, i) => i !== index)
+                              setSelectedFiles(newFiles)
+                            }}
+                            className="text-red-500 hover:text-red-700 text-xs"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -940,10 +1040,10 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
               </Button>
               <Button 
                 onClick={saveContent}
-                disabled={!contentFormData.name.trim() || (createType === 'link' && !contentFormData.url.trim())}
-                className="bg-purple-600 hover:bg-purple-700"
+                disabled={!contentFormData.name.trim() || (createType === 'link' && !contentFormData.url.trim()) || uploadingFiles}
+                className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg"
               >
-                {editingContent ? 'Update Content' : 'Create Content'}
+                {uploadingFiles ? 'Uploading...' : editingContent ? 'Update Content' : 'Create Content'}
               </Button>
             </div>
           </div>
@@ -954,81 +1054,73 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
 
   // Main research file content view
   return (
-    <div className="h-full bg-gray-50">
+    <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center space-x-3">
-            <Button
-              onClick={() => {
-                setSelectedFile(null)
-                setSelectedContent(null) // Also clear selected content
-              }}
-              variant="ghost"
-              size="sm"
-            >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Research
-            </Button>
-            <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
-              <BookOpen className="w-5 h-5 text-purple-600" />
+      <header className="bg-white border-b border-gray-200">
+        <div className="container mx-auto px-6 py-4">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
+                <BookOpen className="w-5 h-5 text-orange-600" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-800">{selectedFile.name}</h1>
+                <p className="text-gray-600">{selectedFile.description || 'Research file'}</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">{selectedFile.name}</h1>
-              <p className="text-gray-600">{selectedFile.description || 'Research file'}</p>
+            
+            <div className="flex items-center space-x-3">
+              <button 
+                onClick={() => createContent('note')} 
+                className="flex items-center space-x-2 bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 hover:shadow-md transition-all duration-200 font-medium"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Content</span>
+              </button>
             </div>
           </div>
-          
-          <div className="flex items-center space-x-3">
-            <Button 
-              onClick={() => createContent('note')} 
-              className="bg-purple-600 hover:bg-purple-700"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Add Content
-            </Button>
+
+          {/* Search and Filters */}
+          <div className="flex items-center space-x-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <input
+                placeholder="Search content..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
+              />
+            </div>
           </div>
         </div>
+      </header>
 
-        {/* Search and Filters */}
-        <div className="flex items-center space-x-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <Input
-              placeholder="Search content..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-        </div>
-      </div>
-
-      <div className="flex h-[calc(100%-140px)]">
-        {/* Sidebar - Content Types */}
-        <div className="w-64 bg-white border-r border-gray-200 p-4">
-          <div className="space-y-1">
-            {CONTENT_TYPES.map(type => {
-              const Icon = type.icon
-              const count = type.id === 'all' 
-                ? filteredContent.length 
-                : researchContent.filter(content => content.type === type.id).length
-              
-              return (
-                <button
-                  key={type.id}
-                  onClick={() => setSelectedType(type.id)}
-                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-left transition-colors ${
-                    selectedType === type.id 
-                      ? 'bg-purple-100 text-purple-700' 
-                      : 'text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  <div className="flex items-center space-x-3">
-                    <Icon className={`w-4 h-4 ${selectedType === type.id ? 'text-purple-600' : type.color}`} />
-                    <span className="text-sm font-medium">{type.label}</span>
-                  </div>
-                  <span className="text-xs text-gray-500">{count}</span>
+      <div className="container mx-auto px-6 py-8">
+        <div className="flex h-[calc(100vh-200px)]">
+          {/* Sidebar - Content Types */}
+          <div className="w-64 bg-white border border-gray-200 rounded-lg p-4 mr-6">
+            <div className="space-y-1">
+              {CONTENT_TYPES.map(type => {
+                const Icon = type.icon
+                const count = type.id === 'all' 
+                  ? filteredContent.length 
+                  : researchContent.filter(content => content.type === type.id).length
+                
+                return (
+                  <button
+                    key={type.id}
+                    onClick={() => setSelectedType(type.id)}
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-left transition-colors ${
+                      selectedType === type.id 
+                        ? 'bg-orange-100 text-orange-700' 
+                        : 'text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <Icon className={`w-4 h-4 ${selectedType === type.id ? 'text-orange-600' : type.color}`} />
+                      <span className="text-sm font-medium">{type.label}</span>
+                    </div>
+                    <span className="text-xs text-gray-500">{count}</span>
                 </button>
               )
             })}
@@ -1198,207 +1290,201 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
           </div>
 
           {/* Detail View */}
-          <div className="flex-1 overflow-y-auto bg-white">
+          <div className="flex-1 overflow-y-auto bg-gray-50">
             {selectedContent ? (
-              <div className="p-6">
-                <div className="flex items-start justify-between mb-6">
-                  <div className="flex items-start space-x-4">
-                    <div className="p-3 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-lg">
-                      {(() => {
-                        const Icon = getItemIcon(selectedContent.type)
-                        return <Icon className="w-6 h-6 text-white" />
-                      })()}
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2 mb-2">
-                        <h2 className="text-2xl font-bold text-gray-900">{selectedContent.name}</h2>
-                        {selectedContent.is_favorite && (
-                          <Star className="w-5 h-5 text-yellow-500 fill-current" />
-                        )}
+              <div className="h-full">
+                {/* Header */}
+                <div className="bg-white border-b border-gray-200 px-6 py-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-4">
+                      <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
+                        {(() => {
+                          const Icon = getItemIcon(selectedContent.type)
+                          return <Icon className="w-6 h-6 text-orange-600" />
+                        })()}
                       </div>
-                      
-                      <div className="flex items-center space-x-2 mb-3">
-                        <Badge variant="outline">
-                          {CONTENT_TYPES.find(t => t.id === selectedContent.type)?.label || 'Unknown'}
-                        </Badge>
-                        {selectedContent.attributes?.url && (
-                          <a
-                            href={selectedContent.attributes.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-purple-600 hover:text-purple-700"
-                          >
-                            <ExternalLink className="w-4 h-4" />
-                          </a>
-                        )}
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <h1 className="text-xl font-bold text-gray-900">{selectedContent.name}</h1>
+                          {selectedContent.is_favorite && (
+                            <Star className="w-4 h-4 text-yellow-500 fill-current" />
+                          )}
+                        </div>
+                        <div className="flex items-center space-x-2 mt-1">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                            {CONTENT_TYPES.find(t => t.id === selectedContent.type)?.label || 'Unknown'}
+                          </span>
+                          {selectedContent.attributes?.url && (
+                            <a
+                              href={selectedContent.attributes.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-orange-600 hover:text-orange-700 transition-colors"
+                            >
+                              <ExternalLink className="w-4 h-4" />
+                            </a>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  
-                  <div className="flex items-center space-x-2">
-                    <Button
-                      onClick={() => toggleContentFavorite(selectedContent)}
-                      variant="outline"
-                      size="sm"
-                    >
-                      <Star className={`w-4 h-4 mr-2 ${selectedContent.is_favorite ? 'text-yellow-500 fill-current' : 'text-gray-400'}`} />
-                      {selectedContent.is_favorite ? 'Unfavorite' : 'Favorite'}
-                    </Button>
-                    <Button
-                      onClick={() => editContent(selectedContent)}
-                      variant="outline"
-                      size="sm"
-                    >
-                      <Edit3 className="w-4 h-4 mr-2" />
-                      Edit
-                    </Button>
-                    <Button
-                      onClick={() => deleteContent(selectedContent.id)}
-                      variant="outline"
-                      size="sm"
-                      className="text-red-600 hover:text-red-700"
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Delete
-                    </Button>
+                    
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => toggleContentFavorite(selectedContent)}
+                        className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors"
+                      >
+                        <Star className={`w-4 h-4 mr-2 ${selectedContent.is_favorite ? 'text-yellow-500 fill-current' : 'text-gray-400'}`} />
+                        Favorite
+                      </button>
+                      <button
+                        onClick={() => editContent(selectedContent)}
+                        className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors"
+                      >
+                        <Edit3 className="w-4 h-4 mr-2" />
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => deleteContent(selectedContent.id)}
+                        className="inline-flex items-center px-3 py-2 border border-red-300 rounded-lg text-sm font-medium text-red-700 bg-white hover:bg-red-50 transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Delete
+                      </button>
+                    </div>
                   </div>
                 </div>
 
-                <div className="space-y-6">
-                  {/* Description */}
-                  {selectedContent.description && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-lg">Description</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-gray-700 whitespace-pre-wrap">
-                          {selectedContent.description}
-                        </p>
-                      </CardContent>
-                    </Card>
-                  )}
+                {/* Content */}
+                <div className="p-6 space-y-6">
+                  {/* Description Section */}
+                  <div className="bg-white border border-gray-200 rounded-xl p-6">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Description</h3>
+                    <p className="text-gray-700 leading-relaxed">
+                      {selectedContent.description || 'No description provided.'}
+                    </p>
+                  </div>
 
-                  {/* Content for notes */}
+                  {/* Content Section */}
                   {selectedContent.content && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-lg">Content</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="prose prose-sm max-w-none">
-                          <pre className="whitespace-pre-wrap text-gray-700 font-sans">
-                            {selectedContent.content}
-                          </pre>
-                        </div>
-                      </CardContent>
-                    </Card>
+                    <div className="bg-white border border-gray-200 rounded-xl p-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Content</h3>
+                      <div className="prose prose-gray max-w-none">
+                        <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
+                          {selectedContent.content}
+                        </p>
+                      </div>
+                    </div>
                   )}
 
-                  {/* URL for links */}
+                  {/* Files Section for multiple files */}
+                  {selectedContent.attributes?.file_urls && selectedContent.attributes.file_urls.length > 0 && (
+                    <div className="bg-white border border-gray-200 rounded-xl p-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                        Files ({selectedContent.attributes.file_count || selectedContent.attributes.file_urls.length})
+                      </h3>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        {selectedContent.attributes.file_urls.map((url: string, index: number) => (
+                          <div key={index} className="group relative">
+                            <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden">
+                              {selectedContent.type === 'image' ? (
+                                <img 
+                                  src={url} 
+                                  alt={selectedContent.attributes?.file_names?.[index] || `Image ${index + 1}`}
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center">
+                                  <div className="text-center">
+                                    {(() => {
+                                      const Icon = getItemIcon(selectedContent.type)
+                                      return <Icon className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                                    })()}
+                                    <p className="text-xs text-gray-500 truncate px-2">
+                                      {selectedContent.attributes?.file_names?.[index] || `File ${index + 1}`}
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                            <a
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="absolute inset-0 rounded-lg bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 flex items-center justify-center"
+                            >
+                              <ExternalLink className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                            </a>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Link Section */}
                   {selectedContent.attributes?.url && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-lg">Link</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="flex items-center space-x-2">
-                          <Link2 className="w-4 h-4 text-gray-400" />
+                    <div className="bg-white border border-gray-200 rounded-xl p-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Link</h3>
+                      <div className="flex items-center space-x-3 p-4 bg-gray-50 rounded-lg">
+                        <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                          <ExternalLink className="w-5 h-5 text-green-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
                           <a
                             href={selectedContent.attributes.url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-purple-600 hover:text-purple-700 hover:underline break-all"
+                            className="text-orange-600 hover:text-orange-700 font-medium truncate block"
                           >
                             {selectedContent.attributes.url}
                           </a>
-                          <ExternalLink className="w-3 h-3 text-gray-400" />
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {/* File display for uploads */}
-                  {selectedContent.file_url && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-lg">File</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        {selectedContent.type === 'image' ? (
-                          <img 
-                            src={selectedContent.file_url} 
-                            alt={selectedContent.name}
-                            className="max-w-full h-auto rounded-lg"
-                          />
-                        ) : (
-                          <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                            <FileText className="w-6 h-6 text-gray-600" />
-                            <div className="flex-1">
-                              <p className="font-medium text-gray-900">{selectedContent.attributes?.file_name}</p>
-                              <p className="text-sm text-gray-600">
-                                {selectedContent.attributes?.file_size && 
-                                  `${(selectedContent.attributes.file_size / 1024 / 1024).toFixed(2)} MB`
-                                }
-                              </p>
-                            </div>
-                            <a
-                              href={selectedContent.file_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-purple-600 hover:text-purple-700"
-                            >
-                              <Download className="w-4 h-4" />
-                            </a>
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {/* Tags */}
-                  {selectedContent.tags && selectedContent.tags.length > 0 && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-lg">Tags</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="flex flex-wrap gap-2">
-                          {selectedContent.tags.map((tag, index) => (
-                            <Badge key={index} variant="secondary">
-                              <Tag className="w-3 h-3 mr-1" />
-                              {tag}
-                            </Badge>
-                          ))}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {/* Metadata */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Information</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <label className="font-medium text-gray-700">Created</label>
-                          <p className="text-gray-600 flex items-center">
-                            <Calendar className="w-3 h-3 mr-1" />
-                            {new Date(selectedContent.created_at).toLocaleDateString()}
-                          </p>
-                        </div>
-                        <div>
-                          <label className="font-medium text-gray-700">Last Updated</label>
-                          <p className="text-gray-600 flex items-center">
-                            <Clock className="w-3 h-3 mr-1" />
-                            {new Date(selectedContent.updated_at).toLocaleDateString()}
-                          </p>
+                          <p className="text-sm text-gray-500">External link</p>
                         </div>
                       </div>
-                    </CardContent>
-                  </Card>
+                    </div>
+                  )}
+
+                  {/* Tags Section */}
+                  {selectedContent.tags && selectedContent.tags.length > 0 && (
+                    <div className="bg-white border border-gray-200 rounded-xl p-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Tags</h3>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedContent.tags.map((tag, index) => (
+                          <span
+                            key={index}
+                            className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+                          >
+                            <Hash className="w-3 h-3 mr-1" />
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Information Section */}
+                  <div className="bg-white border border-gray-200 rounded-xl p-6">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Information</h3>
+                    <div className="grid grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Created</label>
+                        <div className="flex items-center text-gray-600">
+                          <Calendar className="w-4 h-4 mr-2" />
+                          <span className="text-sm">
+                            {new Date(selectedContent.created_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Last Updated</label>
+                        <div className="flex items-center text-gray-600">
+                          <Clock className="w-4 h-4 mr-2" />
+                          <span className="text-sm">
+                            {new Date(selectedContent.updated_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             ) : (
@@ -1413,6 +1499,7 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
           </div>
         </div>
       </div>
+    </div>
 
       {/* Toast Notifications */}
       <div className="fixed top-4 right-4 z-50 space-y-2">

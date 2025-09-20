@@ -89,6 +89,8 @@ export default function WorldBuildingSidebar({
   const [activeTab, setActiveTab] = useState('elements')
   const [showNewCharacter, setShowNewCharacter] = useState(false)
   const [showNewLocation, setShowNewLocation] = useState(false)
+  const [showResearchDialog, setShowResearchDialog] = useState(false)
+  const [researchFileName, setResearchFileName] = useState('')
 
   console.log('WorldBuildingSidebar component mounted/re-rendered for project:', projectId)
 
@@ -456,6 +458,13 @@ export default function WorldBuildingSidebar({
           technology_level: '',
           art_forms: ''
         }
+      case 'research':
+        return {
+          research_type: 'file',
+          tags: [],
+          status: 'draft',
+          priority: 'medium'
+        }
       default:
         return {}
     }
@@ -665,6 +674,17 @@ export default function WorldBuildingSidebar({
             </div>
           ) : (
             <div className="space-y-2">
+              {/* Add Research File Button */}
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+                <button
+                  onClick={() => setShowResearchDialog(true)}
+                  className="w-full text-left p-2 rounded text-sm text-purple-600 hover:bg-purple-50 flex items-center justify-center"
+                >
+                  <Plus className="w-3 h-3 mr-2" />
+                  Add Research File
+                </button>
+              </div>
+
               {elements
                 .filter(el => el.category === 'research' && el.attributes?.research_type === 'file')
                 .map((researchFile) => (
@@ -725,6 +745,63 @@ export default function WorldBuildingSidebar({
             onDelete={deleteElement}
             onClose={() => setSelectedElement(null)}
           />
+        </div>
+      )}
+
+      {/* Research File Creation Dialog */}
+      {showResearchDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-96 max-w-md mx-4">
+            <h3 className="text-lg font-semibold mb-4">Create Research File</h3>
+            <div className="mb-4">
+              <label htmlFor="research-name" className="block text-sm font-medium text-gray-700 mb-2">
+                Research File Name
+              </label>
+              <input
+                id="research-name"
+                type="text"
+                value={researchFileName}
+                onChange={(e) => setResearchFileName(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                placeholder="Enter research file name..."
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && researchFileName.trim()) {
+                    createElement('research', researchFileName.trim())
+                    setShowResearchDialog(false)
+                    setResearchFileName('')
+                  } else if (e.key === 'Escape') {
+                    setShowResearchDialog(false)
+                    setResearchFileName('')
+                  }
+                }}
+              />
+            </div>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setShowResearchDialog(false)
+                  setResearchFileName('')
+                }}
+                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (researchFileName.trim()) {
+                    createElement('research', researchFileName.trim())
+                    setShowResearchDialog(false)
+                    setResearchFileName('')
+                  }
+                }}
+                disabled={!researchFileName.trim()}
+                className="px-4 py-2 text-sm bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+              >
+                Create
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
