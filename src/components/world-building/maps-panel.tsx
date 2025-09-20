@@ -3000,7 +3000,10 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
       const { data, error } = await Promise.race([dbPromise, timeoutPromise]) as any
       
       console.log('Database response received!')
-      console.log('Database response:', { data, error })
+      console.log('Database response DATA:', JSON.stringify(data, null, 2))
+      console.log('Database response ERROR:', error)
+      console.log('Response data length:', data?.length)
+      console.log('Response data content:', data)
       
       if (error) {
         console.error('Failed to save annotations:', error)
@@ -3008,8 +3011,20 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
       }
       
       if (!data || data.length === 0) {
-        console.error('No rows updated - Map ID might not exist:', mapId)
-        throw new Error('Map not found or no changes made')
+        console.error('No rows updated - This indicates RLS or permission issue!')
+        console.error('User ID:', user.id)
+        console.error('Map ID:', mapId)
+        
+        // Let's test if we can read this specific record
+        console.log('Testing if we can read this record...')
+        const readTestAfterFail = await supabase
+          .from('world_elements')
+          .select('id, name, project_id, created_by')
+          .eq('id', mapId)
+        
+        console.log('Read test after failed update:', readTestAfterFail)
+        
+        throw new Error('Map not found or no changes made - likely RLS permission issue')
       }
       
       console.log('Successfully updated map attributes:', { mapId, updatedAnnotations: data[0].attributes.annotations?.length || 0 })
@@ -3362,6 +3377,49 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
               className="px-3 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600"
             >
               Test DB
+            </button>
+          )}
+          
+          {/* RLS Permissions Test Button */}
+          {selectedMap && (
+            <button
+              onClick={async () => {
+                console.log('=== RLS PERMISSIONS TEST ===')
+                try {
+                  const { data: { user } } = await supabase.auth.getUser()
+                  console.log('Current user:', user?.id)
+                  
+                  // Test if we can read the record
+                  const readTest = await supabase
+                    .from('world_elements')
+                    .select('id, name, project_id, created_by, attributes')
+                    .eq('id', selectedMap.id)
+                  
+                  console.log('Read test result:', readTest)
+                  
+                  // Test if we can update with a simple change
+                  const updateTest = await supabase
+                    .from('world_elements')
+                    .update({ attributes: { ...selectedMap.attributes, testField: Date.now() } })
+                    .eq('id', selectedMap.id)
+                    .select()
+                  
+                  console.log('Update test result:', updateTest)
+                  
+                  if (updateTest.data && updateTest.data.length > 0) {
+                    addToast({ type: 'success', title: 'RLS Test', message: 'Permissions working!' })
+                  } else {
+                    addToast({ type: 'error', title: 'RLS Test Failed', message: 'No rows updated - permission issue' })
+                  }
+                  
+                } catch (error) {
+                  console.error('RLS test failed:', error)
+                  addToast({ type: 'error', title: 'RLS Test Failed', message: error instanceof Error ? error.message : 'Unknown error' })
+                }
+              }}
+              className="px-3 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600"
+            >
+              Test RLS
             </button>
           )}
           
