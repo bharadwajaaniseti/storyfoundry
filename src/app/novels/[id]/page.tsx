@@ -390,6 +390,49 @@ function NovelPageInner() {
     return () => window.removeEventListener('mapCreated', handler as EventListener)
   }, [params])
 
+  // Add event listener for research file creation
+  useEffect(() => {
+    if (!params?.id) return
+    
+    const handleResearchFileCreated = (e: CustomEvent) => {
+      console.log('Main page received researchFileCreated event:', e.detail)
+      if (e.detail?.projectId !== params.id) return
+      
+      const researchFile = e.detail.researchFile
+      console.log('Adding research file to main page worldElements:', researchFile)
+      
+      setWorldElements((prev) => {
+        const exists = prev.some(el => el.id === researchFile.id)
+        if (exists) {
+          console.log('Research file already exists in worldElements')
+          return prev
+        }
+        console.log('Adding new research file to worldElements, current count:', prev.length)
+        const newElements = [...prev, researchFile]
+        console.log('New worldElements count:', newElements.length)
+        return newElements
+      })
+    }
+
+    const handleSidebarReload = (e: CustomEvent) => {
+      console.log('Main page received sidebar reload request')
+      if (e.detail?.projectId !== params.id) return
+      console.log('Reloading world elements from main page')
+      loadWorldElements(params.id)
+    }
+
+    window.addEventListener('researchFileCreated', handleResearchFileCreated as EventListener)
+    window.addEventListener('reloadSidebar', handleSidebarReload as EventListener)
+    
+    console.log('Main page event listeners registered for project:', params.id)
+    
+    return () => {
+      console.log('Removing main page event listeners for project:', params.id)
+      window.removeEventListener('researchFileCreated', handleResearchFileCreated as EventListener)
+      window.removeEventListener('reloadSidebar', handleSidebarReload as EventListener)
+    }
+  }, [params])
+
   // Data loading functions
   const loadWorldElements = async (projectId: string) => {
     try {
