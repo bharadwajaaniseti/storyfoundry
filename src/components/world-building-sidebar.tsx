@@ -151,6 +151,8 @@ export default function WorldBuildingSidebar({
 
   // Add custom event listeners as fallback for cross-component communication
   useEffect(() => {
+    console.log('Setting up sidebar event listeners for project:', projectId)
+    
     const handleLocationCreated = (event: CustomEvent) => {
       if (event.detail.projectId !== projectId) return;
       const location = event.detail.location;
@@ -228,16 +230,26 @@ export default function WorldBuildingSidebar({
       loadElements();
     };
 
+    // Test event handler
+    const handleTestEvent = (event: CustomEvent) => {
+      console.log('Sidebar received test event:', event.detail)
+    };
+
     window.addEventListener('researchFileCreated', handleResearchFileCreated as EventListener);
     window.addEventListener('reloadSidebar', handleSidebarReload as EventListener);
+    window.addEventListener('testEvent', handleTestEvent as EventListener);
+    
+    console.log('Sidebar event listeners registered for project:', projectId)
 
     return () => {
+      console.log('Removing sidebar event listeners for project:', projectId)
       window.removeEventListener('locationCreated', handleLocationCreated as EventListener);
       window.removeEventListener('locationUpdated', handleLocationUpdated as EventListener);
       window.removeEventListener('locationDeleted', handleLocationDeleted as EventListener);
       window.removeEventListener('mapCreated', handleMapCreated as EventListener);
       window.removeEventListener('researchFileCreated', handleResearchFileCreated as EventListener);
       window.removeEventListener('reloadSidebar', handleSidebarReload as EventListener);
+      window.removeEventListener('testEvent', handleTestEvent as EventListener);
     };
   }, [projectId, selectedElement?.id]);
 

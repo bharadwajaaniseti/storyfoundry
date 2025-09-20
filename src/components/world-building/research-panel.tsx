@@ -348,6 +348,13 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
       window.dispatchEvent(new CustomEvent('reloadSidebar', {
         detail: { projectId }
       }))
+      
+      // Test if events are working at all
+      console.log('Testing if custom events work...')
+      setTimeout(() => {
+        console.log('Dispatching test event')
+        window.dispatchEvent(new CustomEvent('testEvent', { detail: { test: 'working' } }))
+      }, 100)
     } catch (error) {
       console.error('Error:', error)
       addToast({
