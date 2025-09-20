@@ -338,7 +338,6 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
         ...data,
         tags: data.tags || []
       }
-      console.log('Dispatching researchFileCreated event:', worldElement)
       window.dispatchEvent(new CustomEvent('researchFileCreated', {
         detail: { researchFile: worldElement, projectId }
       }))

@@ -1433,7 +1433,7 @@ export default function LocationsPanel({
 /** ---------------- Tiny sanity checks (non-UI) ---------------- */
 (() => {
   // test id generation for custom attributes
-  const mkId = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "_");
+  const mkId = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
   console.assert(mkId("Room Temp") === "room_temp", "mkId basic");
   console.assert(mkId("  $$We!rd  Name  ") === "we_rd_name", "mkId strips");
 })();
