@@ -2646,13 +2646,19 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
     successMessage: string,
     operationType: 'add' | 'update' | 'delete' | 'clear' = 'update'
   ) => {
+    console.log('=== saveImmediatelyWithSmartToast DEBUG ===')
+    console.log('Called with:', { mapId, operationType, successMessage, annotationsCount: attributes.annotations?.length || 0 })
+    
     try {
       // Always save immediately to database
+      console.log('About to call updateMapAttributes...')
       await updateMapAttributes(mapId, attributes)
+      console.log('updateMapAttributes completed successfully!')
       
       // Smart toast handling based on operation type
       if (operationType === 'add' || operationType === 'delete' || operationType === 'clear') {
         // Show toast immediately for discrete operations
+        console.log('Showing immediate toast for:', operationType)
         addToast({
           type: 'success',
           title: successMessage,
@@ -2660,6 +2666,7 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
         })
       } else {
         // For continuous operations (updates), debounce toasts
+        console.log('Setting up debounced toast for:', operationType)
         const toastKey = successMessage
         
         // Clear any existing timeout for this message type
@@ -2672,6 +2679,7 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
         
         // Set a new timeout to show toast after user stops the action
         toastTimeoutsRef.current[toastKey] = setTimeout(() => {
+          console.log('Showing debounced toast:', successMessage)
           addToast({
             type: 'success',
             title: lastToastMessageRef.current[toastKey],
@@ -2682,6 +2690,7 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
         }, 500) // Show toast 500ms after last update
       }
     } catch (error) {
+      console.error('=== SAVE ERROR CAUGHT ===', error)
       // Always show error toasts immediately
       addToast({
         type: 'error', 
@@ -2689,6 +2698,7 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
         message: 'Could not save to database'
       })
     }
+    console.log('=== saveImmediatelyWithSmartToast END ===')
   }, [addToast])
   
   // Annotation handlers
@@ -2710,21 +2720,34 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
   }
   
   const handleAnnotationUpdate = (id: string, updates: any) => {
+    console.log('=== handleAnnotationUpdate DEBUG ===')
+    console.log('Updating annotation:', { id, updates })
+    console.log('Current annotations:', annotations.length)
+    console.log('selectedMap.attributes:', selectedMap?.attributes)
+    
     const updatedAnnotations = annotations.map(ann => ann.id === id ? { ...ann, ...updates } as typeof ann : ann)
     setAnnotations(updatedAnnotations)
+    console.log('Updated annotations:', updatedAnnotations.length)
+    
     // Save to map's attributes field immediately
     if (selectedMap) {
       const newAttributes = { 
         ...selectedMap.attributes, 
         annotations: updatedAnnotations 
       }
+      console.log('New attributes to save:', newAttributes)
+      
       const annotation = updatedAnnotations.find(ann => ann.id === id)
       const annotationType = annotation?.type || 'annotation'
       const successMessage = annotationType === 'pin' ? 'Pin Updated' :
                            annotationType === 'label' ? 'Label Updated' :
                            annotationType === 'zone' ? 'Zone Updated' :
                            'Measurement Updated'
+      
+      console.log('About to save with message:', successMessage)
       saveImmediatelyWithSmartToast(selectedMap.id, newAttributes, successMessage, 'update')
+    } else {
+      console.error('No selectedMap available for saving!')
     }
   }
   
@@ -2874,7 +2897,9 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
   }, [selectedMap, viewport.scale])
   
   const updateMapAttributes = async (mapId: string, attributes: any) => {
+    console.log('=== updateMapAttributes DEBUG ===')
     console.log('updateMapAttributes called with:', { mapId, annotations: attributes.annotations?.length || 0 })
+    console.log('Full attributes object:', JSON.stringify(attributes, null, 2))
     
     // Check if user is authenticated
     const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -2882,13 +2907,17 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
       console.error('User not authenticated:', authError)
       throw new Error('User not authenticated')
     }
+    console.log('User authenticated:', user.id)
     
     // Save to database
+    console.log('Attempting to update world_elements table with id:', mapId)
     const { data, error } = await supabase
       .from('world_elements')
       .update({ attributes })
       .eq('id', mapId)
       .select()
+    
+    console.log('Database response:', { data, error })
     
     if (error) {
       console.error('Failed to save annotations:', error)
@@ -2901,6 +2930,7 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
     }
     
     console.log('Successfully updated map attributes:', { mapId, updatedAnnotations: data[0].attributes.annotations?.length || 0 })
+    console.log('=== updateMapAttributes SUCCESS ===')
   }
   
   // Viewport autosave with debouncing
