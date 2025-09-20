@@ -2635,90 +2635,80 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
   const [activeTool, setActiveTool] = useState<ToolMode>('select')
   const [annotations, setAnnotations] = useState<(Pin | Label | Zone | Measurement)[]>([])
   const [selectedAnnotation, setSelectedAnnotation] = useState<any | null>(null)
-  const annotationSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   
-  // Toast debouncing to prevent spam during continuous operations
-  const lastToastTimeRef = useRef<number>(0)
-  const toastDebounceMs = 1000 // Only show one toast per second
-  
-  // Debounced save function to prevent duplicate saves
-  const debouncedSave = useCallback((mapId: string, attributes: any) => {
-    if (annotationSaveTimeoutRef.current) {
-      clearTimeout(annotationSaveTimeoutRef.current)
-    }
-    
-    annotationSaveTimeoutRef.current = setTimeout(() => {
-      updateMapAttributes(mapId, attributes)
-    }, 100) // 100ms debounce
-  }, [])
-  
-  // Debounced toast function to prevent spam
-  const showSavedToast = useCallback((message: string) => {
-    const now = Date.now()
-    if (now - lastToastTimeRef.current >= toastDebounceMs) {
-      lastToastTimeRef.current = now
+  // Immediate save function with specific toast messages
+  const saveImmediately = useCallback(async (mapId: string, attributes: any, successMessage: string) => {
+    try {
+      await updateMapAttributes(mapId, attributes)
+      // Only show toast if database save was successful
       addToast({
         type: 'success',
-        title: 'Saved',
-        message
+        title: successMessage,
+        message: 'Successfully saved to database'
+      })
+    } catch (error) {
+      // Show error toast if save failed
+      addToast({
+        type: 'error', 
+        title: 'Save Failed',
+        message: 'Could not save to database'
       })
     }
-  }, [addToast, toastDebounceMs])
+  }, [addToast])
   
   // Annotation handlers
   const handleAnnotationAdd = (annotation: Pin | Label | Zone | Measurement) => {
     const updatedAnnotations = [...annotations, annotation]
     setAnnotations(updatedAnnotations)
-    // Save to map's attributes field with debounce
+    // Save to map's attributes field immediately
     if (selectedMap) {
       const newAttributes = { 
         ...selectedMap.attributes, 
         annotations: updatedAnnotations 
       }
-      debouncedSave(selectedMap.id, newAttributes)
-      
-      // Show toast notification
-      addToast({
-        type: 'success',
-        title: 'Saved',
-        message: `${annotation.type.charAt(0).toUpperCase() + annotation.type.slice(1)} annotation added`
-      })
+      const successMessage = annotation.type === 'pin' ? 'Pin Added' :
+                           annotation.type === 'label' ? 'Label Added' :
+                           annotation.type === 'zone' ? 'Zone Added' :
+                           'Measurement Added'
+      saveImmediately(selectedMap.id, newAttributes, successMessage)
     }
   }
   
   const handleAnnotationUpdate = (id: string, updates: any) => {
     const updatedAnnotations = annotations.map(ann => ann.id === id ? { ...ann, ...updates } as typeof ann : ann)
     setAnnotations(updatedAnnotations)
-    // Save to map's attributes field with debounce
+    // Save to map's attributes field immediately
     if (selectedMap) {
       const newAttributes = { 
         ...selectedMap.attributes, 
         annotations: updatedAnnotations 
       }
-      debouncedSave(selectedMap.id, newAttributes)
-      
-      // Show debounced toast notification
-      showSavedToast('Annotation updated')
+      const annotation = updatedAnnotations.find(ann => ann.id === id)
+      const annotationType = annotation?.type || 'annotation'
+      const successMessage = annotationType === 'pin' ? 'Pin Updated' :
+                           annotationType === 'label' ? 'Label Updated' :
+                           annotationType === 'zone' ? 'Zone Updated' :
+                           'Measurement Updated'
+      saveImmediately(selectedMap.id, newAttributes, successMessage)
     }
   }
   
   const handleAnnotationDelete = (id: string) => {
     const filteredAnnotations = annotations.filter(ann => ann.id !== id)
     setAnnotations(filteredAnnotations)
-    // Save to map's attributes field with debounce
+    // Save to map's attributes field immediately
     if (selectedMap) {
       const newAttributes = { 
         ...selectedMap.attributes, 
         annotations: filteredAnnotations 
       }
-      debouncedSave(selectedMap.id, newAttributes)
-      
-      // Show toast notification (no debounce for delete as it's single action)
-      addToast({
-        type: 'success',
-        title: 'Saved',
-        message: 'Annotation deleted'
-      })
+      const deletedAnnotation = annotations.find(ann => ann.id === id)
+      const annotationType = deletedAnnotation?.type || 'annotation'
+      const successMessage = annotationType === 'pin' ? 'Pin Deleted' :
+                           annotationType === 'label' ? 'Label Deleted' :
+                           annotationType === 'zone' ? 'Zone Deleted' :
+                           'Measurement Deleted'
+      saveImmediately(selectedMap.id, newAttributes, successMessage)
     }
   }
   
@@ -2729,21 +2719,14 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
     
     setAnnotations([])
     setSelectedAnnotation(null) // Clear selection when clearing all
-    // Clear from map's attributes field with debounce
+    // Clear from map's attributes field immediately
     if (selectedMap) {
       const newAttributes = { 
         ...selectedMap.attributes, 
         annotations: [] 
       }
       console.log('Saving empty annotations to database for map:', selectedMap.id)
-      debouncedSave(selectedMap.id, newAttributes)
-      
-      // Show toast notification (no debounce for clear all as it's single action)
-      addToast({
-        type: 'success',
-        title: 'Saved',
-        message: 'All annotations cleared'
-      })
+      saveImmediately(selectedMap.id, newAttributes, 'All Annotations Cleared')
     }
   }
 
@@ -2856,37 +2839,33 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
   }, [selectedMap, viewport.scale])
   
   const updateMapAttributes = async (mapId: string, attributes: any) => {
-    try {
-      console.log('updateMapAttributes called with:', { mapId, annotations: attributes.annotations?.length || 0 })
-      
-      // Check if user is authenticated
-      const { data: { user }, error: authError } = await supabase.auth.getUser()
-      if (authError || !user) {
-        console.error('User not authenticated:', authError)
-        return
-      }
-      
-      // Save to database
-      const { data, error } = await supabase
-        .from('world_elements')
-        .update({ attributes })
-        .eq('id', mapId)
-        .select()
-      
-      if (error) {
-        console.error('Failed to save annotations:', error)
-        throw error
-      }
-      
-      if (!data || data.length === 0) {
-        console.error('No rows updated - Map ID might not exist:', mapId)
-        return
-      }
-      
-      console.log('Successfully updated map attributes:', { mapId, updatedAnnotations: data[0].attributes.annotations?.length || 0 })
-    } catch (error) {
-      console.error('Failed to save annotations:', error)
+    console.log('updateMapAttributes called with:', { mapId, annotations: attributes.annotations?.length || 0 })
+    
+    // Check if user is authenticated
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      console.error('User not authenticated:', authError)
+      throw new Error('User not authenticated')
     }
+    
+    // Save to database
+    const { data, error } = await supabase
+      .from('world_elements')
+      .update({ attributes })
+      .eq('id', mapId)
+      .select()
+    
+    if (error) {
+      console.error('Failed to save annotations:', error)
+      throw error
+    }
+    
+    if (!data || data.length === 0) {
+      console.error('No rows updated - Map ID might not exist:', mapId)
+      throw new Error('Map not found or no changes made')
+    }
+    
+    console.log('Successfully updated map attributes:', { mapId, updatedAnnotations: data[0].attributes.annotations?.length || 0 })
   }
   
   // Viewport autosave with debouncing
