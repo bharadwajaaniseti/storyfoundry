@@ -975,6 +975,17 @@ function NovelPageInner() {
     if (category === 'chapters') {
       return chapters
     }
+    
+    // Special handling for research category - only include research files, not content
+    if (category === 'research') {
+      return worldElements.filter(el => 
+        el.category === category && 
+        !el.is_folder && 
+        el.attributes && 
+        el.attributes.research_type === 'file'
+      )
+    }
+    
     return worldElements.filter(el => el.category === category && !el.is_folder)
   }, [chapters, worldElements])
 
@@ -983,6 +994,16 @@ function NovelPageInner() {
       const chapterFolders = worldElements.filter(el => el.category === category && el.is_folder).length
       return chapterFolders + chapters.length
     }
+    
+    // Special handling for research category - only count research files, not content
+    if (category === 'research') {
+      return worldElements.filter(el => 
+        el.category === category && 
+        el.attributes && 
+        el.attributes.research_type === 'file'
+      ).length
+    }
+    
     return worldElements.filter(el => el.category === category).length
   }
 
@@ -1453,7 +1474,13 @@ function NovelPageInner() {
     } else {
       // Render folders for world elements
       const folders = worldElements.filter(el => el.category === categoryId && el.is_folder && !el.parent_folder_id)
-      const rootElements = worldElements.filter(el => el.category === categoryId && !el.is_folder && !el.parent_folder_id)
+      const rootElements = worldElements.filter(el => {
+        const matchesCategory = el.category === categoryId && !el.is_folder && !el.parent_folder_id
+        if (categoryId === 'research' && el.attributes?.research_type) {
+          return matchesCategory && el.attributes.research_type === 'file'
+        }
+        return matchesCategory
+      })
       
       return (
         <>
@@ -1497,7 +1524,13 @@ function NovelPageInner() {
               
               {expandedFolders.includes(folder.id) && (
                 <div className="ml-4 space-y-1">
-                  {worldElements.filter(el => el.category === categoryId && !el.is_folder && el.parent_folder_id === folder.id).map(element => (
+                  {worldElements.filter(el => {
+                    const matchesFolder = el.category === categoryId && !el.is_folder && el.parent_folder_id === folder.id
+                    if (categoryId === 'research' && el.attributes?.research_type) {
+                      return matchesFolder && el.attributes.research_type === 'file'
+                    }
+                    return matchesFolder
+                  }).map(element => (
                     <button
                       key={element.id}
                       draggable
@@ -2616,6 +2649,7 @@ function NovelPageInner() {
         return (
           <ResearchPanel 
             projectId={project.id}
+            selectedElement={selectedElement}
           />
         )
 

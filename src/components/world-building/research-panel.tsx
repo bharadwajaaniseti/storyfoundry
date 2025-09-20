@@ -442,7 +442,33 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
   }
 
   const saveContent = async () => {
-    if (!selectedFile || !contentFormData.name.trim()) return
+    // Strict validation to prevent creating content without a parent research file
+    if (!selectedFile) {
+      addToast({
+        type: 'error',
+        title: 'No research file selected',
+        message: 'Please select a research file before creating content'
+      })
+      return
+    }
+    
+    if (!selectedFile.id) {
+      addToast({
+        type: 'error',
+        title: 'Invalid research file',
+        message: 'The selected research file is missing an ID'
+      })
+      return
+    }
+
+    if (!contentFormData.name.trim()) {
+      addToast({
+        type: 'error',
+        title: 'Content name is required'
+      })
+      return
+    }
+
     if (createType === 'link' && !contentFormData.url.trim()) {
       addToast({
         type: 'error',
@@ -503,6 +529,25 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
           file_names: selectedFiles.map(f => f.name), // Store original file names
           file_count: selectedFiles.length
         }
+      }
+
+      // Final validation to ensure we're creating content correctly
+      if (!contentData.attributes.research_type || contentData.attributes.research_type !== 'content') {
+        addToast({
+          type: 'error',
+          title: 'Invalid content data',
+          message: 'Content is missing research_type attribute'
+        })
+        return
+      }
+
+      if (!contentData.attributes.research_file_id) {
+        addToast({
+          type: 'error',
+          title: 'Invalid content data',
+          message: 'Content is missing parent research file ID'
+        })
+        return
       }
 
       if (editingContent) {

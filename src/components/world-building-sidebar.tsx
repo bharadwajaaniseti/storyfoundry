@@ -271,7 +271,38 @@ export default function WorldBuildingSidebar({
 
       if (error) throw error
       console.log('Loaded sidebar elements:', data?.length, 'items')
-      console.log('Research files in sidebar data:', data?.filter(el => el.category === 'research' && el.attributes?.research_type === 'file'))
+      
+      // Debug research elements
+      const researchElements = data?.filter(el => el.category === 'research') || []
+      const researchFiles = researchElements.filter(el => el.attributes?.research_type === 'file')
+      const researchContent = researchElements.filter(el => el.attributes?.research_type === 'content')
+      const researchProblematic = researchElements.filter(el => !el.attributes?.research_type)
+      
+      console.log('🔍 RESEARCH DEBUG: Starting research elements analysis...')
+      console.log('Research elements breakdown:')
+      console.log('- Total research elements:', researchElements.length)
+      console.log('- Research files (should show in sidebar):', researchFiles.length)
+      console.log('- Research content (should NOT show in sidebar):', researchContent.length)
+      console.log('- Problematic research elements (no research_type):', researchProblematic.length)
+      
+      if (researchProblematic.length > 0) {
+        console.log('Problematic research elements:', researchProblematic.map(el => ({ 
+          id: el.id, 
+          name: el.name, 
+          attributes: el.attributes 
+        })))
+      }
+      
+      // Additional debug for research content items
+      if (researchContent.length > 0) {
+        console.log('Research content items (should be hidden from sidebar):', researchContent.map(el => ({
+          id: el.id,
+          name: el.name,
+          research_type: el.attributes?.research_type,
+          research_file_id: el.attributes?.research_file_id
+        })))
+      }
+      
       setElements(data || [])
     } catch (error) {
       console.error('Error loading world elements:', error)
@@ -686,7 +717,24 @@ export default function WorldBuildingSidebar({
               </div>
 
               {elements
-                .filter(el => el.category === 'research' && el.attributes?.research_type === 'file')
+                .filter(el => {
+                  // Only show research elements that are explicitly marked as files
+                  // This excludes content items and any research elements without proper attributes
+                  if (el.category !== 'research') return false;
+                  if (!el.attributes) return false;
+                  
+                  const researchType = el.attributes.research_type;
+                  const shouldShow = researchType === 'file';
+                  
+                  // Debug log for each research element
+                  if (el.category === 'research') {
+                    console.log(`🔍 Research element "${el.name}": research_type="${researchType}", shouldShow=${shouldShow}`);
+                  }
+                  
+                  // Only show if explicitly marked as 'file'
+                  // This excludes 'content' items and anything else
+                  return shouldShow;
+                })
                 .map((researchFile) => (
                   <button
                     key={researchFile.id}
@@ -724,7 +772,13 @@ export default function WorldBuildingSidebar({
                   </button>
                 ))}
               
-              {elements.filter(el => el.category === 'research' && el.attributes?.research_type === 'file').length === 0 && (
+              {elements.filter(el => {
+                // Only show research elements that are explicitly marked as files
+                if (el.category !== 'research') return false;
+                if (!el.attributes) return false;
+                const researchType = el.attributes.research_type;
+                return researchType === 'file';
+              }).length === 0 && (
                 <div className="text-center py-8">
                   <BookOpen className="w-8 h-8 text-gray-400 mx-auto mb-2" />
                   <p className="text-gray-500 text-sm">No research files yet</p>
