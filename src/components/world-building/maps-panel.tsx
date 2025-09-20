@@ -995,6 +995,7 @@ function EnhancedPinRenderer({
   const [showColorPicker, setShowColorPicker] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
+  const [hasPendingUpdate, setHasPendingUpdate] = useState(false)
 
   const colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899', '#64748b']
   const icons = ['📍', '🏠', '⭐', '💰', '⚔️', '🛡️', '🗡️', '🏰', '🌟', '💎']
@@ -1005,13 +1006,65 @@ function EnhancedPinRenderer({
 
     const handleMouseMove = (e: MouseEvent) => {
       e.preventDefault()
-      const newX = e.clientX - dragOffset.x
-      const newY = e.clientY - dragOffset.y
-      onUpdate({ x: newX, y: newY })
+      
+      // Use the same image finding logic as zones for coordinate conversion
+      const allImages = document.querySelectorAll('img')
+      let imageElement = null
+      let imageRect = null
+      
+      // Find the image that's actually visible and in the viewport
+      for (let img of allImages) {
+        const rect = img.getBoundingClientRect()
+        
+        // Check if mouse is within this image's bounds
+        if (e.clientX >= rect.left && e.clientX <= rect.right &&
+            e.clientY >= rect.top && e.clientY <= rect.bottom) {
+          imageElement = img
+          imageRect = rect
+          break
+        }
+      }
+      
+      if (!imageElement || !imageRect) {
+        console.log('Pin drag: No image found for coordinate conversion')
+        return
+      }
+      
+      // Convert screen coordinates to image coordinates
+      const relativeX = e.clientX - imageRect.left
+      const relativeY = e.clientY - imageRect.top
+      
+      // Convert to image natural coordinate system
+      const svgX = (relativeX / imageRect.width) * imageElement.naturalWidth
+      const svgY = (relativeY / imageRect.height) * imageElement.naturalHeight
+      
+      // Apply drag offset in image coordinate system
+      const newX = svgX - dragOffset.x
+      const newY = svgY - dragOffset.y
+      
+      // Ensure coordinates stay within bounds
+      const clampedX = Math.max(0, Math.min(newX, imageElement.naturalWidth))
+      const clampedY = Math.max(0, Math.min(newY, imageElement.naturalHeight))
+      
+      console.log('Pin drag: Converting screen coords to image coords:', e.clientX, e.clientY, '->', clampedX, clampedY)
+      
+      // Update position during drag but mark as pending
+      console.log('Pin onUpdate called with:', { x: clampedX, y: clampedY })
+      onUpdate({ x: clampedX, y: clampedY })
+      setHasPendingUpdate(true)
     }
 
     const handleMouseUp = () => {
+      const wasDragging = isDragging
       setIsDragging(false)
+      console.log('Pin drag ended')
+      
+      // Force immediate save when drag ends
+      if (wasDragging) {
+        console.log('Pin drag ended - forcing immediate save')
+        // Send update with special flag to force immediate save
+        onUpdate({ _dragEnded: true })
+      }
     }
 
     window.addEventListener('mousemove', handleMouseMove)
@@ -1042,12 +1095,41 @@ function EnhancedPinRenderer({
     e.stopPropagation()
     
     if (isSelected) {
-      // Start dragging
-      setIsDragging(true)
-      setDragOffset({
-        x: e.clientX - annotation.x,
-        y: e.clientY - annotation.y
-      })
+      // Start dragging - calculate offset in image coordinate system
+      const allImages = document.querySelectorAll('img')
+      let imageElement = null
+      let imageRect = null
+      
+      // Find the image that's actually visible and in the viewport
+      for (let img of allImages) {
+        const rect = img.getBoundingClientRect()
+        
+        // Check if mouse is within this image's bounds
+        if (e.clientX >= rect.left && e.clientX <= rect.right &&
+            e.clientY >= rect.top && e.clientY <= rect.bottom) {
+          imageElement = img
+          imageRect = rect
+          break
+        }
+      }
+      
+      if (imageElement && imageRect) {
+        // Convert screen coordinates to image coordinates
+        const relativeX = e.clientX - imageRect.left
+        const relativeY = e.clientY - imageRect.top
+        
+        // Convert to image natural coordinate system
+        const svgX = (relativeX / imageRect.width) * imageElement.naturalWidth
+        const svgY = (relativeY / imageRect.height) * imageElement.naturalHeight
+        
+        setIsDragging(true)
+        setDragOffset({
+          x: svgX - annotation.x,
+          y: svgY - annotation.y
+        })
+        
+        console.log('Pin drag started: Screen coords', e.clientX, e.clientY, '-> Image coords', svgX, svgY, '-> Offset', svgX - annotation.x, svgY - annotation.y)
+      }
     } else {
       onSelect()
     }
@@ -1237,6 +1319,7 @@ function EnhancedLabelRenderer({
   const [localText, setLocalText] = useState(annotation.text)
   const [isDragging, setIsDragging] = useState(false)
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
+  const [hasPendingUpdate, setHasPendingUpdate] = useState(false)
 
   const colors = ['#1f2937', '#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899']
   const backgroundColors = ['#ffffff', '#f3f4f6', '#fef3c7', '#dcfce7', '#dbeafe', '#e0e7ff', '#fce7f3', 'transparent']
@@ -1248,13 +1331,64 @@ function EnhancedLabelRenderer({
 
     const handleMouseMove = (e: MouseEvent) => {
       e.preventDefault()
-      const newX = e.clientX - dragOffset.x
-      const newY = e.clientY - dragOffset.y
-      onUpdate({ x: newX, y: newY })
+      
+      // Use the same image finding logic as zones for coordinate conversion
+      const allImages = document.querySelectorAll('img')
+      let imageElement = null
+      let imageRect = null
+      
+      // Find the image that's actually visible and in the viewport
+      for (let img of allImages) {
+        const rect = img.getBoundingClientRect()
+        
+        // Check if mouse is within this image's bounds
+        if (e.clientX >= rect.left && e.clientX <= rect.right &&
+            e.clientY >= rect.top && e.clientY <= rect.bottom) {
+          imageElement = img
+          imageRect = rect
+          break
+        }
+      }
+      
+      if (!imageElement || !imageRect) {
+        console.log('Label drag: No image found for coordinate conversion')
+        return
+      }
+      
+      // Convert screen coordinates to image coordinates
+      const relativeX = e.clientX - imageRect.left
+      const relativeY = e.clientY - imageRect.top
+      
+      // Convert to image natural coordinate system
+      const svgX = (relativeX / imageRect.width) * imageElement.naturalWidth
+      const svgY = (relativeY / imageRect.height) * imageElement.naturalHeight
+      
+      // Apply drag offset in image coordinate system
+      const newX = svgX - dragOffset.x
+      const newY = svgY - dragOffset.y
+      
+      // Ensure coordinates stay within bounds
+      const clampedX = Math.max(0, Math.min(newX, imageElement.naturalWidth))
+      const clampedY = Math.max(0, Math.min(newY, imageElement.naturalHeight))
+      
+      console.log('Label drag: Converting screen coords to image coords:', e.clientX, e.clientY, '->', clampedX, clampedY)
+      
+      console.log('Label onUpdate called with:', { x: clampedX, y: clampedY })
+      onUpdate({ x: clampedX, y: clampedY })
+      setHasPendingUpdate(true)
     }
 
     const handleMouseUp = () => {
+      const wasDragging = isDragging
       setIsDragging(false)
+      console.log('Label drag ended')
+      
+      // Force immediate save when drag ends
+      if (wasDragging) {
+        console.log('Label drag ended - forcing immediate save')
+        // Send update with special flag to force immediate save
+        onUpdate({ _dragEnded: true })
+      }
     }
 
     window.addEventListener('mousemove', handleMouseMove)
@@ -1293,12 +1427,41 @@ function EnhancedLabelRenderer({
     e.stopPropagation()
     
     if (isSelected) {
-      // Start dragging
-      setIsDragging(true)
-      setDragOffset({
-        x: e.clientX - annotation.x,
-        y: e.clientY - annotation.y
-      })
+      // Start dragging - calculate offset in image coordinate system
+      const allImages = document.querySelectorAll('img')
+      let imageElement = null
+      let imageRect = null
+      
+      // Find the image that's actually visible and in the viewport
+      for (let img of allImages) {
+        const rect = img.getBoundingClientRect()
+        
+        // Check if mouse is within this image's bounds
+        if (e.clientX >= rect.left && e.clientX <= rect.right &&
+            e.clientY >= rect.top && e.clientY <= rect.bottom) {
+          imageElement = img
+          imageRect = rect
+          break
+        }
+      }
+      
+      if (imageElement && imageRect) {
+        // Convert screen coordinates to image coordinates
+        const relativeX = e.clientX - imageRect.left
+        const relativeY = e.clientY - imageRect.top
+        
+        // Convert to image natural coordinate system
+        const svgX = (relativeX / imageRect.width) * imageElement.naturalWidth
+        const svgY = (relativeY / imageRect.height) * imageElement.naturalHeight
+        
+        setIsDragging(true)
+        setDragOffset({
+          x: svgX - annotation.x,
+          y: svgY - annotation.y
+        })
+        
+        console.log('Label drag started: Screen coords', e.clientX, e.clientY, '-> Image coords', svgX, svgY, '-> Offset', svgX - annotation.x, svgY - annotation.y)
+      }
     } else {
       onSelect()
     }
@@ -1669,7 +1832,14 @@ function EnhancedZoneRenderer({
     }
 
     const handleMouseUp = () => {
+      const wasDragging = isDraggingZone
       setIsDraggingZone(false)
+      
+      // Force immediate save when zone drag ends
+      if (wasDragging) {
+        console.log('Zone drag ended - forcing immediate save')
+        onUpdate({ _dragEnded: true })
+      }
     }
 
     window.addEventListener('mousemove', handleMouseMove)
@@ -1742,7 +1912,14 @@ function EnhancedZoneRenderer({
     }
 
     const handleMouseUp = () => {
+      const wasDragging = draggedPointIndex !== null
       setDraggedPointIndex(null)
+      
+      // Force immediate save when point drag ends
+      if (wasDragging) {
+        console.log('Zone point drag ended - forcing immediate save')
+        onUpdate({ _dragEnded: true })
+      }
     }
 
     window.addEventListener('mousemove', handleMouseMove)
@@ -2634,6 +2811,13 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
   // Annotation tool state
   const [activeTool, setActiveTool] = useState<ToolMode>('select')
   const [annotations, setAnnotations] = useState<(Pin | Label | Zone | Measurement)[]>([])
+
+  // Debug: Monitor annotations state changes
+  useEffect(() => {
+    console.log('=== ANNOTATIONS STATE CHANGED ===')
+    console.log('New annotations count:', annotations.length)
+    console.log('Annotations:', annotations)
+  }, [annotations])
   const [selectedAnnotation, setSelectedAnnotation] = useState<any | null>(null)
   
   // Smart toast debouncing - prevents spam while keeping immediate saves
@@ -2762,10 +2946,18 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
       
       console.log('About to save with message:', successMessage)
       
-      // Check if this looks like a drag operation (zone with points updates)
-      const isDragOperation = annotationType === 'zone' && updates.points
+      // Check if this is a drag end event (force immediate save)
+      const isDragEndEvent = updates._dragEnded === true
       
-      if (isDragOperation) {
+      // Check if this looks like a drag operation (zone with points updates, or pin/label with position updates)
+      const isDragOperation = (annotationType === 'zone' && updates.points) ||
+                             ((annotationType === 'pin' || annotationType === 'label') && (updates.x !== undefined || updates.y !== undefined))
+      
+      if (isDragEndEvent) {
+        // Force immediate save when drag ends
+        console.log('Drag ended - forcing immediate save')
+        saveImmediatelyWithSmartToast(selectedMap.id, newAttributes, successMessage, 'update')
+      } else if (isDragOperation) {
         // Debounce drag operations to prevent database spam
         console.log('Detected drag operation, debouncing save...')
         
@@ -3140,9 +3332,15 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
           setViewport({ scale: 1, translate: { x: 0, y: 0 } })
         }
         // Load saved annotations
+        console.log('=== LOADING ANNOTATIONS FROM DATABASE ===')
+        console.log('Full data.attributes:', data.attributes)
         if (data.attributes?.annotations) {
+          console.log('Found saved annotations:', data.attributes.annotations.length, 'items')
+          console.log('Annotation details:', data.attributes.annotations)
           setAnnotations(data.attributes.annotations)
+          console.log('Successfully set annotations in state')
         } else {
+          console.log('No saved annotations found, setting empty array')
           setAnnotations([])
         }
       } catch (err) {
@@ -3358,69 +3556,6 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
               onScaleChange={handleScaleChange}
               onFitToScreen={handleFitToScreen}
             />
-          )}
-          
-          {/* Temporary Database Test Button */}
-          {selectedMap && (
-            <button
-              onClick={async () => {
-                console.log('=== DATABASE TEST BUTTON CLICKED ===')
-                try {
-                  const testAttributes = { ...selectedMap.attributes, testField: Date.now() }
-                  await updateMapAttributes(selectedMap.id, testAttributes)
-                  addToast({ type: 'success', title: 'Database Test', message: 'Connection successful!' })
-                } catch (error) {
-                  console.error('Database test failed:', error)
-                  addToast({ type: 'error', title: 'Database Test Failed', message: error instanceof Error ? error.message : 'Unknown error' })
-                }
-              }}
-              className="px-3 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600"
-            >
-              Test DB
-            </button>
-          )}
-          
-          {/* RLS Permissions Test Button */}
-          {selectedMap && (
-            <button
-              onClick={async () => {
-                console.log('=== RLS PERMISSIONS TEST ===')
-                try {
-                  const { data: { user } } = await supabase.auth.getUser()
-                  console.log('Current user:', user?.id)
-                  
-                  // Test if we can read the record
-                  const readTest = await supabase
-                    .from('world_elements')
-                    .select('id, name, project_id, created_by, attributes')
-                    .eq('id', selectedMap.id)
-                  
-                  console.log('Read test result:', readTest)
-                  
-                  // Test if we can update with a simple change
-                  const updateTest = await supabase
-                    .from('world_elements')
-                    .update({ attributes: { ...selectedMap.attributes, testField: Date.now() } })
-                    .eq('id', selectedMap.id)
-                    .select()
-                  
-                  console.log('Update test result:', updateTest)
-                  
-                  if (updateTest.data && updateTest.data.length > 0) {
-                    addToast({ type: 'success', title: 'RLS Test', message: 'Permissions working!' })
-                  } else {
-                    addToast({ type: 'error', title: 'RLS Test Failed', message: 'No rows updated - permission issue' })
-                  }
-                  
-                } catch (error) {
-                  console.error('RLS test failed:', error)
-                  addToast({ type: 'error', title: 'RLS Test Failed', message: error instanceof Error ? error.message : 'Unknown error' })
-                }
-              }}
-              className="px-3 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600"
-            >
-              Test RLS
-            </button>
           )}
           
           {/* Map Info */}
