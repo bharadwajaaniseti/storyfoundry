@@ -19,7 +19,6 @@ interface MapData {
       labels?: Label[]
       zones?: Zone[]
       measurements?: Measurement[]
-      decorations?: Decoration[]
     }
   }
 }
@@ -76,30 +75,7 @@ interface Measurement {
   labelPosition?: 'auto' | 'start' | 'middle' | 'end'
 }
 
-interface Decoration {
-  id: string
-  type: 'decoration'
-  x: number
-  y: number
-  shape: 'circle' | 'rectangle' | 'triangle' | 'diamond' | 'hexagon' | 'star' | 'arrow' | 'curved-arrow' | 'line' | 'dashed-line' | 'dotted-line' | 'path' | 'mountain' | 'forest' | 'water' | 'building' | 'tower' | 'gate' | 'bridge' | 'road' | 'border' | 'compass' | 'scroll' | 'flame' | 'crystal' | 'rune' | 'custom'
-  size: number
-  color: string
-  strokeColor?: string
-  strokeWidth?: number
-  fillOpacity?: number
-  strokeOpacity?: number
-  rotation?: number
-  customSvg?: string
-  text?: string
-  fontSize?: number
-  textColor?: string
-  style?: 'solid' | 'dashed' | 'dotted' | 'gradient'
-  gradient?: { from: string; to: string; direction: 'horizontal' | 'vertical' | 'radial' }
-  shadow?: boolean
-  layer?: number
-}
-
-type ToolMode = 'select' | 'pin' | 'label' | 'zone' | 'measurement' | 'decoration'
+type ToolMode = 'select' | 'pin' | 'label' | 'zone' | 'measurement'
 
 // Enhanced zoom control with more visual feedback
 function ZoomControl({ scale, onScaleChange, onFitToScreen }: { 
@@ -195,15 +171,11 @@ function ZoomControl({ scale, onScaleChange, onFitToScreen }: {
 }
 
 // Map Tools Toolbar - Campfire-style annotation tools
-function MapToolsBar({ activeTool, onToolChange, onClearAll, selectedDecorationType, onDecorationTypeChange }: {
+function MapToolsBar({ activeTool, onToolChange, onClearAll }: {
   activeTool: ToolMode
   onToolChange: (tool: ToolMode) => void
   onClearAll: () => void
-  selectedDecorationType: string
-  onDecorationTypeChange: (decorationType: string) => void
 }) {
-  const [decorationDropdownOpen, setDecorationDropdownOpen] = useState(false)
-  const decorationButtonRef = useRef<HTMLButtonElement>(null)
 
   const tools = [
     { 
@@ -235,25 +207,8 @@ function MapToolsBar({ activeTool, onToolChange, onClearAll, selectedDecorationT
       label: 'Measurement', 
       icon: '📏',
       description: 'Measure distances'
-    },
-    { 
-      id: 'decoration' as ToolMode, 
-      label: 'Place Decoration', 
-      icon: '🎨',
-      description: 'Click to place selected decoration'
     }
   ]
-
-  const handleDecorationClick = () => {
-    setDecorationDropdownOpen(!decorationDropdownOpen)
-  }
-
-  const handleDecorationSelect = (decorationType: string) => {
-    // Store the selected decoration type and switch to decoration tool mode
-    onDecorationTypeChange(decorationType)
-    setDecorationDropdownOpen(false)
-    onToolChange('decoration') // Switch to decoration tool for click-to-place
-  }
 
   return (
     <>
@@ -273,30 +228,6 @@ function MapToolsBar({ activeTool, onToolChange, onClearAll, selectedDecorationT
             <span className="hidden sm:inline">{tool.label}</span>
           </button>
         ))}
-        
-        {/* Decorations Dropdown Button */}
-        <button
-          ref={decorationButtonRef}
-          onClick={handleDecorationClick}
-          className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
-            decorationDropdownOpen
-              ? 'bg-orange-100 text-orange-700 border border-orange-200'
-              : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800'
-          }`}
-          title="Add decorative elements"
-        >
-          <span className="text-base">🎨</span>
-          <span className="hidden sm:inline">Decorations</span>
-          <svg 
-            className={`w-3 h-3 transition-transform ${decorationDropdownOpen ? 'rotate-180' : ''}`}
-            fill="none" 
-            stroke="currentColor" 
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
-        
         <div className="w-px h-6 bg-gray-200 mx-1"></div>
         
         <button
@@ -310,14 +241,6 @@ function MapToolsBar({ activeTool, onToolChange, onClearAll, selectedDecorationT
           <span className="hidden sm:inline">Clear</span>
         </button>
       </div>
-
-      {/* Floating Decoration Dropdown */}
-      <FloatingDecorationDropdown 
-        isOpen={decorationDropdownOpen}
-        onClose={() => setDecorationDropdownOpen(false)}
-        onAddDecoration={handleDecorationSelect}
-        triggerRef={decorationButtonRef}
-      />
     </>
   )
 }
@@ -377,7 +300,6 @@ function MapCanvas({
   onViewportChange,
   annotations,
   activeTool,
-  selectedDecorationType,
   onAnnotationAdd,
   onAnnotationUpdate,
   onAnnotationDelete,
@@ -387,10 +309,9 @@ function MapCanvas({
   map: MapData | null
   viewport: ViewportState
   onViewportChange: (viewport: ViewportState) => void
-  annotations: (Pin | Label | Zone | Measurement | Decoration)[]
+  annotations: (Pin | Label | Zone | Measurement)[]
   activeTool: ToolMode
-  selectedDecorationType: string
-  onAnnotationAdd: (annotation: Pin | Label | Zone | Measurement | Decoration) => void
+  onAnnotationAdd: (annotation: Pin | Label | Zone | Measurement) => void
   onAnnotationUpdate: (id: string, updates: any) => void
   onAnnotationDelete: (id: string) => void
   onAnnotationSelect: (annotation: any | null) => void
@@ -642,7 +563,6 @@ function MapCanvas({
         <AnnotationOverlay 
           annotations={annotations}
           activeTool={activeTool}
-          selectedDecorationType={selectedDecorationType}
           onAnnotationAdd={onAnnotationAdd}
           onAnnotationUpdate={onAnnotationUpdate}
           onAnnotationDelete={onAnnotationDelete}
@@ -669,7 +589,6 @@ function MapCanvas({
             {activeTool === 'label' && '🏷️ Label: Click to place • Auto-edit mode'}
             {activeTool === 'zone' && '🗾 Zone: Click to place • Double-click edge to add point • Drag points to edit'}
             {activeTool === 'measurement' && '📏 Measurement: Click to start • Move to preview • Click to finish • ESC to cancel'}
-            {activeTool === 'decoration' && `🎨 Decoration: Click to place ${selectedDecorationType} • Use dropdown to change type`}
           </div>
         </div>
       </div>
@@ -686,17 +605,15 @@ const notifyMapCreated = (mapData: any, projectId: string) => {
 }
 
 // Type guards for annotation type checking
-const isPinAnnotation = (annotation: Pin | Label | Zone | Measurement | Decoration): annotation is Pin => annotation.type === 'pin'
-const isLabelAnnotation = (annotation: Pin | Label | Zone | Measurement | Decoration): annotation is Label => annotation.type === 'label'
-const isZoneAnnotation = (annotation: Pin | Label | Zone | Measurement | Decoration): annotation is Zone => annotation.type === 'zone'
-const isDecorationAnnotation = (annotation: Pin | Label | Zone | Measurement | Decoration): annotation is Decoration => annotation.type === 'decoration'
-const isMeasurementAnnotation = (annotation: Pin | Label | Zone | Measurement | Decoration): annotation is Measurement => annotation.type === 'measurement'
+const isPinAnnotation = (annotation: Pin | Label | Zone | Measurement): annotation is Pin => annotation.type === 'pin'
+const isLabelAnnotation = (annotation: Pin | Label | Zone | Measurement): annotation is Label => annotation.type === 'label'
+const isZoneAnnotation = (annotation: Pin | Label | Zone | Measurement): annotation is Zone => annotation.type === 'zone'
+const isMeasurementAnnotation = (annotation: Pin | Label | Zone | Measurement): annotation is Measurement => annotation.type === 'measurement'
 
 // Annotation Overlay Component - handles rendering and interaction of all annotation types
 function AnnotationOverlay({ 
   annotations, 
   activeTool, 
-  selectedDecorationType,
   onAnnotationAdd, 
   onAnnotationUpdate, 
   onAnnotationDelete,
@@ -704,10 +621,9 @@ function AnnotationOverlay({
   selectedAnnotation,
   onAnnotationSelect
 }: {
-  annotations: (Pin | Label | Zone | Measurement | Decoration)[]
+  annotations: (Pin | Label | Zone | Measurement)[]
   activeTool: ToolMode
-  selectedDecorationType: string
-  onAnnotationAdd: (annotation: Pin | Label | Zone | Measurement | Decoration) => void
+  onAnnotationAdd: (annotation: Pin | Label | Zone | Measurement) => void
   onAnnotationUpdate: (id: string, updates: any) => void
   onAnnotationDelete: (id: string) => void
   mapDimensions: { width: number, height: number }
@@ -900,47 +816,6 @@ function AnnotationOverlay({
           })
         }
         break
-        
-      case 'decoration':
-        // Set terrain-appropriate colors
-        let decorationColor = '#3b82f6' // default blue
-        let strokeColor = '#1e40af'
-        
-        if (selectedDecorationType === 'mountain') {
-          decorationColor = '#8b5cf6' // purple for mountains
-          strokeColor = '#6d28d9'
-        } else if (selectedDecorationType === 'forest') {
-          decorationColor = '#22c55e' // green for forest
-          strokeColor = '#16a34a'
-        } else if (selectedDecorationType === 'water') {
-          decorationColor = '#06b6d4' // cyan for water
-          strokeColor = '#0891b2'
-        } else if (selectedDecorationType === 'building') {
-          decorationColor = '#f59e0b' // amber for buildings
-          strokeColor = '#d97706'
-        }
-        
-        const decoration: Decoration = {
-          id,
-          type: 'decoration',
-          x: x * mapDimensions.width,
-          y: y * mapDimensions.height,
-          shape: selectedDecorationType as any,
-          size: 50,
-          color: decorationColor,
-          strokeColor: strokeColor,
-          strokeWidth: 2,
-          fillOpacity: 0.8,
-          strokeOpacity: 1.0,
-          rotation: 0,
-          style: 'solid',
-          shadow: false,
-          layer: 1,
-          text: ''
-        }
-        onAnnotationAdd(decoration)
-        onAnnotationSelect({ id, type: 'decoration' })
-        break
     }
   }
 
@@ -963,7 +838,7 @@ function AnnotationOverlay({
     isPinAnnotation(annotation) || isLabelAnnotation(annotation)
   )
   const svgAnnotations = annotations.filter(annotation => 
-    isZoneAnnotation(annotation) || isDecorationAnnotation(annotation) || isMeasurementAnnotation(annotation)
+    isZoneAnnotation(annotation) || isMeasurementAnnotation(annotation)
   )
 
   return (
@@ -1017,19 +892,6 @@ function AnnotationOverlay({
             if (isZoneAnnotation(annotation)) {
               return (
                 <EnhancedZoneRenderer
-                  key={key}
-                  annotation={annotation}
-                  isSelected={isSelected}
-                  onSelect={onSelect}
-                  onUpdate={onUpdate}
-                  onDelete={onDelete}
-                />
-              )
-            }
-            
-            if (isDecorationAnnotation(annotation)) {
-              return (
-                <EnhancedDecorationRenderer
                   key={key}
                   annotation={annotation}
                   isSelected={isSelected}
@@ -2120,472 +1982,7 @@ function distanceToLineSegment(point: {x: number, y: number}, lineStart: {x: num
   return Math.sqrt(dx * dx + dy * dy)
 }
 
-// Enhanced Decoration Component
-function EnhancedDecorationRenderer({ 
-  annotation, 
-  isSelected, 
-  onSelect, 
-  onUpdate, 
-  onDelete
-}: {
-  annotation: Decoration
-  isSelected: boolean
-  onSelect: () => void
-  onUpdate: (updates: any) => void
-  onDelete: () => void
-}) {
-  const [isDragging, setIsDragging] = useState(false)
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
-  
-  // Calculate actual size at component level
-  const actualSize = annotation.size || 30
 
-  // Handle dragging with window event listeners (like Pin component)
-  useEffect(() => {
-    if (!isDragging) return
-
-    const handleMouseMove = (e: MouseEvent) => {
-      e.preventDefault()
-      const newX = e.clientX - dragOffset.x
-      const newY = e.clientY - dragOffset.y
-      onUpdate({ x: newX, y: newY })
-    }
-
-    const handleMouseUp = () => {
-      setIsDragging(false)
-    }
-
-    window.addEventListener('mousemove', handleMouseMove)
-    window.addEventListener('mouseup', handleMouseUp)
-
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove)
-      window.removeEventListener('mouseup', handleMouseUp)
-    }
-  }, [isDragging, dragOffset, onUpdate])
-
-  const handleClick = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    onSelect()
-  }
-
-  const handleMouseDown = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    
-    if (isSelected) {
-      // Start dragging
-      setIsDragging(true)
-      setDragOffset({
-        x: e.clientX - annotation.x,
-        y: e.clientY - annotation.y
-      })
-    } else {
-      onSelect()
-    }
-  }
-
-  const createGradient = () => {
-    if (!annotation.gradient) return null
-    
-    const gradientId = `gradient-${annotation.id}`
-    const { from, to, direction } = annotation.gradient
-    
-    if (direction === 'radial') {
-      return (
-        <defs>
-          <radialGradient id={gradientId} cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor={from} />
-            <stop offset="100%" stopColor={to} />
-          </radialGradient>
-        </defs>
-      )
-    } else {
-      const x1 = direction === 'horizontal' ? '0%' : '50%'
-      const y1 = direction === 'vertical' ? '0%' : '50%'
-      const x2 = direction === 'horizontal' ? '100%' : '50%'
-      const y2 = direction === 'vertical' ? '100%' : '50%'
-      
-      return (
-        <defs>
-          <linearGradient id={gradientId} x1={x1} y1={y1} x2={x2} y2={y2}>
-            <stop offset="0%" stopColor={from} />
-            <stop offset="100%" stopColor={to} />
-          </linearGradient>
-        </defs>
-      )
-    }
-  }
-
-  const getStrokeDashArray = () => {
-    switch (annotation.style) {
-      case 'dashed': return '8,4'
-      case 'dotted': return '2,2'
-      default: return 'none'
-    }
-  }
-
-  const renderShape = () => {
-    const baseProps = {
-      onClick: handleClick,
-      onMouseDown: handleMouseDown,
-      className: `${isDragging ? 'cursor-grabbing' : isSelected ? 'cursor-grab' : 'cursor-pointer'} ${isSelected ? 'ring-2 ring-blue-500 ring-offset-2' : ''}`,
-      style: { 
-        filter: isSelected ? 'drop-shadow(0 0 6px rgba(59,130,246,0.5))' : 
-                annotation.shadow ? 'drop-shadow(2px 2px 4px rgba(0,0,0,0.3))' : 'none',
-        transformOrigin: 'center'
-      },
-      fill: annotation.style === 'gradient' && annotation.gradient ? `url(#gradient-${annotation.id})` : annotation.color,
-      fillOpacity: annotation.fillOpacity || 0.8,
-      stroke: annotation.strokeColor || annotation.color,
-      strokeWidth: annotation.strokeWidth || 2,
-      strokeOpacity: annotation.strokeOpacity || 1.0,
-      strokeDasharray: getStrokeDashArray(),
-      transform: `rotate(${annotation.rotation || 0} ${annotation.x} ${annotation.y})`
-    }
-
-    const { x, y } = annotation
-    const halfSize = actualSize / 2
-    const quarterSize = actualSize / 4
-
-    switch (annotation.shape as string) {
-      case 'circle':
-        return <circle cx={x} cy={y} r={halfSize} {...baseProps} />
-      
-      case 'square':
-        return <rect x={x - halfSize} y={y - halfSize} width={actualSize} height={actualSize} {...baseProps} />
-      
-      case 'triangle':
-        const trianglePath = `M ${x} ${y - halfSize} L ${x - halfSize} ${y + halfSize} L ${x + halfSize} ${y + halfSize} Z`
-        return <path d={trianglePath} {...baseProps} />
-      
-      case 'diamond':
-        const diamondPath = `M ${x} ${y - halfSize} L ${x + halfSize} ${y} L ${x} ${y + halfSize} L ${x - halfSize} ${y} Z`
-        return <path d={diamondPath} {...baseProps} />
-      
-      case 'hexagon':
-        const hexPath = createHexagonPath(x, y, halfSize)
-        return <path d={hexPath} {...baseProps} />
-      
-      case 'star':
-        const starPath = createStarPath(x, y, halfSize, quarterSize, 5)
-        return <path d={starPath} {...baseProps} />
-      
-      case 'arrow':
-        const arrowPath = createArrowPath(x, y, actualSize)
-        return <path d={arrowPath} {...baseProps} />
-      
-      case 'line':
-        return <line x1={x - halfSize} y1={y} x2={x + halfSize} y2={y} {...baseProps} />
-
-      // Grid Overlays
-      case 'grid':
-        return (
-          <g>
-            {/* Vertical lines */}
-            {Array.from({length: 5}, (_, i) => (
-              <line 
-                key={`v${i}`}
-                x1={x - halfSize + (i * actualSize/4)} 
-                y1={y - halfSize} 
-                x2={x - halfSize + (i * actualSize/4)} 
-                y2={y + halfSize}
-                stroke={annotation.color}
-                strokeWidth="1"
-                opacity={0.6}
-              />
-            ))}
-            {/* Horizontal lines */}
-            {Array.from({length: 5}, (_, i) => (
-              <line 
-                key={`h${i}`}
-                x1={x - halfSize} 
-                y1={y - halfSize + (i * actualSize/4)} 
-                x2={x + halfSize} 
-                y2={y - halfSize + (i * actualSize/4)}
-                stroke={annotation.color}
-                strokeWidth="1"
-                opacity={0.6}
-              />
-            ))}
-          </g>
-        )
-
-      case 'hex-grid':
-        return (
-          <g>
-            {Array.from({length: 3}, (_, row) => 
-              Array.from({length: 3}, (_, col) => {
-                const hexX = x - actualSize/3 + col * actualSize/3
-                const hexY = y - actualSize/3 + row * actualSize/3 + (col % 2 ? actualSize/6 : 0)
-                return (
-                  <polygon
-                    key={`hex-${row}-${col}`}
-                    points={`${hexX},${hexY-10} ${hexX+9},${hexY-5} ${hexX+9},${hexY+5} ${hexX},${hexY+10} ${hexX-9},${hexY+5} ${hexX-9},${hexY-5}`}
-                    fill="none"
-                    stroke={annotation.color}
-                    strokeWidth="1"
-                    opacity={0.6}
-                  />
-                )
-              })
-            )}
-          </g>
-        )
-
-      // Navigation Tools
-      case 'compass-simple':
-        return (
-          <g>
-            <circle cx={x} cy={y} r={halfSize} fill="none" stroke={annotation.color} strokeWidth="2" />
-            <line x1={x} y1={y - halfSize + 5} x2={x} y2={y - halfSize + 15} stroke={annotation.color} strokeWidth="3" />
-            <text x={x} y={y - halfSize - 5} textAnchor="middle" fontSize="10" fill={annotation.color}>N</text>
-          </g>
-        )
-
-      case 'compass-detailed':
-        return (
-          <g>
-            <circle cx={x} cy={y} r={halfSize} fill="white" stroke={annotation.color} strokeWidth="2" />
-            {/* Cardinal directions */}
-            <line x1={x} y1={y - halfSize + 3} x2={x} y2={y - halfSize + 8} stroke={annotation.color} strokeWidth="2" />
-            <line x1={x + halfSize - 3} y1={y} x2={x + halfSize - 8} y2={y} stroke={annotation.color} strokeWidth="2" />
-            <line x1={x} y1={y + halfSize - 3} x2={x} y2={y + halfSize - 8} stroke={annotation.color} strokeWidth="2" />
-            <line x1={x - halfSize + 3} y1={y} x2={x - halfSize + 8} y2={y} stroke={annotation.color} strokeWidth="2" />
-            {/* Labels */}
-            <text x={x} y={y - halfSize - 3} textAnchor="middle" fontSize="8" fill={annotation.color}>N</text>
-            <text x={x + halfSize + 8} y={y + 3} textAnchor="middle" fontSize="8" fill={annotation.color}>E</text>
-            <text x={x} y={y + halfSize + 12} textAnchor="middle" fontSize="8" fill={annotation.color}>S</text>
-            <text x={x - halfSize - 8} y={y + 3} textAnchor="middle" fontSize="8" fill={annotation.color}>W</text>
-          </g>
-        )
-
-      case 'compass-fantasy':
-        return (
-          <g>
-            <circle cx={x} cy={y} r={halfSize} fill={annotation.color} fillOpacity="0.1" stroke={annotation.color} strokeWidth="2" />
-            {/* Star pattern */}
-            <path d={createStarPath(x, y, halfSize - 5, quarterSize, 8)} fill={annotation.color} />
-            <text x={x} y={y - halfSize - 5} textAnchor="middle" fontSize="8" fill={annotation.color}>⭐</text>
-          </g>
-        )
-
-      // Map Elements
-      case 'scale-bar':
-        return (
-          <g>
-            <rect x={x - halfSize} y={y - 10} width={actualSize} height={20} fill="white" stroke={annotation.color} strokeWidth="1" />
-            <line x1={x - halfSize} y1={y} x2={x + halfSize} y2={y} stroke={annotation.color} strokeWidth="2" />
-            {/* Scale marks */}
-            {Array.from({length: 5}, (_, i) => (
-              <line 
-                key={i}
-                x1={x - halfSize + (i * actualSize/4)} 
-                y1={y - 5} 
-                x2={x - halfSize + (i * actualSize/4)} 
-                y2={y + 5}
-                stroke={annotation.color}
-                strokeWidth="1"
-              />
-            ))}
-            <text x={x} y={y - 12} textAnchor="middle" fontSize="8" fill={annotation.color}>Scale</text>
-          </g>
-        )
-
-      case 'legend-box':
-        return (
-          <g>
-            <rect x={x - halfSize} y={y - halfSize} width={actualSize} height={actualSize} 
-                  fill="white" stroke={annotation.color} strokeWidth="1" {...baseProps} />
-            <text x={x} y={y - quarterSize} textAnchor="middle" fontSize="8" fill={annotation.color}>Legend</text>
-            {/* Sample legend items */}
-            <line x1={x - quarterSize} y1={y} x2={x - quarterSize/2} y2={y} stroke={annotation.color} strokeWidth="2" />
-            <text x={x - quarterSize/4} y={y + 2} fontSize="6" fill={annotation.color}>Item</text>
-            <circle cx={x - quarterSize + 3} cy={y + quarterSize/2} r="2" fill={annotation.color} />
-            <text x={x - quarterSize/4} y={y + quarterSize/2 + 2} fontSize="6" fill={annotation.color}>Point</text>
-          </g>
-        )
-
-      // Basic terrain shapes
-      case 'mountain':
-        return (
-          <g>
-            <path d={`M ${x - halfSize} ${y + halfSize} L ${x} ${y - halfSize} L ${x + halfSize} ${y + halfSize} Z`} 
-                  fill={annotation.color} fillOpacity={annotation.fillOpacity} {...baseProps} />
-            <path d={`M ${x - quarterSize} ${y + halfSize} L ${x + quarterSize} ${y - quarterSize} L ${x + halfSize} ${y + halfSize} Z`} 
-                  fill={annotation.color} fillOpacity="0.7" />
-          </g>
-        )
-
-      case 'forest':
-        return (
-          <g>
-            <circle cx={x} cy={y} r={halfSize * 0.8} fill={annotation.color} fillOpacity={annotation.fillOpacity} {...baseProps} />
-            <circle cx={x - quarterSize} cy={y + quarterSize} r={halfSize * 0.6} fill={annotation.color} fillOpacity="0.7" />
-            <circle cx={x + quarterSize} cy={y + quarterSize} r={halfSize * 0.6} fill={annotation.color} fillOpacity="0.7" />
-          </g>
-        )
-
-      case 'water':
-        return (
-          <g>
-            <ellipse cx={x} cy={y} rx={halfSize} ry={halfSize * 0.7} fill={annotation.color} fillOpacity={annotation.fillOpacity} {...baseProps} />
-            <path d={`M ${x - halfSize} ${y} Q ${x - quarterSize} ${y - quarterSize/2} ${x} ${y} Q ${x + quarterSize} ${y + quarterSize/2} ${x + halfSize} ${y}`} 
-                  stroke={annotation.color} strokeWidth="2" fill="none" />
-          </g>
-        )
-
-      case 'building':
-        return (
-          <g>
-            <rect x={x - halfSize} y={y - halfSize} width={actualSize} height={actualSize} fill={annotation.color} fillOpacity={annotation.fillOpacity} {...baseProps} />
-            <rect x={x - quarterSize} y={y - halfSize - quarterSize} width={halfSize} height={quarterSize} fill={annotation.color} fillOpacity="0.8" />
-          </g>
-        )
-
-      // Terrain Icons (simplified geometric representations)
-      case 'mountain-icon':
-        return (
-          <g>
-            <path d={`M ${x - halfSize} ${y + halfSize} L ${x} ${y - halfSize} L ${x + halfSize} ${y + halfSize} Z`} 
-                  fill={annotation.color} fillOpacity={annotation.fillOpacity} {...baseProps} />
-            <path d={`M ${x - quarterSize} ${y + halfSize} L ${x + quarterSize} ${y - quarterSize} L ${x + halfSize} ${y + halfSize} Z`} 
-                  fill={annotation.color} fillOpacity="0.7" />
-          </g>
-        )
-
-      case 'forest-icon':
-        return (
-          <g>
-            {/* Multiple triangular trees */}
-            <path d={`M ${x - quarterSize} ${y + halfSize} L ${x - quarterSize} ${y} L ${x - quarterSize/2} ${y + halfSize} Z`} 
-                  fill={annotation.color} />
-            <path d={`M ${x} ${y + halfSize} L ${x} ${y - halfSize} L ${x + quarterSize} ${y + halfSize} Z`} 
-                  fill={annotation.color} />
-            <path d={`M ${x + quarterSize} ${y + halfSize} L ${x + quarterSize} ${y - quarterSize} L ${x + halfSize} ${y + halfSize} Z`} 
-                  fill={annotation.color} />
-          </g>
-        )
-
-      case 'water-icon':
-        return (
-          <g>
-            <path d={`M ${x - halfSize} ${y} Q ${x - quarterSize} ${y - quarterSize} ${x} ${y} Q ${x + quarterSize} ${y + quarterSize} ${x + halfSize} ${y}`} 
-                  fill="none" stroke={annotation.color} strokeWidth="3" />
-            <path d={`M ${x - halfSize} ${y + quarterSize} Q ${x - quarterSize} ${y} ${x} ${y + quarterSize} Q ${x + quarterSize} ${y + halfSize} ${x + halfSize} ${y + quarterSize}`} 
-                  fill="none" stroke={annotation.color} strokeWidth="2" opacity="0.7" />
-          </g>
-        )
-
-      case 'city-icon':
-        return (
-          <g>
-            {/* Building blocks */}
-            <rect x={x - halfSize} y={y} width={quarterSize} height={halfSize} fill={annotation.color} />
-            <rect x={x - quarterSize} y={y - quarterSize} width={quarterSize} height={halfSize + quarterSize} fill={annotation.color} />
-            <rect x={x} y={y - quarterSize/2} width={quarterSize} height={halfSize + quarterSize/2} fill={annotation.color} />
-            <rect x={x + quarterSize} y={y + quarterSize/2} width={quarterSize} height={quarterSize} fill={annotation.color} />
-          </g>
-        )
-
-      case 'village-icon':
-        return (
-          <g>
-            {/* Simple houses */}
-            <rect x={x - halfSize} y={y} width={quarterSize} height={quarterSize} fill={annotation.color} />
-            <path d={`M ${x - halfSize} ${y} L ${x - halfSize + quarterSize/2} ${y - quarterSize/2} L ${x - quarterSize} ${y} Z`} 
-                  fill={annotation.color} />
-            <rect x={x} y={y + quarterSize/2} width={quarterSize} height={quarterSize} fill={annotation.color} />
-            <path d={`M ${x} ${y + quarterSize/2} L ${x + quarterSize/2} ${y} L ${x + quarterSize} ${y + quarterSize/2} Z`} 
-                  fill={annotation.color} />
-          </g>
-        )
-
-      // Advanced Shapes  
-      case 'burst':
-        return (
-          <g>
-            {Array.from({length: 8}, (_, i) => {
-              const angle = (i * 45) * Math.PI / 180
-              const x1 = x + Math.cos(angle) * quarterSize
-              const y1 = y + Math.sin(angle) * quarterSize
-              const x2 = x + Math.cos(angle) * halfSize
-              const y2 = y + Math.sin(angle) * halfSize
-              return (
-                <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} 
-                      stroke={annotation.color} strokeWidth="2" />
-              )
-            })}
-            <circle cx={x} cy={y} r={quarterSize} fill={annotation.color} />
-          </g>
-        )
-
-      case 'badge':
-        return (
-          <g>
-            <path d={`M ${x - halfSize} ${y - halfSize} L ${x + halfSize} ${y - halfSize} L ${x + halfSize} ${y + quarterSize} L ${x} ${y + halfSize} L ${x - halfSize} ${y + quarterSize} Z`} 
-                  fill={annotation.color} fillOpacity={annotation.fillOpacity} stroke={annotation.strokeColor} strokeWidth="1" />
-          </g>
-        )
-
-      case 'frame':
-        return (
-          <g>
-            <rect x={x - halfSize} y={y - halfSize} width={actualSize} height={actualSize} 
-                  fill="none" stroke={annotation.color} strokeWidth="4" {...baseProps} />
-            <rect x={x - halfSize + 8} y={y - halfSize + 8} width={actualSize - 16} height={actualSize - 16} 
-                  fill="none" stroke={annotation.color} strokeWidth="1" opacity="0.5" />
-          </g>
-        )
-      
-      default:
-        return <circle cx={x} cy={y} r={halfSize} {...baseProps} />
-    }
-  }
-
-  return (
-    <g>
-      {annotation.style === 'gradient' && createGradient()}
-      {renderShape()}
-      
-      {/* Text overlay */}
-      {annotation.text && (
-        <text
-          x={annotation.x}
-          y={annotation.y + actualSize + (annotation.fontSize || 12) + 5}
-          textAnchor="middle"
-          fontSize={annotation.fontSize || 12}
-          fill={annotation.textColor || '#333333'}
-          className="pointer-events-none select-none"
-          style={{
-            filter: 'drop-shadow(1px 1px 2px rgba(255,255,255,0.8))',
-            fontFamily: 'serif'
-          }}
-        >
-          {annotation.text}
-        </text>
-      )}
-      
-      {/* Delete button when selected */}
-      {isSelected && (
-        <circle
-          cx={annotation.x + actualSize / 2 + 15}
-          cy={annotation.y - actualSize / 2 - 15}
-          r={8}
-          fill="#ef4444"
-          stroke="white"
-          strokeWidth={2}
-          className="cursor-pointer"
-          onClick={(e) => {
-            e.stopPropagation()
-            onDelete()
-          }}
-        >
-          <title>Delete Decoration</title>
-        </circle>
-      )}
-    </g>
-  )
-}
 
 // Helper functions for creating shape paths
 function createStarPath(cx: number, cy: number, outerRadius: number, innerRadius: number, points: number) {
@@ -2810,7 +2207,7 @@ function AnnotationRenderer({
   onEndEdit,
   annotationIndex
 }: {
-  annotation: Pin | Label | Zone | Measurement | Decoration
+  annotation: Pin | Label | Zone | Measurement
   isSelected: boolean
   onSelect: () => void
   onUpdate: (updates: any) => void
@@ -2832,9 +2229,9 @@ function AnnotationRenderer({
       return { position: 'absolute', left: 0, top: 0, zIndex: isSelected ? 1000 : 100 }
     }
     
-    const x = isPinAnnotation(annotation) || isLabelAnnotation(annotation) || isDecorationAnnotation(annotation) 
+    const x = isPinAnnotation(annotation) || isLabelAnnotation(annotation) 
       ? annotation.x : 0
-    const y = isPinAnnotation(annotation) || isLabelAnnotation(annotation) || isDecorationAnnotation(annotation)
+    const y = isPinAnnotation(annotation) || isLabelAnnotation(annotation)
       ? annotation.y : 0
       
     return {
@@ -2880,253 +2277,6 @@ function AnnotationRenderer({
   return null
 }
 
-// Decoration Panel Component
-function DecorationPanel({ onAddDecoration }: { onAddDecoration: (decorationType: string) => void }) {
-  const [isOpen, setIsOpen] = useState(false)
-  const [activeCategory, setActiveCategory] = useState<string | null>(null)
-  const dropdownRef = useRef<HTMLDivElement>(null)
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false)
-        setActiveCategory(null)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
-  const decorationCategories = {
-    shapes: {
-      label: 'Basic Shapes',
-      icon: '◯',
-      items: [
-        { type: 'circle', icon: '●', label: 'Circle' },
-        { type: 'square', icon: '■', label: 'Square' },
-        { type: 'triangle', icon: '▲', label: 'Triangle' },
-        { type: 'diamond', icon: '♦', label: 'Diamond' },
-        { type: 'star', icon: '★', label: 'Star' },
-        { type: 'arrow', icon: '→', label: 'Arrow' }
-      ]
-    },
-    navigation: {
-      label: 'Navigation',
-      icon: '🧭',
-      items: [
-        { type: 'compass-simple', icon: '🧭', label: 'Compass' },
-        { type: 'scale-bar', icon: '📏', label: 'Scale Bar' },
-        { type: 'legend-box', icon: '📋', label: 'Legend' }
-      ]
-    },
-    terrain: {
-      label: 'Terrain',
-      icon: '🏔️',
-      items: [
-        { type: 'mountain', icon: '🏔️', label: 'Mountain' },
-        { type: 'forest', icon: '🌲', label: 'Forest' },
-        { type: 'water', icon: '🌊', label: 'Water' },
-        { type: 'building', icon: '🏛️', label: 'Building' }
-      ]
-    },
-    utility: {
-      label: 'Utility',
-      icon: '⬜',
-      items: [
-        { type: 'grid', icon: '⬜', label: 'Grid' },
-        { type: 'hex-grid', icon: '⬡', label: 'Hex Grid' },
-        { type: 'border', icon: '⬜', label: 'Border' }
-      ]
-    }
-  }
-
-  const handleDecorationSelect = (decorationType: string) => {
-    onAddDecoration(decorationType)
-    setIsOpen(false)
-    setActiveCategory(null)
-  }
-
-  return (
-    <div className="relative" ref={dropdownRef}>
-      {/* This is just a placeholder - the actual button is in the toolbar */}
-      <div className="hidden"></div>
-    </div>
-  )
-}
-
-// Floating Decoration Dropdown Component
-function FloatingDecorationDropdown({ 
-  isOpen, 
-  onClose, 
-  onAddDecoration, 
-  triggerRef 
-}: { 
-  isOpen: boolean
-  onClose: () => void
-  onAddDecoration: (decorationType: string) => void
-  triggerRef: React.RefObject<HTMLButtonElement | null>
-}) {
-  const [activeCategory, setActiveCategory] = useState<string | null>(null)
-  const [position, setPosition] = useState({ top: 0, left: 0 })
-  const dropdownRef = useRef<HTMLDivElement>(null)
-
-  // Position dropdown relative to trigger
-  useEffect(() => {
-    if (isOpen && triggerRef.current && dropdownRef.current) {
-      const triggerRect = triggerRef.current.getBoundingClientRect()
-      const dropdownRect = dropdownRef.current.getBoundingClientRect()
-      
-      let top = triggerRect.bottom + 4
-      let left = triggerRect.left
-      
-      // Adjust if dropdown would go off screen
-      if (left + dropdownRect.width > window.innerWidth) {
-        left = window.innerWidth - dropdownRect.width - 10
-      }
-      if (top + dropdownRect.height > window.innerHeight) {
-        top = triggerRect.top - dropdownRect.height - 4
-      }
-      
-      setPosition({ top, left })
-    }
-  }, [isOpen, triggerRef])
-
-  // Close on outside click
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node) &&
-          triggerRef.current && !triggerRef.current.contains(event.target as Node)) {
-        onClose()
-      }
-    }
-    if (isOpen) {
-      // Use 'click' instead of 'mousedown' to allow button clicks to process first
-      document.addEventListener('click', handleClickOutside)
-      return () => document.removeEventListener('click', handleClickOutside)
-    }
-  }, [isOpen, onClose, triggerRef])
-
-  const decorationCategories = {
-    shapes: {
-      label: 'Basic Shapes',
-      icon: '◯',
-      items: [
-        { type: 'circle', icon: '●', label: 'Circle' },
-        { type: 'square', icon: '■', label: 'Square' },
-        { type: 'triangle', icon: '▲', label: 'Triangle' },
-        { type: 'diamond', icon: '♦', label: 'Diamond' },
-        { type: 'star', icon: '★', label: 'Star' },
-        { type: 'arrow', icon: '→', label: 'Arrow' }
-      ]
-    },
-    navigation: {
-      label: 'Navigation',
-      icon: '🧭',
-      items: [
-        { type: 'compass-simple', icon: '🧭', label: 'Compass' },
-        { type: 'scale-bar', icon: '📏', label: 'Scale Bar' },
-        { type: 'legend-box', icon: '📋', label: 'Legend' }
-      ]
-    },
-    terrain: {
-      label: 'Terrain',
-      icon: '🏔️',
-      items: [
-        { type: 'mountain', icon: '🏔️', label: 'Mountain' },
-        { type: 'forest', icon: '🌲', label: 'Forest' },
-        { type: 'water', icon: '🌊', label: 'Water' },
-        { type: 'building', icon: '🏛️', label: 'Building' }
-      ]
-    },
-    utility: {
-      label: 'Utility',
-      icon: '⬜',
-      items: [
-        { type: 'grid', icon: '⬜', label: 'Grid' },
-        { type: 'hex-grid', icon: '⬡', label: 'Hex Grid' },
-        { type: 'border', icon: '⬜', label: 'Border' }
-      ]
-    }
-  }
-
-  const handleDecorationSelect = (decorationType: string) => {
-    onAddDecoration(decorationType)
-    setActiveCategory(null) // Reset active category
-    onClose()
-  }
-
-  // Reset active category when dropdown closes
-  useEffect(() => {
-    if (!isOpen) {
-      setActiveCategory(null)
-    }
-  }, [isOpen])
-
-  if (!isOpen) return null
-
-  return (
-    <div 
-      ref={dropdownRef}
-      className="fixed z-50 bg-white border border-gray-200 rounded-lg shadow-lg"
-      style={{ top: position.top, left: position.left }}
-    >
-      <div className="p-2 min-w-[200px]">
-        <div className="text-xs font-medium text-gray-700 mb-2 px-2">Choose Decoration</div>
-        
-        {/* Categories */}
-        <div className="space-y-1">
-          {Object.entries(decorationCategories).map(([key, category]) => (
-            <div key={key} className="relative">
-              <button
-                className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
-                onMouseEnter={() => setActiveCategory(key)}
-                onClick={() => setActiveCategory(activeCategory === key ? null : key)}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-base">{category.icon}</span>
-                  <span>{category.label}</span>
-                </div>
-                <svg 
-                  className={`w-4 h-4 transition-transform ${activeCategory === key ? 'rotate-90' : ''}`}
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-              
-              {/* Nested Items */}
-              {activeCategory === key && (
-                <div className="absolute left-full top-0 ml-1 bg-white border border-gray-200 rounded-lg shadow-lg min-w-[160px] z-10">
-                  <div className="p-1">
-                    {category.items.map((item) => (
-                      <button
-                        key={item.type}
-                        onMouseDown={(e) => {
-                          e.preventDefault()
-                          e.stopPropagation()
-                          console.log('Decoration selected:', item.type)
-                          handleDecorationSelect(item.type)
-                        }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 rounded-md transition-colors"
-                      >
-                        <span className="text-base">{item.icon}</span>
-                        <span>{item.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // Static Color Picker Component
 function StaticColorPicker({ 
   selectedAnnotation,
@@ -3134,7 +2284,7 @@ function StaticColorPicker({
   onOpacityUpdate 
 }: {
   selectedAnnotation: any | null
-  onColorUpdate: (type: 'fill' | 'border' | 'color' | 'borderStyle' | 'borderWidth' | 'unit' | 'customUnit' | 'scale' | 'showLabel' | 'decorationType' | 'strokeColor' | 'strokeWidth' | 'fillOpacity' | 'strokeOpacity' | 'rotation' | 'shadow' | 'textOverlay' | 'size', value: string | number | boolean) => void
+  onColorUpdate: (type: 'fill' | 'border' | 'color' | 'borderStyle' | 'borderWidth' | 'unit' | 'customUnit' | 'scale' | 'showLabel' | 'strokeColor' | 'strokeWidth' | 'fillOpacity' | 'strokeOpacity' | 'rotation' | 'shadow' | 'textOverlay' | 'size', value: string | number | boolean) => void
   onOpacityUpdate: (opacity: number) => void
 }) {
   const [isMinimized, setIsMinimized] = useState(false)
@@ -3189,7 +2339,6 @@ function StaticColorPicker({
   const isPin = selectedAnnotation.type === 'pin'
   const isLabel = selectedAnnotation.type === 'label'
   const isMeasurement = selectedAnnotation.type === 'measurement'
-  const isDecoration = selectedAnnotation.type === 'decoration'
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -3440,293 +2589,6 @@ function StaticColorPicker({
               </>
             )}
 
-            {/* Decoration Controls (for decorations only) */}
-            {isDecoration && (
-              <>
-                {/* Quick Actions */}
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-2">Quick Actions</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={() => onColorUpdate('decorationType', 'legend')}
-                      className={`p-2 text-xs border rounded hover:bg-gray-50 transition-colors ${
-                        selectedAnnotation.decorationType === 'legend'
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-gray-200'
-                      }`}
-                    >
-                      📋 Add Legend
-                    </button>
-                    <button
-                      onClick={() => onColorUpdate('decorationType', 'scale')}
-                      className={`p-2 text-xs border rounded hover:bg-gray-50 transition-colors ${
-                        selectedAnnotation.decorationType === 'scale'
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-gray-200'
-                      }`}
-                    >
-                      📏 Add Scale
-                    </button>
-                  </div>
-                </div>
-
-                {/* Compass Options */}
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-2">Compass & Navigation</label>
-                  <div className="grid grid-cols-3 gap-1">
-                    {[
-                      { type: 'compass-simple-1', icon: '🧭', label: 'Simple 1' },
-                      { type: 'compass-simple-2', icon: '⭐', label: 'Simple 2' },
-                      { type: 'compass-simple-3', icon: '�', label: 'Simple 3' },
-                      { type: 'compass-fantasy', icon: '✨', label: 'Fantasy' },
-                      { type: 'compass-future', icon: '🔮', label: 'Future' },
-                      { type: 'path', icon: '🛤️', label: 'Path' }
-                    ].map((shape) => (
-                      <button
-                        key={shape.type}
-                        onClick={() => onColorUpdate('decorationType', shape.type)}
-                        className={`p-2 text-xs rounded border hover:bg-gray-50 transition-colors ${
-                          selectedAnnotation.decorationType === shape.type
-                            ? 'border-blue-500 bg-blue-50'
-                            : 'border-gray-200'
-                        }`}
-                        title={shape.label}
-                      >
-                        <div className="text-sm mb-1">{shape.icon}</div>
-                        <div className="text-xs">{shape.label}</div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Terrain Elements */}
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-2">Terrain</label>
-                  <div className="grid grid-cols-4 gap-1">
-                    {[
-                      { type: 'mountain', icon: '🏔️', label: 'Mountain' },
-                      { type: 'forest', icon: '�', label: 'Forest' },
-                      { type: 'river', icon: '�', label: 'River' },
-                      { type: 'desert', icon: '�️', label: 'Desert' },
-                      { type: 'swamp', icon: '�', label: 'Swamp' },
-                      { type: 'valley', icon: '🏞️', label: 'Valley' },
-                      { type: 'plain', icon: '�', label: 'Plain' },
-                      { type: 'hills', icon: '⛰️', label: 'Hills' }
-                    ].map((shape) => (
-                      <button
-                        key={shape.type}
-                        onClick={() => onColorUpdate('decorationType', shape.type)}
-                        className={`p-2 text-xs rounded border hover:bg-gray-50 transition-colors ${
-                          selectedAnnotation.decorationType === shape.type
-                            ? 'border-blue-500 bg-blue-50'
-                            : 'border-gray-200'
-                        }`}
-                        title={shape.label}
-                      >
-                        <div className="text-sm mb-1">{shape.icon}</div>
-                        <div className="text-xs">{shape.label}</div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Structures */}
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-2">Structures</label>
-                  <div className="grid grid-cols-4 gap-1">
-                    {[
-                      { type: 'tower', icon: '�', label: 'Tower' },
-                      { type: 'castle', icon: '🏰', label: 'Castle' },
-                      { type: 'city', icon: '�️', label: 'City' },
-                      { type: 'village', icon: '🏘️', label: 'Village' },
-                      { type: 'bridge', icon: '🌉', label: 'Bridge' },
-                      { type: 'gate', icon: '🚪', label: 'Gate' },
-                      { type: 'ruins', icon: '🏛️', label: 'Ruins' },
-                      { type: 'temple', icon: '⛩️', label: 'Temple' }
-                    ].map((shape) => (
-                      <button
-                        key={shape.type}
-                        onClick={() => onColorUpdate('decorationType', shape.type)}
-                        className={`p-2 text-xs rounded border hover:bg-gray-50 transition-colors ${
-                          selectedAnnotation.decorationType === shape.type
-                            ? 'border-blue-500 bg-blue-50'
-                            : 'border-gray-200'
-                        }`}
-                        title={shape.label}
-                      >
-                        <div className="text-sm mb-1">{shape.icon}</div>
-                        <div className="text-xs">{shape.label}</div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Magical Elements */}
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-2">Magical</label>
-                  <div className="grid grid-cols-4 gap-1">
-                    {[
-                      { type: 'crystal', icon: '💎', label: 'Crystal' },
-                      { type: 'rune', icon: '🔮', label: 'Rune' },
-                      { type: 'portal', icon: '🌀', label: 'Portal' },
-                      { type: 'altar', icon: '🕯️', label: 'Altar' },
-                      { type: 'shrine', icon: '⛩️', label: 'Shrine' },
-                      { type: 'well', icon: '🌊', label: 'Well' },
-                      { type: 'leyline', icon: '⚡', label: 'Ley Line' },
-                      { type: 'barrier', icon: '�️', label: 'Barrier' }
-                    ].map((shape) => (
-                      <button
-                        key={shape.type}
-                        onClick={() => onColorUpdate('decorationType', shape.type)}
-                        className={`p-2 text-xs rounded border hover:bg-gray-50 transition-colors ${
-                          selectedAnnotation.decorationType === shape.type
-                            ? 'border-blue-500 bg-blue-50'
-                            : 'border-gray-200'
-                        }`}
-                        title={shape.label}
-                      >
-                        <div className="text-sm mb-1">{shape.icon}</div>
-                        <div className="text-xs">{shape.label}</div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Styling Controls */}
-                <div className="border-t pt-4">
-                  <label className="block text-xs font-medium text-gray-600 mb-2">Styling Options</label>
-                  
-                  {/* Size Control */}
-                  <div className="mb-3">
-                    <label className="block text-xs text-gray-600 mb-1">Size</label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="range"
-                        min="10"
-                        max="100"
-                        step="5"
-                        value={selectedAnnotation.size || 30}
-                        onChange={(e) => onColorUpdate('size', parseFloat(e.target.value))}
-                        className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                      />
-                      <span className="text-xs text-gray-600 font-medium min-w-[30px]">
-                        {selectedAnnotation.size || 30}px
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Fill Color */}
-                  <div className="mb-3">
-                    <label className="block text-xs text-gray-600 mb-1">Fill Color</label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="color"
-                        value={selectedAnnotation.color || '#3b82f6'}
-                        onChange={(e) => onColorUpdate('color', e.target.value)}
-                        className="w-8 h-6 rounded border border-gray-300 cursor-pointer"
-                      />
-                      <input
-                        type="text"
-                        value={selectedAnnotation.color || '#3b82f6'}
-                        onChange={(e) => onColorUpdate('color', e.target.value)}
-                        className="flex-1 text-xs px-2 py-1 border border-gray-300 rounded"
-                        placeholder="#3b82f6"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Stroke Color */}
-                  <div className="mb-3">
-                    <label className="block text-xs text-gray-600 mb-1">Stroke Color</label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="color"
-                        value={selectedAnnotation.strokeColor || '#1e40af'}
-                        onChange={(e) => onColorUpdate('strokeColor', e.target.value)}
-                        className="w-8 h-6 rounded border border-gray-300 cursor-pointer"
-                      />
-                      <input
-                        type="text"
-                        value={selectedAnnotation.strokeColor || '#1e40af'}
-                        onChange={(e) => onColorUpdate('strokeColor', e.target.value)}
-                        className="flex-1 text-xs px-2 py-1 border border-gray-300 rounded"
-                        placeholder="#1e40af"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Stroke Width */}
-                  <div className="mb-3">
-                    <label className="block text-xs text-gray-600 mb-1">Stroke Width</label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="range"
-                        min="0"
-                        max="10"
-                        step="0.5"
-                        value={selectedAnnotation.strokeWidth || 2}
-                        onChange={(e) => onColorUpdate('strokeWidth', parseFloat(e.target.value))}
-                        className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                      />
-                      <span className="text-xs text-gray-600 font-medium min-w-[25px]">
-                        {selectedAnnotation.strokeWidth || 2}px
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Opacity */}
-                  <div className="mb-3">
-                    <label className="block text-xs text-gray-600 mb-1">Opacity</label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="range"
-                        min="0"
-                        max="1"
-                        step="0.1"
-                        value={selectedAnnotation.fillOpacity || 0.8}
-                        onChange={(e) => onColorUpdate('fillOpacity', parseFloat(e.target.value))}
-                        className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                      />
-                      <span className="text-xs text-gray-600 font-medium min-w-[35px]">
-                        {Math.round((selectedAnnotation.fillOpacity || 0.8) * 100)}%
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Rotation */}
-                  <div className="mb-3">
-                    <label className="block text-xs text-gray-600 mb-1">Rotation</label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="range"
-                        min="0"
-                        max="360"
-                        step="15"
-                        value={selectedAnnotation.rotation || 0}
-                        onChange={(e) => onColorUpdate('rotation', parseFloat(e.target.value))}
-                        className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                      />
-                      <span className="text-xs text-gray-600 font-medium min-w-[40px]">
-                        {selectedAnnotation.rotation || 0}°
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Text Label */}
-                  <div>
-                    <label className="block text-xs text-gray-600 mb-1">Text Label</label>
-                    <input
-                      type="text"
-                      value={selectedAnnotation.textOverlay || ''}
-                      onChange={(e) => onColorUpdate('textOverlay', e.target.value)}
-                      className="w-full border border-gray-300 rounded px-2 py-1 text-xs"
-                      placeholder="Optional text label"
-                    />
-                  </div>
-                </div>
-              </>
-            )}
-
             {/* Opacity Control */}
             {(isZone || isLabel) && (
               <div>
@@ -3769,8 +2631,7 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
   
   // Annotation tool state
   const [activeTool, setActiveTool] = useState<ToolMode>('select')
-  const [selectedDecorationType, setSelectedDecorationType] = useState<string>('circle')
-  const [annotations, setAnnotations] = useState<(Pin | Label | Zone | Measurement | Decoration)[]>([])
+  const [annotations, setAnnotations] = useState<(Pin | Label | Zone | Measurement)[]>([])
   const [selectedAnnotation, setSelectedAnnotation] = useState<any | null>(null)
   const annotationSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   
@@ -3786,7 +2647,7 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
   }, [])
   
   // Annotation handlers
-  const handleAnnotationAdd = (annotation: Pin | Label | Zone | Measurement | Decoration) => {
+  const handleAnnotationAdd = (annotation: Pin | Label | Zone | Measurement) => {
     const updatedAnnotations = [...annotations, annotation]
     setAnnotations(updatedAnnotations)
     // Save to map's attributes field with debounce
@@ -3844,7 +2705,7 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
   }
 
   // Color picker handlers
-  const handleColorUpdate = (type: 'fill' | 'border' | 'color' | 'borderStyle' | 'borderWidth' | 'unit' | 'customUnit' | 'scale' | 'showLabel' | 'decorationType' | 'strokeColor' | 'strokeWidth' | 'fillOpacity' | 'strokeOpacity' | 'rotation' | 'shadow' | 'textOverlay' | 'size', value: string | number | boolean) => {
+  const handleColorUpdate = (type: 'fill' | 'border' | 'color' | 'borderStyle' | 'borderWidth' | 'unit' | 'customUnit' | 'scale' | 'showLabel' | 'strokeColor' | 'strokeWidth' | 'fillOpacity' | 'strokeOpacity' | 'rotation' | 'shadow' | 'textOverlay' | 'size', value: string | number | boolean) => {
     if (!selectedAnnotation) return
     
     let updateKey: string
@@ -3880,9 +2741,6 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
         break
       case 'showLabel':
         updates = { showLabel: value }
-        break
-      case 'decorationType':
-        updates = { decorationType: value }
         break
       case 'strokeColor':
         updates = { strokeColor: value }
@@ -4339,8 +3197,6 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
               activeTool={activeTool}
               onToolChange={setActiveTool}
               onClearAll={handleClearAllAnnotations}
-              selectedDecorationType={selectedDecorationType}
-              onDecorationTypeChange={setSelectedDecorationType}
             />
           )}
           
@@ -4386,7 +3242,6 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
               onViewportChange={setViewport}
               annotations={annotations}
               activeTool={activeTool}
-              selectedDecorationType={selectedDecorationType}
               onAnnotationAdd={handleAnnotationAdd}
               onAnnotationUpdate={handleAnnotationUpdate}
               onAnnotationDelete={handleAnnotationDelete}
