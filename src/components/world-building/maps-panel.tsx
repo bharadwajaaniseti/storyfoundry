@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import { createSupabaseClient } from "@/lib/auth"
+import { useToast } from '@/components/ui/toast'
 
 interface MapData {
   id: string
@@ -2620,6 +2621,7 @@ function StaticColorPicker({
 function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string }) {
   const supabase = createSupabaseClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const { addToast } = useToast()
   
   // State management
   const [selectedMap, setSelectedMap] = useState<MapData | null>(null)
@@ -2635,6 +2637,10 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
   const [selectedAnnotation, setSelectedAnnotation] = useState<any | null>(null)
   const annotationSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   
+  // Toast debouncing to prevent spam during continuous operations
+  const lastToastTimeRef = useRef<number>(0)
+  const toastDebounceMs = 1000 // Only show one toast per second
+  
   // Debounced save function to prevent duplicate saves
   const debouncedSave = useCallback((mapId: string, attributes: any) => {
     if (annotationSaveTimeoutRef.current) {
@@ -2645,6 +2651,19 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
       updateMapAttributes(mapId, attributes)
     }, 100) // 100ms debounce
   }, [])
+  
+  // Debounced toast function to prevent spam
+  const showSavedToast = useCallback((message: string) => {
+    const now = Date.now()
+    if (now - lastToastTimeRef.current >= toastDebounceMs) {
+      lastToastTimeRef.current = now
+      addToast({
+        type: 'success',
+        title: 'Saved',
+        message
+      })
+    }
+  }, [addToast, toastDebounceMs])
   
   // Annotation handlers
   const handleAnnotationAdd = (annotation: Pin | Label | Zone | Measurement) => {
@@ -2657,6 +2676,13 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
         annotations: updatedAnnotations 
       }
       debouncedSave(selectedMap.id, newAttributes)
+      
+      // Show toast notification
+      addToast({
+        type: 'success',
+        title: 'Saved',
+        message: `${annotation.type.charAt(0).toUpperCase() + annotation.type.slice(1)} annotation added`
+      })
     }
   }
   
@@ -2670,6 +2696,9 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
         annotations: updatedAnnotations 
       }
       debouncedSave(selectedMap.id, newAttributes)
+      
+      // Show debounced toast notification
+      showSavedToast('Annotation updated')
     }
   }
   
@@ -2683,6 +2712,13 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
         annotations: filteredAnnotations 
       }
       debouncedSave(selectedMap.id, newAttributes)
+      
+      // Show toast notification (no debounce for delete as it's single action)
+      addToast({
+        type: 'success',
+        title: 'Saved',
+        message: 'Annotation deleted'
+      })
     }
   }
   
@@ -2701,6 +2737,13 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
       }
       console.log('Saving empty annotations to database for map:', selectedMap.id)
       debouncedSave(selectedMap.id, newAttributes)
+      
+      // Show toast notification (no debounce for clear all as it's single action)
+      addToast({
+        type: 'success',
+        title: 'Saved',
+        message: 'All annotations cleared'
+      })
     }
   }
 
