@@ -2696,7 +2696,7 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
       let errorMessage = 'Could not save to database'
       if (error instanceof Error) {
         if (error.message.includes('timeout')) {
-          errorMessage = 'Database save timed out - please check your connection'
+          errorMessage = 'Database connection timeout - try again in a moment'
         } else if (error.message.includes('not authenticated')) {
           errorMessage = 'Authentication failed - please refresh the page'
         } else {
@@ -2732,6 +2732,9 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
     }
   }
   
+  // Debounced save for drag operations
+  const dragSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  
   const handleAnnotationUpdate = (id: string, updates: any) => {
     console.log('=== handleAnnotationUpdate DEBUG ===')
     console.log('Updating annotation:', { id, updates })
@@ -2758,7 +2761,27 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
                            'Measurement Updated'
       
       console.log('About to save with message:', successMessage)
-      saveImmediatelyWithSmartToast(selectedMap.id, newAttributes, successMessage, 'update')
+      
+      // Check if this looks like a drag operation (zone with points updates)
+      const isDragOperation = annotationType === 'zone' && updates.points
+      
+      if (isDragOperation) {
+        // Debounce drag operations to prevent database spam
+        console.log('Detected drag operation, debouncing save...')
+        
+        if (dragSaveTimeoutRef.current) {
+          clearTimeout(dragSaveTimeoutRef.current)
+        }
+        
+        dragSaveTimeoutRef.current = setTimeout(() => {
+          console.log('Executing debounced drag save')
+          saveImmediatelyWithSmartToast(selectedMap.id, newAttributes, successMessage, 'update')
+        }, 200) // Wait 200ms after drag stops
+        
+      } else {
+        // For non-drag operations, save immediately
+        saveImmediatelyWithSmartToast(selectedMap.id, newAttributes, successMessage, 'update')
+      }
     } else {
       console.error('No selectedMap available for saving!')
     }
@@ -2909,79 +2932,103 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [selectedMap, viewport.scale])
   
-  const updateMapAttributes = async (mapId: string, attributes: any) => {
+  const updateMapAttributes = async (mapId: string, attributes: any, retryCount = 0) => {
     console.log('=== updateMapAttributes DEBUG ===')
-    console.log('updateMapAttributes called with:', { mapId, annotations: attributes.annotations?.length || 0 })
+    console.log('updateMapAttributes called with:', { mapId, annotations: attributes.annotations?.length || 0, retryCount })
     console.log('Full attributes object:', JSON.stringify(attributes, null, 2))
     
-    // Check if user is authenticated
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      console.error('User not authenticated:', authError)
-      throw new Error('User not authenticated')
-    }
-    console.log('User authenticated:', user.id)
+    const maxRetries = 2
     
-    // Test database connectivity first - try a simple read
-    console.log('Testing database connectivity with read operation...')
     try {
-      const readTest = await supabase
+      // Check if user is authenticated
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError || !user) {
+        console.error('User not authenticated:', authError)
+        throw new Error('User not authenticated')
+      }
+      console.log('User authenticated:', user.id)
+      
+      // Test database connectivity first - try a simple read
+      console.log('Testing database connectivity with read operation...')
+      try {
+        const readTest = await supabase
+          .from('world_elements')
+          .select('id, name')
+          .eq('id', mapId)
+          .limit(1)
+        
+        console.log('Read test result:', readTest)
+        
+        if (readTest.error) {
+          console.error('Read test failed:', readTest.error)
+          throw new Error(`Database read failed: ${readTest.error.message}`)
+        }
+        
+        if (!readTest.data || readTest.data.length === 0) {
+          console.error('Map not found during read test')
+          throw new Error(`Map with ID ${mapId} not found`)
+        }
+        
+        console.log('Read test successful - database is accessible')
+      } catch (readError) {
+        console.error('Read test failed with error:', readError)
+        throw readError
+      }
+      
+      // Save to database with shorter timeout and retry logic
+      console.log('Attempting to update world_elements table with id:', mapId)
+      
+      // Create timeout promise (shorter timeout for better UX)
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Database call timeout after 5 seconds')), 5000)
+      })
+      
+      // Add small delay if this is a retry to avoid hitting rate limits
+      if (retryCount > 0) {
+        console.log(`Retry attempt ${retryCount}, waiting 1 second...`)
+        await new Promise(resolve => setTimeout(resolve, 1000))
+      }
+      
+      // Create database promise
+      const dbPromise = supabase
         .from('world_elements')
-        .select('id, name')
+        .update({ attributes })
         .eq('id', mapId)
-        .limit(1)
+        .select()
       
-      console.log('Read test result:', readTest)
+      console.log('Starting database call with timeout...')
+      const { data, error } = await Promise.race([dbPromise, timeoutPromise]) as any
       
-      if (readTest.error) {
-        console.error('Read test failed:', readTest.error)
-        throw new Error(`Database read failed: ${readTest.error.message}`)
+      console.log('Database response received!')
+      console.log('Database response:', { data, error })
+      
+      if (error) {
+        console.error('Failed to save annotations:', error)
+        throw error
       }
       
-      if (!readTest.data || readTest.data.length === 0) {
-        console.error('Map not found during read test')
-        throw new Error(`Map with ID ${mapId} not found`)
+      if (!data || data.length === 0) {
+        console.error('No rows updated - Map ID might not exist:', mapId)
+        throw new Error('Map not found or no changes made')
       }
       
-      console.log('Read test successful - database is accessible')
-    } catch (readError) {
-      console.error('Read test failed with error:', readError)
-      throw readError
-    }
-    
-    // Save to database with timeout
-    console.log('Attempting to update world_elements table with id:', mapId)
-    
-    // Create timeout promise
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Database call timeout after 10 seconds')), 10000)
-    })
-    
-    // Create database promise
-    const dbPromise = supabase
-      .from('world_elements')
-      .update({ attributes })
-      .eq('id', mapId)
-      .select()
-    
-    console.log('Starting database call with timeout...')
-    const { data, error } = await Promise.race([dbPromise, timeoutPromise]) as any
-    
-    console.log('Database response received!')
-    console.log('Database response:', { data, error })
-    
-    if (error) {
-      console.error('Failed to save annotations:', error)
+      console.log('Successfully updated map attributes:', { mapId, updatedAnnotations: data[0].attributes.annotations?.length || 0 })
+      console.log('=== updateMapAttributes SUCCESS ===')
+      
+    } catch (error) {
+      console.error(`Attempt ${retryCount + 1} failed:`, error)
+      
+      // Retry logic for timeout errors
+      if (error instanceof Error && 
+          error.message.includes('timeout') && 
+          retryCount < maxRetries) {
+        console.log(`Retrying... (${retryCount + 1}/${maxRetries})`)
+        return updateMapAttributes(mapId, attributes, retryCount + 1)
+      }
+      
+      // If all retries failed or it's not a timeout error, throw
       throw error
     }
-    
-    if (!data || data.length === 0) {
-      console.error('No rows updated - Map ID might not exist:', mapId)
-      throw new Error('Map not found or no changes made')
-    }
-    
-    console.log('Successfully updated map attributes:', { mapId, updatedAnnotations: data[0].attributes.annotations?.length || 0 })
-    console.log('=== updateMapAttributes SUCCESS ===')
   }
   
   // Viewport autosave with debouncing
