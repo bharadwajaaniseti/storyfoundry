@@ -299,6 +299,8 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
         .select()
         .single()
 
+      console.log('Research file creation result:', { data, error })
+
       if (error) {
         console.error('Error creating research file:', error)
         addToast({
@@ -330,10 +332,10 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
       setSelectedFile(newResearchFile) // Automatically select the new file
       loadResearchFiles()
       
-      // Refresh the sidebar
-      if (typeof window !== 'undefined' && (window as any).refreshResearchSidebar) {
-        (window as any).refreshResearchSidebar()
-      }
+      // Trigger a custom event to refresh sidebar elements
+      window.dispatchEvent(new CustomEvent('researchFileCreated', {
+        detail: { researchFile: newResearchFile, projectId }
+      }))
     } catch (error) {
       console.error('Error:', error)
       addToast({
