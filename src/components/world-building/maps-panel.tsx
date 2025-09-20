@@ -2636,18 +2636,53 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
   const [annotations, setAnnotations] = useState<(Pin | Label | Zone | Measurement)[]>([])
   const [selectedAnnotation, setSelectedAnnotation] = useState<any | null>(null)
   
-  // Immediate save function with specific toast messages
-  const saveImmediately = useCallback(async (mapId: string, attributes: any, successMessage: string) => {
+  // Smart toast debouncing - prevents spam while keeping immediate saves
+  const toastTimeoutsRef = useRef<{ [key: string]: NodeJS.Timeout }>({})
+  const lastToastMessageRef = useRef<{ [key: string]: string }>({})
+  
+  const saveImmediatelyWithSmartToast = useCallback(async (
+    mapId: string, 
+    attributes: any, 
+    successMessage: string,
+    operationType: 'add' | 'update' | 'delete' | 'clear' = 'update'
+  ) => {
     try {
+      // Always save immediately to database
       await updateMapAttributes(mapId, attributes)
-      // Only show toast if database save was successful
-      addToast({
-        type: 'success',
-        title: successMessage,
-        message: 'Successfully saved to database'
-      })
+      
+      // Smart toast handling based on operation type
+      if (operationType === 'add' || operationType === 'delete' || operationType === 'clear') {
+        // Show toast immediately for discrete operations
+        addToast({
+          type: 'success',
+          title: successMessage,
+          message: 'Successfully saved to database'
+        })
+      } else {
+        // For continuous operations (updates), debounce toasts
+        const toastKey = successMessage
+        
+        // Clear any existing timeout for this message type
+        if (toastTimeoutsRef.current[toastKey]) {
+          clearTimeout(toastTimeoutsRef.current[toastKey])
+        }
+        
+        // Store the latest message
+        lastToastMessageRef.current[toastKey] = successMessage
+        
+        // Set a new timeout to show toast after user stops the action
+        toastTimeoutsRef.current[toastKey] = setTimeout(() => {
+          addToast({
+            type: 'success',
+            title: lastToastMessageRef.current[toastKey],
+            message: 'Successfully saved to database'
+          })
+          delete toastTimeoutsRef.current[toastKey]
+          delete lastToastMessageRef.current[toastKey]
+        }, 500) // Show toast 500ms after last update
+      }
     } catch (error) {
-      // Show error toast if save failed
+      // Always show error toasts immediately
       addToast({
         type: 'error', 
         title: 'Save Failed',
@@ -2670,7 +2705,7 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
                            annotation.type === 'label' ? 'Label Added' :
                            annotation.type === 'zone' ? 'Zone Added' :
                            'Measurement Added'
-      saveImmediately(selectedMap.id, newAttributes, successMessage)
+      saveImmediatelyWithSmartToast(selectedMap.id, newAttributes, successMessage, 'add')
     }
   }
   
@@ -2689,7 +2724,7 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
                            annotationType === 'label' ? 'Label Updated' :
                            annotationType === 'zone' ? 'Zone Updated' :
                            'Measurement Updated'
-      saveImmediately(selectedMap.id, newAttributes, successMessage)
+      saveImmediatelyWithSmartToast(selectedMap.id, newAttributes, successMessage, 'update')
     }
   }
   
@@ -2708,7 +2743,7 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
                            annotationType === 'label' ? 'Label Deleted' :
                            annotationType === 'zone' ? 'Zone Deleted' :
                            'Measurement Deleted'
-      saveImmediately(selectedMap.id, newAttributes, successMessage)
+      saveImmediatelyWithSmartToast(selectedMap.id, newAttributes, successMessage, 'delete')
     }
   }
   
@@ -2726,7 +2761,7 @@ function MapsPanel({ mapId, projectId }: { mapId?: string; projectId?: string })
         annotations: [] 
       }
       console.log('Saving empty annotations to database for map:', selectedMap.id)
-      saveImmediately(selectedMap.id, newAttributes, 'All Annotations Cleared')
+      saveImmediatelyWithSmartToast(selectedMap.id, newAttributes, 'All Annotations Cleared', 'clear')
     }
   }
 
