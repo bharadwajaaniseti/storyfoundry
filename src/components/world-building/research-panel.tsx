@@ -293,9 +293,11 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
         tags: []
       }
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('world_elements')
         .insert([fileData])
+        .select()
+        .single()
 
       if (error) {
         console.error('Error creating research file:', error)
@@ -311,8 +313,21 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
         title: 'Research file created'
       })
 
+      // Convert the created data to ResearchFile format and select it
+      const newResearchFile: ResearchFile = {
+        id: data.id,
+        project_id: data.project_id,
+        name: data.name,
+        description: data.description,
+        created_at: data.created_at,
+        updated_at: data.updated_at,
+        category: data.category,
+        attributes: data.attributes
+      }
+
       setIsCreatingFile(false)
       setFileFormData({ name: '', description: '' })
+      setSelectedFile(newResearchFile) // Automatically select the new file
       loadResearchFiles()
       
       // Refresh the sidebar
@@ -708,83 +723,24 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
     )
   }
 
-  // Show research file list if no file is selected
+  // Show empty state if no file is selected and not creating
   if (!selectedFile) {
     return (
       <div className="h-full bg-white">
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center space-x-3">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <BookOpen className="w-6 h-6 text-purple-600" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">Research</h1>
-                <p className="text-gray-600">Organize your research materials and references</p>
-              </div>
+        <div className="flex items-center justify-center h-full">
+          <div className="text-center">
+            <div className="p-4 bg-purple-100 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+              <BookOpen className="w-8 h-8 text-purple-600" />
             </div>
+            <h3 className="text-xl font-medium text-gray-900 mb-2">No Research File Selected</h3>
+            <p className="text-gray-600 mb-6 max-w-md">
+              Select a research file from the sidebar to view its contents, or create a new one using the + button.
+            </p>
             <Button onClick={() => setIsCreatingFile(true)} className="bg-purple-600 hover:bg-purple-700">
               <Plus className="w-4 h-4 mr-2" />
-              New Research File
+              Create Research File
             </Button>
           </div>
-        </div>
-
-        <div className="p-6">
-          {loading ? (
-            <div className="flex items-center justify-center h-64">
-              <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
-            </div>
-          ) : researchFiles.length === 0 ? (
-            <div className="text-center py-12">
-              <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-xl font-medium text-gray-900 mb-2">No research files yet</h3>
-              <p className="text-gray-600 mb-6">Create your first research file to start organizing your materials</p>
-              <Button onClick={() => setIsCreatingFile(true)}>
-                <Plus className="w-4 h-4 mr-2" />
-                Create Research File
-              </Button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {researchFiles.map((file) => (
-                <Card 
-                  key={file.id}
-                  className="cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-105"
-                  onClick={() => setSelectedFile(file)}
-                >
-                  <CardContent className="p-6">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="p-3 bg-purple-100 rounded-lg">
-                        <BookOpen className="w-6 h-6 text-purple-600" />
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          deleteResearchFile(file.id)
-                        }}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                    
-                    <h3 className="font-semibold text-gray-900 mb-2">{file.name}</h3>
-                    <p className="text-sm text-gray-600 mb-4 line-clamp-2">
-                      {file.description || 'No description'}
-                    </p>
-                    
-                    <div className="flex items-center justify-between text-xs text-gray-500">
-                      <span>Updated {new Date(file.updated_at).toLocaleDateString()}</span>
-                      <ChevronRight className="w-4 h-4" />
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
         </div>
       </div>
     )
@@ -798,7 +754,10 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center space-x-3">
               <Button
-                onClick={() => setIsCreatingContent(false)}
+                onClick={() => {
+                  setIsCreatingContent(false)
+                  setEditingContent(null)
+                }}
                 variant="ghost"
                 size="sm"
               >
@@ -806,7 +765,10 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
                 Back to {selectedFile.name}
               </Button>
             </div>
-            <Button onClick={() => setIsCreatingContent(false)} variant="outline">
+            <Button onClick={() => {
+              setIsCreatingContent(false)
+              setEditingContent(null)
+            }} variant="outline">
               Cancel
             </Button>
           </div>
@@ -977,7 +939,10 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-3">
             <Button
-              onClick={() => setSelectedFile(null)}
+              onClick={() => {
+                setSelectedFile(null)
+                setSelectedContent(null) // Also clear selected content
+              }}
               variant="ghost"
               size="sm"
             >
