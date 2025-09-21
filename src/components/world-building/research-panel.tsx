@@ -195,17 +195,33 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
           ...selectedElement.attributes
         }
       }
+      
+      // Cancel creation mode if user selects an existing file
+      setIsCreatingFile(false)
+      setIsCreatingContent(false)
+      setEditingContent(null)
+      
+      // Reset form data
+      setFileFormData({ name: '', description: '' })
+      setContentFormData({ name: '', description: '', content: '', tags: '', url: '' })
+      
+      // Set the selected file
       setSelectedFile(researchFile)
     }
   }, [selectedElement])
 
   // Handle trigger to create new file from sidebar
   useEffect(() => {
-    if (triggerCreateFile) {
+    // Only trigger creation if no specific element is selected
+    if (triggerCreateFile && !selectedElement) {
       setIsCreatingFile(true)
       setSelectedFile(null) // Clear any selected file to show creation form
+      setSelectedContent(null) // Also clear selected content
+      // Ensure we're not in content creation mode
+      setIsCreatingContent(false)
+      setEditingContent(null)
     }
-  }, [triggerCreateFile])
+  }, [triggerCreateFile, selectedElement])
 
   // Handle keyboard navigation for media viewer
   useEffect(() => {
@@ -933,6 +949,7 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
                     onChange={(e) => setFileFormData({ ...fileFormData, name: e.target.value })}
                     placeholder="Enter research file name..."
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
+                    autoFocus
                   />
                 </div>
 

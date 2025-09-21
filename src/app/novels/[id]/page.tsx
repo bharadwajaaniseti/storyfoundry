@@ -2650,6 +2650,7 @@ function NovelPageInner() {
           <ResearchPanel 
             projectId={project.id}
             selectedElement={selectedElement}
+            triggerCreateFile={triggerNewResearchFile}
           />
         )
 
@@ -2922,6 +2923,11 @@ function NovelPageInner() {
                             
                             // For research, trigger file creation directly
                             if (option.id === 'research') {
+                              // Ensure we're on the research panel
+                              setActivePanel('research')
+                              // Clear any selected research element to ensure clean state
+                              setSelectedElement(null)
+                              // Trigger the research file creation
                               setTriggerNewResearchFile(true)
                               // Reset trigger after a brief moment
                               setTimeout(() => setTriggerNewResearchFile(false), 100)
