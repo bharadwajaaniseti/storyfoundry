@@ -26,7 +26,9 @@ import {
   Calendar,
   Clock,
   ChevronRight,
-  ArrowLeft
+  ArrowLeft,
+  X,
+  ChevronLeft
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -146,6 +148,17 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [uploadingFiles, setUploadingFiles] = useState(false)
 
+  // Media viewer modal state
+  const [mediaViewerOpen, setMediaViewerOpen] = useState(false)
+  const [viewerMedia, setViewerMedia] = useState<{
+    url: string
+    type: 'image' | 'video' | 'document'
+    name?: string
+    index: number
+    totalCount: number
+    allMedia: Array<{ url: string; type: 'image' | 'video' | 'document'; name?: string }>
+  } | null>(null)
+
   const addToast = (toast: { type: 'success' | 'error' | 'info', title: string, message?: string }) => {
     const id = Math.random().toString(36).substr(2, 9)
     setToasts(prev => [...prev, { ...toast, id }])
@@ -193,6 +206,34 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
       setSelectedFile(null) // Clear any selected file to show creation form
     }
   }, [triggerCreateFile])
+
+  // Handle keyboard navigation for media viewer
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (!mediaViewerOpen || !viewerMedia) return
+      
+      switch (e.key) {
+        case 'Escape':
+          closeMediaViewer()
+          break
+        case 'ArrowLeft':
+          if (viewerMedia.totalCount > 1) {
+            navigateMedia('prev')
+          }
+          break
+        case 'ArrowRight':
+          if (viewerMedia.totalCount > 1) {
+            navigateMedia('next')
+          }
+          break
+      }
+    }
+
+    if (mediaViewerOpen) {
+      document.addEventListener('keydown', handleKeyPress)
+      return () => document.removeEventListener('keydown', handleKeyPress)
+    }
+  }, [mediaViewerOpen, viewerMedia])
 
   const loadResearchFiles = async () => {
     try {
@@ -786,6 +827,74 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
     return matchesType && matchesSearch
   })
 
+  // Media viewer functions
+  const openMediaViewer = (url: string, type: 'image' | 'video' | 'document', name: string, allUrls: string[], currentIndex: number) => {
+    console.log('Opening media viewer:', { url, type, name, allUrls, currentIndex })
+    console.log('All URLs:', allUrls)
+    
+    // Filter to include images, videos, and documents for navigation
+    const mediaItems = allUrls.map((mediaUrl, index) => {
+      // Determine type based on file extension or content type
+      const isImage = /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(mediaUrl)
+      const isVideo = /\.(mp4|mov|avi|wmv|flv|webm|mkv)$/i.test(mediaUrl)
+      const isDocument = /\.(pdf|doc|docx|txt|rtf|xls|xlsx|ppt|pptx)$/i.test(mediaUrl)
+      
+      let itemType: 'image' | 'video' | 'document' | 'unknown' = 'unknown'
+      if (isImage) itemType = 'image'
+      else if (isVideo) itemType = 'video'
+      else if (isDocument) itemType = 'document'
+      
+      console.log(`File ${index}: ${mediaUrl} -> ${itemType}`)
+      
+      return {
+        url: mediaUrl,
+        type: itemType,
+        name: selectedContent?.attributes?.file_names?.[index] || `File ${index + 1}`
+      }
+    }).filter(item => item.type !== 'unknown') as Array<{ url: string; type: 'image' | 'video' | 'document'; name: string }>
+
+    console.log('Filtered media items:', mediaItems)
+    
+    const mediaIndex = mediaItems.findIndex(item => item.url === url)
+    
+    const viewerData = {
+      url,
+      type,
+      name,
+      index: mediaIndex,
+      totalCount: mediaItems.length,
+      allMedia: mediaItems
+    }
+    
+    console.log('Setting viewer data:', viewerData)
+    setViewerMedia(viewerData)
+    setMediaViewerOpen(true)
+    console.log('Media viewer should be open now')
+  }
+
+  const closeMediaViewer = () => {
+    setMediaViewerOpen(false)
+    setViewerMedia(null)
+  }
+
+  const navigateMedia = (direction: 'prev' | 'next') => {
+    if (!viewerMedia || !viewerMedia.allMedia || viewerMedia.allMedia.length === 0) return
+
+    const currentIndex = viewerMedia.index
+    let newIndex = direction === 'next' 
+      ? (currentIndex + 1) % viewerMedia.allMedia.length
+      : (currentIndex - 1 + viewerMedia.allMedia.length) % viewerMedia.allMedia.length
+
+    const newMedia = viewerMedia.allMedia[newIndex]
+    setViewerMedia({
+      ...viewerMedia,
+      url: newMedia.url,
+      type: newMedia.type,
+      name: newMedia.name || `File ${newIndex + 1}`,
+      index: newIndex
+    })
+  }
+
   // Research file creation form
   if (isCreatingFile) {
     return (
@@ -1101,25 +1210,25 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
-                <BookOpen className="w-5 h-5 text-orange-600" />
+      <header className="bg-white border-b border-gray-200 shadow-sm">
+        <div className="container mx-auto px-6 py-6">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center space-x-4">
+              <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center ring-1 ring-orange-100">
+                <BookOpen className="w-6 h-6 text-orange-600" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-800">{selectedFile.name}</h1>
-                <p className="text-gray-600">{selectedFile.description || 'Research file'}</p>
+                <h1 className="text-2xl font-bold text-gray-900">{selectedFile.name}</h1>
+                <p className="text-gray-600 mt-1">{selectedFile.description || 'Research file'}</p>
               </div>
             </div>
             
             <div className="flex items-center space-x-3">
               <button 
                 onClick={() => createContent('note')} 
-                className="flex items-center space-x-2 bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 hover:shadow-md transition-all duration-200 font-medium"
+                className="flex items-center space-x-2 bg-orange-500 text-white px-6 py-3 rounded-xl hover:bg-orange-600 hover:shadow-lg hover:scale-[1.02] transition-all duration-200 font-medium shadow-sm"
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="w-5 h-5" />
                 <span>Add Content</span>
               </button>
             </div>
@@ -1127,13 +1236,13 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
 
           {/* Search and Filters */}
           <div className="flex items-center space-x-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
               <input
                 placeholder="Search content..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
+                className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 transition-all duration-200 bg-gray-50 hover:bg-white"
               />
             </div>
           </div>
@@ -1238,16 +1347,16 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
                   return (
                     <Card 
                       key={content.id}
-                      className={`cursor-pointer transition-all duration-200 hover:shadow-md ${
-                        selectedContent?.id === content.id ? 'ring-2 ring-purple-500 bg-purple-50' : ''
+                      className={`cursor-pointer transition-all duration-200 hover:shadow-lg hover:ring-2 hover:ring-orange-200 rounded-xl border-gray-200 ${
+                        selectedContent?.id === content.id ? 'ring-2 ring-orange-500 bg-orange-50 shadow-lg' : 'hover:bg-orange-50/30'
                       }`}
                       onClick={() => setSelectedContent(content)}
                     >
                       <CardContent className="p-4">
                         <div className="flex items-start justify-between">
                           <div className="flex items-start space-x-3 flex-1">
-                            <div className="p-2 bg-gray-100 rounded-lg">
-                              <Icon className={`w-4 h-4 ${itemColor}`} />
+                            <div className="p-2 bg-orange-100 rounded-xl">
+                              <Icon className={`w-5 h-5 ${itemColor}`} />
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center space-x-2 mb-1">
@@ -1260,30 +1369,30 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
                                 )}
                               </div>
                               
-                              <Badge variant="outline" className="text-xs mb-2">
+                              <Badge variant="outline" className="text-xs mb-2 border-orange-200 text-orange-700 bg-orange-50">
                                 {CONTENT_TYPES.find(t => t.id === content.type)?.label || 'Unknown'}
                               </Badge>
                               
-                              <p className="text-sm text-gray-600 line-clamp-2">
+                              <p className="text-sm text-gray-700 line-clamp-2">
                                 {content.description || 'No description'}
                               </p>
                               
                               {content.tags && content.tags.length > 0 && (
                                 <div className="flex flex-wrap gap-1 mt-2">
                                   {content.tags.slice(0, 2).map((tag, index) => (
-                                    <Badge key={index} variant="secondary" className="text-xs">
+                                    <Badge key={index} variant="secondary" className="text-xs bg-orange-100 text-orange-700 hover:bg-orange-200">
                                       {tag}
                                     </Badge>
                                   ))}
                                   {content.tags.length > 2 && (
-                                    <Badge variant="secondary" className="text-xs">
+                                    <Badge variant="secondary" className="text-xs bg-orange-100 text-orange-700">
                                       +{content.tags.length - 2}
                                     </Badge>
                                   )}
                                 </div>
                               )}
                               
-                              <div className="flex items-center space-x-2 mt-2 text-xs text-gray-500">
+                              <div className="flex items-center space-x-2 mt-2 text-xs text-orange-600">
                                 <Clock className="w-3 h-3" />
                                 <span>{new Date(content.updated_at).toLocaleDateString()}</span>
                               </div>
@@ -1298,9 +1407,9 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
                                 e.stopPropagation()
                                 toggleContentFavorite(content)
                               }}
-                              className="p-1"
+                              className="p-1 hover:bg-orange-100 rounded-lg"
                             >
-                              <Star className={`w-3 h-3 ${content.is_favorite ? 'text-yellow-500 fill-current' : 'text-gray-400'}`} />
+                              <Star className={`w-3 h-3 ${content.is_favorite ? 'text-yellow-500 fill-current' : 'text-gray-400 hover:text-orange-500'}`} />
                             </Button>
                             <Button
                               size="sm"
@@ -1309,7 +1418,7 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
                                 e.stopPropagation()
                                 editContent(content)
                               }}
-                              className="p-1"
+                              className="p-1 hover:bg-orange-100 text-gray-400 hover:text-orange-600 rounded-lg"
                             >
                               <Edit3 className="w-3 h-3" />
                             </Button>
@@ -1320,7 +1429,7 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
                                 e.stopPropagation()
                                 deleteContent(content.id)
                               }}
-                              className="p-1 text-red-600 hover:text-red-700"
+                              className="p-1 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg"
                             >
                               <Trash2 className="w-3 h-3" />
                             </Button>
@@ -1335,11 +1444,11 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
           </div>
 
           {/* Detail View */}
-          <div className="flex-1 overflow-y-auto bg-gray-50">
+          <div className="flex-1 overflow-y-auto bg-orange-50/30">
             {selectedContent ? (
               <div className="h-full">
                 {/* Header */}
-                <div className="bg-white border-b border-gray-200 px-6 py-4">
+                <div className="bg-white border-b border-orange-200 px-6 py-4 shadow-sm">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-4">
                       <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
@@ -1373,24 +1482,48 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
                       </div>
                     </div>
                     
-                    <div className="flex items-center space-x-2">
-                      <button
-                        onClick={() => toggleContentFavorite(selectedContent)}
-                        className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors"
-                      >
-                        <Star className={`w-4 h-4 mr-2 ${selectedContent.is_favorite ? 'text-yellow-500 fill-current' : 'text-gray-400'}`} />
+                  <div className="flex items-center space-x-2">
+                    {/* Debug button */}
+                    <button
+                      onClick={() => {
+                        console.log('Test button clicked')
+                        setViewerMedia({
+                          url: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAwIiBoZWlnaHQ9IjYwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+CiAgPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSI0MCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPjgwMHg2MDA8L3RleHQ+Cjwvc3ZnPg==',
+                          type: 'image',
+                          name: 'Test Image',
+                          index: 0,
+                          totalCount: 1,
+                          allMedia: [{
+                            url: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAwIiBoZWlnaHQ9IjYwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+CiAgPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSI0MCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPjgwMHg2MDA8L3RleHQ+Cjwvc3ZnPg==',
+                            type: 'image',
+                            name: 'Test Image'
+                          }]
+                        })
+                        setMediaViewerOpen(true)
+                        console.log('Test modal should be open')
+                      }}
+                      className="px-3 py-2 bg-blue-500 text-white rounded-lg text-sm"
+                    >
+                      Test Modal
+                    </button>
+                    
+                    <button
+                      onClick={() => toggleContentFavorite(selectedContent)}
+                      className="inline-flex items-center px-3 py-2 border border-orange-300 rounded-xl text-sm font-medium text-orange-700 bg-white hover:bg-orange-50 hover:border-orange-400 transition-all"
+                    >
+                        <Star className={`w-4 h-4 mr-2 ${selectedContent.is_favorite ? 'text-yellow-500 fill-current' : 'text-orange-400'}`} />
                         Favorite
                       </button>
                       <button
                         onClick={() => editContent(selectedContent)}
-                        className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors"
+                        className="inline-flex items-center px-3 py-2 border border-orange-300 rounded-xl text-sm font-medium text-orange-700 bg-white hover:bg-orange-50 hover:border-orange-400 transition-all"
                       >
-                        <Edit3 className="w-4 h-4 mr-2" />
+                        <Edit3 className="w-4 h-4 mr-2 text-orange-500" />
                         Edit
                       </button>
                       <button
                         onClick={() => deleteContent(selectedContent.id)}
-                        className="inline-flex items-center px-3 py-2 border border-red-300 rounded-lg text-sm font-medium text-red-700 bg-white hover:bg-red-50 transition-colors"
+                        className="inline-flex items-center px-3 py-2 border border-red-300 rounded-xl text-sm font-medium text-red-700 bg-white hover:bg-red-50 hover:border-red-400 transition-all"
                       >
                         <Trash2 className="w-4 h-4 mr-2" />
                         Delete
@@ -1402,7 +1535,7 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
                 {/* Content */}
                 <div className="p-6 space-y-6">
                   {/* Description Section */}
-                  <div className="bg-white border border-gray-200 rounded-xl p-6">
+                  <div className="bg-white border border-orange-200 rounded-xl p-6 shadow-sm">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4">Description</h3>
                     <p className="text-gray-700 leading-relaxed">
                       {selectedContent.description || 'No description provided.'}
@@ -1411,7 +1544,7 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
 
                   {/* Content Section */}
                   {selectedContent.content && (
-                    <div className="bg-white border border-gray-200 rounded-xl p-6">
+                    <div className="bg-white border border-orange-200 rounded-xl p-6 shadow-sm">
                       <h3 className="text-lg font-semibold text-gray-900 mb-4">Content</h3>
                       <div className="prose prose-gray max-w-none">
                         <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
@@ -1423,55 +1556,219 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
 
                   {/* Files Section for multiple files */}
                   {selectedContent.attributes?.file_urls && selectedContent.attributes.file_urls.length > 0 && (
-                    <div className="bg-white border border-gray-200 rounded-xl p-6">
+                    <div className="bg-white border border-orange-200 rounded-xl p-6 shadow-sm">
                       <h3 className="text-lg font-semibold text-gray-900 mb-4">
                         Files ({selectedContent.attributes.file_count || selectedContent.attributes.file_urls.length})
                       </h3>
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                        {selectedContent.attributes.file_urls.map((url: string, index: number) => (
-                          <div key={index} className="group relative">
-                            <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden">
-                              {selectedContent.type === 'image' ? (
-                                <img 
-                                  src={url} 
-                                  alt={selectedContent.attributes?.file_names?.[index] || `Image ${index + 1}`}
-                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                                />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center">
-                                  <div className="text-center">
-                                    {(() => {
-                                      const Icon = getItemIcon(selectedContent.type)
-                                      return <Icon className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                                    })()}
-                                    <p className="text-xs text-gray-500 truncate px-2">
-                                      {selectedContent.attributes?.file_names?.[index] || `File ${index + 1}`}
-                                    </p>
+                        {selectedContent.attributes.file_urls.map((url: string, index: number) => {
+                          const fileName = selectedContent.attributes?.file_names?.[index] || `File ${index + 1}`
+                          const isImage = selectedContent.type === 'image' || /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(url)
+                          const isVideo = selectedContent.type === 'video' || /\.(mp4|mov|avi|wmv|flv|webm|mkv)$/i.test(url)
+                          const isDocument = selectedContent.type === 'document' || /\.(pdf|doc|docx|txt|rtf|xls|xlsx|ppt|pptx)$/i.test(url)
+                          const canViewInline = isImage || isVideo || isDocument
+                          
+                          return (
+                            <div key={index} className="group relative">
+                              <div className="aspect-square bg-gradient-to-br from-orange-100 to-orange-200 rounded-xl overflow-hidden border border-orange-300 hover:border-orange-400 transition-colors">
+                                {isImage ? (
+                                  <div className="relative w-full h-full bg-white">
+                                    {/* Always visible fallback background */}
+                                    <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-orange-50 to-orange-100">
+                                      <div className="text-center">
+                                        <div className="text-2xl mb-2">🖼️</div>
+                                        <p className="text-xs text-orange-700 font-medium px-2">{fileName}</p>
+                                      </div>
+                                    </div>
+                                    {/* Image overlay - will cover fallback if it loads */}
+                                    <img 
+                                      src={url} 
+                                      alt={fileName}
+                                      className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                                      style={{ zIndex: 2 }}
+                                      onLoad={(e) => {
+                                        console.log('✅ Image loaded successfully:', url)
+                                        const target = e.target as HTMLImageElement
+                                        target.style.opacity = '1'
+                                      }}
+                                      onError={(e) => {
+                                        console.error('❌ Image failed to load:', url)
+                                        const target = e.target as HTMLImageElement
+                                        target.style.display = 'none'
+                                      }}
+                                    />
+                                    {/* Hover overlay */}
+                                    <div 
+                                      className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity"
+                                      style={{ zIndex: 3 }}
+                                    >
+                                      <div className="text-center text-white">
+                                        <Eye className="w-6 h-6 mx-auto mb-1" />
+                                        <p className="text-xs font-medium">Click to view</p>
+                                      </div>
+                                    </div>
                                   </div>
-                                </div>
+                                ) : isVideo ? (
+                                  <div className="relative w-full h-full bg-orange-900 rounded-xl overflow-hidden">
+                                    <video 
+                                      src={url} 
+                                      className="w-full h-full object-cover"
+                                      muted
+                                    />
+                                    <div className="absolute inset-0 bg-orange-900 bg-opacity-30 flex items-center justify-center">
+                                      <div className="w-12 h-12 bg-orange-100 bg-opacity-90 rounded-full flex items-center justify-center">
+                                        <Video className="w-6 h-6 text-orange-700" />
+                                      </div>
+                                    </div>
+                                  </div>
+                                ) : isDocument ? (
+                                  <div className="w-full h-full flex items-center justify-center bg-orange-50">
+                                    <div className="text-center">
+                                      <FileText className="w-8 h-8 text-orange-600 mx-auto mb-2" />
+                                      <p className="text-xs text-orange-700 truncate px-2 font-medium">
+                                        {fileName}
+                                      </p>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center bg-orange-50">
+                                    <div className="text-center">
+                                      {(() => {
+                                        const Icon = getItemIcon(selectedContent.type)
+                                        return <Icon className="w-8 h-8 text-orange-500 mx-auto mb-2" />
+                                      })()}
+                                      <p className="text-xs text-orange-700 truncate px-2 font-medium">
+                                        {fileName}
+                                      </p>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                              
+                              {canViewInline ? (
+                                <button
+                                  onClick={() => {
+                                    console.log('Button clicked! Opening media viewer...')
+                                    const fileType = isImage ? 'image' : isVideo ? 'video' : 'document'
+                                    openMediaViewer(
+                                      url,
+                                      fileType,
+                                      fileName,
+                                      selectedContent.attributes?.file_urls || [],
+                                      index
+                                    )
+                                  }}
+                                  className="absolute inset-0 rounded-xl bg-transparent transition-all duration-200 flex items-center justify-center hover:bg-orange-500 hover:bg-opacity-10"
+                                  style={{ zIndex: 10 }}
+                                >
+                                  {/* This button is now invisible but clickable and sits on top of everything */}
+                                </button>
+                              ) : (
+                                <a
+                                  href={url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="absolute inset-0 rounded-xl bg-orange-500 bg-opacity-0 hover:bg-opacity-10 transition-all duration-200 flex items-center justify-center"
+                                >
+                                  <ExternalLink className="w-5 h-5 text-orange-600 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                                </a>
                               )}
                             </div>
-                            <a
-                              href={url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="absolute inset-0 rounded-lg bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 flex items-center justify-center"
-                            >
-                              <ExternalLink className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
-                            </a>
-                          </div>
-                        ))}
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Single File Section */}
+                  {selectedContent.file_url && !selectedContent.attributes?.file_urls && (
+                    <div className="bg-white border border-orange-200 rounded-xl p-6 shadow-sm">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">File</h3>
+                      <div className="flex justify-center">
+                        {(() => {
+                          const fileName = selectedContent.name
+                          const url = selectedContent.file_url!
+                          const isImage = selectedContent.type === 'image' || /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(url)
+                          const isVideo = selectedContent.type === 'video' || /\.(mp4|mov|avi|wmv|flv|webm|mkv)$/i.test(url)
+                          const canViewInline = isImage || isVideo
+                          
+                          return (
+                            <div className="group relative max-w-md">
+                              <div className="aspect-square bg-orange-100 rounded-xl overflow-hidden border border-orange-200">
+                                {isImage ? (
+                                  <img 
+                                    src={url} 
+                                    alt={fileName}
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                                  />
+                                ) : isVideo ? (
+                                  <div className="relative w-full h-full bg-orange-900 rounded-xl overflow-hidden">
+                                    <video 
+                                      src={url} 
+                                      className="w-full h-full object-cover"
+                                      muted
+                                    />
+                                    <div className="absolute inset-0 bg-orange-900 bg-opacity-30 flex items-center justify-center">
+                                      <div className="w-12 h-12 bg-orange-100 bg-opacity-90 rounded-full flex items-center justify-center">
+                                        <Video className="w-6 h-6 text-orange-700" />
+                                      </div>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center bg-orange-50">
+                                    <div className="text-center">
+                                      {(() => {
+                                        const Icon = getItemIcon(selectedContent.type)
+                                        return <Icon className="w-8 h-8 text-orange-500 mx-auto mb-2" />
+                                      })()}
+                                      <p className="text-xs text-orange-700 truncate px-2 font-medium">
+                                        {fileName}
+                                      </p>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                              
+                              {canViewInline ? (
+                                <button
+                                  onClick={() => {
+                                    console.log('Single file button clicked! Opening media viewer...')
+                                    openMediaViewer(
+                                      url,
+                                      isImage ? 'image' : 'video',
+                                      fileName,
+                                      [url],
+                                      0
+                                    )
+                                  }}
+                                  className="absolute inset-0 rounded-xl bg-orange-500 bg-opacity-0 hover:bg-opacity-10 transition-all duration-200 flex items-center justify-center"
+                                >
+                                  <Eye className="w-5 h-5 text-orange-600 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                                </button>
+                              ) : (
+                                <a
+                                  href={url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="absolute inset-0 rounded-xl bg-orange-500 bg-opacity-0 hover:bg-opacity-10 transition-all duration-200 flex items-center justify-center"
+                                >
+                                  <ExternalLink className="w-5 h-5 text-orange-600 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                                </a>
+                              )}
+                            </div>
+                          )
+                        })()}
                       </div>
                     </div>
                   )}
 
                   {/* Link Section */}
                   {selectedContent.attributes?.url && (
-                    <div className="bg-white border border-gray-200 rounded-xl p-6">
+                    <div className="bg-white border border-orange-200 rounded-xl p-6 shadow-sm">
                       <h3 className="text-lg font-semibold text-gray-900 mb-4">Link</h3>
-                      <div className="flex items-center space-x-3 p-4 bg-gray-50 rounded-lg">
-                        <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                          <ExternalLink className="w-5 h-5 text-green-600" />
+                      <div className="flex items-center space-x-3 p-4 bg-orange-50 rounded-xl border border-orange-200">
+                        <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
+                          <ExternalLink className="w-5 h-5 text-orange-600" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <a
@@ -1490,15 +1787,15 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
 
                   {/* Tags Section */}
                   {selectedContent.tags && selectedContent.tags.length > 0 && (
-                    <div className="bg-white border border-gray-200 rounded-xl p-6">
+                    <div className="bg-white border border-orange-200 rounded-xl p-6 shadow-sm">
                       <h3 className="text-lg font-semibold text-gray-900 mb-4">Tags</h3>
                       <div className="flex flex-wrap gap-2">
                         {selectedContent.tags.map((tag, index) => (
                           <span
                             key={index}
-                            className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+                            className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-orange-100 text-orange-700 hover:bg-orange-200 transition-colors"
                           >
-                            <Hash className="w-3 h-3 mr-1" />
+                            <Hash className="w-3 h-3 mr-1 text-orange-500" />
                             {tag}
                           </span>
                         ))}
@@ -1507,12 +1804,12 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
                   )}
 
                   {/* Information Section */}
-                  <div className="bg-white border border-gray-200 rounded-xl p-6">
+                  <div className="bg-white border border-orange-200 rounded-xl p-6 shadow-sm">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4">Information</h3>
                     <div className="grid grid-cols-2 gap-6">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Created</label>
-                        <div className="flex items-center text-gray-600">
+                        <label className="block text-sm font-medium text-orange-700 mb-1">Created</label>
+                        <div className="flex items-center text-orange-600">
                           <Calendar className="w-4 h-4 mr-2" />
                           <span className="text-sm">
                             {new Date(selectedContent.created_at).toLocaleDateString()}
@@ -1520,8 +1817,8 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
                         </div>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Last Updated</label>
-                        <div className="flex items-center text-gray-600">
+                        <label className="block text-sm font-medium text-orange-700 mb-1">Last Updated</label>
+                        <div className="flex items-center text-orange-600">
                           <Clock className="w-4 h-4 mr-2" />
                           <span className="text-sm">
                             {new Date(selectedContent.updated_at).toLocaleDateString()}
@@ -1535,9 +1832,9 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
             ) : (
               <div className="flex items-center justify-center h-full">
                 <div className="text-center">
-                  <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                  <BookOpen className="w-16 h-16 text-orange-400 mx-auto mb-4" />
                   <h3 className="text-lg font-medium text-gray-900 mb-2">Select Content</h3>
-                  <p className="text-gray-600">Choose content from the list to view details</p>
+                  <p className="text-orange-600">Choose content from the list to view details</p>
                 </div>
               </div>
             )}
@@ -1545,6 +1842,187 @@ export default function ResearchPanel({ projectId, selectedElement, triggerCreat
         </div>
       </div>
     </div>
+
+      {/* Media Viewer Modal */}
+      {mediaViewerOpen && viewerMedia && (
+         <div 
+          className="fixed inset-0 flex items-center justify-center"
+          style={{ 
+            zIndex: 9999,
+            backgroundColor: 'rgba(0, 0, 0, 0.43)'
+          }}
+          onClick={closeMediaViewer}
+        >
+          <div 
+            className="relative flex items-center justify-center p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close Button */}
+            <button
+              onClick={closeMediaViewer}
+              className="fixed top-4 right-4 p-2 bg-white bg-opacity-90 hover:bg-opacity-100 rounded-full text-black transition-all shadow-lg"
+              style={{ zIndex: 10000 }}
+            >
+              <X className="w-6 h-6" />
+            </button>
+
+            {/* Previous Button */}
+            {viewerMedia.totalCount > 1 && (
+              <button
+                onClick={() => navigateMedia('prev')}
+                className="fixed left-4 top-1/2 transform -translate-y-1/2 p-3 bg-white bg-opacity-90 hover:bg-opacity-100 rounded-full text-black transition-all shadow-lg"
+                style={{ zIndex: 10000 }}
+              >
+                <ChevronLeft className="w-6 h-6" />
+              </button>
+            )}
+
+            {/* Next Button */}
+            {viewerMedia.totalCount > 1 && (
+              <button
+                onClick={() => navigateMedia('next')}
+                className="fixed right-4 top-1/2 transform -translate-y-1/2 p-3 bg-white bg-opacity-90 hover:bg-opacity-100 rounded-full text-black transition-all shadow-lg"
+                style={{ zIndex: 10000 }}
+              >
+                <ChevronRight className="w-6 h-6" />
+              </button>
+            )}
+
+            {/* Media Content */}
+            <div className="w-full h-full flex items-center justify-center p-8">
+              {viewerMedia.type === 'image' ? (
+                <img
+                  src={viewerMedia.url}
+                  alt={viewerMedia.name}
+                  className="max-w-full max-h-full object-contain shadow-2xl"
+                  style={{ maxWidth: 'calc(100vw - 8rem)', maxHeight: 'calc(100vh - 8rem)' }}
+                  onClick={(e) => e.stopPropagation()}
+                  onError={(e) => {
+                    console.error('Failed to load image:', viewerMedia.url)
+                    addToast({
+                      type: 'error',
+                      title: 'Failed to load image',
+                      message: 'The image could not be displayed'
+                    })
+                  }}
+                />
+              ) : viewerMedia.type === 'video' ? (
+                <video
+                  src={viewerMedia.url}
+                  controls
+                  autoPlay
+                  className="max-w-full max-h-full shadow-2xl"
+                  style={{ maxWidth: 'calc(100vw - 8rem)', maxHeight: 'calc(100vh - 8rem)' }}
+                  onClick={(e) => e.stopPropagation()}
+                  onError={(e) => {
+                    console.error('Failed to load video:', viewerMedia.url)
+                    addToast({
+                      type: 'error',
+                      title: 'Failed to load video',
+                      message: 'The video could not be played'
+                    })
+                  }}
+                >
+                  Your browser does not support the video tag.
+                </video>
+              ) : viewerMedia.type === 'document' ? (
+                <div className="w-full h-full flex items-center justify-center">
+                  {viewerMedia.url.toLowerCase().endsWith('.pdf') ? (
+                    <iframe
+                      src={viewerMedia.url}
+                      className="border-0 shadow-2xl rounded-lg"
+                      style={{
+                        width: 'calc(100vw - 8rem)',
+                        height: 'calc(100vh - 8rem)'
+                      }}
+                      title={viewerMedia.name}
+                      onClick={(e) => e.stopPropagation()}
+                      onError={(e) => {
+                        console.error('Failed to load document:', viewerMedia.url)
+                        addToast({
+                          type: 'error',
+                          title: 'Failed to load document',
+                          message: 'The document could not be displayed'
+                        })
+                      }}
+                    />
+                  ) : viewerMedia.url.toLowerCase().match(/\.(txt|rtf)$/i) ? (
+                    <div className="w-full h-full max-w-4xl bg-white rounded-lg shadow-2xl overflow-hidden">
+                      <div className="bg-gray-100 px-6 py-4 border-b border-gray-200">
+                        <h3 className="text-lg font-medium text-gray-900">{viewerMedia.name}</h3>
+                        <div className="flex items-center space-x-4 mt-2">
+                          <a
+                            href={viewerMedia.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center text-sm text-blue-600 hover:text-blue-800"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <ExternalLink className="w-4 h-4 mr-1" />
+                            Open in new tab
+                          </a>
+                        </div>
+                      </div>
+                      <div className="p-6 h-full overflow-auto">
+                        <iframe
+                          src={viewerMedia.url}
+                          className="w-full h-full border-0"
+                          style={{ minHeight: 'calc(100vh - 16rem)' }}
+                          title={viewerMedia.name}
+                          onClick={(e) => e.stopPropagation()}
+                          onError={(e) => {
+                            console.error('Failed to load text file:', viewerMedia.url)
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center p-8 bg-gray-800 bg-opacity-80 rounded-lg">
+                      <FileText className="w-16 h-16 text-blue-400 mx-auto mb-4" />
+                      <h3 className="text-lg font-medium text-white mb-2">{viewerMedia.name}</h3>
+                      <p className="text-gray-300 mb-4">This document type cannot be previewed inline.</p>
+                      <div className="space-y-3">
+                        <a
+                          href={viewerMedia.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <ExternalLink className="w-4 h-4 mr-2" />
+                          Open Document
+                        </a>
+                        <p className="text-xs text-gray-400">
+                          Will open in a new tab
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : null}
+            </div>
+
+            {/* Media Info */}
+            <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-50 text-white px-4 py-2 rounded-lg" style={{ zIndex: 10000 }}>
+              <div className="text-center">
+                <p className="font-medium">{viewerMedia.name}</p>
+                {viewerMedia.totalCount > 1 && (
+                  <p className="text-sm opacity-75">
+                    {viewerMedia.index + 1} of {viewerMedia.totalCount}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Keyboard hint */}
+            {viewerMedia.totalCount > 1 && (
+              <div className="fixed top-4 left-4 bg-white bg-opacity-90 text-black text-sm px-3 py-2 rounded-lg shadow-lg" style={{ zIndex: 10000 }}>
+                Use ← → arrows or click buttons to navigate
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Toast Notifications */}
       <div className="fixed top-4 right-4 z-50 space-y-2">
