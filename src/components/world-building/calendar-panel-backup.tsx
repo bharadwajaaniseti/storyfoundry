@@ -129,18 +129,6 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
     fetchLinkedElements()
   }, [projectId])
 
-  // Listen for calendar type selection event from sidebar
-  useEffect(() => {
-    const handleCalendarTypeSelection = (e: CustomEvent) => {
-      if (e.detail?.projectId === projectId) {
-        setCurrentView('systems')
-      }
-    }
-
-    window.addEventListener('openCalendarTypeSelection', handleCalendarTypeSelection as EventListener)
-    return () => window.removeEventListener('openCalendarTypeSelection', handleCalendarTypeSelection as EventListener)
-  }, [projectId])
-
   const fetchEvents = async () => {
     try {
       const { data, error } = await supabase
@@ -610,10 +598,7 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
   }
 
   return (
-    <div className="h-full">
-      {/* Main Calendar View */}
-      {currentView === 'calendar' && (
-        <div className="h-full bg-white flex">
+    <div className="h-full bg-white flex">
       {/* Enhanced Sidebar */}
       <div className="w-96 border-r border-gray-200 flex flex-col">
         {/* Header */}
@@ -626,7 +611,7 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
               </Button>
               <Button 
                 size="sm"
-                onClick={handleCalendarSystemClick}
+                onClick={handleCreateNew}
                 className="bg-orange-500 hover:bg-orange-600 text-white"
               >
                 <Plus className="w-4 h-4 mr-1" />
@@ -740,7 +725,7 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
               <Button 
                 variant="outline" 
                 size="sm"
-                onClick={handleCalendarSystemClick}
+                onClick={handleCreateNew}
               >
                 Create your first event
               </Button>
@@ -1085,81 +1070,155 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
           </div>
         )}
       </div>
-        </div>
-      )}
 
       {/* Calendar Systems Selection View */}
       {currentView === 'systems' && (
-        <CalendarSystemsView
-          selectedCalendarType={selectedCalendarType}
-          setSelectedCalendarType={setSelectedCalendarType}
-          newCalendarName={newCalendarName}
-          setNewCalendarName={setNewCalendarName}
-          onCreateNew={() => {
-            const template = selectedCalendarType === 'default' ? {
-              id: 'default',
-              name: newCalendarName || 'Standard Calendar',
-              description: 'Earth-like calendar system',
-              eras: [
-                {
-                  id: 'era1',
-                  name: 'Modern Era',
-                  startYear: 1,
-                  description: 'Current time period',
-                  color: '#3B82F6'
-                }
-              ],
-              months: [
-                { id: 'm1', name: 'January', days: 31, order: 1, season: 'winter' },
-                { id: 'm2', name: 'February', days: 28, order: 2, season: 'winter' },
-                { id: 'm3', name: 'March', days: 31, order: 3, season: 'spring' },
-                { id: 'm4', name: 'April', days: 30, order: 4, season: 'spring' },
-                { id: 'm5', name: 'May', days: 31, order: 5, season: 'spring' },
-                { id: 'm6', name: 'June', days: 30, order: 6, season: 'summer' },
-                { id: 'm7', name: 'July', days: 31, order: 7, season: 'summer' },
-                { id: 'm8', name: 'August', days: 31, order: 8, season: 'summer' },
-                { id: 'm9', name: 'September', days: 30, order: 9, season: 'autumn' },
-                { id: 'm10', name: 'October', days: 31, order: 10, season: 'autumn' },
-                { id: 'm11', name: 'November', days: 30, order: 11, season: 'autumn' },
-                { id: 'm12', name: 'December', days: 31, order: 12, season: 'winter' }
-              ],
-              weekdays: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
-              moons: [
-                {
-                  id: 'luna',
-                  name: 'Luna',
-                  cycle: 29,
-                  color: '#E5E7EB',
-                  phase: 'full' as const
-                }
-              ],
-              seasons: [
-                { id: 's1', name: 'Spring', startMonth: 3, startDay: 21, duration: 92, color: '#10B981' },
-                { id: 's2', name: 'Summer', startMonth: 6, startDay: 21, duration: 93, color: '#F59E0B' },
-                { id: 's3', name: 'Autumn', startMonth: 9, startDay: 22, duration: 90, color: '#DC2626' },
-                { id: 's4', name: 'Winter', startMonth: 12, startDay: 21, duration: 90, color: '#3B82F6' }
-              ]
-            } : {
-              id: 'custom-calendar',
-              name: newCalendarName,
-              description: 'Custom calendar system',
-              eras: [],
-              months: [],
-              moons: [],
-              seasons: [],
-              weekdays: ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5', 'Day 6', 'Day 7'],
-              yearLength: 365,
-              startDate: { year: 1, month: 1, day: 1 }
-            }
-            setEditingCalendarSystem(template)
-            setCurrentView('create')
-          }}
-          onSelect={(system) => {
-            setActiveCalendarSystem(system)
-            setCurrentView('calendar')
-          }}
-          onBack={() => setCurrentView('calendar')}
-        />
+        <div className="h-full bg-black flex items-center justify-center">
+          <div className="text-center space-y-12 max-w-2xl mx-auto px-8">
+            <div className="space-y-4">
+              <h1 className="text-4xl font-bold text-white">Choose Calendar Type</h1>
+              <p className="text-xl text-gray-300">
+                Select how you want to manage time in your story
+              </p>
+            </div>
+
+          <div className="flex-1 overflow-y-auto bg-gray-50">
+            {!isCreatingCalendar ? (
+              // Calendar Selection View
+              <div className="p-12 space-y-10 bg-white m-6 rounded-xl shadow-sm">
+                <div className="text-xl text-gray-700 text-center">
+                  Select an existing calendar system or create a new one for your project.
+                </div>
+
+                {/* Existing Calendars */}
+                {calendarSystems.length > 0 && (
+                  <div className="space-y-8">
+                    <h3 className="text-2xl font-bold text-gray-900 text-center">Existing Calendars</h3>
+                    <div className="grid gap-8 max-w-4xl mx-auto">
+                      {calendarSystems.map((system) => (
+                        <Card
+                          key={system.id}
+                          className={`cursor-pointer transition-all duration-200 hover:shadow-2xl border-3 ${
+                            activeCalendarSystem?.id === system.id
+                              ? 'ring-4 ring-orange-500 bg-orange-50 border-orange-400 shadow-xl'
+                              : 'bg-white hover:bg-gray-50 border-gray-300 hover:border-gray-400'
+                          }`}
+                          onClick={() => handleSelectCalendarSystem(system.id)}
+                        >
+                          <CardContent className="p-10">
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-6 mb-4">
+                                  <div className={`w-6 h-6 rounded-full ${
+                                    activeCalendarSystem?.id === system.id ? 'bg-orange-500' : 'bg-gray-400'
+                                  }`} />
+                                  <h4 className="text-2xl font-bold text-gray-900">{system.name}</h4>
+                                  {activeCalendarSystem?.id === system.id && (
+                                    <Badge className="bg-orange-500 text-white px-4 py-2 text-sm font-bold rounded-full">Active</Badge>
+                                  )}
+                                </div>
+                                <p className="text-gray-600 mb-6 text-lg leading-relaxed">{system.description}</p>
+                                <div className="flex items-center gap-12 text-base text-gray-500">
+                                  <div className="flex items-center gap-3">
+                                    <CalendarIcon className="w-5 h-5" />
+                                    <span className="font-medium">{system.eras.length} eras</span>
+                                  </div>
+                                  <div className="flex items-center gap-3">
+                                    <Clock className="w-5 h-5" />
+                                    <span className="font-medium">{system.months.length} months</span>
+                                  </div>
+                                  <div className="flex items-center gap-3">
+                                    <Moon className="w-5 h-5" />
+                                    <span className="font-medium">{system.moons.length} moons</span>
+                                  </div>
+                                  <div className="flex items-center gap-3">
+                                    <Sun className="w-5 h-5" />
+                                    <span className="font-medium">{system.seasons.length} seasons</span>
+                                  </div>
+                                </div>
+                              </div>
+                              {activeCalendarSystem?.id === system.id && (
+                                <div className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center flex-shrink-0 ml-8">
+                                  <CheckCircle className="w-7 h-7 text-white" />
+                                </div>
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Create New Calendar */}
+                <div className="space-y-8">
+                  <h3 className="text-2xl font-bold text-gray-900 text-center">Create New Calendar</h3>
+                  <div className="max-w-4xl mx-auto">
+                    <Card 
+                      className="cursor-pointer transition-all duration-200 hover:shadow-2xl hover:bg-orange-50 border-3 border-dashed border-orange-500 hover:border-orange-600 bg-orange-25" 
+                      onClick={handleCreateNewCalendar}
+                    >
+                      <CardContent className="p-12 text-center">
+                        <div className="w-20 h-20 bg-orange-500 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-xl">
+                          <Plus className="w-10 h-10 text-white" />
+                        </div>
+                        <h4 className="text-2xl font-bold text-gray-900 mb-4">New Calendar System</h4>
+                        <p className="text-gray-600 text-lg leading-relaxed max-w-2xl mx-auto">
+                          Create a custom calendar with your own eras, months, moons, and seasons. Design the perfect timekeeping system for your world.
+                        </p>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </div>
+
+                <div className="flex justify-center pt-12 border-t border-gray-200">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setCurrentView('calendar')}
+                    className="px-12 py-4 text-lg font-medium"
+                  >
+                    <ArrowLeft className="w-5 h-5 mr-2" />
+                    Back to Calendar
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              // Calendar Creation View
+              <div className="bg-white m-6 rounded-xl shadow-sm">
+                {/* Basic Info */}
+                <div className="bg-white p-12 rounded-xl border-b space-y-8">
+                  <h3 className="text-2xl font-bold text-gray-900 text-center">Basic Information</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+                    <div>
+                      <Label htmlFor="calendar-name" className="text-base font-bold text-gray-700 mb-3 block">
+                        Calendar Name *
+                      </Label>
+                      <Input
+                        id="calendar-name"
+                        value={newCalendarName}
+                        onChange={(e) => setNewCalendarName(e.target.value)}
+                        placeholder="Enter calendar name..."
+                        className="text-lg p-4 border-2 focus:border-orange-500"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="calendar-description" className="text-base font-bold text-gray-700 mb-3 block">
+                        Description
+                      </Label>
+                      <Input
+                        id="calendar-description"
+                        value={newCalendarDescription}
+                        onChange={(e) => setNewCalendarDescription(e.target.value)}
+                        placeholder="Brief description..."
+                        className="text-lg p-4 border-2 focus:border-orange-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Calendar Creation View */}

@@ -2974,6 +2974,18 @@ function NovelPageInner() {
                               setTimeout(() => setTriggerNewResearchFile(false), 100)
                             }
                             
+                            // For calendar, trigger the choose calendar type screen
+                            if (option.id === 'calendar') {
+                              // Ensure we're on the calendar panel
+                              setActivePanel('calendar')
+                              // Trigger the calendar type selection (black screen with two buttons)
+                              setTimeout(() => {
+                                window.dispatchEvent(new CustomEvent('openCalendarTypeSelection', { 
+                                  detail: { projectId: params?.id } 
+                                }))
+                              }, 100)
+                            }
+                            
                             // The component will handle the creation UI internally
                           }}
                           className="p-1 text-gray-600 hover:text-green-600 rounded transition-colors"
