@@ -24,7 +24,7 @@ import {
   Flame
 } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/auth'
-import TimelineManager from './timeline-manager'
+import TimelinePanel from './world-building/timeline-panel'
 import NewCharacter from './new-character'
 import NewLocation from './new-location'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -92,11 +92,8 @@ export default function WorldBuildingSidebar({
   const [showResearchDialog, setShowResearchDialog] = useState(false)
   const [researchFileName, setResearchFileName] = useState('')
 
-  console.log('WorldBuildingSidebar component mounted/re-rendered for project:', projectId)
-
   useEffect(() => {
     // Always load elements for accurate counts, regardless of sidebar state
-    console.log('WorldBuildingSidebar initial effect triggered for project:', projectId)
     loadElements()
   }, [projectId])
 
@@ -191,6 +188,40 @@ export default function WorldBuildingSidebar({
     window.addEventListener('locationUpdated', handleLocationUpdated as EventListener);
     window.addEventListener('locationDeleted', handleLocationDeleted as EventListener);
 
+    // Handle timeline creation events
+    const handleTimelineCreated = (event: CustomEvent) => {
+      if (event.detail.projectId !== projectId) return;
+      const timeline = event.detail.timeline;
+      setElements((prev) => {
+        const exists = prev.some(el => el.id === timeline.id);
+        if (exists) return prev;
+        return [...prev, timeline];
+      });
+    };
+
+    const handleTimelineUpdated = (event: CustomEvent) => {
+      if (event.detail.projectId !== projectId) return;
+      const timeline = event.detail.timeline;
+      setElements((prev) => 
+        prev.map(el => 
+          el.id === timeline.id ? timeline : el
+        )
+      );
+    };
+
+    const handleTimelineDeleted = (event: CustomEvent) => {
+      if (event.detail.projectId !== projectId) return;
+      const timelineId = event.detail.timelineId;
+      setElements((prev) => prev.filter(el => el.id !== timelineId));
+      if (selectedElement?.id === timelineId) {
+        setSelectedElement(null);
+      }
+    };
+
+    window.addEventListener('timelineCreated', handleTimelineCreated as EventListener);
+    window.addEventListener('timelineUpdated', handleTimelineUpdated as EventListener);
+    window.addEventListener('timelineDeleted', handleTimelineDeleted as EventListener);
+
     // Handle map creation events
     const handleMapCreated = (event: CustomEvent) => {
       if (event.detail.projectId !== projectId) return;
@@ -251,6 +282,9 @@ export default function WorldBuildingSidebar({
       window.removeEventListener('locationCreated', handleLocationCreated as EventListener);
       window.removeEventListener('locationUpdated', handleLocationUpdated as EventListener);
       window.removeEventListener('locationDeleted', handleLocationDeleted as EventListener);
+      window.removeEventListener('timelineCreated', handleTimelineCreated as EventListener);
+      window.removeEventListener('timelineUpdated', handleTimelineUpdated as EventListener);
+      window.removeEventListener('timelineDeleted', handleTimelineDeleted as EventListener);
       window.removeEventListener('mapCreated', handleMapCreated as EventListener);
       window.removeEventListener('researchFileCreated', handleResearchFileCreated as EventListener);
       window.removeEventListener('reloadSidebar', handleSidebarReload as EventListener);
@@ -260,7 +294,6 @@ export default function WorldBuildingSidebar({
 
   const loadElements = async () => {
     try {
-      console.log('Loading sidebar elements for project:', projectId)
       const supabase = createSupabaseClient()
       const { data, error } = await supabase
         .from('world_elements')
@@ -270,7 +303,8 @@ export default function WorldBuildingSidebar({
         .order('name', { ascending: true })
 
       if (error) throw error
-      console.log('Loaded sidebar elements:', data?.length, 'items')
+      
+      setElements(data || [])
       
       // Debug research elements
       const researchElements = data?.filter(el => el.category === 'research') || []
@@ -502,13 +536,14 @@ export default function WorldBuildingSidebar({
   }
 
   const getElementsByCategory = (category: string) => {
-    return elements.filter(el => 
+    const filtered = elements.filter(el => 
       el.category === category && 
       (searchTerm === '' || 
        el.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
        el.description.toLowerCase().includes(searchTerm.toLowerCase())
       )
     )
+    return filtered
   }
 
   const toggleCategory = (category: string) => {
@@ -642,30 +677,66 @@ export default function WorldBuildingSidebar({
                     
                     {isExpanded && (
                       <div className="ml-8 mt-1 space-y-1">
-                        {categoryElements.map(element => (
-                          <button
-                            key={element.id}
-                            onClick={() => {
-                              if (element.category === 'characters' && onShowCharacterEditor) {
-                                onShowCharacterEditor(element)
-                              } else {
-                                setSelectedElement(element)
-                              }
-                            }}
-                            className={`w-full text-left p-2 rounded text-sm transition-colors ${
-                              selectedElement?.id === element.id
-                                ? 'bg-purple-100 text-purple-800'
-                                : 'hover:bg-gray-50'
-                            }`}
-                          >
-                            <div className="font-medium truncate">{element.name}</div>
-                            {element.description && (
-                              <div className="text-gray-500 text-xs truncate mt-1">
-                                {element.description}
-                              </div>
-                            )}
-                          </button>
-                        ))}
+                        {categoryElements.map(element => {
+                          // Debug logging for timeline specifically
+                          if (category.key === 'timeline') {
+                            console.log('Rendering timeline element:', element.name, element.id)
+                          }
+                          
+                          return (
+                            <button
+                              key={element.id}
+                              onClick={(e) => {
+                                console.log('🎯 BUTTON CLICKED:', element.name, element.category)
+                                e.preventDefault()
+                                e.stopPropagation()
+                                console.log('Element clicked:', element.name, 'Category:', element.category)
+                                
+                                if (element.category === 'characters' && onShowCharacterEditor) {
+                                  onShowCharacterEditor(element)
+                                } else if (element.category === 'timeline') {
+                                  // Handle timeline selection
+                                  setSelectedElement(element)
+                                  
+                                  // Dispatch timeline selection event for TimelinePanel
+                                  window.dispatchEvent(new CustomEvent('timelineSelected', {
+                                    detail: {
+                                      projectId: projectId,
+                                      timelineId: element.id
+                                    }
+                                  }))
+                                  console.log('🎯 SIDEBAR: Event dispatched successfully')
+                                  
+                                  if (onElementSelect) {
+                                    console.log('Calling onElementSelect for timeline')
+                                    onElementSelect(element)
+                                  }
+                                  if (onNavigateToPanel) {
+                                    console.log('Calling onNavigateToPanel for timeline')
+                                    onNavigateToPanel('timeline')
+                                  }
+                                } else {
+                                  setSelectedElement(element)
+                                  if (onElementSelect) {
+                                    onElementSelect(element)
+                                  }
+                                }
+                              }}
+                              className={`w-full text-left p-2 rounded text-sm transition-colors ${
+                                selectedElement?.id === element.id
+                                  ? 'bg-purple-100 text-purple-800'
+                                  : 'hover:bg-gray-50'
+                              }`}
+                            >
+                              <div className="font-medium truncate">{element.name}</div>
+                              {element.description && (
+                                <div className="text-gray-500 text-xs truncate mt-1">
+                                  {element.description}
+                                </div>
+                              )}
+                            </button>
+                          )
+                        })}
                         
                         <button
                           onClick={() => {
@@ -694,7 +765,7 @@ export default function WorldBuildingSidebar({
         </TabsContent>
         
         <TabsContent value="timeline" className="flex-1 m-0 p-4">
-          <TimelineManager projectId={projectId} />
+          <TimelinePanel projectId={projectId} />
         </TabsContent>
         
         <TabsContent value="research" className="flex-1 m-0 p-4">

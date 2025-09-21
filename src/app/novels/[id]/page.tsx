@@ -421,8 +421,23 @@ function NovelPageInner() {
       loadWorldElements(params.id)
     }
 
+    const handleTimelineCreated = (e: CustomEvent) => {
+      console.log('Main page received timeline created event')
+      if (e.detail?.projectId !== params.id) return
+      console.log('Adding new timeline to worldElements')
+      const timeline = e.detail?.timeline
+      if (timeline) {
+        setWorldElements(prev => {
+          const exists = prev.some(el => el.id === timeline.id)
+          if (exists) return prev
+          return [...prev, timeline]
+        })
+      }
+    }
+
     window.addEventListener('researchFileCreated', handleResearchFileCreated as EventListener)
     window.addEventListener('reloadSidebar', handleSidebarReload as EventListener)
+    window.addEventListener('timelineCreated', handleTimelineCreated as EventListener)
     
     console.log('Main page event listeners registered for project:', params.id)
     
@@ -430,6 +445,7 @@ function NovelPageInner() {
       console.log('Removing main page event listeners for project:', params.id)
       window.removeEventListener('researchFileCreated', handleResearchFileCreated as EventListener)
       window.removeEventListener('reloadSidebar', handleSidebarReload as EventListener)
+      window.removeEventListener('timelineCreated', handleTimelineCreated as EventListener)
     }
   }, [params])
 
@@ -1595,6 +1611,19 @@ function NovelPageInner() {
               onClick={() => {
                 setSelectedElement(element)
                 setActivePanel(categoryId)
+                
+                // Handle timeline selection - dispatch event for TimelinePanel
+                if (categoryId === 'timeline') {
+                  // Add a small delay to ensure TimelinePanel event listeners are registered
+                  setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent('timelineSelected', {
+                      detail: {
+                        projectId: params?.id,
+                        timelineId: element.id
+                      }
+                    }))
+                  }, 100)
+                }
               }}
               onContextMenu={(e) => handleElementContextMenu(e, 'element', element, categoryId)}
               className={`w-full text-left p-2 rounded text-sm transition-colors ${
@@ -2919,6 +2948,18 @@ function NovelPageInner() {
                               setTriggerNewChapter(true)
                               // Reset trigger after a brief moment
                               setTimeout(() => setTriggerNewChapter(false), 100)
+                            }
+                            
+                            // For timeline, trigger timeline creation
+                            if (option.id === 'timeline') {
+                              // Ensure we're on the timeline panel
+                              setActivePanel('timeline')
+                              // Trigger timeline creation form
+                              setTimeout(() => {
+                                window.dispatchEvent(new CustomEvent('triggerTimelineCreation', { 
+                                  detail: { projectId: params?.id } 
+                                }))
+                              }, 100)
                             }
                             
                             // For research, trigger file creation directly
