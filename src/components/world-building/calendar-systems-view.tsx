@@ -12,6 +12,8 @@ interface CalendarSystemsViewProps {
   onCreateNew: () => void
   onSelect: (system: any) => void
   onBack: () => void
+  existingCalendarSystems?: any[]
+  activeCalendarSystem?: any
 }
 
 export default function CalendarSystemsView({
@@ -21,12 +23,80 @@ export default function CalendarSystemsView({
   setNewCalendarName,
   onCreateNew,
   onSelect,
-  onBack
+  onBack,
+  existingCalendarSystems = [],
+  activeCalendarSystem
 }: CalendarSystemsViewProps) {
 
   const handleReset = () => {
     setSelectedCalendarType(null)
     setNewCalendarName('')
+  }
+
+  // If there are existing calendar systems, show them first
+  if (existingCalendarSystems.length > 0 && !selectedCalendarType) {
+    return (
+      <div className="h-full bg-white flex items-center justify-center">
+        <div className="text-center space-y-12 max-w-4xl mx-auto px-8">
+          <div className="space-y-4">
+            <h1 className="text-4xl font-bold text-gray-900">Calendar Systems</h1>
+            <p className="text-xl text-gray-600">
+              Select a calendar system or create a new one
+            </p>
+          </div>
+
+          {/* Existing Calendar Systems */}
+          <div className="space-y-6">
+            <h2 className="text-2xl font-semibold text-gray-800">Existing Calendar Systems</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {existingCalendarSystems.map((system) => (
+                <button
+                  key={system.id}
+                  onClick={() => onSelect(system)}
+                  className={`group relative overflow-hidden border rounded-xl p-6 transition-all duration-300 hover:scale-105 ${
+                    activeCalendarSystem?.id === system.id
+                      ? 'bg-orange-50 border-orange-500 text-orange-900'
+                      : 'bg-gray-50 hover:bg-gray-100 border-gray-200 hover:border-orange-300'
+                  }`}
+                >
+                  <div className="relative z-10">
+                    <CalendarIcon className={`w-12 h-12 mx-auto mb-3 ${
+                      activeCalendarSystem?.id === system.id ? 'text-orange-500' : 'text-gray-500'
+                    }`} />
+                    <h3 className="text-xl font-bold mb-2">{system.name}</h3>
+                    <p className="text-gray-600 text-sm">
+                      {system.description || 'Custom calendar system'}
+                    </p>
+                    {activeCalendarSystem?.id === system.id && (
+                      <div className="mt-3 text-orange-600 text-sm font-medium">
+                        ✓ Currently Active
+                      </div>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            {/* Create New Button */}
+            <div className="pt-6 border-t border-gray-200">
+              <Button
+                onClick={() => setSelectedCalendarType('custom')}
+                className="bg-green-500 hover:bg-green-600 text-white px-8 py-4 text-lg"
+              >
+                + Create New Calendar System
+              </Button>
+            </div>
+          </div>
+
+          {/* Back Button */}
+          <div className="pt-6">
+            <Button variant="outline" onClick={onBack} className="px-8 py-3">
+              Back to Calendar
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (

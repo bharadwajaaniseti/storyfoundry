@@ -435,9 +435,24 @@ function NovelPageInner() {
       }
     }
 
+    const handleCalendarSystemCreated = (e: CustomEvent) => {
+      console.log('Main page received calendarSystemCreated event')
+      if (e.detail?.projectId !== params.id) return
+      console.log('Adding new calendar system to worldElements')
+      const calendarSystem = e.detail?.calendarSystem
+      if (calendarSystem) {
+        setWorldElements(prev => {
+          const exists = prev.some(el => el.id === calendarSystem.id)
+          if (exists) return prev
+          return [...prev, calendarSystem]
+        })
+      }
+    }
+
     window.addEventListener('researchFileCreated', handleResearchFileCreated as EventListener)
     window.addEventListener('reloadSidebar', handleSidebarReload as EventListener)
     window.addEventListener('timelineCreated', handleTimelineCreated as EventListener)
+    window.addEventListener('calendarSystemCreated', handleCalendarSystemCreated as EventListener)
     
     console.log('Main page event listeners registered for project:', params.id)
     
@@ -446,6 +461,7 @@ function NovelPageInner() {
       window.removeEventListener('researchFileCreated', handleResearchFileCreated as EventListener)
       window.removeEventListener('reloadSidebar', handleSidebarReload as EventListener)
       window.removeEventListener('timelineCreated', handleTimelineCreated as EventListener)
+      window.removeEventListener('calendarSystemCreated', handleCalendarSystemCreated as EventListener)
     }
   }, [params])
 
@@ -1002,6 +1018,11 @@ function NovelPageInner() {
       )
     }
     
+    // Special handling for calendar category - calendar systems are stored as 'calendar_system'
+    if (category === 'calendar') {
+      return worldElements.filter(el => el.category === 'calendar_system' && !el.is_folder)
+    }
+    
     return worldElements.filter(el => el.category === category && !el.is_folder)
   }, [chapters, worldElements])
 
@@ -1018,6 +1039,11 @@ function NovelPageInner() {
         el.attributes && 
         el.attributes.research_type === 'file'
       ).length
+    }
+    
+    // Special handling for calendar category - calendar systems are stored as 'calendar_system'
+    if (category === 'calendar') {
+      return worldElements.filter(el => el.category === 'calendar_system').length
     }
     
     return worldElements.filter(el => el.category === category).length
@@ -1489,9 +1515,12 @@ function NovelPageInner() {
       )
     } else {
       // Render folders for world elements
-      const folders = worldElements.filter(el => el.category === categoryId && el.is_folder && !el.parent_folder_id)
+      // Special handling for calendar category - calendar systems are stored as 'calendar_system'
+      const actualCategory = categoryId === 'calendar' ? 'calendar_system' : categoryId
+      
+      const folders = worldElements.filter(el => el.category === actualCategory && el.is_folder && !el.parent_folder_id)
       const rootElements = worldElements.filter(el => {
-        const matchesCategory = el.category === categoryId && !el.is_folder && !el.parent_folder_id
+        const matchesCategory = el.category === actualCategory && !el.is_folder && !el.parent_folder_id
         if (categoryId === 'research' && el.attributes?.research_type) {
           return matchesCategory && el.attributes.research_type === 'file'
         }
@@ -1541,7 +1570,7 @@ function NovelPageInner() {
               {expandedFolders.includes(folder.id) && (
                 <div className="ml-4 space-y-1">
                   {worldElements.filter(el => {
-                    const matchesFolder = el.category === categoryId && !el.is_folder && el.parent_folder_id === folder.id
+                    const matchesFolder = el.category === actualCategory && !el.is_folder && el.parent_folder_id === folder.id
                     if (categoryId === 'research' && el.attributes?.research_type) {
                       return matchesFolder && el.attributes.research_type === 'file'
                     }
@@ -1620,6 +1649,20 @@ function NovelPageInner() {
                       detail: {
                         projectId: params?.id,
                         timelineId: element.id
+                      }
+                    }))
+                  }, 100)
+                }
+                
+                // Handle calendar system selection - dispatch event for CalendarPanel
+                if (categoryId === 'calendar') {
+                  // Add a small delay to ensure CalendarPanel event listeners are registered
+                  setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent('calendarSystemSelected', {
+                      detail: {
+                        projectId: params?.id,
+                        calendarSystemId: element.id,
+                        calendarSystem: element
                       }
                     }))
                   }, 100)

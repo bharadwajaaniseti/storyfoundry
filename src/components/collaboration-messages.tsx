@@ -248,7 +248,7 @@ export default function CollaborationMessages({ projectId }: CollaborationMessag
               <SelectTrigger className="w-32">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="z-50 bg-white border border-gray-200 shadow-lg rounded-lg">
                 <SelectItem value="general">General</SelectItem>
                 <SelectItem value="announcement">Announcement</SelectItem>
                 <SelectItem value="feedback">Feedback</SelectItem>

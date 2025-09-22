@@ -11,6 +11,7 @@ import {
   Users,
   MapPin,
   Clock,
+  Calendar,
   BookOpen,
   Map,
   Zap,
@@ -60,7 +61,8 @@ const CATEGORIES = [
   { key: 'characters', label: 'Characters', icon: Users, color: 'blue' },
   { key: 'locations', label: 'Locations', icon: MapPin, color: 'green' },
   { key: 'timeline', label: 'Timeline', icon: Clock, color: 'purple' },
-  { key: 'research', label: 'Research', icon: BookOpen, color: 'orange' },
+  { key: 'calendar', label: 'Calendar', icon: Calendar, color: 'orange' },
+  { key: 'research', label: 'Research', icon: BookOpen, color: 'amber' },
   { key: 'maps', label: 'Maps', icon: Map, color: 'cyan' },
   { key: 'species', label: 'Species', icon: Zap, color: 'yellow' },
   { key: 'cultures', label: 'Cultures', icon: Crown, color: 'pink' },
@@ -306,6 +308,11 @@ export default function WorldBuildingSidebar({
       
       setElements(data || [])
       
+      // Debug calendar systems specifically
+      const calendarSystems = data?.filter(el => el.category === 'calendar_system') || []
+      console.log('🎯 SIDEBAR LOAD: Calendar systems found:', calendarSystems.length)
+      console.log('🎯 Calendar systems data:', calendarSystems.map(cs => ({ id: cs.id, name: cs.name, category: cs.category })))
+      
       // Debug research elements
       const researchElements = data?.filter(el => el.category === 'research') || []
       const researchFiles = researchElements.filter(el => el.attributes?.research_type === 'file')
@@ -536,13 +543,47 @@ export default function WorldBuildingSidebar({
   }
 
   const getElementsByCategory = (category: string) => {
+    // Special handling for calendar category - calendar systems are stored as 'calendar_system'
+    const actualCategory = category === 'calendar' ? 'calendar_system' : category
+    
+    // Debug logging for calendar specifically
+    if (category === 'calendar') {
+      console.log('🎯 SIDEBAR: Filtering calendar systems')
+      console.log('🎯 Original category:', category)
+      console.log('🎯 Actual category (mapped):', actualCategory)
+      console.log('🎯 Total elements loaded:', elements.length)
+      console.log('🎯 Elements with calendar_system category:', elements.filter(el => el.category === 'calendar_system'))
+      console.log('🎯 All element categories:', [...new Set(elements.map(el => el.category))])
+    }
+    
+    // Special handling for research category - only show research files, not content
+    if (category === 'research') {
+      return elements.filter(el => 
+        el.category === actualCategory && 
+        !(el as any).is_folder && 
+        el.attributes && 
+        (el.attributes as any).research_type === 'file' &&
+        (searchTerm === '' || 
+         el.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+         el.description.toLowerCase().includes(searchTerm.toLowerCase())
+        )
+      )
+    }
+    
     const filtered = elements.filter(el => 
-      el.category === category && 
+      el.category === actualCategory && 
       (searchTerm === '' || 
        el.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
        el.description.toLowerCase().includes(searchTerm.toLowerCase())
       )
     )
+    
+    // Debug logging for calendar filtering result
+    if (category === 'calendar') {
+      console.log('🎯 SIDEBAR: Filtered calendar systems result:', filtered)
+      console.log('🎯 Filtered count:', filtered.length)
+    }
+    
     return filtered
   }
 
