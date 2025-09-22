@@ -1012,14 +1012,14 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
     <div className="h-full bg-gray-50">
       {/* Main Calendar View */}
       {currentView === 'calendar' && (
-        <div className="h-full bg-gray-50 flex">
+        <div className="h-full bg-gray-50 flex flex-col lg:flex-row">
       {/* Enhanced Sidebar */}
-      <div className="w-96 border-r border-gray-200 flex flex-col">
+      <div className="w-full lg:w-80 xl:w-96 border-b lg:border-r lg:border-b-0 border-gray-200 flex flex-col">
         {/* Header */}
-        <div className="p-4 border-b border-gray-200">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Story Calendar</h3>
-            <div className="flex gap-2">
+        <div className="p-3 border-b border-gray-200">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
+            <h3 className="text-base lg:text-lg font-semibold text-gray-900">Story Calendar</h3>
+            <div className="flex flex-wrap gap-1.5">
               <Button 
                 size="sm"
                 onClick={() => {
@@ -1041,51 +1041,52 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
                   setEditingEvent(newEvent)
                   setIsCreating(true)
                 }}
-                className="bg-orange-500 hover:bg-orange-600 text-white"
+                className="bg-orange-500 hover:bg-orange-600 text-white text-xs"
               >
-                <Plus className="w-4 h-4 mr-1" />
+                <Plus className="w-3 h-3 mr-1" />
                 Create Event
               </Button>
               
               {/* Import/Export Buttons */}
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const icsContent = exportToICS(events, activeCalendarSystem?.name || 'Calendar')
-                    downloadFile(icsContent, `${activeCalendarSystem?.name || 'calendar'}.ics`, 'text/calendar')
-                  }}
-                  className="border-blue-200 hover:border-blue-300 text-blue-700 hover:bg-blue-50"
-                >
-                  <Download className="w-4 h-4 mr-1" />
-                  Export ICS
-                </Button>
-                
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const csvContent = exportToCSV(events)
-                    downloadFile(csvContent, `${activeCalendarSystem?.name || 'calendar'}.csv`, 'text/csv')
-                  }}
-                  className="border-green-200 hover:border-green-300 text-green-700 hover:bg-green-50"
-                >
-                  <Download className="w-4 h-4 mr-1" />
-                  Export CSV
-                </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const icsContent = exportToICS(events, activeCalendarSystem?.name || 'Calendar')
+                  downloadFile(icsContent, `${activeCalendarSystem?.name || 'calendar'}.ics`, 'text/calendar')
+                }}
+                className="border-blue-200 hover:border-blue-300 text-blue-700 hover:bg-blue-50 text-xs"
+              >
+                <Download className="w-3 h-3 mr-1" />
+                <span className="hidden sm:inline">Export ICS</span>
+                <span className="sm:hidden">ICS</span>
+              </Button>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const csvContent = exportToCSV(events)
+                  downloadFile(csvContent, `${activeCalendarSystem?.name || 'calendar'}.csv`, 'text/csv')
+                }}
+                className="border-green-200 hover:border-green-300 text-green-700 hover:bg-green-50 text-xs"
+              >
+                <Download className="w-3 h-3 mr-1" />
+                <span className="hidden sm:inline">Export CSV</span>
+                <span className="sm:hidden">CSV</span>
+              </Button>
 
-                <label htmlFor="csv-import" className="cursor-pointer">
-                  <input
-                    id="csv-import"
-                    type="file"
-                    accept=".csv"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0]
-                      if (file) {
-                        const reader = new FileReader()
-                        reader.onload = async (event) => {
+              <label htmlFor="csv-import" className="cursor-pointer">
+                <input
+                  id="csv-import"
+                  type="file"
+                  accept=".csv"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) {
+                      const reader = new FileReader()
+                      reader.onload = async (event) => {
                           const csvContent = event.target?.result as string
                           const importedEvents = parseCSVEvents(csvContent)
                           
@@ -1108,22 +1109,22 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="border-purple-200 hover:border-purple-300 text-purple-700 hover:bg-purple-50"
+                    className="border-purple-200 hover:border-purple-300 text-purple-700 hover:bg-purple-50 text-xs"
                   >
-                    <Upload className="w-4 h-4 mr-1" />
-                    Import CSV
+                    <Upload className="w-3 h-3 mr-1" />
+                    <span className="hidden sm:inline">Import CSV</span>
+                    <span className="sm:hidden">Import</span>
                   </Button>
                 </label>
-              </div>
             </div>
           </div>
           
           {/* Calendar System Display */}
-          <div className="mb-4">
-            <div className="w-full p-3 border border-gray-300 rounded-lg bg-gray-50">
+          <div className="mb-3">
+            <div className="w-full p-2 border border-gray-300 rounded-lg bg-gray-50">
               <div className="flex items-center">
-                <Globe className="w-4 h-4 mr-2 text-gray-600" />
-                <span className="text-sm font-medium text-gray-800">
+                <Globe className="w-3 h-3 mr-2 text-gray-600" />
+                <span className="text-xs font-medium text-gray-800 truncate">
                   {activeCalendarSystem ? activeCalendarSystem.name : 'No Calendar System Selected'}
                 </span>
               </div>
@@ -1132,305 +1133,149 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
           
           {/* Debug Button (temporary) */}
           
-          {/* View Mode Selector */}
-          <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as any)} className="mb-4">
-            <TabsList className="grid grid-cols-4 gap-1">
-              <TabsTrigger value="list" className="text-xs">List</TabsTrigger>
-              <TabsTrigger value="month" className="text-xs">Month</TabsTrigger>
-              <TabsTrigger value="timeline" className="text-xs">Timeline</TabsTrigger>
-              <TabsTrigger value="gantt" className="text-xs">Gantt</TabsTrigger>
-              <TabsTrigger value="heatmap" className="text-xs">Heatmap</TabsTrigger>
-              <TabsTrigger value="character" className="text-xs">Characters</TabsTrigger>
-              <TabsTrigger value="conflicts" className="text-xs">Conflicts</TabsTrigger>
-              <TabsTrigger value="analytics" className="text-xs">Analytics</TabsTrigger>
-            </TabsList>
-          </Tabs>
-          
-          {/* Search */}
-          <div className="relative mb-4">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-            <Input
-              placeholder="Search events..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9"
-            />
-          </div>
-          
-          {/* Advanced Filters */}
-          <div className="space-y-3">
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-1 block">Categories</label>
-              <Select value={selectedCategories.join(',') || 'all'} onValueChange={(value) => {
-                setSelectedCategories(value === 'all' ? [] : value.split(','))
-              }}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All categories" />
-                </SelectTrigger>
-                <SelectContent className="z-50 bg-white border border-gray-200 shadow-lg rounded-lg">
-                  <SelectItem value="all">All Categories</SelectItem>
-                  {getEventCategories().map(category => (
-                    <SelectItem key={category} value={category}>
-                      <span className={`px-2 py-1 rounded text-xs ${getTypeColor(category)}`}>
-                        {category}
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          {/* Modern Navigation */}
+          <div className="mb-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-amber-600 rounded-lg flex items-center justify-center">
+                <CalendarIcon className="w-4 h-4 text-white" />
+              </div>
+              <h4 className="text-sm font-semibold text-gray-800">Calendar Views</h4>
             </div>
-            
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-1 block">Priority</label>
-              <Select value={selectedPriorities.join(',') || 'all'} onValueChange={(value) => {
-                setSelectedPriorities(value === 'all' ? [] : value.split(','))
-              }}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All priorities" />
-                </SelectTrigger>
-                <SelectContent className="z-50 bg-white border border-gray-200 shadow-lg rounded-lg">
-                  <SelectItem value="all">All Priorities</SelectItem>
-                  <SelectItem value="critical">Critical</SelectItem>
-                  <SelectItem value="high">High</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="low">Low</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-1 block">Tags</label>
-              <Select value={selectedTags.join(',') || 'all'} onValueChange={(value) => {
-                setSelectedTags(value === 'all' ? [] : value.split(','))
-              }}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All tags" />
-                </SelectTrigger>
-                <SelectContent className="z-50 bg-white border border-gray-200 shadow-lg rounded-lg">
-                  <SelectItem value="all">All Tags</SelectItem>
-                  {getAllTags().map(tag => (
-                    <SelectItem key={tag} value={tag}>
-                      <Badge variant="outline">{tag}</Badge>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </div>
-
-        {/* Events List */}
-        <div className="flex-1 overflow-y-auto">
-          {filteredEvents.length === 0 ? (
-            <div className="p-4 text-center text-gray-500">
-              <CalendarIcon className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-              <div className="mb-2">No events found</div>
-              <Button 
-                size="sm"
-                onClick = {() => {
-                              const newEvent = {
-                                id: '',
-                                name: '',
-                                description: '',
-                                category: 'calendar',
-                                project_id: projectId,
-                                attributes: {
-                                  date: new Date().toISOString().split('T')[0],
-                                  event_type: 'story',
-                                  priority: 'medium'
-                                },
-                                tags: [],
-                                created_at: '',
-                                updated_at: ''
-                              }
-                              setEditingEvent(newEvent)
-                              setIsCreating(true)
-                            }}
+            <nav className="space-y-1">
+              <button
+                onClick={() => setViewMode('list')}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  viewMode === 'list'
+                    ? 'bg-gradient-to-r from-orange-50 to-amber-50 text-orange-700 border border-orange-200 shadow-sm'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                }`}
               >
-                Create your first event
-              </Button>
+                <span className="text-base">📋</span>
+                <span>List View</span>
+              </button>
+              <button
+                onClick={() => setViewMode('month')}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  viewMode === 'month'
+                    ? 'bg-gradient-to-r from-orange-50 to-amber-50 text-orange-700 border border-orange-200 shadow-sm'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                }`}
+              >
+                <span className="text-base">📅</span>
+                <span>Monthly View</span>
+              </button>
+              <button
+                onClick={() => setViewMode('timeline')}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  viewMode === 'timeline'
+                    ? 'bg-gradient-to-r from-orange-50 to-amber-50 text-orange-700 border border-orange-200 shadow-sm'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                }`}
+              >
+                <span className="text-base">📈</span>
+                <span>Timeline View</span>
+              </button>
+              <button
+                onClick={() => setViewMode('gantt')}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  viewMode === 'gantt'
+                    ? 'bg-gradient-to-r from-orange-50 to-amber-50 text-orange-700 border border-orange-200 shadow-sm'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                }`}
+              >
+                <span className="mr-2">�</span>
+                <span>Gantt Chart</span>
+              </button>
+              <button
+                onClick={() => setViewMode('heatmap')}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  viewMode === 'heatmap'
+                    ? 'bg-gradient-to-r from-orange-50 to-amber-50 text-orange-700 border border-orange-200 shadow-sm'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                }`}
+              >
+                <span className="text-base">🔥</span>
+                <span>Activity Heatmap</span>
+              </button>
+              <button
+                onClick={() => setViewMode('character')}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  viewMode === 'character'
+                    ? 'bg-gradient-to-r from-orange-50 to-amber-50 text-orange-700 border border-orange-200 shadow-sm'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                }`}
+              >
+                <span className="text-base">👥</span>
+                <span>Character Timeline</span>
+              </button>
+              <button
+                onClick={() => setViewMode('conflicts')}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  viewMode === 'conflicts'
+                    ? 'bg-gradient-to-r from-orange-50 to-amber-50 text-orange-700 border border-orange-200 shadow-sm'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                }`}
+              >
+                <span className="text-base">⚠️</span>
+                <span>Conflict Detection</span>
+              </button>
+              <button
+                onClick={() => setViewMode('analytics')}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  viewMode === 'analytics'
+                    ? 'bg-gradient-to-r from-orange-50 to-amber-50 text-orange-700 border border-orange-200 shadow-sm'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                }`}
+              >
+                <span className="text-base">📊</span>
+                <span>Analytics Dashboard</span>
+              </button>
+            </nav>
+          </div>
+          
+          {/* Modern Info Card */}
+          <div className="bg-gradient-to-br from-gray-50 to-white border border-gray-200 rounded-xl p-4 shadow-sm">
+            <div className="text-center">
+              <div className="w-12 h-12 bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl mx-auto mb-3 flex items-center justify-center">
+                <CalendarIcon className="w-6 h-6 text-gray-500" />
+              </div>
+              <h3 className="text-sm font-semibold text-gray-800 mb-2">Story Calendar</h3>
+              <p className="text-xs text-gray-500 leading-relaxed">
+                Organize and visualize your story events across different timeline views
+              </p>
             </div>
-          ) : (
-            <div className="p-6 space-y-6">
-              {filteredEvents.map((event) => (
-                <div
-                  key={event.id}
-                  className={`relative bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-1 border border-gray-100 ${
-                    selectedEvent?.id === event.id
-                      ? 'ring-2 ring-orange-400 shadow-orange-200/50'
-                      : 'hover:shadow-gray-200/60'
-                  }`}
-                  onClick={() => {
-                    setSelectedEvent(event)
-                    setEditingEvent(null)
-                    setIsCreating(false)
-                  }}
-                >
-                  {/* Floating status badge */}
-                  {(event.attributes?.completed || linkedElements[event.id]?.length > 0) && (
-                    <div className="absolute -top-2 -right-2 flex gap-1">
-                      {event.attributes?.completed && (
-                        <div className="w-6 h-6 bg-green-500 rounded-full shadow-lg flex items-center justify-center">
-                          <CheckCircle className="w-3 h-3 text-white" />
-                        </div>
-                      )}
-                      {linkedElements[event.id]?.length > 0 && (
-                        <div className="w-6 h-6 bg-blue-500 rounded-full shadow-lg flex items-center justify-center">
-                          <Link2 className="w-3 h-3 text-white" />
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  
-                  {/* Color stripe */}
-                  <div className={`h-2 w-full rounded-t-xl ${
-                    event.attributes?.type === 'battle' ? 'bg-gradient-to-r from-red-500 to-red-600' :
-                    event.attributes?.type === 'celebration' ? 'bg-gradient-to-r from-green-500 to-green-600' :
-                    event.attributes?.type === 'political' ? 'bg-gradient-to-r from-blue-500 to-blue-600' :
-                    event.attributes?.type === 'discovery' ? 'bg-gradient-to-r from-purple-500 to-purple-600' :
-                    event.attributes?.type === 'personal' ? 'bg-gradient-to-r from-pink-500 to-pink-600' :
-                    'bg-gradient-to-r from-orange-500 to-orange-600'
-                  }`} />
-                  
-                  <div className="p-6">
-                    {/* Header section */}
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <h3 className="text-xl font-bold text-gray-900 group-hover:text-orange-600 transition-colors">
-                            {event.name}
-                          </h3>
-                          {event.attributes?.significance && (
-                            <div className="flex items-center gap-1 px-2 py-1 bg-gray-100 rounded-full">
-                              {getSignificanceIcon(event.attributes.significance)}
-                              <span className="text-xs font-medium text-gray-600 capitalize">
-                                {event.attributes.significance}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                        
-                        {event.description && (
-                          <p className="text-gray-600 leading-relaxed line-clamp-3">
-                            {event.description}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    
-                    {/* Metadata section */}
-                    <div className="space-y-3">
-                      {/* Date and time */}
-                      {(event.attributes?.custom_year || event.attributes?.date || event.attributes?.time) && (
-                        <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                            <Clock className="w-4 h-4 text-blue-600" />
-                          </div>
-                          <div>
-                            <div className="font-medium text-gray-900">
-                              {event.attributes?.custom_year && currentEra && (
-                                <span>{currentEra.name} {event.attributes.custom_year}</span>
-                              )}
-                              {event.attributes?.date && (
-                                <span>{new Date(event.attributes.date).toLocaleDateString()}</span>
-                              )}
-                            </div>
-                            {event.attributes?.time && (
-                              <div className="text-sm text-gray-600">
-                                at {event.attributes.time}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                      
-                      {/* Type and priority */}
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                          <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg">
-                            <div className={`w-3 h-3 rounded-full ${
-                              event.attributes?.type === 'battle' ? 'bg-red-500' :
-                              event.attributes?.type === 'celebration' ? 'bg-green-500' :
-                              event.attributes?.type === 'political' ? 'bg-blue-500' :
-                              event.attributes?.type === 'discovery' ? 'bg-purple-500' :
-                              event.attributes?.type === 'personal' ? 'bg-pink-500' :
-                              'bg-orange-500'
-                            }`} />
-                            <span className="text-sm font-medium text-gray-700 capitalize">
-                              {event.attributes?.type || 'general'}
-                            </span>
-                          </div>
-                          
-                          {event.attributes?.priority && (
-                            <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg">
-                              <div className={`w-3 h-3 rounded-full ${
-                                event.attributes.priority === 'critical' ? 'bg-red-500' :
-                                event.attributes.priority === 'high' ? 'bg-orange-500' :
-                                event.attributes.priority === 'medium' ? 'bg-yellow-500' :
-                                'bg-green-500'
-                              }`} />
-                              <span className="text-sm font-medium text-gray-700 capitalize">
-                                {event.attributes.priority}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      
-                      {/* Tags */}
-                      {event.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-2">
-                          {event.tags.slice(0, 5).map((tag, index) => (
-                            <span 
-                              key={index} 
-                              className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-white border border-gray-200 text-gray-700 shadow-sm"
-                            >
-                              #{tag}
-                            </span>
-                          ))}
-                          {event.tags.length > 5 && (
-                            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-gray-100 border border-gray-200 text-gray-500">
-                              +{event.tags.length - 5} more
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          </div>
         </div>
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-w-0">
         {editingEvent ? (
           // Enhanced Edit/Create Form
           <div className="flex-1 flex flex-col bg-gradient-to-br from-white to-gray-50/50 overflow-hidden">
             {/* Header */}
-            <div className="bg-gradient-to-r from-orange-50 to-amber-50 border-b border-gray-100 px-8 py-6">
+            <div className="bg-gradient-to-r from-orange-50 to-amber-50 border-b border-gray-100 px-4 py-4 lg:px-8 lg:py-6">
               <div className="max-w-4xl mx-auto">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-amber-600 rounded-xl flex items-center justify-center shadow-lg">
-                      <CalendarIcon className="w-6 h-6 text-white" />
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                  <div className="flex items-center gap-3 lg:gap-4">
+                    <div className="w-10 h-10 lg:w-12 lg:h-12 bg-gradient-to-br from-orange-500 to-amber-600 rounded-xl flex items-center justify-center shadow-lg">
+                      <CalendarIcon className="w-5 h-5 lg:w-6 lg:h-6 text-white" />
                     </div>
                     <div>
-                      <h2 className="text-3xl font-bold text-gray-900">
+                      <h2 className="text-xl lg:text-3xl font-bold text-gray-900">
                         {isCreating ? 'Create New Event' : 'Edit Event'}
                       </h2>
-                      <p className="text-gray-600 mt-1">
+                      <p className="text-gray-600 mt-1 text-sm lg:text-base">
                         {isCreating ? 'Add a new event to your world\'s timeline' : 'Update event details and information'}
                       </p>
                     </div>
                   </div>
-                  <div className="flex gap-3">
+                  <div className="flex gap-2 lg:gap-3">
                     <Button 
                       variant="outline" 
                       onClick={handleCancel}
-                      className="px-6 py-3 border-2 border-orange-200 hover:border-orange-300 text-orange-700 hover:bg-orange-50 transition-all duration-200"
+                      size="sm"
+                      className="px-4 py-2 lg:px-6 lg:py-3 border-2 border-orange-200 hover:border-orange-300 text-orange-700 hover:bg-orange-50 transition-all duration-200"
                     >
                       <X className="w-4 h-4 mr-2" />
                       Cancel
@@ -1448,28 +1293,30 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
             </div>
             
             {/* Content */}
-            <div className="flex-1 overflow-y-auto p-8">
+            <div className="flex-1 overflow-y-auto p-4 lg:p-8">
               <div className="max-w-4xl mx-auto">
               
-              <Tabs defaultValue="basic" className="space-y-8">
-                <TabsList className="inline-flex h-12 items-center justify-center rounded-xl bg-gray-100 p-1 text-gray-600 w-full">
+              <Tabs defaultValue="basic" className="space-y-6 lg:space-y-8">
+                <TabsList className="inline-flex h-10 lg:h-12 items-center justify-center rounded-xl bg-gray-100 p-1 text-gray-600 w-full overflow-x-auto">
                   <TabsTrigger 
                     value="basic" 
-                    className="inline-flex items-center justify-center whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium ring-offset-white transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-white data-[state=active]:text-gray-950 data-[state=active]:shadow-sm gap-2 flex-1"
+                    className="inline-flex items-center justify-center whitespace-nowrap rounded-lg px-2 lg:px-4 py-2 text-xs lg:text-sm font-medium ring-offset-white transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-white data-[state=active]:text-gray-950 data-[state=active]:shadow-sm gap-1 lg:gap-2 flex-1 min-w-fit"
                   >
-                    <FileText className="w-4 h-4" />
-                    Basic Info
+                    <FileText className="w-3 h-3 lg:w-4 lg:h-4" />
+                    <span className="hidden sm:inline">Basic Info</span>
+                    <span className="sm:hidden">Basic</span>
                   </TabsTrigger>
                   <TabsTrigger 
                     value="timing" 
-                    className="inline-flex items-center justify-center whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium ring-offset-white transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-white data-[state=active]:text-gray-950 data-[state=active]:shadow-sm gap-2 flex-1"
+                    className="inline-flex items-center justify-center whitespace-nowrap rounded-lg px-2 lg:px-4 py-2 text-xs lg:text-sm font-medium ring-offset-white transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-white data-[state=active]:text-gray-950 data-[state=active]:shadow-sm gap-1 lg:gap-2 flex-1 min-w-fit"
                   >
-                    <Clock className="w-4 h-4" />
-                    Date & Time
+                    <Clock className="w-3 h-3 lg:w-4 lg:h-4" />
+                    <span className="hidden sm:inline">Date & Time</span>
+                    <span className="sm:hidden">Date</span>
                   </TabsTrigger>
                   <TabsTrigger 
                     value="details" 
-                    className="inline-flex items-center justify-center whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium ring-offset-white transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-white data-[state=active]:text-gray-950 data-[state=active]:shadow-sm gap-2 flex-1"
+                    className="inline-flex items-center justify-center whitespace-nowrap rounded-lg px-2 lg:px-4 py-2 text-xs lg:text-sm font-medium ring-offset-white transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-white data-[state=active]:text-gray-950 data-[state=active]:shadow-sm gap-1 lg:gap-2 flex-1 min-w-fit"
                   >
                     <Scroll className="w-4 h-4" />
                     Details
@@ -3171,14 +3018,14 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
           </div>
         ) : selectedEvent ? (
           // Enhanced Event Details View
-          <div className="flex-1 p-6 overflow-y-auto bg-gray-50">
+          <div className="flex-1 p-4 lg:p-6 overflow-y-auto bg-gray-50">
             <div className="max-w-4xl mx-auto">
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-6 gap-4">
                 <div className="flex items-center gap-3">
                   {getSignificanceIcon(selectedEvent.attributes?.significance)}
-                  <h2 className="text-2xl font-bold text-gray-900">{selectedEvent.name}</h2>
+                  <h2 className="text-xl lg:text-2xl font-bold text-gray-900 break-words">{selectedEvent.name}</h2>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-shrink-0">
                   <Button 
                     size="sm"
                     onClick={() => {
@@ -3781,7 +3628,7 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
           </div>
         ) : (
           // Calendar Views
-          <div className="flex-1 flex flex-col bg-gray-50">
+          <div className="flex-1 flex flex-col bg-gray-50 min-w-0">
             {viewMode === 'timeline' && (
               <div className="flex-1 p-4 bg-gray-50">
                 <div className="text-center text-gray-500 py-20">
@@ -3804,34 +3651,40 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
 
             {/* Heat Map Visualization */}
             {viewMode === 'heatmap' && (
-              <div className="flex-1 p-4 bg-gray-50">
-                <div className="bg-white rounded-lg shadow-sm border">
-                  <div className="p-6 border-b">
-                    <h3 className="text-xl font-bold text-gray-900 flex items-center gap-3">
-                      <div className="w-8 h-8 bg-gradient-to-br from-red-500 to-orange-600 rounded-lg flex items-center justify-center">
-                        <Target className="w-4 h-4 text-white" />
+              <div className="flex-1 p-4 bg-gray-50 overflow-hidden">
+                <div className="bg-white rounded-lg shadow-sm border h-full flex flex-col">
+                  <div className="p-4 lg:p-6 border-b bg-gradient-to-r from-red-50 to-orange-50 flex-shrink-0">
+                    <h3 className="text-xl lg:text-2xl font-bold text-gray-900 flex items-center gap-3">
+                      <div className="w-8 h-8 lg:w-10 lg:h-10 bg-gradient-to-br from-red-500 to-orange-600 rounded-lg flex items-center justify-center shadow-lg">
+                        <Target className="w-5 h-5 text-white" />
                       </div>
                       Event Density Heat Map
                     </h3>
-                    <p className="text-gray-600 mt-2">Visualize event distribution and busy periods across your timeline</p>
+                    <p className="text-gray-600 mt-2 text-lg">Visualize event distribution and busy periods across your timeline</p>
                   </div>
                   
-                  <div className="p-6">
+                  <div className="p-8">
                     {/* Heat Map Grid */}
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="text-sm font-medium text-gray-700">Event Density by Month</div>
-                        <div className="flex items-center gap-2 text-xs">
-                          <div className="w-3 h-3 bg-gray-200 rounded"></div>
-                          <span>Low</span>
-                          <div className="w-3 h-3 bg-orange-300 rounded"></div>
-                          <span>Medium</span>
-                          <div className="w-3 h-3 bg-red-500 rounded"></div>
-                          <span>High</span>
+                    <div className="space-y-6">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+                        <div className="text-lg font-semibold text-gray-800">Event Density by Month</div>
+                        <div className="flex items-center gap-4 text-sm">
+                          <div className="flex items-center gap-2">
+                            <div className="w-4 h-4 bg-gray-200 rounded shadow-sm"></div>
+                            <span className="text-gray-600">Low</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="w-4 h-4 bg-orange-300 rounded shadow-sm"></div>
+                            <span className="text-gray-600">Medium</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="w-4 h-4 bg-red-500 rounded shadow-sm"></div>
+                            <span className="text-gray-600">High</span>
+                          </div>
                         </div>
                       </div>
                       
-                      <div className="grid grid-cols-12 gap-1">
+                      <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-12 gap-3">
                         {activeCalendarSystem?.months?.map((month) => {
                           const monthEvents = events.filter(e => e.attributes?.month === month.id)
                           const density = monthEvents.length === 0 ? 'low' : 
@@ -3842,10 +3695,15 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
                           return (
                             <div key={month.id} className="aspect-square">
                               <div 
-                                className={`w-full h-full rounded ${bgColor} flex items-center justify-center text-xs font-medium hover:scale-110 transition-transform cursor-pointer`}
+                                className={`w-full h-full rounded-lg ${bgColor} flex flex-col items-center justify-center text-xs font-medium hover:scale-105 transition-all duration-200 cursor-pointer shadow-md hover:shadow-lg`}
                                 title={`${month.name}: ${monthEvents.length} events`}
                               >
-                                {month.name.slice(0, 3)}
+                                <div className="text-white font-bold text-center leading-tight">
+                                  {month.name.slice(0, 3)}
+                                </div>
+                                <div className="text-white text-xs opacity-90 mt-1">
+                                  {monthEvents.length}
+                                </div>
                               </div>
                             </div>
                           )
@@ -3853,21 +3711,21 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
                       </div>
                       
                       {/* Event Type Distribution */}
-                      <div className="mt-8">
-                        <h4 className="text-lg font-semibold text-gray-900 mb-4">Event Type Distribution</h4>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="mt-12">
+                        <h4 className="text-xl font-semibold text-gray-900 mb-6">Event Type Distribution</h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                           {getEventCategories().map(category => {
                             const categoryEvents = events.filter(e => e.attributes?.type === category)
                             const percentage = events.length > 0 ? (categoryEvents.length / events.length * 100).toFixed(1) : 0
                             
                             return (
-                              <div key={category} className="bg-white border rounded-lg p-4">
-                                <div className="text-lg font-bold text-gray-900">{categoryEvents.length}</div>
-                                <div className="text-sm text-gray-600 capitalize">{category}</div>
-                                <div className="text-xs text-gray-500">{percentage}%</div>
-                                <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                              <div key={category} className="bg-gradient-to-br from-white to-gray-50 border rounded-xl p-6 shadow-md hover:shadow-lg transition-all duration-200">
+                                <div className="text-2xl font-bold text-gray-900 mb-1">{categoryEvents.length}</div>
+                                <div className="text-sm text-gray-600 capitalize mb-2 font-medium">{category}</div>
+                                <div className="text-xs text-gray-500 mb-3">{percentage}%</div>
+                                <div className="w-full bg-gray-200 rounded-full h-3 shadow-inner">
                                   <div 
-                                    className="bg-gradient-to-r from-blue-500 to-purple-600 h-2 rounded-full"
+                                    className="bg-gradient-to-r from-blue-500 to-purple-600 h-3 rounded-full shadow-sm transition-all duration-300"
                                     style={{ width: `${percentage}%` }}
                                   ></div>
                                 </div>
@@ -3886,18 +3744,18 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
             {viewMode === 'character' && (
               <div className="flex-1 p-4 bg-gray-50">
                 <div className="bg-white rounded-lg shadow-sm border">
-                  <div className="p-6 border-b">
-                    <h3 className="text-xl font-bold text-gray-900 flex items-center gap-3">
-                      <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg flex items-center justify-center">
-                        <Users className="w-4 h-4 text-white" />
+                  <div className="p-6 border-b bg-gradient-to-r from-purple-50 to-pink-50">
+                    <h3 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+                      <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg flex items-center justify-center shadow-lg">
+                        <Users className="w-5 h-5 text-white" />
                       </div>
                       Character Timelines
                     </h3>
-                    <p className="text-gray-600 mt-2">Track individual character involvement in events</p>
+                    <p className="text-gray-600 mt-2 text-lg">Track individual character involvement in events</p>
                   </div>
                   
-                  <div className="p-6">
-                    <div className="space-y-6">
+                  <div className="p-8">
+                    <div className="space-y-8">
                       {/* Character Activity Summary */}
                       {events.map(event => event.attributes?.participants)
                         .filter(Boolean)
@@ -3912,29 +3770,44 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
                           )
                           
                           return (
-                            <div key={participant} className="border rounded-lg p-4">
-                              <div className="flex items-center justify-between mb-3">
-                                <h4 className="font-semibold text-gray-900">{participant}</h4>
-                                <Badge variant="secondary">{participantEvents.length} events</Badge>
+                            <div key={participant} className="border rounded-xl p-6 bg-gradient-to-r from-white to-gray-50 shadow-md hover:shadow-lg transition-all duration-200">
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-4">
+                                <h4 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+                                  <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                                    <Users className="w-4 h-4 text-white" />
+                                  </div>
+                                  {participant}
+                                </h4>
+                                <Badge variant="secondary" className="bg-purple-100 text-purple-800 px-3 py-1">
+                                  {participantEvents.length} events
+                                </Badge>
                               </div>
                               
-                              <div className="space-y-2">
+                              <div className="space-y-3">
                                 {participantEvents.slice(0, 5).map(event => (
-                                  <div key={event.id} className="flex items-center gap-3 p-2 bg-gray-50 rounded">
-                                    <div className={`w-2 h-2 rounded-full ${
+                                  <div key={event.id} className="flex items-center gap-4 p-3 bg-white rounded-lg border shadow-sm hover:shadow-md transition-all duration-200">
+                                    <div className={`w-3 h-3 rounded-full flex-shrink-0 ${
                                       event.attributes?.priority === 'high' ? 'bg-red-500' :
                                       event.attributes?.priority === 'medium' ? 'bg-yellow-500' : 'bg-green-500'
                                     }`}></div>
-                                    <div className="flex-1">
-                                      <div className="text-sm font-medium text-gray-900">{event.name}</div>
-                                      <div className="text-xs text-gray-500">
-                                        {event.attributes?.year} - {event.attributes?.type}
+                                    <div className="flex-1 min-w-0">
+                                      <div className="text-sm font-medium text-gray-900 truncate">{event.name}</div>
+                                      <div className="text-xs text-gray-500 flex items-center gap-2 mt-1">
+                                        <span>{event.attributes?.year}</span>
+                                        <span>•</span>
+                                        <span className="capitalize">{event.attributes?.type}</span>
+                                        {event.attributes?.location && (
+                                          <>
+                                            <span>•</span>
+                                            <span>{event.attributes.location}</span>
+                                          </>
+                                        )}
                                       </div>
                                     </div>
                                   </div>
                                 ))}
                                 {participantEvents.length > 5 && (
-                                  <div className="text-xs text-gray-500 pl-5">
+                                  <div className="text-sm text-gray-500 text-center py-2 italic">
                                     +{participantEvents.length - 5} more events
                                   </div>
                                 )}
@@ -3945,9 +3818,9 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
                       
                       {events.length === 0 && (
                         <div className="text-center text-gray-500 py-20">
-                          <Users className="w-16 h-16 mx-auto text-gray-300 mb-4" />
-                          <h3 className="text-lg font-medium mb-2">No Character Data</h3>
-                          <p className="text-sm">Add participants to your events to see character timelines</p>
+                          <Users className="w-20 h-20 mx-auto text-gray-300 mb-6" />
+                          <h3 className="text-xl font-medium mb-2">No Character Data</h3>
+                          <p className="text-lg">Add participants to your events to see character timelines</p>
                         </div>
                       )}
                     </div>
@@ -3960,18 +3833,18 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
             {viewMode === 'conflicts' && (
               <div className="flex-1 p-4 bg-gray-50">
                 <div className="bg-white rounded-lg shadow-sm border">
-                  <div className="p-6 border-b">
-                    <h3 className="text-xl font-bold text-gray-900 flex items-center gap-3">
-                      <div className="w-8 h-8 bg-gradient-to-br from-red-500 to-pink-600 rounded-lg flex items-center justify-center">
-                        <AlertCircle className="w-4 h-4 text-white" />
+                  <div className="p-6 border-b bg-gradient-to-r from-red-50 to-orange-50">
+                    <h3 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+                      <div className="w-10 h-10 bg-gradient-to-br from-red-500 to-orange-600 rounded-lg flex items-center justify-center shadow-lg">
+                        <AlertCircle className="w-5 h-5 text-white" />
                       </div>
                       Event Conflicts & Overlaps
                     </h3>
-                    <p className="text-gray-600 mt-2">Identify scheduling conflicts and simultaneous events</p>
+                    <p className="text-gray-600 mt-2 text-lg">Identify scheduling conflicts and simultaneous events</p>
                   </div>
                   
-                  <div className="p-6">
-                    <div className="space-y-6">
+                  <div className="p-8">
+                    <div className="space-y-8">
                       {/* Conflict Detection Summary */}
                       {(() => {
                         const conflicts: Array<{event1: WorldElement, event2: WorldElement, type: string}> = []
@@ -3998,64 +3871,90 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
                         
                         return (
                           <>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                                <div className="text-2xl font-bold text-red-600">{conflicts.length}</div>
-                                <div className="text-sm text-red-700">Total Conflicts</div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                              <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-200">
+                                <div className="text-3xl font-bold mb-1">{conflicts.length}</div>
+                                <div className="text-sm text-red-100 opacity-90">Total Conflicts</div>
                               </div>
-                              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                                <div className="text-2xl font-bold text-yellow-600">
+                              <div className="bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-200">
+                                <div className="text-3xl font-bold mb-1">
                                   {conflicts.filter(c => c.type === 'date').length}
                                 </div>
-                                <div className="text-sm text-yellow-700">Date Conflicts</div>
+                                <div className="text-sm text-yellow-100 opacity-90">Date Conflicts</div>
                               </div>
-                              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-                                <div className="text-2xl font-bold text-orange-600">
+                              <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-200">
+                                <div className="text-3xl font-bold mb-1">
                                   {conflicts.filter(c => c.type === 'location').length}
                                 </div>
-                                <div className="text-sm text-orange-700">Location Conflicts</div>
+                                <div className="text-sm text-orange-100 opacity-90">Location Conflicts</div>
                               </div>
                             </div>
                             
                             {conflicts.length > 0 ? (
-                              <div className="space-y-4">
-                                <h4 className="font-semibold text-gray-900">Detected Conflicts</h4>
+                              <div className="space-y-6">
+                                <h4 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+                                  <AlertCircle className="w-6 h-6 text-red-500" />
+                                  Detected Conflicts
+                                </h4>
                                 {conflicts.map((conflict, index) => (
-                                  <div key={index} className="border border-red-200 rounded-lg p-4 bg-red-50">
-                                    <div className="flex items-center gap-2 mb-2">
-                                      <AlertCircle className="w-4 h-4 text-red-500" />
-                                      <span className="text-sm font-medium text-red-800 capitalize">
+                                  <div key={index} className="border border-red-200 rounded-xl p-6 bg-gradient-to-r from-red-50 to-orange-50 shadow-md">
+                                    <div className="flex items-center gap-3 mb-4">
+                                      <div className="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center">
+                                        <AlertCircle className="w-4 h-4 text-white" />
+                                      </div>
+                                      <span className="text-lg font-semibold text-red-800 capitalize">
                                         {conflict.type} Conflict
                                       </span>
+                                      <Badge variant="destructive" className="bg-red-100 text-red-800">
+                                        Needs Resolution
+                                      </Badge>
                                     </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                      <div className="bg-white rounded p-3 border">
-                                        <div className="font-medium text-gray-900">{conflict.event1.name}</div>
-                                        <div className="text-sm text-gray-600">
-                                          {conflict.event1.attributes?.year} - {conflict.event1.attributes?.type}
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                      <div className="bg-white rounded-lg p-4 border shadow-sm">
+                                        <div className="font-semibold text-gray-900 text-lg mb-2">{conflict.event1.name}</div>
+                                        <div className="space-y-2 text-sm text-gray-600">
+                                          <div className="flex items-center gap-2">
+                                            <Calendar className="w-4 h-4" />
+                                            <span>{conflict.event1.attributes?.year} - {conflict.event1.attributes?.type}</span>
+                                          </div>
+                                          {conflict.event1.attributes?.location && (
+                                            <div className="flex items-center gap-2">
+                                              <MapPin className="w-4 h-4" />
+                                              <span>{conflict.event1.attributes.location}</span>
+                                            </div>
+                                          )}
                                         </div>
-                                        {conflict.event1.attributes?.location && (
-                                          <div className="text-xs text-gray-500">📍 {conflict.event1.attributes.location}</div>
-                                        )}
                                       </div>
-                                      <div className="bg-white rounded p-3 border">
-                                        <div className="font-medium text-gray-900">{conflict.event2.name}</div>
-                                        <div className="text-sm text-gray-600">
-                                          {conflict.event2.attributes?.year} - {conflict.event2.attributes?.type}
+                                      <div className="bg-white rounded-lg p-4 border shadow-sm">
+                                        <div className="font-semibold text-gray-900 text-lg mb-2">{conflict.event2.name}</div>
+                                        <div className="space-y-2 text-sm text-gray-600">
+                                          <div className="flex items-center gap-2">
+                                            <Calendar className="w-4 h-4" />
+                                            <span>{conflict.event2.attributes?.year} - {conflict.event2.attributes?.type}</span>
+                                          </div>
+                                          {conflict.event2.attributes?.location && (
+                                            <div className="flex items-center gap-2">
+                                              <MapPin className="w-4 h-4" />
+                                              <span>{conflict.event2.attributes.location}</span>
+                                            </div>
+                                          )}
                                         </div>
-                                        {conflict.event2.attributes?.location && (
-                                          <div className="text-xs text-gray-500">📍 {conflict.event2.attributes.location}</div>
-                                        )}
                                       </div>
+                                    </div>
+                                    <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                      <p className="text-sm text-yellow-800 flex items-center gap-2">
+                                        <AlertCircle className="w-4 h-4" />
+                                        Suggestion: Consider adjusting dates or locations to resolve this scheduling conflict
+                                      </p>
                                     </div>
                                   </div>
                                 ))}
                               </div>
                             ) : (
                               <div className="text-center text-gray-500 py-20">
-                                <CheckCircle className="w-16 h-16 mx-auto text-green-300 mb-4" />
-                                <h3 className="text-lg font-medium mb-2">No Conflicts Detected</h3>
-                                <p className="text-sm">Your events are well-scheduled with no overlaps!</p>
+                                <CheckCircle className="w-20 h-20 mx-auto text-green-300 mb-6" />
+                                <h3 className="text-xl font-medium mb-2">No Conflicts Detected</h3>
+                                <p className="text-lg">Your events are well-scheduled with no overlaps!</p>
                               </div>
                             )}
                           </>
@@ -4071,26 +3970,26 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
             {viewMode === 'analytics' && (
               <div className="flex-1 p-4 bg-gray-50">
                 <div className="bg-white rounded-lg shadow-sm border">
-                  <div className="p-6 border-b">
-                    <h3 className="text-xl font-bold text-gray-900 flex items-center gap-3">
-                      <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center">
-                        <Target className="w-4 h-4 text-white" />
+                  <div className="p-6 border-b bg-gradient-to-r from-indigo-50 to-purple-50">
+                    <h3 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+                      <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center shadow-lg">
+                        <Target className="w-5 h-5 text-white" />
                       </div>
                       Analytics & Insights Dashboard
                     </h3>
-                    <p className="text-gray-600 mt-2">Comprehensive analysis of your story's timeline and events</p>
+                    <p className="text-gray-600 mt-2 text-lg">Comprehensive analysis of your story's timeline and events</p>
                   </div>
                   
-                  <div className="p-6">
+                  <div className="p-8">
                     {/* Key Metrics Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                      <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg p-6 text-white">
-                        <div className="text-3xl font-bold">{events.length}</div>
-                        <div className="text-blue-100 text-sm">Total Events</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+                      <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-200">
+                        <div className="text-3xl font-bold mb-1">{events.length}</div>
+                        <div className="text-blue-100 text-sm font-medium">Total Events</div>
                       </div>
                       
-                      <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-lg p-6 text-white">
-                        <div className="text-3xl font-bold">
+                      <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-200">
+                        <div className="text-3xl font-bold mb-1">
                           {events.map(e => e.attributes?.participants)
                             .filter(Boolean)
                             .join(', ')
@@ -4099,32 +3998,32 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
                             .filter((value, index, self) => self.indexOf(value) === index)
                             .length}
                         </div>
-                        <div className="text-green-100 text-sm">Active Characters</div>
+                        <div className="text-green-100 text-sm font-medium">Active Characters</div>
                       </div>
                       
-                      <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg p-6 text-white">
-                        <div className="text-3xl font-bold">
+                      <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-200">
+                        <div className="text-3xl font-bold mb-1">
                           {events.map(e => e.attributes?.location)
                             .filter(Boolean)
                             .filter((value, index, self) => self.indexOf(value) === index)
                             .length}
                         </div>
-                        <div className="text-purple-100 text-sm">Unique Locations</div>
+                        <div className="text-purple-100 text-sm font-medium">Unique Locations</div>
                       </div>
                       
-                      <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg p-6 text-white">
-                        <div className="text-3xl font-bold">
+                      <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-200">
+                        <div className="text-3xl font-bold mb-1">
                           {events.filter(e => e.attributes?.isFestival).length}
                         </div>
-                        <div className="text-orange-100 text-sm">Festivals & Celebrations</div>
+                        <div className="text-orange-100 text-sm font-medium">Festivals & Celebrations</div>
                       </div>
                     </div>
 
                     {/* Story Pacing Analysis */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                      <div className="bg-white border rounded-lg p-6">
-                        <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                          <Clock className="w-5 h-5 text-blue-600" />
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 mb-10">
+                      <div className="bg-white border rounded-xl p-6 shadow-md hover:shadow-lg transition-all duration-200">
+                        <h4 className="text-xl font-semibold text-gray-900 mb-6 flex items-center gap-2">
+                          <Clock className="w-6 h-6 text-blue-600" />
                           Story Pacing Analysis
                         </h4>
                         
