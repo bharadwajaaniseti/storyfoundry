@@ -2133,154 +2133,165 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
                 </div>
               </div>
               
-              {/* Enhanced Event Details View */}
-              <div className="space-y-1">
-                {/* Event Header Card */}
-                <Card className="border-0 shadow-lg bg-white/90 backdrop-blur-sm overflow-hidden">
-                  <div className="h-1 bg-gradient-to-r from-orange-400 via-amber-400 to-orange-600" />
-                  <CardContent className="p-8">
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                      <div className="lg:col-span-2 space-y-4">
+              {/* Enhanced Event Details View - Improved Bento Grid */}
+              <div className="space-y-6">
+                {/* Main Bento Grid Container */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  
+                  {/* Main Event Information Card - Large */}
+                  <Card className="lg:col-span-2 border-0 shadow-lg bg-white/90 backdrop-blur-sm overflow-hidden">
+                    <div className="h-1 bg-gradient-to-r from-orange-400 via-amber-400 to-orange-600" />
+                    <CardContent className="p-6">
+                      <div className="space-y-6">
+                        {/* Description Section */}
                         <div>
                           <Label className="text-sm font-medium text-gray-600 uppercase tracking-wide">Description</Label>
-                          <p className="text-gray-900 text-base leading-relaxed mt-1">
+                          <p className="text-gray-900 text-base leading-relaxed mt-2">
                             {selectedEvent.description || 'No description provided.'}
                           </p>
                         </div>
                         
+                        {/* Objectives Section */}
                         {selectedEvent.attributes?.objectives && (
                           <div>
                             <Label className="text-sm font-medium text-gray-600 uppercase tracking-wide">Objectives</Label>
-                            <p className="text-gray-900 text-base leading-relaxed mt-1">
+                            <p className="text-gray-900 text-base leading-relaxed mt-2">
                               {selectedEvent.attributes.objectives}
                             </p>
                           </div>
                         )}
-                      </div>
-                      
-                      <div className="space-y-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-amber-600 rounded-lg flex items-center justify-center">
-                            {selectedEvent.attributes?.type === 'battle' ? '⚔️' :
-                             selectedEvent.attributes?.type === 'celebration' ? '🎉' :
-                             selectedEvent.attributes?.type === 'political' ? '🏛️' : '🎭'}
-                          </div>
-                          <div>
-                            <div className="text-sm text-gray-600">Event Type</div>
-                            <div className="font-semibold text-gray-900 capitalize">
-                              {selectedEvent.attributes?.type || 'General Event'}
-                            </div>
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-lg flex items-center justify-center">
-                            <Star className="w-5 h-5 text-white" />
-                          </div>
-                          <div>
-                            <div className="text-sm text-gray-600">Significance</div>
-                            <div className="font-semibold text-gray-900 capitalize">
-                              {selectedEvent.attributes?.significance || 'Minor'}
-                            </div>
-                          </div>
-                        </div>
-                        
-                        {selectedEvent.attributes?.location && (
+
+                        {/* Event Metadata Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-gray-100">
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
-                              <MapPin className="w-5 h-5 text-white" />
+                            <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-amber-600 rounded-lg flex items-center justify-center">
+                              {selectedEvent.attributes?.type === 'battle' ? '⚔️' :
+                               selectedEvent.attributes?.type === 'celebration' ? '🎉' :
+                               selectedEvent.attributes?.type === 'political' ? '🏛️' : '🎭'}
                             </div>
                             <div>
-                              <div className="text-sm text-gray-600">Location</div>
-                              <div className="font-semibold text-gray-900">
-                                {selectedEvent.attributes.location}
+                              <div className="text-sm text-gray-600">Event Type</div>
+                              <div className="font-semibold text-gray-900 capitalize">
+                                {selectedEvent.attributes?.type || 'General Event'}
                               </div>
                             </div>
                           </div>
+                          
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-lg flex items-center justify-center">
+                              <Star className="w-5 h-5 text-white" />
+                            </div>
+                            <div>
+                              <div className="text-sm text-gray-600">Significance</div>
+                              <div className="font-semibold text-gray-900 capitalize">
+                                {selectedEvent.attributes?.significance || 'Minor'}
+                              </div>
+                            </div>
+                          </div>
+
+                          {selectedEvent.attributes?.location && (
+                            <div className="flex items-center gap-3 md:col-span-2">
+                              <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
+                                <MapPin className="w-5 h-5 text-white" />
+                              </div>
+                              <div>
+                                <div className="text-sm text-gray-600">Location</div>
+                                <div className="font-semibold text-gray-900">
+                                  {selectedEvent.attributes.location}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Date & Time Information Card - Compact */}
+                  <Card className="border-0 shadow-lg bg-white/90 backdrop-blur-sm overflow-hidden">
+                    <div className="h-1 bg-gradient-to-r from-blue-400 via-cyan-400 to-blue-600" />
+                    <CardContent className="p-6">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-lg flex items-center justify-center">
+                          <Clock className="w-4 h-4 text-white" />
+                        </div>
+                        <h3 className="text-lg font-bold text-gray-900">Date & Time</h3>
+                      </div>
+                      
+                      <div className="space-y-3">
+                        {selectedEvent.attributes?.era && (
+                          <div>
+                            <Label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Era</Label>
+                            <p className="text-gray-900 font-semibold">{selectedEvent.attributes.era}</p>
+                          </div>
+                        )}
+                        
+                        <div className="grid grid-cols-2 gap-3">
+                          {selectedEvent.attributes?.year && (
+                            <div>
+                              <Label className="text-xs font-medium text-gray-500 uppercase">Year</Label>
+                              <p className="text-gray-900 font-semibold">{selectedEvent.attributes.year}</p>
+                            </div>
+                          )}
+                          {selectedEvent.attributes?.month && (
+                            <div>
+                              <Label className="text-xs font-medium text-gray-500 uppercase">Month</Label>
+                              <p className="text-gray-900 font-semibold">{selectedEvent.attributes.month}</p>
+                            </div>
+                          )}
+                          {selectedEvent.attributes?.day && (
+                            <div>
+                              <Label className="text-xs font-medium text-gray-500 uppercase">Day</Label>
+                              <p className="text-gray-900 font-semibold">{selectedEvent.attributes.day}</p>
+                            </div>
+                          )}
+                          {selectedEvent.attributes?.time && (
+                            <div>
+                              <Label className="text-xs font-medium text-gray-500 uppercase">Time</Label>
+                              <p className="text-gray-900 font-semibold">{selectedEvent.attributes.time}</p>
+                            </div>
+                          )}
+                        </div>
+
+                        {selectedEvent.attributes?.duration && (
+                          <div>
+                            <Label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Duration</Label>
+                            <p className="text-gray-900 font-semibold">{selectedEvent.attributes.duration} days</p>
+                          </div>
+                        )}
+
+                        {selectedEvent.attributes?.status && (
+                          <div>
+                            <Label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Status</Label>
+                            <Badge className={`mt-1 ${
+                              selectedEvent.attributes.status === 'completed' ? 'bg-green-100 text-green-800' :
+                              selectedEvent.attributes.status === 'ongoing' ? 'bg-blue-100 text-blue-800' :
+                              selectedEvent.attributes.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                              'bg-gray-100 text-gray-800'
+                            }`}>
+                              {selectedEvent.attributes.status}
+                            </Badge>
+                          </div>
+                        )}
+
+                        {selectedEvent.attributes?.isRecurring && (
+                          <div>
+                            <Label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Recurrence</Label>
+                            <p className="text-gray-900 font-semibold text-sm">
+                              {selectedEvent.attributes.recurrencePattern} 
+                              {selectedEvent.attributes.recurrenceInterval > 1 && ` (every ${selectedEvent.attributes.recurrenceInterval})`}
+                            </p>
+                          </div>
                         )}
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                    </CardContent>
+                  </Card>
+                </div>
 
-                {/* Date & Time Information */}
-                <Card className="border-0 shadow-lg bg-white/90 backdrop-blur-sm overflow-hidden">
-                  <div className="h-1 bg-gradient-to-r from-blue-400 via-cyan-400 to-blue-600" />
-                  <CardContent className="p-8">
-                    <div className="flex items-center gap-3 mb-6">
-                      <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-lg flex items-center justify-center">
-                        <Clock className="w-4 h-4 text-white" />
-                      </div>
-                      <h3 className="text-lg font-bold text-gray-900">Date & Time</h3>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                      {selectedEvent.attributes?.era && (
-                        <div>
-                          <Label className="text-sm font-medium text-gray-600">Era</Label>
-                          <p className="text-gray-900 font-semibold">{selectedEvent.attributes.era}</p>
-                        </div>
-                      )}
-                      {selectedEvent.attributes?.year && (
-                        <div>
-                          <Label className="text-sm font-medium text-gray-600">Year</Label>
-                          <p className="text-gray-900 font-semibold">{selectedEvent.attributes.year}</p>
-                        </div>
-                      )}
-                      {selectedEvent.attributes?.month && (
-                        <div>
-                          <Label className="text-sm font-medium text-gray-600">Month</Label>
-                          <p className="text-gray-900 font-semibold">{selectedEvent.attributes.month}</p>
-                        </div>
-                      )}
-                      {selectedEvent.attributes?.day && (
-                        <div>
-                          <Label className="text-sm font-medium text-gray-600">Day</Label>
-                          <p className="text-gray-900 font-semibold">{selectedEvent.attributes.day}</p>
-                        </div>
-                      )}
-                      {selectedEvent.attributes?.time && (
-                        <div>
-                          <Label className="text-sm font-medium text-gray-600">Time</Label>
-                          <p className="text-gray-900 font-semibold">{selectedEvent.attributes.time}</p>
-                        </div>
-                      )}
-                      {selectedEvent.attributes?.duration && (
-                        <div>
-                          <Label className="text-sm font-medium text-gray-600">Duration</Label>
-                          <p className="text-gray-900 font-semibold">{selectedEvent.attributes.duration} days</p>
-                        </div>
-                      )}
-                      {selectedEvent.attributes?.status && (
-                        <div>
-                          <Label className="text-sm font-medium text-gray-600">Status</Label>
-                          <Badge className={`${
-                            selectedEvent.attributes.status === 'completed' ? 'bg-green-100 text-green-800' :
-                            selectedEvent.attributes.status === 'ongoing' ? 'bg-blue-100 text-blue-800' :
-                            selectedEvent.attributes.status === 'cancelled' ? 'bg-red-100 text-red-800' :
-                            'bg-gray-100 text-gray-800'
-                          }`}>
-                            {selectedEvent.attributes.status}
-                          </Badge>
-                        </div>
-                      )}
-                      {selectedEvent.attributes?.isRecurring && (
-                        <div>
-                          <Label className="text-sm font-medium text-gray-600">Recurrence</Label>
-                          <p className="text-gray-900 font-semibold">
-                            {selectedEvent.attributes.recurrencePattern} 
-                            {selectedEvent.attributes.recurrenceInterval > 1 && ` (every ${selectedEvent.attributes.recurrenceInterval})`}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Enhanced Connections with Relationships */}
+                {/* Connections & Relationships - Simplified */}
                 <Card className="border-0 shadow-lg bg-white/90 backdrop-blur-sm overflow-hidden">
                   <div className="h-1 bg-gradient-to-r from-green-400 via-emerald-400 to-green-600" />
-                  <CardContent className="p-8">
+                  <CardContent className="p-6">
                     <div className="flex items-center gap-3 mb-6">
                       <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
                         <Link2 className="w-4 h-4 text-white" />
@@ -2289,11 +2300,11 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
                     </div>
                     
                     {/* Enhanced Connection Display */}
-                    {selectedEvent.connections && selectedEvent.connections.length > 0 ? (
+                    {(selectedEvent as any).connections && (selectedEvent as any).connections.length > 0 ? (
                       <div className="space-y-6">
                         {/* Group connections by type */}
                         {['character', 'location', 'organization'].map(type => {
-                          const typeConnections = selectedEvent.connections.filter((conn: any) => conn.elementType === type);
+                          const typeConnections = (selectedEvent as any).connections.filter((conn: any) => conn.elementType === type);
                           if (typeConnections.length === 0) return null;
                           
                           return (
@@ -2305,67 +2316,57 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
                                 }`} />
                                 {type}s ({typeConnections.length})
                               </Label>
-                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                                 {typeConnections.map((connection: any, index: number) => (
-                                  <div key={index} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                                    <div className="flex items-start justify-between mb-2">
+                                  <div key={index} className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                                    <div className="flex items-start justify-between mb-3">
                                       <div className="flex-1">
-                                        <div className="flex items-center gap-2 mb-1">
-                                          <Badge variant="secondary" className={`${
-                                            type === 'character' ? 'bg-blue-100 text-blue-800' : 
-                                            type === 'location' ? 'bg-green-100 text-green-800' : 
-                                            'bg-purple-100 text-purple-800'
-                                          }`}>
-                                            {connection.elementName}
-                                          </Badge>
-                                          
-                                          {/* Connection Strength Indicator */}
-                                          <div className="flex items-center gap-1">
-                                            {[1, 2, 3, 4, 5].map(level => (
-                                              <div
-                                                key={level}
-                                                className={`w-2 h-2 rounded-full ${
-                                                  level <= (connection.connectionStrength || 3) 
-                                                    ? 'bg-orange-400' 
-                                                    : 'bg-gray-200'
-                                                }`}
-                                              />
-                                            ))}
-                                          </div>
+                                        <Badge variant="secondary" className={`${
+                                          type === 'character' ? 'bg-blue-100 text-blue-800' : 
+                                          type === 'location' ? 'bg-green-100 text-green-800' : 
+                                          'bg-purple-100 text-purple-800'
+                                        } mb-2`}>
+                                          {connection.elementName}
+                                        </Badge>
+                                        
+                                        {/* Connection Strength Visual */}
+                                        <div className="flex items-center gap-1 mb-2">
+                                          {[1, 2, 3, 4, 5].map(level => (
+                                            <div
+                                              key={level}
+                                              className={`w-2 h-2 rounded-full ${
+                                                level <= (connection.connectionStrength || 3) 
+                                                  ? 'bg-orange-400' 
+                                                  : 'bg-gray-200'
+                                              }`}
+                                            />
+                                          ))}
+                                          <span className="text-xs text-gray-500 ml-2">
+                                            {connection.connectionStrength === 5 ? 'Critical' :
+                                             connection.connectionStrength === 4 ? 'Major' :
+                                             connection.connectionStrength === 3 ? 'Moderate' :
+                                             connection.connectionStrength === 2 ? 'Minor' :
+                                             'Minimal'}
+                                          </span>
                                         </div>
                                         
                                         {/* Relationship Type */}
                                         {connection.relationshipType && (
-                                          <div className="flex items-center gap-2 mb-2">
-                                            <span className="text-xs text-gray-500">Relationship:</span>
-                                            <Badge variant="outline" className={`text-xs ${
-                                              connection.relationshipType === 'ally' ? 'border-green-300 text-green-700' :
-                                              connection.relationshipType === 'enemy' ? 'border-red-300 text-red-700' :
-                                              connection.relationshipType === 'neutral' ? 'border-gray-300 text-gray-700' :
-                                              connection.relationshipType === 'family' ? 'border-pink-300 text-pink-700' :
-                                              connection.relationshipType === 'romantic' ? 'border-rose-300 text-rose-700' :
-                                              connection.relationshipType === 'mentor' ? 'border-blue-300 text-blue-700' :
-                                              connection.relationshipType === 'rival' ? 'border-orange-300 text-orange-700' :
-                                              connection.relationshipType === 'subordinate' ? 'border-indigo-300 text-indigo-700' :
-                                              connection.relationshipType === 'leader' ? 'border-purple-300 text-purple-700' :
-                                              'border-gray-300 text-gray-700'
-                                            }`}>
-                                              {connection.relationshipType}
-                                            </Badge>
-                                          </div>
+                                          <Badge variant="outline" className={`text-xs ${
+                                            connection.relationshipType === 'ally' ? 'border-green-300 text-green-700' :
+                                            connection.relationshipType === 'enemy' ? 'border-red-300 text-red-700' :
+                                            connection.relationshipType === 'neutral' ? 'border-gray-300 text-gray-700' :
+                                            connection.relationshipType === 'family' ? 'border-pink-300 text-pink-700' :
+                                            connection.relationshipType === 'romantic' ? 'border-rose-300 text-rose-700' :
+                                            connection.relationshipType === 'mentor' ? 'border-blue-300 text-blue-700' :
+                                            connection.relationshipType === 'rival' ? 'border-orange-300 text-orange-700' :
+                                            connection.relationshipType === 'subordinate' ? 'border-indigo-300 text-indigo-700' :
+                                            connection.relationshipType === 'leader' ? 'border-purple-300 text-purple-700' :
+                                            'border-gray-300 text-gray-700'
+                                          }`}>
+                                            {connection.relationshipType}
+                                          </Badge>
                                         )}
-                                      </div>
-                                      
-                                      {/* Strength Label */}
-                                      <div className="text-right">
-                                        <div className="text-xs text-gray-500">Strength</div>
-                                        <div className="text-sm font-medium text-gray-700">
-                                          {connection.connectionStrength === 5 ? 'Critical' :
-                                           connection.connectionStrength === 4 ? 'Major' :
-                                           connection.connectionStrength === 3 ? 'Moderate' :
-                                           connection.connectionStrength === 2 ? 'Minor' :
-                                           'Minimal'}
-                                        </div>
                                       </div>
                                     </div>
                                     
