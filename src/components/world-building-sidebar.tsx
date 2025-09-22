@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { 
   Plus,
   Search,
@@ -22,7 +22,8 @@ import {
   Heart,
   Brain,
   Star,
-  Flame
+  Flame,
+  Copy
 } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/auth'
 import TimelinePanel from './world-building/timeline-panel'
@@ -81,6 +82,8 @@ export default function WorldBuildingSidebar({
   onElementSelect,
   onNavigateToPanel 
 }: WorldBuildingSidebarProps) {
+  console.log('🚀 SIDEBAR COMPONENT LOADED! isOpen:', isOpen, 'projectId:', projectId)
+  
   const [elements, setElements] = useState<WorldElement[]>([])
   const [selectedCategory, setSelectedCategory] = useState('characters')
   const [selectedElement, setSelectedElement] = useState<WorldElement | null>(null)
@@ -93,6 +96,33 @@ export default function WorldBuildingSidebar({
   const [showNewLocation, setShowNewLocation] = useState(false)
   const [showResearchDialog, setShowResearchDialog] = useState(false)
   const [researchFileName, setResearchFileName] = useState('')
+  
+  // Context menu state
+  const [contextMenu, setContextMenu] = useState<{
+    visible: boolean
+    x: number
+    y: number
+    element: WorldElement
+  } | null>(null)
+
+  // Hook for dynamic context menu dimensions
+  const useContextMenuDimensions = () => {
+    const [dimensions, setDimensions] = useState({ width: 200, height: 136 })
+    
+    const measureMenu = useCallback((menuElement: HTMLElement | null) => {
+      if (menuElement) {
+        const rect = menuElement.getBoundingClientRect()
+        setDimensions({
+          width: Math.ceil(rect.width),
+          height: Math.ceil(rect.height)
+        })
+      }
+    }, [])
+    
+    return { dimensions, measureMenu }
+  }
+
+  const { dimensions, measureMenu } = useContextMenuDimensions()
 
   useEffect(() => {
     // Always load elements for accurate counts, regardless of sidebar state
@@ -276,6 +306,40 @@ export default function WorldBuildingSidebar({
     window.addEventListener('researchFileCreated', handleResearchFileCreated as EventListener);
     window.addEventListener('reloadSidebar', handleSidebarReload as EventListener);
     window.addEventListener('testEvent', handleTestEvent as EventListener);
+
+    // Handle relationship creation events
+    const handleRelationshipCreated = (event: CustomEvent) => {
+      if (event.detail.projectId !== projectId) return;
+      const relationship = event.detail.relationship;
+      setElements((prev) => {
+        const exists = prev.some(el => el.id === relationship.id);
+        if (exists) return prev;
+        return [...prev, relationship];
+      });
+    };
+
+    const handleRelationshipUpdated = (event: CustomEvent) => {
+      if (event.detail.projectId !== projectId) return;
+      const relationship = event.detail.relationship;
+      setElements((prev) => 
+        prev.map(el => 
+          el.id === relationship.id ? relationship : el
+        )
+      );
+    };
+
+    const handleRelationshipDeleted = (event: CustomEvent) => {
+      if (event.detail.projectId !== projectId) return;
+      const relationshipId = event.detail.relationshipId;
+      setElements((prev) => prev.filter(el => el.id !== relationshipId));
+      if (selectedElement?.id === relationshipId) {
+        setSelectedElement(null);
+      }
+    };
+
+    window.addEventListener('relationshipCreated', handleRelationshipCreated as EventListener);
+    window.addEventListener('relationshipUpdated', handleRelationshipUpdated as EventListener);
+    window.addEventListener('relationshipDeleted', handleRelationshipDeleted as EventListener);
     
     console.log('Sidebar event listeners registered for project:', projectId)
 
@@ -291,8 +355,23 @@ export default function WorldBuildingSidebar({
       window.removeEventListener('researchFileCreated', handleResearchFileCreated as EventListener);
       window.removeEventListener('reloadSidebar', handleSidebarReload as EventListener);
       window.removeEventListener('testEvent', handleTestEvent as EventListener);
+      window.removeEventListener('relationshipCreated', handleRelationshipCreated as EventListener);
+      window.removeEventListener('relationshipUpdated', handleRelationshipUpdated as EventListener);
+      window.removeEventListener('relationshipDeleted', handleRelationshipDeleted as EventListener);
     };
   }, [projectId, selectedElement?.id]);
+
+  // Click outside to close context menu
+  useEffect(() => {
+    const handleClickOutside = () => {
+      closeContextMenu()
+    }
+
+    if (contextMenu?.visible) {
+      document.addEventListener('click', handleClickOutside)
+      return () => document.removeEventListener('click', handleClickOutside)
+    }
+  }, [contextMenu?.visible])
 
   const loadElements = async () => {
     try {
@@ -482,6 +561,120 @@ export default function WorldBuildingSidebar({
     setShowNewLocation(false)
   }
 
+  // Enhanced context menu handler with smart positioning
+  const handleElementContextMenu = (e: React.MouseEvent, element: WorldElement) => {
+    console.log('🔥 SIDEBAR Context menu triggered for:', element.name)
+    
+    // Prevent default context menu
+    e.preventDefault()
+    e.stopPropagation()
+    e.nativeEvent.preventDefault()
+    e.nativeEvent.stopPropagation()
+    
+    // Get exact mouse coordinates
+    const mouseX = e.clientX
+    const mouseY = e.clientY
+    const viewportWidth = window.innerWidth
+    const viewportHeight = window.innerHeight
+    
+    // Use measured dimensions or fallback to defaults
+    const menuWidth = dimensions.width || 200
+    const menuHeight = dimensions.height || 136
+    const margin = 8
+    
+    // Calculate available space in all directions
+    const spaceRight = viewportWidth - mouseX
+    const spaceLeft = mouseX
+    const spaceBelow = viewportHeight - mouseY
+    const spaceAbove = mouseY
+    
+    // Determine horizontal position
+    let x: number
+    if (spaceRight >= menuWidth + margin) {
+      // Show to the right (default)
+      x = mouseX + 4
+    } else if (spaceLeft >= menuWidth + margin) {
+      // Show to the left
+      x = mouseX - menuWidth - 4
+    } else {
+      // Use whatever space is available
+      x = spaceRight > spaceLeft 
+        ? Math.max(margin, viewportWidth - menuWidth - margin)
+        : margin
+    }
+    
+    // Determine vertical position
+    let y: number
+    if (spaceBelow >= menuHeight + margin) {
+      // Show below (default)
+      y = mouseY + 4
+    } else if (spaceAbove >= menuHeight + margin) {
+      // Show above
+      y = mouseY - menuHeight - 4
+    } else {
+      // Use whatever space is available
+      y = spaceBelow > spaceAbove 
+        ? Math.max(margin, viewportHeight - menuHeight - margin)
+        : margin
+    }
+    
+    // Final viewport clamping for absolute safety
+    x = Math.max(margin, Math.min(x, viewportWidth - menuWidth - margin))
+    y = Math.max(margin, Math.min(y, viewportHeight - menuHeight - margin))
+    
+    console.log('🔥 Smart positioning result:', {
+      mouse: { x: mouseX, y: mouseY },
+      viewport: { width: viewportWidth, height: viewportHeight },
+      menu: { width: menuWidth, height: menuHeight },
+      space: { right: spaceRight, left: spaceLeft, below: spaceBelow, above: spaceAbove },
+      finalPosition: { x, y },
+      positioning: {
+        horizontal: x > mouseX ? 'right' : x < mouseX ? 'left' : 'centered',
+        vertical: y > mouseY ? 'below' : y < mouseY ? 'above' : 'centered'
+      }
+    })
+    
+    setContextMenu({
+      visible: true,
+      x,
+      y,
+      element
+    })
+    
+    return false
+  }
+
+  const closeContextMenu = () => {
+    setContextMenu(null)
+  }
+
+  const handleContextMenuAction = (action: string) => {
+    if (!contextMenu) return
+
+    const element = contextMenu.element
+
+    if (action === 'edit') {
+      if (element.category === 'characters' && onShowCharacterEditor) {
+        onShowCharacterEditor(element)
+      } else {
+        setSelectedElement(element)
+        if (onElementSelect) {
+          onElementSelect(element)
+        }
+      }
+    } else if (action === 'delete') {
+      if (confirm(`Delete "${element.name}"?`)) {
+        deleteElement(element.id)
+      }
+    } else if (action === 'duplicate') {
+      // Create a duplicate element
+      const duplicateName = `${element.name} (Copy)`
+      createElement(element.category, duplicateName)
+    }
+
+    closeContextMenu()
+  }
+
   const getDefaultAttributes = (category: string) => {
     switch (category) {
       case 'characters':
@@ -606,6 +799,7 @@ export default function WorldBuildingSidebar({
   }
 
   if (!isOpen) {
+    console.log('🚪 SIDEBAR IS CLOSED - showing toggle button')
     return (
       <button
         onClick={onToggle}
@@ -615,6 +809,8 @@ export default function WorldBuildingSidebar({
       </button>
     )
   }
+
+  console.log('🚪 SIDEBAR IS OPEN - rendering full sidebar')
 
   // Show NewCharacter or NewLocation component when creating
   if (showNewCharacter) {
@@ -697,6 +893,11 @@ export default function WorldBuildingSidebar({
                 const categoryElements = getElementsByCategory(category.key)
                 const isExpanded = expandedCategories.includes(category.key)
                 
+                console.log(`🏷️ Rendering category ${category.key}:`, categoryElements.length, 'elements')
+                if (categoryElements.length > 0) {
+                  console.log(`Elements in ${category.key}:`, categoryElements.map(e => e.name))
+                }
+                
                 return (
                   <div key={category.key} className="mb-2">
                     <button
@@ -719,6 +920,8 @@ export default function WorldBuildingSidebar({
                     {isExpanded && (
                       <div className="ml-8 mt-1 space-y-1">
                         {categoryElements.map(element => {
+                          console.log(`🎯 Rendering element: ${element.name} in category ${category.key} with context menu handler`)
+                          
                           // Debug logging for timeline specifically
                           if (category.key === 'timeline') {
                             console.log('Rendering timeline element:', element.name, element.id)
@@ -762,6 +965,10 @@ export default function WorldBuildingSidebar({
                                     onElementSelect(element)
                                   }
                                 }
+                              }}
+                              onContextMenu={(e) => {
+                                console.log('🔥 RIGHT CLICK on element:', element.name, element.category)
+                                handleElementContextMenu(e, element)
                               }}
                               className={`w-full text-left p-2 rounded text-sm transition-colors ${
                                 selectedElement?.id === element.id
@@ -859,6 +1066,7 @@ export default function WorldBuildingSidebar({
                         onNavigateToPanel('research')
                       }
                     }}
+                    onContextMenu={(e) => handleElementContextMenu(e, researchFile)}
                     className={`w-full text-left p-3 rounded-lg text-sm transition-colors ${
                       selectedElement?.id === researchFile.id
                         ? 'bg-purple-100 text-purple-800'
@@ -968,6 +1176,46 @@ export default function WorldBuildingSidebar({
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Enhanced Smart Context Menu */}
+      {contextMenu?.visible && (
+        <div
+          ref={measureMenu}
+          className="fixed bg-white border border-gray-300 rounded-lg shadow-xl py-1 z-[9999]"
+          style={{
+            left: `${contextMenu.x}px`,
+            top: `${contextMenu.y}px`,
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={() => handleContextMenuAction('edit')}
+            className="w-full px-4 py-3 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-3 transition-colors"
+          >
+            <Edit3 className="w-4 h-4 flex-shrink-0" />
+            <span>Edit {contextMenu.element.category === 'characters' ? 'Character' : 
+                  contextMenu.element.category === 'locations' ? 'Location' :
+                  contextMenu.element.category === 'research' ? 'Research File' :
+                  contextMenu.element.category.slice(0, -1)}</span>
+          </button>
+          
+          <button
+            onClick={() => handleContextMenuAction('duplicate')}
+            className="w-full px-4 py-3 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-3 transition-colors"
+          >
+            <Copy className="w-4 h-4 flex-shrink-0" />
+            <span>Duplicate</span>
+          </button>
+          
+          <button
+            onClick={() => handleContextMenuAction('delete')}
+            className="w-full px-4 py-3 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-3 transition-colors"
+          >
+            <Trash2 className="w-4 h-4 flex-shrink-0" />
+            <span>Delete</span>
+          </button>
         </div>
       )}
     </div>

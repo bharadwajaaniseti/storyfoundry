@@ -23,6 +23,16 @@ import MapsPanel from '@/components/world-building/maps-panel'
 import TimelinePanel from '@/components/world-building/timeline-panel'
 import CalendarPanel from '@/components/world-building/calendar-panel'
 import EncyclopediaPanel from '@/components/world-building/encyclopedia-panel'
+import RelationshipsPanel from '@/components/world-building/relationships-panel'
+import ArcsPanel from '@/components/world-building/arcs-panel'
+import MagicPanel from '@/components/world-building/magic-panel'
+import SpeciesPanel from '@/components/world-building/species-panel'
+import CulturesPanel from '@/components/world-building/cultures-panel'
+import ItemsPanel from '@/components/world-building/items-panel'
+import SystemsPanel from '@/components/world-building/systems-panel'
+import LanguagesPanel from '@/components/world-building/languages-panel'
+import ReligionsPanel from '@/components/world-building/religions-panel'
+import PhilosophiesPanel from '@/components/world-building/philosophies-panel'
 import NovelSettingsModal from '@/components/novel-settings-modal'
 import InputModal from '@/components/ui/input-modal'
 import DeleteModal from '@/components/ui/delete-modal'
@@ -449,10 +459,140 @@ function NovelPageInner() {
       }
     }
 
+    const handleRelationshipCreated = (e: CustomEvent) => {
+      if (e.detail?.projectId !== params.id) return
+      const relationship = e.detail?.relationship
+      if (relationship) {
+        setWorldElements(prev => {
+          const exists = prev.some(el => el.id === relationship.id)
+          if (exists) return prev
+          return [...prev, relationship]
+        })
+      }
+    }
+
+    const handleArcCreated = (e: CustomEvent) => {
+      if (e.detail?.projectId !== params.id) return
+      const arc = e.detail?.arc
+      if (arc) {
+        setWorldElements(prev => {
+          const exists = prev.some(el => el.id === arc.id)
+          if (exists) return prev
+          return [...prev, arc]
+        })
+      }
+    }
+
+    const handleMagicCreated = (e: CustomEvent) => {
+      if (e.detail?.projectId !== params.id) return
+      const magic = e.detail?.magic
+      if (magic) {
+        setWorldElements(prev => {
+          const exists = prev.some(el => el.id === magic.id)
+          if (exists) return prev
+          return [...prev, magic]
+        })
+      }
+    }
+
+    const handleSpeciesCreated = (e: CustomEvent) => {
+      if (e.detail?.projectId !== params.id) return
+      const species = e.detail?.species
+      if (species) {
+        setWorldElements(prev => {
+          const exists = prev.some(el => el.id === species.id)
+          if (exists) return prev
+          return [...prev, species]
+        })
+      }
+    }
+
+    const handleCultureCreated = (e: CustomEvent) => {
+      if (e.detail?.projectId !== params.id) return
+      const culture = e.detail?.culture
+      if (culture) {
+        setWorldElements(prev => {
+          const exists = prev.some(el => el.id === culture.id)
+          if (exists) return prev
+          return [...prev, culture]
+        })
+      }
+    }
+
+    const handleItemCreated = (e: CustomEvent) => {
+      if (e.detail?.projectId !== params.id) return
+      const item = e.detail?.item
+      if (item) {
+        setWorldElements(prev => {
+          const exists = prev.some(el => el.id === item.id)
+          if (exists) return prev
+          return [...prev, item]
+        })
+      }
+    }
+
+    const handleSystemCreated = (e: CustomEvent) => {
+      if (e.detail?.projectId !== params.id) return
+      const system = e.detail?.system
+      if (system) {
+        setWorldElements(prev => {
+          const exists = prev.some(el => el.id === system.id)
+          if (exists) return prev
+          return [...prev, system]
+        })
+      }
+    }
+
+    const handleLanguageCreated = (e: CustomEvent) => {
+      if (e.detail?.projectId !== params.id) return
+      const language = e.detail?.language
+      if (language) {
+        setWorldElements(prev => {
+          const exists = prev.some(el => el.id === language.id)
+          if (exists) return prev
+          return [...prev, language]
+        })
+      }
+    }
+
+    const handleReligionCreated = (e: CustomEvent) => {
+      if (e.detail?.projectId !== params.id) return
+      const religion = e.detail?.religion
+      if (religion) {
+        setWorldElements(prev => {
+          const exists = prev.some(el => el.id === religion.id)
+          if (exists) return prev
+          return [...prev, religion]
+        })
+      }
+    }
+
+    const handlePhilosophyCreated = (e: CustomEvent) => {
+      if (e.detail?.projectId !== params.id) return
+      const philosophy = e.detail?.philosophy
+      if (philosophy) {
+        setWorldElements(prev => {
+          const exists = prev.some(el => el.id === philosophy.id)
+          if (exists) return prev
+          return [...prev, philosophy]
+        })
+      }
+    }
+
     window.addEventListener('researchFileCreated', handleResearchFileCreated as EventListener)
     window.addEventListener('reloadSidebar', handleSidebarReload as EventListener)
     window.addEventListener('timelineCreated', handleTimelineCreated as EventListener)
     window.addEventListener('calendarSystemCreated', handleCalendarSystemCreated as EventListener)
+    window.addEventListener('relationshipCreated', handleRelationshipCreated as EventListener)
+    window.addEventListener('arcCreated', handleArcCreated as EventListener)
+    window.addEventListener('magicCreated', handleMagicCreated as EventListener)
+    window.addEventListener('speciesCreated', handleSpeciesCreated as EventListener)
+    window.addEventListener('cultureCreated', handleCultureCreated as EventListener)
+    window.addEventListener('itemCreated', handleItemCreated as EventListener)
+    window.addEventListener('systemCreated', handleSystemCreated as EventListener)
+    window.addEventListener('languageCreated', handleLanguageCreated as EventListener)
+    window.addEventListener('religionCreated', handleReligionCreated as EventListener)
+    window.addEventListener('philosophyCreated', handlePhilosophyCreated as EventListener)
     
     console.log('Main page event listeners registered for project:', params.id)
     
@@ -462,6 +602,16 @@ function NovelPageInner() {
       window.removeEventListener('reloadSidebar', handleSidebarReload as EventListener)
       window.removeEventListener('timelineCreated', handleTimelineCreated as EventListener)
       window.removeEventListener('calendarSystemCreated', handleCalendarSystemCreated as EventListener)
+      window.removeEventListener('relationshipCreated', handleRelationshipCreated as EventListener)
+      window.removeEventListener('arcCreated', handleArcCreated as EventListener)
+      window.removeEventListener('magicCreated', handleMagicCreated as EventListener)
+      window.removeEventListener('speciesCreated', handleSpeciesCreated as EventListener)
+      window.removeEventListener('cultureCreated', handleCultureCreated as EventListener)
+      window.removeEventListener('itemCreated', handleItemCreated as EventListener)
+      window.removeEventListener('systemCreated', handleSystemCreated as EventListener)
+      window.removeEventListener('languageCreated', handleLanguageCreated as EventListener)
+      window.removeEventListener('religionCreated', handleReligionCreated as EventListener)
+      window.removeEventListener('philosophyCreated', handlePhilosophyCreated as EventListener)
     }
   }, [params])
 
@@ -2752,6 +2902,106 @@ function NovelPageInner() {
         return (
           <EncyclopediaPanel 
             projectId={project.id}
+          />
+        )
+
+      case 'relationships':
+        return (
+          <RelationshipsPanel 
+            projectId={project.id}
+            selectedElement={selectedElement}
+            onRelationshipsChange={handleLocationsChange}
+            onClearSelection={clearSelectedElement}
+          />
+        )
+
+      case 'arcs':
+        return (
+          <ArcsPanel 
+            projectId={project.id}
+            selectedElement={selectedElement}
+            onArcsChange={handleLocationsChange}
+            onClearSelection={clearSelectedElement}
+          />
+        )
+
+      case 'magic':
+        return (
+          <MagicPanel 
+            projectId={project.id}
+            selectedElement={selectedElement}
+            onMagicChange={handleLocationsChange}
+            onClearSelection={clearSelectedElement}
+          />
+        )
+
+      case 'species':
+        return (
+          <SpeciesPanel 
+            projectId={project.id}
+            selectedElement={selectedElement}
+            onSpeciesChange={handleLocationsChange}
+            onClearSelection={clearSelectedElement}
+          />
+        )
+
+      case 'cultures':
+        return (
+          <CulturesPanel 
+            projectId={project.id}
+            selectedElement={selectedElement}
+            onCulturesChange={handleLocationsChange}
+            onClearSelection={clearSelectedElement}
+          />
+        )
+
+      case 'items':
+        return (
+          <ItemsPanel 
+            projectId={project.id}
+            selectedElement={selectedElement}
+            onItemsChange={handleLocationsChange}
+            onClearSelection={clearSelectedElement}
+          />
+        )
+
+      case 'systems':
+        return (
+          <SystemsPanel 
+            projectId={project.id}
+            selectedElement={selectedElement}
+            onSystemsChange={handleLocationsChange}
+            onClearSelection={clearSelectedElement}
+          />
+        )
+
+      case 'languages':
+        return (
+          <LanguagesPanel 
+            projectId={project.id}
+            selectedElement={selectedElement}
+            onLanguagesChange={handleLocationsChange}
+            onClearSelection={clearSelectedElement}
+          />
+        )
+
+      case 'religions':
+        return (
+          <ReligionsPanel 
+            projectId={project.id}
+            selectedElement={selectedElement}
+            onReligionsChange={handleLocationsChange}
+            onClearSelection={clearSelectedElement}
+          />
+        )
+
+      case 'philosophies':
+        return (
+          <PhilosophiesPanel 
+            projectId={project.id}
+            selectedElement={selectedElement}
+            onPhilosophiesChange={handleLocationsChange}
+            onClearSelection={clearSelectedElement}
           />
         )
 
