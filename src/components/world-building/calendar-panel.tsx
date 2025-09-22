@@ -7,7 +7,8 @@ import {
   Star, MapPin, Users, Scroll, Settings, Filter, Download, Upload,
   Globe, Moon, Sun, ChevronLeft, ChevronRight, MoreHorizontal,
   Link2, FileText, Tag, AlertCircle, CheckCircle, Eye, X, 
-  GripVertical, Copy, RotateCcw, ArrowLeft, Calendar, Target, Bell
+  GripVertical, Copy, RotateCcw, ArrowLeft, Calendar, Target, Bell,
+  BarChart3
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -112,11 +113,12 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
   // Calendar system state
   const [calendarSystems, setCalendarSystems] = useState<CalendarSystem[]>([])
   const [activeCalendarSystem, setActiveCalendarSystem] = useState<CalendarSystem | null>(null)
-  const [viewMode, setViewMode] = useState<'list' | 'month' | 'week' | 'day' | 'year' | 'timeline' | 'gantt' | 'heatmap' | 'character' | 'location' | 'conflicts' | 'analytics'>('month')
+  const [viewMode, setViewMode] = useState<'list' | 'month' | 'week' | 'day' | 'year' | 'timeline' | 'gantt' | 'heatmap' | 'character' | 'location' | 'conflicts' | 'analytics' | 'overview'>('overview')
   const [currentDate, setCurrentDate] = useState(new Date())
   const [currentEra, setCurrentEra] = useState<Era | null>(null)
   const [currentYear, setCurrentYear] = useState(1)
   const [currentMonth, setCurrentMonth] = useState(1)
+  const [currentMonthYear, setCurrentMonthYear] = useState(new Date().toISOString().slice(0, 7)) // Format: "2024-03"
   
   // Filter and display state
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
@@ -151,6 +153,65 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
   const [editingCalendarSystem, setEditingCalendarSystem] = useState<CalendarSystem | null>(null)
 
   const supabase = createSupabaseClient()
+
+  // Helper function to format dates according to calendar system
+  const formatCalendarDate = (event: WorldElement): string => {
+    if (!activeCalendarSystem) {
+      // Fallback to standard date if no calendar system
+      if (event.attributes?.date) {
+        return new Date(event.attributes.date).toLocaleDateString()
+      }
+      return 'No date'
+    }
+
+    // Use calendar system properties
+    const year = event.attributes?.year
+    const monthOrder = event.attributes?.month
+    const day = event.attributes?.day
+    const eraId = event.attributes?.era || currentEra?.id
+
+    if (!year || !monthOrder || !day) {
+      return 'Incomplete date'
+    }
+
+    // Find the era and month
+    const era = activeCalendarSystem.eras?.find(e => e.id === eraId) || currentEra
+    const month = activeCalendarSystem.months?.find(m => {
+      // Handle both old format (string ID) and new format (number order)
+      if (typeof monthOrder === 'number') {
+        return m.order === monthOrder
+      } else if (typeof monthOrder === 'string' && monthOrder.startsWith('m')) {
+        return m.order === parseInt(monthOrder.substring(1))
+      } else if (typeof monthOrder === 'string') {
+        return m.order === parseInt(monthOrder)
+      }
+      return false
+    })
+
+    if (!era || !month) {
+      return `Year ${year}, Month ${monthOrder}, Day ${day}`
+    }
+
+    return `${era.name} ${year}, ${month.name} ${day}`
+  }
+
+  // Helper function to get calendar date for sorting
+  const getCalendarSortValue = (event: WorldElement): number => {
+    if (!activeCalendarSystem) {
+      return event.attributes?.date ? new Date(event.attributes.date).getTime() : 0
+    }
+
+    const year = event.attributes?.year || 0
+    const monthOrder = typeof event.attributes?.month === 'number' ? 
+      event.attributes.month : 
+      (typeof event.attributes?.month === 'string' && event.attributes.month.startsWith('m')) ?
+        parseInt(event.attributes.month.substring(1)) :
+        parseInt(event.attributes?.month) || 0
+    const day = event.attributes?.day || 0
+
+    // Create a sortable number: year * 10000 + month * 100 + day
+    return year * 10000 + monthOrder * 100 + day
+  }
 
   console.log('🎯 Calendar Panel state:', {
     currentView,
@@ -218,6 +279,34 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
     window.addEventListener('calendarSystemSelected', handleCalendarSystemSelection as EventListener)
     return () => window.removeEventListener('calendarSystemSelected', handleCalendarSystemSelection as EventListener)
   }, [projectId, calendarSystems])
+
+  // Initialize currentMonthYear when calendar system is loaded
+  useEffect(() => {
+    if (activeCalendarSystem && activeCalendarSystem.months) {
+      const currentDate = new Date()
+      const currentRealMonth = currentDate.getMonth() + 1 // JavaScript months are 0-indexed
+      
+      // Try to find a matching month in the calendar system
+      const matchingMonth = activeCalendarSystem.months.find(m => m.order === currentRealMonth)
+      
+      if (matchingMonth) {
+        // If we have a matching month, use it
+        const newMonthYear = `${currentDate.getFullYear()}-${String(currentRealMonth).padStart(2, '0')}`
+        if (currentMonthYear !== newMonthYear) {
+          setCurrentMonthYear(newMonthYear)
+        }
+      } else {
+        // If no matching month, default to the first month of the current year
+        const firstMonth = activeCalendarSystem.months[0]
+        if (firstMonth) {
+          const newMonthYear = `${currentDate.getFullYear()}-${String(firstMonth.order).padStart(2, '0')}`
+          if (currentMonthYear !== newMonthYear) {
+            setCurrentMonthYear(newMonthYear)
+          }
+        }
+      }
+    }
+  }, [activeCalendarSystem, currentMonthYear])
 
   const fetchEvents = async () => {
     try {
@@ -1016,119 +1105,41 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
       {/* Enhanced Sidebar */}
       <div className="w-full lg:w-80 xl:w-96 border-b lg:border-r lg:border-b-0 border-gray-200 flex flex-col">
         {/* Header */}
-        <div className="p-3 border-b border-gray-200">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
-            <h3 className="text-base lg:text-lg font-semibold text-gray-900">Story Calendar</h3>
-            <div className="flex flex-wrap gap-1.5">
-              <Button 
-                size="sm"
-                onClick={() => {
-                  const newEvent = {
-                    id: '',
-                    name: '',
-                    description: '',
-                    attributes: {
-                      custom_year: '',
-                      significance: 'minor',
-                      type: 'general',
-                      priority: 'medium',
-                      completed: false
-                    },
-                    tags: [],
-                    created_at: '',
-                    updated_at: ''
-                  }
-                  setEditingEvent(newEvent)
-                  setIsCreating(true)
-                }}
-                className="bg-orange-500 hover:bg-orange-600 text-white text-xs"
-              >
-                <Plus className="w-3 h-3 mr-1" />
-                Create Event
-              </Button>
-              
-              {/* Import/Export Buttons */}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const icsContent = exportToICS(events, activeCalendarSystem?.name || 'Calendar')
-                  downloadFile(icsContent, `${activeCalendarSystem?.name || 'calendar'}.ics`, 'text/calendar')
-                }}
-                className="border-blue-200 hover:border-blue-300 text-blue-700 hover:bg-blue-50 text-xs"
-              >
-                <Download className="w-3 h-3 mr-1" />
-                <span className="hidden sm:inline">Export ICS</span>
-                <span className="sm:hidden">ICS</span>
-              </Button>
-              
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const csvContent = exportToCSV(events)
-                  downloadFile(csvContent, `${activeCalendarSystem?.name || 'calendar'}.csv`, 'text/csv')
-                }}
-                className="border-green-200 hover:border-green-300 text-green-700 hover:bg-green-50 text-xs"
-              >
-                <Download className="w-3 h-3 mr-1" />
-                <span className="hidden sm:inline">Export CSV</span>
-                <span className="sm:hidden">CSV</span>
-              </Button>
-
-              <label htmlFor="csv-import" className="cursor-pointer">
-                <input
-                  id="csv-import"
-                  type="file"
-                  accept=".csv"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0]
-                    if (file) {
-                      const reader = new FileReader()
-                      reader.onload = async (event) => {
-                          const csvContent = event.target?.result as string
-                          const importedEvents = parseCSVEvents(csvContent)
-                          
-                          // Batch create events
-                          for (const eventData of importedEvents) {
-                            try {
-                              await createEvent(eventData)
-                            } catch (error) {
-                              console.error('Error importing event:', eventData.name, error)
-                            }
-                          }
-                          
-                          // Refresh events list
-                          fetchEvents()
-                        }
-                        reader.readAsText(file)
-                      }
-                    }}
-                  />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="border-purple-200 hover:border-purple-300 text-purple-700 hover:bg-purple-50 text-xs"
-                  >
-                    <Upload className="w-3 h-3 mr-1" />
-                    <span className="hidden sm:inline">Import CSV</span>
-                    <span className="sm:hidden">Import</span>
-                  </Button>
-                </label>
-            </div>
+        <div className="p-4 border-b border-gray-200 bg-white">
+          {/* Title and Primary Action */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <h3 className="text-lg font-semibold text-gray-900">{activeCalendarSystem?.name || 'Story Calendar'}</h3>
+            <Button 
+              size="sm"
+              onClick={() => {
+                const newEvent = {
+                  id: '',
+                  name: '',
+                  description: '',
+                  attributes: {
+                    custom_year: '',
+                    significance: 'minor',
+                    type: 'general',
+                    priority: 'medium',
+                    completed: false
+                  },
+                  tags: [],
+                  created_at: '',
+                  updated_at: ''
+                }
+                setEditingEvent(newEvent)
+                setIsCreating(true)
+              }}
+              className="bg-orange-500 hover:bg-orange-600 text-white"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Create Event
+            </Button>
           </div>
           
-          {/* Calendar System Display */}
+          {/* Space among the content. */}
           <div className="mb-3">
-            <div className="w-full p-2 border border-gray-300 rounded-lg bg-gray-50">
-              <div className="flex items-center">
-                <Globe className="w-3 h-3 mr-2 text-gray-600" />
-                <span className="text-xs font-medium text-gray-800 truncate">
-                  {activeCalendarSystem ? activeCalendarSystem.name : 'No Calendar System Selected'}
-                </span>
-              </div>
-            </div>
+            
           </div>
           
           {/* Debug Button (temporary) */}
@@ -1142,6 +1153,17 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
               <h4 className="text-sm font-semibold text-gray-800">Calendar Views</h4>
             </div>
             <nav className="space-y-1">
+              <button
+                onClick={() => setViewMode('overview')}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  viewMode === 'overview'
+                    ? 'bg-gradient-to-r from-orange-50 to-amber-50 text-orange-700 border border-orange-200 shadow-sm'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                }`}
+              >
+                <span className="text-base">🏛️</span>
+                <span>Calendar Overview</span>
+              </button>
               <button
                 onClick={() => setViewMode('list')}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
@@ -1235,14 +1257,85 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
           
           {/* Modern Info Card */}
           <div className="bg-gradient-to-br from-gray-50 to-white border border-gray-200 rounded-xl p-4 shadow-sm">
-            <div className="text-center">
+            <div className="text-center mb-4">
               <div className="w-12 h-12 bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl mx-auto mb-3 flex items-center justify-center">
                 <CalendarIcon className="w-6 h-6 text-gray-500" />
               </div>
-              <h3 className="text-sm font-semibold text-gray-800 mb-2">Story Calendar</h3>
-              <p className="text-xs text-gray-500 leading-relaxed">
-                Organize and visualize your story events across different timeline views
+              <h3 className="text-sm font-semibold text-gray-800 mb-2">Export & Import</h3>
+              <p className="text-xs text-gray-500 leading-relaxed mb-4">
+                Manage your calendar data
               </p>
+            </div>
+            
+            {/* Export/Import Actions */}
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const icsContent = exportToICS(events, activeCalendarSystem?.name || 'Calendar')
+                    downloadFile(icsContent, `${activeCalendarSystem?.name || 'calendar'}.ics`, 'text/calendar')
+                  }}
+                  className="border-blue-200 hover:border-blue-300 text-blue-700 hover:bg-blue-50 flex-1 text-xs"
+                >
+                  <Download className="w-3 h-3 mr-1" />
+                  Export ICS
+                </Button>
+                
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const csvContent = exportToCSV(events)
+                    downloadFile(csvContent, `${activeCalendarSystem?.name || 'calendar'}.csv`, 'text/csv')
+                  }}
+                  className="border-green-200 hover:border-green-300 text-green-700 hover:bg-green-50 flex-1 text-xs"
+                >
+                  <Download className="w-3 h-3 mr-1" />
+                  Export CSV
+                </Button>
+              </div>
+              
+              <label htmlFor="csv-import" className="cursor-pointer block">
+                <input
+                  id="csv-import"
+                  type="file"
+                  accept=".csv"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) {
+                      const reader = new FileReader()
+                      reader.onload = async (event) => {
+                          const csvContent = event.target?.result as string
+                          const importedEvents = parseCSVEvents(csvContent)
+                          
+                          // Batch create events
+                          for (const eventData of importedEvents) {
+                            try {
+                              await createEvent(eventData)
+                            } catch (error) {
+                              console.error('Error importing event:', eventData.name, error)
+                            }
+                          }
+                          
+                          // Refresh events list
+                          fetchEvents()
+                        }
+                        reader.readAsText(file)
+                      }
+                    }}
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-purple-200 hover:border-purple-300 text-purple-700 hover:bg-purple-50 w-full text-xs"
+                  >
+                    <Upload className="w-3 h-3 mr-1" />
+                    Import CSV
+                  </Button>
+                </label>
             </div>
           </div>
         </div>
@@ -1531,18 +1624,21 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
                             <div>
                               <Label className="text-sm font-medium text-gray-700 mb-2 block">Month</Label>
                               <Select
-                                value={editingEvent.attributes?.month || ''}
-                                onValueChange={(value) => setEditingEvent({
-                                  ...editingEvent, 
-                                  attributes: {...editingEvent.attributes, month: value}
-                                })}
+                                value={editingEvent.attributes?.month?.toString() || ''}
+                                onValueChange={(value) => {
+                                  const monthOrder = parseInt(value)
+                                  setEditingEvent({
+                                    ...editingEvent, 
+                                    attributes: {...editingEvent.attributes, month: monthOrder}
+                                  })
+                                }}
                               >
                                 <SelectTrigger className="h-12 border-2 border-gray-200 focus:border-blue-400 bg-white/70">
                                   <SelectValue placeholder="Select month" />
                                 </SelectTrigger>
                                 <SelectContent className="z-50 bg-white border border-gray-200 shadow-lg rounded-lg">
                                   {activeCalendarSystem?.months?.map((month: Month) => (
-                                    <SelectItem key={month.id} value={month.id}>
+                                    <SelectItem key={month.id} value={month.order.toString()}>
                                       {month.name}
                                     </SelectItem>
                                   )) || <SelectItem value="">No months defined</SelectItem>}
@@ -2137,7 +2233,7 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
                           {/* Quick Templates */}
                           <div className="mt-6 bg-gradient-to-br from-gray-50 to-slate-50 rounded-lg p-4 border border-gray-200">
                             <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                              <FileIcon className="w-4 h-4" />
+                              <FileText className="w-4 h-4" />
                               Quick Templates
                             </h4>
                             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
@@ -3629,22 +3725,711 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
         ) : (
           // Calendar Views
           <div className="flex-1 flex flex-col bg-gray-50 min-w-0">
+            {viewMode === 'overview' && (
+              <div className="flex-1 p-4 bg-gray-50">
+                <div className="bg-white rounded-lg shadow-sm border h-full flex flex-col">
+                  <div className="p-4 lg:p-6 border-b bg-gradient-to-r from-indigo-50 to-blue-50 flex-shrink-0">
+                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                      <div>
+                        <h3 className="text-xl lg:text-2xl font-bold text-gray-900 flex items-center gap-3">
+                          <div className="w-8 h-8 lg:w-10 lg:h-10 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-lg flex items-center justify-center shadow-lg">
+                            <Globe className="w-5 h-5 text-white" />
+                          </div>
+                          {activeCalendarSystem?.name || 'Calendar Overview'}
+                        </h3>
+                        <p className="text-gray-600 mt-2 text-lg">
+                          {activeCalendarSystem?.description || 'Custom calendar system'}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <Button 
+                          variant="outline"
+                          size="sm"
+                          className="gap-2"
+                          disabled={!activeCalendarSystem}
+                          onClick={() => {
+                            if (activeCalendarSystem) {
+                              setEditingCalendarSystem(activeCalendarSystem)
+                            }
+                          }}
+                        >
+                          <Settings className="w-4 h-4" />
+                          Edit Calendar
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex-1 p-6 overflow-auto">
+                    {activeCalendarSystem ? (
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        {/* Eras Section */}
+                        <div className="lg:col-span-1">
+                          <div className="bg-gradient-to-br from-purple-50 to-violet-50 rounded-lg p-4 border border-purple-100">
+                            <h4 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                              <Clock className="w-5 h-5 text-purple-600" />
+                              Eras
+                            </h4>
+                            {activeCalendarSystem.eras?.length > 0 ? (
+                              <div className="space-y-3">
+                                {activeCalendarSystem.eras.map((era, index) => (
+                                  <div key={index} className="bg-white rounded-lg p-3 border border-purple-200">
+                                    <div className="font-medium text-gray-900">{era.name}</div>
+                                    <div className="text-sm text-gray-600 mt-1">
+                                      Start Year: {era.startYear}
+                                    </div>
+                                    {era.description && (
+                                      <div className="text-sm text-gray-500 mt-1">{era.description}</div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="text-gray-500 text-sm">No eras defined</div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Months Section */}
+                        <div className="lg:col-span-1">
+                          <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-4 border border-green-100">
+                            <h4 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                              <Calendar className="w-5 h-5 text-green-600" />
+                              Months ({activeCalendarSystem.months?.length || 0})
+                            </h4>
+                            {activeCalendarSystem.months?.length > 0 ? (
+                              <div className="grid grid-cols-2 gap-2">
+                                {activeCalendarSystem.months.map((month, index) => (
+                                  <div key={index} className="bg-white rounded-lg p-2 border border-green-200 text-center">
+                                    <div className="font-medium text-gray-900 text-sm">{month.name}</div>
+                                    <div className="text-xs text-gray-600">{month.days} days</div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="text-gray-500 text-sm">No months defined</div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Properties Section */}
+                        <div className="lg:col-span-1">
+                          <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-lg p-4 border border-orange-100">
+                            <h4 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                              <Settings className="w-5 h-5 text-orange-600" />
+                              Properties
+                            </h4>
+                            <div className="space-y-3">
+                              <div className="bg-white rounded-lg p-3 border border-orange-200">
+                                <div className="text-sm font-medium text-gray-700">Days per week:</div>
+                                <div className="text-lg font-bold text-gray-900">{activeCalendarSystem.weekdays?.length || 7}</div>
+                              </div>
+                              <div className="bg-white rounded-lg p-3 border border-orange-200">
+                                <div className="text-sm font-medium text-gray-700">Months per year:</div>
+                                <div className="text-lg font-bold text-gray-900">{activeCalendarSystem.months?.length || 4}</div>
+                              </div>
+                              <div className="bg-white rounded-lg p-3 border border-orange-200">
+                                <div className="text-sm font-medium text-gray-700">Seasons:</div>
+                                <div className="text-lg font-bold text-gray-900">{activeCalendarSystem.seasons?.length || 4}</div>
+                              </div>
+                              <div className="bg-white rounded-lg p-3 border border-orange-200">
+                                <div className="text-sm font-medium text-gray-700">Moons:</div>
+                                <div className="text-lg font-bold text-gray-900">{activeCalendarSystem.moons?.length || 1}</div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Weekdays Section */}
+                        {activeCalendarSystem.weekdays?.length > 0 && (
+                          <div className="lg:col-span-3">
+                            <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-lg p-4 border border-blue-100">
+                              <h4 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                                <Calendar className="w-5 h-5 text-blue-600" />
+                                Weekdays
+                              </h4>
+                              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-2">
+                                {activeCalendarSystem.weekdays.map((day, index) => (
+                                  <div key={index} className="bg-white rounded-lg p-2 border border-blue-200 text-center">
+                                    <div className="font-medium text-gray-900 text-sm">{day}</div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Seasons Section */}
+                        {activeCalendarSystem.seasons?.length > 0 && (
+                          <div className="lg:col-span-3">
+                            <div className="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-lg p-4 border border-yellow-100">
+                              <h4 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                                <Sun className="w-5 h-5 text-yellow-600" />
+                                Seasons
+                              </h4>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                                {activeCalendarSystem.seasons.map((season, index) => (
+                                  <div key={index} className="bg-white rounded-lg p-3 border border-yellow-200">
+                                    <div className="font-medium text-gray-900">{season.name}</div>
+                                    <div className="text-sm text-gray-600 mt-1">
+                                      Duration: {season.duration} days
+                                    </div>
+                                    {season.description && (
+                                      <div className="text-sm text-gray-500 mt-1">{season.description}</div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Moons Section */}
+                        {activeCalendarSystem.moons?.length > 0 && (
+                          <div className="lg:col-span-3">
+                            <div className="bg-gradient-to-br from-slate-50 to-gray-50 rounded-lg p-4 border border-slate-100">
+                              <h4 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                                <Moon className="w-5 h-5 text-slate-600" />
+                                Moons
+                              </h4>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                {activeCalendarSystem.moons.map((moon, index) => (
+                                  <div key={index} className="bg-white rounded-lg p-3 border border-slate-200">
+                                    <div className="font-medium text-gray-900">{moon.name}</div>
+                                    <div className="text-sm text-gray-600 mt-1">
+                                      Cycle: {moon.cycle} days
+                                    </div>
+                                    {moon.description && (
+                                      <div className="text-sm text-gray-500 mt-1">{moon.description}</div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex-1 flex items-center justify-center">
+                        <div className="text-center text-gray-500 py-20">
+                          <Globe className="w-16 h-16 mx-auto text-gray-300 mb-4" />
+                          <h3 className="text-lg font-medium mb-2">No Calendar System Selected</h3>
+                          <p className="text-sm mb-4">Create or select a calendar system to view its details</p>
+                          <Button 
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2"
+                            onClick={() => setCurrentView('systems')}
+                          >
+                            <Plus className="w-4 h-4" />
+                            Create Calendar System
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {viewMode === 'timeline' && (
               <div className="flex-1 p-4 bg-gray-50">
-                <div className="text-center text-gray-500 py-20">
-                  <CalendarIcon className="w-16 h-16 mx-auto text-gray-300 mb-4" />
-                  <h3 className="text-lg font-medium mb-2">Timeline View</h3>
-                  <p className="text-sm">Interactive timeline view coming soon...</p>
+                <div className="bg-white rounded-lg shadow-sm border h-full flex flex-col">
+                  <div className="p-4 lg:p-6 border-b bg-gradient-to-r from-purple-50 to-violet-50 flex-shrink-0">
+                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                      <div>
+                        <h3 className="text-xl lg:text-2xl font-bold text-gray-900 flex items-center gap-3">
+                          <div className="w-8 h-8 lg:w-10 lg:h-10 bg-gradient-to-br from-purple-500 to-violet-600 rounded-lg flex items-center justify-center shadow-lg">
+                            <Clock className="w-5 h-5 text-white" />
+                          </div>
+                          Event Timeline
+                        </h3>
+                        <p className="text-gray-600 mt-2 text-lg">Chronological view of your story events</p>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 border">
+                          <Label htmlFor="timeline-sort" className="text-sm font-medium">Sort by:</Label>
+                          <Select defaultValue="date">
+                            <SelectTrigger className="w-32 h-8">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="date">Date</SelectItem>
+                              <SelectItem value="name">Name</SelectItem>
+                              <SelectItem value="type">Type</SelectItem>
+                              <SelectItem value="priority">Priority</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <Button 
+                          size="sm"
+                          className="bg-purple-600 hover:bg-purple-700 text-white gap-2"
+                          onClick={() => {
+                            const newEvent = {
+                              id: '',
+                              name: '',
+                              description: '',
+                              category: 'calendar',
+                              project_id: projectId,
+                              attributes: {
+                                date: new Date().toISOString().split('T')[0],
+                                event_type: 'story',
+                                priority: 'medium'
+                              },
+                              tags: [],
+                              created_at: '',
+                              updated_at: ''
+                            }
+                            setEditingEvent(newEvent)
+                            setIsCreating(true)
+                          }}
+                        >
+                          <Plus className="w-4 h-4" />
+                          Add Event
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex-1 p-6 overflow-auto">
+                    {filteredEvents.length > 0 ? (
+                      <div className="relative">
+                        {/* Timeline Line */}
+                        <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-gradient-to-b from-purple-300 to-violet-300"></div>
+                        
+                        {/* Timeline Events */}
+                        <div className="space-y-8">
+                          {filteredEvents
+                            .sort((a, b) => {
+                              return getCalendarSortValue(a) - getCalendarSortValue(b)
+                            })
+                            .map((event, index) => (
+                              <div key={event.id || index} className="relative flex items-start">
+                                {/* Timeline Dot */}
+                                <div className={`relative z-10 w-4 h-4 rounded-full border-2 border-white shadow-lg ${
+                                  event.attributes?.type === 'battle' ? 'bg-red-500' :
+                                  event.attributes?.type === 'celebration' ? 'bg-green-500' :
+                                  event.attributes?.type === 'political' ? 'bg-blue-500' :
+                                  event.attributes?.type === 'discovery' ? 'bg-purple-500' :
+                                  event.attributes?.type === 'personal' ? 'bg-pink-500' :
+                                  'bg-orange-500'
+                                }`}></div>
+                                
+                                {/* Event Card */}
+                                <div className="ml-6 flex-1">
+                                  <div 
+                                    className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                                    onClick={() => {
+                                      setSelectedEvent(event)
+                                      setEditingEvent(null)
+                                      setIsCreating(false)
+                                    }}
+                                  >
+                                    <div className="flex items-start justify-between">
+                                      <div className="flex-1">
+                                        <div className="flex items-center gap-3 mb-2">
+                                          <h4 className="text-lg font-semibold text-gray-900">{event.name}</h4>
+                                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                            event.attributes?.type === 'battle' ? 'bg-red-100 text-red-800' :
+                                            event.attributes?.type === 'celebration' ? 'bg-green-100 text-green-800' :
+                                            event.attributes?.type === 'political' ? 'bg-blue-100 text-blue-800' :
+                                            event.attributes?.type === 'discovery' ? 'bg-purple-100 text-purple-800' :
+                                            event.attributes?.type === 'personal' ? 'bg-pink-100 text-pink-800' :
+                                            'bg-orange-100 text-orange-800'
+                                          }`}>
+                                            {event.attributes?.type || 'general'}
+                                          </span>
+                                        </div>
+                                        
+                                        <p className="text-gray-600 mb-3 leading-relaxed">{event.description}</p>
+                                        
+                                        <div className="flex items-center gap-4 text-sm text-gray-500">
+                                          <div className="flex items-center gap-1">
+                                            <CalendarIcon className="w-4 h-4" />
+                                            <span>{formatCalendarDate(event)}</span>
+                                          </div>
+                                          
+                                          {event.attributes?.location && (
+                                            <div className="flex items-center gap-1">
+                                              <MapPin className="w-4 h-4" />
+                                              <span>{event.attributes.location}</span>
+                                            </div>
+                                          )}
+                                          
+                                          {event.attributes?.priority && (
+                                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                              event.attributes.priority === 'critical' ? 'bg-red-100 text-red-800' :
+                                              event.attributes.priority === 'high' ? 'bg-orange-100 text-orange-800' :
+                                              event.attributes.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                                              'bg-green-100 text-green-800'
+                                            }`}>
+                                              {event.attributes.priority}
+                                            </span>
+                                          )}
+                                        </div>
+                                        
+                                        {event.tags.length > 0 && (
+                                          <div className="flex flex-wrap gap-1 mt-3">
+                                            {event.tags.slice(0, 3).map((tag, tagIndex) => (
+                                              <Badge key={tagIndex} variant="outline" className="text-xs">
+                                                {tag}
+                                              </Badge>
+                                            ))}
+                                            {event.tags.length > 3 && (
+                                              <Badge variant="outline" className="text-xs">
+                                                +{event.tags.length - 3}
+                                              </Badge>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                      
+                                      <div className="flex gap-2 ml-4">
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            setEditingEvent(event)
+                                            setIsCreating(false)
+                                          }}
+                                        >
+                                          <Edit3 className="w-4 h-4" />
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex-1 flex items-center justify-center">
+                        <div className="text-center text-gray-500 py-20">
+                          <Clock className="w-16 h-16 mx-auto text-gray-300 mb-4" />
+                          <h3 className="text-lg font-medium mb-2">No Events to Display</h3>
+                          <p className="text-sm mb-4">Create events to see them on the timeline</p>
+                          <Button 
+                            className="bg-purple-600 hover:bg-purple-700 text-white gap-2"
+                            onClick={() => {
+                              const newEvent = {
+                                id: '',
+                                name: '',
+                                description: '',
+                                category: 'calendar',
+                                project_id: projectId,
+                                attributes: {
+                                  date: new Date().toISOString().split('T')[0],
+                                  event_type: 'story',
+                                  priority: 'medium'
+                                },
+                                tags: [],
+                                created_at: '',
+                                updated_at: ''
+                              }
+                              setEditingEvent(newEvent)
+                              setIsCreating(true)
+                            }}
+                          >
+                            <Plus className="w-4 h-4" />
+                            Create First Event
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
 
             {viewMode === 'gantt' && (
               <div className="flex-1 p-4 bg-gray-50">
-                <div className="text-center text-gray-500 py-20">
-                  <CalendarIcon className="w-16 h-16 mx-auto text-gray-300 mb-4" />
-                  <h3 className="text-lg font-medium mb-2">Gantt Chart View</h3>
-                  <p className="text-sm">Gantt chart visualization coming soon...</p>
+                <div className="bg-white rounded-lg shadow-sm border h-full flex flex-col">
+                  <div className="p-4 lg:p-6 border-b bg-gradient-to-r from-emerald-50 to-teal-50 flex-shrink-0">
+                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                      <div>
+                        <h3 className="text-xl lg:text-2xl font-bold text-gray-900 flex items-center gap-3">
+                          <div className="w-8 h-8 lg:w-10 lg:h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center shadow-lg">
+                            <BarChart3 className="w-5 h-5 text-white" />
+                          </div>
+                          Gantt Chart
+                        </h3>
+                        <p className="text-gray-600 mt-2 text-lg">Project-style timeline with durations and dependencies</p>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 border">
+                          <Label htmlFor="gantt-view" className="text-sm font-medium">Time Scale:</Label>
+                          <Select defaultValue="months">
+                            <SelectTrigger className="w-32 h-8">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="days">Days</SelectItem>
+                              <SelectItem value="weeks">Weeks</SelectItem>
+                              <SelectItem value="months">Months</SelectItem>
+                              <SelectItem value="years">Years</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <Button 
+                          size="sm"
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+                          onClick={() => {
+                            const newEvent = {
+                              id: '',
+                              name: '',
+                              description: '',
+                              category: 'calendar',
+                              project_id: projectId,
+                              attributes: {
+                                date: new Date().toISOString().split('T')[0],
+                                end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                                event_type: 'story',
+                                priority: 'medium',
+                                progress: 0
+                              },
+                              tags: [],
+                              created_at: '',
+                              updated_at: ''
+                            }
+                            setEditingEvent(newEvent)
+                            setIsCreating(true)
+                          }}
+                        >
+                          <Plus className="w-4 h-4" />
+                          Add Task
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex-1 overflow-auto">
+                    {filteredEvents.length > 0 ? (
+                      <div className="p-6">
+                        {/* Gantt Chart Header */}
+                        <div className="grid grid-cols-12 gap-4 mb-6 bg-gray-50 p-4 rounded-lg border">
+                          <div className="col-span-4">
+                            <h4 className="font-semibold text-gray-700">Task Name</h4>
+                          </div>
+                          <div className="col-span-2">
+                            <h4 className="font-semibold text-gray-700">Start Date</h4>
+                          </div>
+                          <div className="col-span-2">
+                            <h4 className="font-semibold text-gray-700">End Date</h4>
+                          </div>
+                          <div className="col-span-2">
+                            <h4 className="font-semibold text-gray-700">Duration</h4>
+                          </div>
+                          <div className="col-span-2">
+                            <h4 className="font-semibold text-gray-700">Progress</h4>
+                          </div>
+                        </div>
+                        
+                        {/* Timeline Scale */}
+                        <div className="mb-4 px-4">
+                          <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
+                            <span>Timeline</span>
+                            <span className="text-emerald-600 font-medium">Today: {new Date().toLocaleDateString()}</span>
+                          </div>
+                          <div className="h-8 bg-gradient-to-r from-emerald-100 to-teal-100 rounded-lg border flex items-center justify-center">
+                            <div className="w-full h-1 bg-gradient-to-r from-emerald-300 to-teal-300 rounded-full relative">
+                              <div className="absolute w-0.5 h-4 bg-emerald-600 -top-1.5 left-1/2 transform -translate-x-1/2"></div>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Gantt Chart Rows */}
+                        <div className="space-y-4">
+                          {filteredEvents
+                            .sort((a, b) => {
+                              return getCalendarSortValue(a) - getCalendarSortValue(b)
+                            })
+                            .map((event, index) => {
+                              // For Gantt, we still need some date calculations for duration
+                              // We'll use a hybrid approach - calendar system for display, dates for duration
+                              const startDate = event.attributes?.date ? new Date(event.attributes.date) : new Date()
+                              const endDate = event.attributes?.end_date ? new Date(event.attributes.end_date) : new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000)
+                              const duration = Math.ceil((endDate.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000))
+                              const progress = event.attributes?.progress || 0
+                              
+                              return (
+                                <div 
+                                  key={event.id || index} 
+                                  className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow cursor-pointer"
+                                  onClick={() => {
+                                    setSelectedEvent(event)
+                                    setEditingEvent(null)
+                                    setIsCreating(false)
+                                  }}
+                                >
+                                  <div className="grid grid-cols-12 gap-4 items-center">
+                                    {/* Task Name */}
+                                    <div className="col-span-4">
+                                      <div className="flex items-center gap-3">
+                                        <div className={`w-3 h-3 rounded-full ${
+                                          event.attributes?.type === 'battle' ? 'bg-red-500' :
+                                          event.attributes?.type === 'celebration' ? 'bg-green-500' :
+                                          event.attributes?.type === 'political' ? 'bg-blue-500' :
+                                          event.attributes?.type === 'discovery' ? 'bg-purple-500' :
+                                          event.attributes?.type === 'personal' ? 'bg-pink-500' :
+                                          'bg-orange-500'
+                                        }`}></div>
+                                        <div>
+                                          <h5 className="font-medium text-gray-900">{event.name}</h5>
+                                          <p className="text-sm text-gray-500 truncate">{event.description}</p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    
+                                    {/* Start Date */}
+                                    <div className="col-span-2">
+                                      <span className="text-sm text-gray-600">
+                                        {formatCalendarDate(event)}
+                                      </span>
+                                    </div>
+                                    
+                                    {/* End Date */}
+                                    <div className="col-span-2">
+                                      <span className="text-sm text-gray-600">
+                                        {event.attributes?.end_date ? formatCalendarDate({
+                                          ...event,
+                                          attributes: {
+                                            ...event.attributes,
+                                            // For end date, we need to add duration to start date
+                                            // This is a simplified approach for now
+                                            day: (event.attributes?.day || 1) + duration
+                                          }
+                                        }) : `+${duration} days`}
+                                      </span>
+                                    </div>
+                                    
+                                    {/* Duration */}
+                                    <div className="col-span-2">
+                                      <span className="text-sm text-gray-600">
+                                        {duration} day{duration !== 1 ? 's' : ''}
+                                      </span>
+                                    </div>
+                                    
+                                    {/* Progress */}
+                                    <div className="col-span-2">
+                                      <div className="flex items-center gap-2">
+                                        <div className="flex-1 bg-gray-200 rounded-full h-2">
+                                          <div 
+                                            className={`h-2 rounded-full transition-all duration-300 ${
+                                              progress >= 100 ? 'bg-green-500' :
+                                              progress >= 75 ? 'bg-emerald-500' :
+                                              progress >= 50 ? 'bg-yellow-500' :
+                                              progress >= 25 ? 'bg-orange-500' :
+                                              'bg-red-500'
+                                            }`}
+                                            style={{ width: `${Math.min(progress, 100)}%` }}
+                                          ></div>
+                                        </div>
+                                        <span className="text-xs text-gray-500 w-10 text-right">
+                                          {progress}%
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  
+                                  {/* Gantt Bar */}
+                                  <div className="mt-4 relative">
+                                    <div className="h-6 bg-gray-100 rounded-full overflow-hidden">
+                                      <div 
+                                        className={`h-full rounded-full ${
+                                          event.attributes?.type === 'battle' ? 'bg-gradient-to-r from-red-400 to-red-600' :
+                                          event.attributes?.type === 'celebration' ? 'bg-gradient-to-r from-green-400 to-green-600' :
+                                          event.attributes?.type === 'political' ? 'bg-gradient-to-r from-blue-400 to-blue-600' :
+                                          event.attributes?.type === 'discovery' ? 'bg-gradient-to-r from-purple-400 to-purple-600' :
+                                          event.attributes?.type === 'personal' ? 'bg-gradient-to-r from-pink-400 to-pink-600' :
+                                          'bg-gradient-to-r from-orange-400 to-orange-600'
+                                        } relative`}
+                                        style={{ 
+                                          width: `${Math.max(10, Math.min(duration * 2, 100))}%`,
+                                          opacity: 0.8
+                                        }}
+                                      >
+                                        {/* Progress overlay */}
+                                        <div 
+                                          className="absolute top-0 left-0 h-full bg-white bg-opacity-30 rounded-full"
+                                          style={{ width: `${progress}%` }}
+                                        ></div>
+                                      </div>
+                                    </div>
+                                    
+                                    {/* Action Buttons */}
+                                    <div className="absolute right-0 top-0 flex gap-1">
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-6 w-6 p-0"
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          setEditingEvent(event)
+                                          setIsCreating(false)
+                                        }}
+                                      >
+                                        <Edit3 className="w-3 h-3" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                  
+                                  {/* Tags */}
+                                  {event.tags.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 mt-3">
+                                      {event.tags.slice(0, 3).map((tag, tagIndex) => (
+                                        <Badge key={tagIndex} variant="outline" className="text-xs">
+                                          {tag}
+                                        </Badge>
+                                      ))}
+                                      {event.tags.length > 3 && (
+                                        <Badge variant="outline" className="text-xs">
+                                          +{event.tags.length - 3}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            })}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex-1 flex items-center justify-center">
+                        <div className="text-center text-gray-500 py-20">
+                          <BarChart3 className="w-16 h-16 mx-auto text-gray-300 mb-4" />
+                          <h3 className="text-lg font-medium mb-2">No Tasks to Display</h3>
+                          <p className="text-sm mb-4">Create tasks to see them in the Gantt chart</p>
+                          <Button 
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+                            onClick={() => {
+                              const newEvent = {
+                                id: '',
+                                name: '',
+                                description: '',
+                                category: 'calendar',
+                                project_id: projectId,
+                                attributes: {
+                                  date: new Date().toISOString().split('T')[0],
+                                  end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                                  event_type: 'story',
+                                  priority: 'medium',
+                                  progress: 0
+                                },
+                                tags: [],
+                                created_at: '',
+                                updated_at: ''
+                              }
+                              setEditingEvent(newEvent)
+                              setIsCreating(true)
+                            }}
+                          >
+                            <Plus className="w-4 h-4" />
+                            Create First Task
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
@@ -3793,7 +4578,7 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
                                     <div className="flex-1 min-w-0">
                                       <div className="text-sm font-medium text-gray-900 truncate">{event.name}</div>
                                       <div className="text-xs text-gray-500 flex items-center gap-2 mt-1">
-                                        <span>{event.attributes?.year}</span>
+                                        <span>{formatCalendarDate(event)}</span>
                                         <span>•</span>
                                         <span className="capitalize">{event.attributes?.type}</span>
                                         {event.attributes?.location && (
@@ -4248,144 +5033,170 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
               </div>
             )}
 
-            {(viewMode === 'month' || viewMode === 'list') && (
+            {/* List View - Comprehensive Event Table */}
+            {viewMode === 'list' && (
               <div className="flex-1 p-4 bg-gray-50">
-                
-                {activeCalendarSystem ? (
-                  <div className="space-y-6">
-                    {/* Active Calendar System Info */}
-                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h3 className="text-lg font-semibold text-blue-900">{activeCalendarSystem.name}</h3>
-                          <p className="text-sm text-blue-700">{activeCalendarSystem.description}</p>
-                        </div>
+                <div className="bg-white rounded-lg shadow-sm border h-full flex flex-col">
+                  <div className="p-4 lg:p-6 border-b bg-gradient-to-r from-blue-50 to-indigo-50 flex-shrink-0">
+                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                      <div>
+                        <h3 className="text-xl lg:text-2xl font-bold text-gray-900 flex items-center gap-3">
+                          <div className="w-8 h-8 lg:w-10 lg:h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-lg">
+                            <FileText className="w-5 h-5 text-white" />
+                          </div>
+                          Events List
+                        </h3>
+                        <p className="text-gray-600 mt-2 text-lg">Comprehensive view of all timeline events</p>
+                      </div>
+                      <div className="flex gap-2">
                         <Button 
                           variant="outline" 
                           size="sm"
-                          onClick={() => setEditingCalendarSystem(activeCalendarSystem)}
-                          className="border-blue-300 text-blue-700 hover:bg-blue-100"
+                          className="gap-2"
                         >
-                          <Settings className="w-4 h-4" />
+                          <Download className="w-4 h-4" />
+                          Export
+                        </Button>
+                        <Button 
+                          size="sm"
+                          className="bg-blue-600 hover:bg-blue-700 text-white gap-2"
+                          onClick={() => {
+                            const newEvent = {
+                              id: '',
+                              name: '',
+                              description: '',
+                              category: 'calendar',
+                              project_id: projectId,
+                              attributes: {
+                                date: new Date().toISOString().split('T')[0],
+                                event_type: 'story',
+                                priority: 'medium'
+                              },
+                              tags: [],
+                              created_at: '',
+                              updated_at: ''
+                            }
+                            setEditingEvent(newEvent)
+                            setIsCreating(true)
+                          }}
+                        >
+                          <Plus className="w-4 h-4" />
+                          Add Event
                         </Button>
                       </div>
                     </div>
-
-                    {/* Calendar System Details */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {/* Eras */}
-                      {activeCalendarSystem.eras && activeCalendarSystem.eras.length > 0 && (
-                        <div className="bg-white rounded-lg border border-gray-200 p-4">
-                          <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
-                            <Clock className="w-4 h-4 mr-2 text-indigo-500" />
-                            Eras
-                          </h4>
-                          <div className="space-y-2">
-                            {activeCalendarSystem.eras.map((era, index) => (
-                              <div 
-                                key={era.id || index}
-                                className={`p-2 rounded border ${currentEra?.id === era.id ? 'bg-indigo-50 border-indigo-200' : 'bg-gray-50 border-gray-200'}`}
-                              >
-                                <div className="font-medium text-sm">{era.name}</div>
-                                <div className="text-xs text-gray-500">Start Year: {era.startYear}</div>
-                                {era.description && (
-                                  <div className="text-xs text-gray-600 mt-1">{era.description}</div>
-                                )}
-                              </div>
+                  </div>
+                  
+                  <div className="flex-1 overflow-auto">
+                    {filteredEvents.length > 0 ? (
+                      <div className="min-w-full">
+                        <table className="w-full divide-y divide-gray-200">
+                          <thead className="bg-gray-50 sticky top-0">
+                            <tr>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Event</th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Priority</th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tags</th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {filteredEvents.map((event, index) => (
+                              <tr key={event.id || index} className="hover:bg-gray-50">
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <div className="flex items-center">
+                                    <div className={`w-3 h-3 rounded-full mr-3 ${
+                                      event.attributes?.type === 'battle' ? 'bg-red-500' :
+                                      event.attributes?.type === 'celebration' ? 'bg-green-500' :
+                                      event.attributes?.type === 'political' ? 'bg-blue-500' :
+                                      event.attributes?.type === 'discovery' ? 'bg-purple-500' :
+                                      event.attributes?.type === 'personal' ? 'bg-pink-500' :
+                                      'bg-orange-500'
+                                    }`} />
+                                    <div>
+                                      <div className="text-sm font-medium text-gray-900">{event.name}</div>
+                                      <div className="text-sm text-gray-500 max-w-xs truncate">{event.description}</div>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {formatCalendarDate(event)}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                    event.attributes?.type === 'battle' ? 'bg-red-100 text-red-800' :
+                                    event.attributes?.type === 'celebration' ? 'bg-green-100 text-green-800' :
+                                    event.attributes?.type === 'political' ? 'bg-blue-100 text-blue-800' :
+                                    event.attributes?.type === 'discovery' ? 'bg-purple-100 text-purple-800' :
+                                    event.attributes?.type === 'personal' ? 'bg-pink-100 text-pink-800' :
+                                    'bg-orange-100 text-orange-800'
+                                  }`}>
+                                    {event.attributes?.type || 'general'}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                    event.attributes?.priority === 'critical' ? 'bg-red-100 text-red-800' :
+                                    event.attributes?.priority === 'high' ? 'bg-orange-100 text-orange-800' :
+                                    event.attributes?.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                                    'bg-green-100 text-green-800'
+                                  }`}>
+                                    {event.attributes?.priority || 'low'}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <div className="flex flex-wrap gap-1">
+                                    {event.tags.slice(0, 2).map((tag, tagIndex) => (
+                                      <Badge key={tagIndex} variant="outline" className="text-xs">
+                                        {tag}
+                                      </Badge>
+                                    ))}
+                                    {event.tags.length > 2 && (
+                                      <Badge variant="outline" className="text-xs">
+                                        +{event.tags.length - 2}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                  <div className="flex gap-2">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => {
+                                        setSelectedEvent(event)
+                                        setEditingEvent(null)
+                                        setIsCreating(false)
+                                      }}
+                                    >
+                                      <Eye className="w-4 h-4" />
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => {
+                                        setEditingEvent(event)
+                                        setIsCreating(false)
+                                      }}
+                                    >
+                                      <Edit3 className="w-4 h-4" />
+                                    </Button>
+                                  </div>
+                                </td>
+                              </tr>
                             ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Months */}
-                      {activeCalendarSystem.months && activeCalendarSystem.months.length > 0 && (
-                        <div className="bg-white rounded-lg border border-gray-200 p-4">
-                          <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
-                            <Calendar className="w-4 h-4 mr-2 text-green-500" />
-                            Months ({activeCalendarSystem.months.length})
-                          </h4>
-                          <div className="grid grid-cols-2 gap-1 text-xs">
-                            {activeCalendarSystem.months.map((month, index) => (
-                              <div key={month.id || index} className="p-2 bg-gray-50 rounded text-center">
-                                <div className="font-medium">{month.name}</div>
-                                <div className="text-gray-500">{month.days} days</div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Additional Calendar Properties */}
-                      <div className="bg-white rounded-lg border border-gray-200 p-4">
-                        <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
-                          <Settings className="w-4 h-4 mr-2 text-orange-500" />
-                          Properties
-                        </h4>
-                        <div className="space-y-2 text-sm">
-                          {activeCalendarSystem.weekdays && activeCalendarSystem.weekdays.length > 0 && (
-                            <div className="flex justify-between">
-                              <span className="text-gray-600">Days per week:</span>
-                              <span className="font-medium">{activeCalendarSystem.weekdays.length}</span>
-                            </div>
-                          )}
-                          {activeCalendarSystem.months && activeCalendarSystem.months.length > 0 && (
-                            <div className="flex justify-between">
-                              <span className="text-gray-600">Months per year:</span>
-                              <span className="font-medium">{activeCalendarSystem.months.length}</span>
-                            </div>
-                          )}
-                          {activeCalendarSystem.seasons && activeCalendarSystem.seasons.length > 0 && (
-                            <div className="flex justify-between">
-                              <span className="text-gray-600">Seasons:</span>
-                              <span className="font-medium">{activeCalendarSystem.seasons.length}</span>
-                            </div>
-                          )}
-                          {activeCalendarSystem.moons && activeCalendarSystem.moons.length > 0 && (
-                            <div className="flex justify-between">
-                              <span className="text-gray-600">Moons:</span>
-                              <span className="font-medium">{activeCalendarSystem.moons.length}</span>
-                            </div>
-                          )}
-                        </div>
+                          </tbody>
+                        </table>
                       </div>
-                    </div>
-
-                    {/* Events */}
-                    <div className="bg-white rounded-lg border border-gray-200 p-4">
-                      <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
-                        <Target className="w-4 h-4 mr-2 text-purple-500" />
-                        Calendar Events ({filteredEvents.length})
-                      </h4>
-                      {filteredEvents.length > 0 ? (
-                        <div className="space-y-2">
-                          {filteredEvents.slice(0, 5).map((event, index) => (
-                            <div key={event.id || index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                              <div>
-                                <div className="font-medium text-sm">{event.name}</div>
-                                <div className="text-xs text-gray-500">{event.description}</div>
-                              </div>
-                              <Button 
-                                size="sm" 
-                                onClick={() => setSelectedEvent(event)}
-                                className="bg-orange-500 hover:bg-orange-600 text-white"
-                              >
-                                View
-                              </Button>
-                            </div>
-                          ))}
-                          {filteredEvents.length > 5 && (
-                            <div className="text-center text-sm text-gray-500 pt-2">
-                              and {filteredEvents.length - 5} more events...
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="text-center text-gray-500 py-8">
-                          <CalendarIcon className="w-8 h-8 mx-auto text-gray-300 mb-2" />
-                          <p className="text-sm">No events created yet.</p>
+                    ) : (
+                      <div className="flex-1 flex items-center justify-center">
+                        <div className="text-center text-gray-500 py-20">
+                          <FileText className="w-16 h-16 mx-auto text-gray-300 mb-4" />
+                          <h3 className="text-lg font-medium mb-2">No Events Found</h3>
+                          <p className="text-sm mb-4">Start by creating your first timeline event</p>
                           <Button 
-                            size="sm" 
-                            className="mt-2 bg-orange-500 hover:bg-orange-600 text-white"
+                            className="bg-blue-600 hover:bg-blue-700 text-white gap-2"
                             onClick={() => {
                               const newEvent = {
                                 id: '',
@@ -4406,25 +5217,272 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
                               setIsCreating(true)
                             }}
                           >
+                            <Plus className="w-4 h-4" />
                             Create First Event
                           </Button>
                         </div>
-                      )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Monthly View - Calendar Grid */}
+            {viewMode === 'month' && (
+              <div className="flex-1 p-4 bg-gray-50">
+                <div className="bg-white rounded-lg shadow-sm border h-full flex flex-col">
+                  <div className="p-4 lg:p-6 border-b bg-gradient-to-r from-green-50 to-emerald-50 flex-shrink-0">
+                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                      <div>
+                        <h3 className="text-xl lg:text-2xl font-bold text-gray-900 flex items-center gap-3">
+                          <div className="w-8 h-8 lg:w-10 lg:h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center shadow-lg">
+                            <Calendar className="w-5 h-5 text-white" />
+                          </div>
+                          Monthly Calendar
+                        </h3>
+                        <p className="text-gray-600 mt-2 text-lg">Navigate events by month and date</p>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 border">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              if (activeCalendarSystem) {
+                                const [year, month] = currentMonthYear.split('-').map(Number)
+                                const currentMonth = parseInt(month)
+                                const currentYear = year
+                                
+                                let newMonth = currentMonth - 1
+                                let newYear = currentYear
+                                
+                                if (newMonth < 1) {
+                                  newMonth = activeCalendarSystem.months?.length || 12
+                                  newYear -= 1
+                                }
+                                
+                                setCurrentMonthYear(`${newYear}-${String(newMonth).padStart(2, '0')}`)
+                              }
+                            }}
+                          >
+                            <ChevronLeft className="w-4 h-4" />
+                          </Button>
+                          <span className="text-sm font-medium min-w-[120px] text-center">
+                            {(() => {
+                              if (!activeCalendarSystem) return 'No Calendar System'
+                              
+                              const [year, monthOrder] = currentMonthYear.split('-').map(Number)
+                              const currentMonth = activeCalendarSystem.months?.find(m => m.order === monthOrder)
+                              
+                              return currentMonth ? `${currentMonth.name} ${year}` : `Month ${monthOrder} ${year}`
+                            })()}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              if (activeCalendarSystem) {
+                                const [year, month] = currentMonthYear.split('-').map(Number)
+                                const currentMonth = parseInt(month)
+                                const currentYear = year
+                                
+                                let newMonth = currentMonth + 1
+                                let newYear = currentYear
+                                
+                                if (newMonth > (activeCalendarSystem.months?.length || 12)) {
+                                  newMonth = 1
+                                  newYear += 1
+                                }
+                                
+                                setCurrentMonthYear(`${newYear}-${String(newMonth).padStart(2, '0')}`)
+                              }
+                            }}
+                          >
+                            <ChevronRight className="w-4 h-4" />
+                          </Button>
+                        </div>
+                        <Button 
+                          size="sm"
+                          className="bg-green-600 hover:bg-green-700 text-white gap-2"
+                          onClick={() => {
+                            const newEvent = {
+                              id: '',
+                              name: '',
+                              description: '',
+                              category: 'calendar',
+                              project_id: projectId,
+                              attributes: {
+                                date: new Date().toISOString().split('T')[0],
+                                event_type: 'story',
+                                priority: 'medium'
+                              },
+                              tags: [],
+                              created_at: '',
+                              updated_at: ''
+                            }
+                            setEditingEvent(newEvent)
+                            setIsCreating(true)
+                          }}
+                        >
+                          <Plus className="w-4 h-4" />
+                          Add Event
+                        </Button>
+                      </div>
                     </div>
                   </div>
-                ) : (
-                  <div className="text-center text-gray-500 py-20">
-                    <CalendarIcon className="w-16 h-16 mx-auto text-gray-300 mb-4" />
-                    <h3 className="text-lg font-medium mb-2">No Active Calendar System</h3>
-                    <p className="text-sm mb-4">Create or select a calendar system to get started.</p>
-                    <Button 
-                      onClick={() => setCurrentView('systems')}
-                      className="bg-orange-500 hover:bg-orange-600 text-white"
-                    >
-                      Choose Calendar System
-                    </Button>
+                  
+                  <div className="flex-1 p-6 overflow-auto">
+                    {activeCalendarSystem ? (
+                      <>
+                        {/* Custom Calendar Weekday Headers */}
+                        <div className={`grid gap-2 mb-4`} style={{ gridTemplateColumns: `repeat(${activeCalendarSystem.weekdays?.length || 7}, 1fr)` }}>
+                          {(activeCalendarSystem.weekdays || ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5', 'Day 6', 'Day 7']).map((day) => (
+                            <div key={day} className="p-2 text-center font-semibold text-gray-600 text-sm">
+                              {day.length > 3 ? day.substring(0, 3) : day}
+                            </div>
+                          ))}
+                        </div>
+                        
+                        {/* Custom Calendar Grid */}
+                        <div className={`grid gap-2 auto-rows-fr`} style={{ gridTemplateColumns: `repeat(${activeCalendarSystem.weekdays?.length || 7}, 1fr)` }}>
+                          {(() => {
+                            const [yearStr, monthStr] = currentMonthYear.split('-')
+                            const currentYear = parseInt(yearStr)
+                            const requestedMonthOrder = parseInt(monthStr)
+                            
+                            // Find the month in the calendar system
+                            const currentSelectedMonth = activeCalendarSystem.months?.find(m => m.order === requestedMonthOrder)
+                            
+                            // Debug logging
+                            console.log('Monthly view debug:', {
+                              currentMonthYear,
+                              requestedMonthOrder,
+                              availableMonths: activeCalendarSystem.months?.map(m => ({ name: m.name, order: m.order })),
+                              currentSelectedMonth: currentSelectedMonth?.name
+                            })
+                            
+                            if (!currentSelectedMonth) {
+                              // If the requested month doesn't exist, default to the first month
+                              const firstMonth = activeCalendarSystem.months?.[0]
+                              if (firstMonth) {
+                                console.log('Defaulting to first month:', firstMonth.name)
+                                setCurrentMonthYear(`${currentYear}-${String(firstMonth.order).padStart(2, '0')}`)
+                                return (
+                                  <div className="col-span-full text-center text-gray-500 py-8">
+                                    <p>Switching to {firstMonth.name}...</p>
+                                  </div>
+                                )
+                              } else {
+                                return (
+                                  <div className="col-span-full text-center text-gray-500 py-8">
+                                    <p>No months defined in calendar system</p>
+                                  </div>
+                                )
+                              }
+                            }
+                            
+                            const daysInWeek = activeCalendarSystem.weekdays?.length || 7
+                            const daysInMonth = currentSelectedMonth.days
+                            const totalCells = Math.ceil(daysInMonth / daysInWeek) * daysInWeek
+                            
+                            const days = []
+                            
+                            for (let i = 1; i <= totalCells; i++) {
+                              const dayNumber = i <= daysInMonth ? i : null
+                            const dayEvents = dayNumber ? filteredEvents.filter(event => {
+                              // Handle both old format (month as ID like 'm1') and new format (month as order like 1)
+                              const eventMonth = event.attributes?.month
+                              let eventMonthOrder: number
+                              
+                              if (typeof eventMonth === 'string' && eventMonth.startsWith('m')) {
+                                // Old format: 'm1' -> 1
+                                eventMonthOrder = parseInt(eventMonth.substring(1))
+                              } else if (typeof eventMonth === 'number') {
+                                // New format: direct order number
+                                eventMonthOrder = eventMonth
+                              } else if (typeof eventMonth === 'string') {
+                                // Try to parse as number
+                                eventMonthOrder = parseInt(eventMonth)
+                              } else {
+                                return false
+                              }
+                              
+                              return event.attributes?.year === currentYear &&
+                                     eventMonthOrder === currentSelectedMonth.order &&
+                                     event.attributes?.day === dayNumber
+                            }) : []
+                              
+                              const isToday = dayNumber && 
+                                             currentYear === currentYear && 
+                                             currentSelectedMonth.order === new Date().getMonth() + 1 && 
+                                             dayNumber === new Date().getDate()
+                              
+                              days.push(
+                                <div
+                                  key={i}
+                                  className={`min-h-[100px] p-2 border rounded-lg ${
+                                    dayNumber 
+                                      ? 'bg-white border-gray-200' 
+                                      : 'bg-gray-50 border-gray-100'
+                                  } ${isToday ? 'ring-2 ring-green-500' : ''}`}
+                                >
+                                  {dayNumber && (
+                                    <>
+                                      <div className={`text-sm font-medium mb-2 ${
+                                        isToday ? 'text-green-600' : 'text-gray-900'
+                                      }`}>
+                                        {dayNumber}
+                                      </div>
+                                      <div className="space-y-1">
+                                        {dayEvents.slice(0, 3).map((event, eventIndex) => (
+                                          <div
+                                            key={event.id || `${event.name}-${eventIndex}`}
+                                            className={`text-xs p-1 rounded cursor-pointer truncate ${
+                                              event.attributes?.type === 'battle' ? 'bg-red-100 text-red-800' :
+                                              event.attributes?.type === 'celebration' ? 'bg-green-100 text-green-800' :
+                                              event.attributes?.type === 'political' ? 'bg-blue-100 text-blue-800' :
+                                              event.attributes?.type === 'discovery' ? 'bg-purple-100 text-purple-800' :
+                                              event.attributes?.type === 'personal' ? 'bg-pink-100 text-pink-800' :
+                                              'bg-orange-100 text-orange-800'
+                                            }`}
+                                            onClick={() => {
+                                              setSelectedEvent(event)
+                                              setEditingEvent(null)
+                                              setIsCreating(false)
+                                            }}
+                                            title={event.name}
+                                          >
+                                            {event.name}
+                                          </div>
+                                        ))}
+                                        {dayEvents.length > 3 && (
+                                          <div className="text-xs text-gray-500 font-medium">
+                                            +{dayEvents.length - 3} more
+                                          </div>
+                                        )}
+                                      </div>
+                                    </>
+                                  )}
+                                </div>
+                              )
+                            }
+                            
+                            return days
+                          })()}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex items-center justify-center h-64 text-gray-500">
+                        <div className="text-center">
+                          <Calendar className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                          <p className="text-lg font-medium">No Calendar System Selected</p>
+                          <p className="text-sm">Please select or create a calendar system to view the monthly calendar</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                )}
+                </div>
               </div>
             )}
           </div>
@@ -6207,9 +7265,26 @@ function CalendarPropertiesEditor({ calendarSystem, onUpdate, onSave, onCancel }
 export const exportToICS = (events: WorldElement[], calendarName: string = 'StoryFoundry Calendar') => {
   const formatDate = (dateStr: string, time?: string) => {
     const date = new Date(dateStr)
+    
+    // Check if the date is valid
+    if (isNaN(date.getTime())) {
+      console.warn(`Invalid date string: ${dateStr}`)
+      // Return a default date if invalid
+      const fallbackDate = new Date()
+      if (time) {
+        const [hours, minutes] = time.split(':')
+        if (!isNaN(parseInt(hours)) && !isNaN(parseInt(minutes))) {
+          fallbackDate.setHours(parseInt(hours), parseInt(minutes))
+        }
+      }
+      return fallbackDate.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+    }
+    
     if (time) {
       const [hours, minutes] = time.split(':')
-      date.setHours(parseInt(hours), parseInt(minutes))
+      if (!isNaN(parseInt(hours)) && !isNaN(parseInt(minutes))) {
+        date.setHours(parseInt(hours), parseInt(minutes))
+      }
     }
     return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
   }
@@ -6223,23 +7298,37 @@ export const exportToICS = (events: WorldElement[], calendarName: string = 'Stor
   ]
 
   events.forEach(event => {
-    if (event.attributes?.year && event.attributes?.month && event.attributes?.day) {
-      const dateStr = `${event.attributes.year}-${String(event.attributes.month).padStart(2, '0')}-${String(event.attributes.day).padStart(2, '0')}`
-      const startDate = formatDate(dateStr, event.attributes.startTime || '09:00')
-      const endDate = formatDate(dateStr, event.attributes.endTime || '17:00')
+    // Validate that we have valid date components
+    const year = event.attributes?.year
+    const month = event.attributes?.month
+    const day = event.attributes?.day
+    
+    if (year && month && day && 
+        !isNaN(Number(year)) && !isNaN(Number(month)) && !isNaN(Number(day)) &&
+        Number(month) >= 1 && Number(month) <= 12 &&
+        Number(day) >= 1 && Number(day) <= 31) {
       
-      icsContent.push(
-        'BEGIN:VEVENT',
-        `UID:${event.id}@storyfoundry.com`,
-        `DTSTART:${startDate}`,
-        `DTEND:${endDate}`,
-        `SUMMARY:${event.name}`,
-        `DESCRIPTION:${event.description || ''}`,
-        `CATEGORIES:${event.attributes?.type || 'event'}`,
-        `PRIORITY:${event.attributes?.priority === 'high' ? '1' : event.attributes?.priority === 'low' ? '9' : '5'}`,
-        event.attributes?.location ? `LOCATION:${event.attributes.location}` : '',
-        'END:VEVENT'
-      )
+      const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+      
+      // Additional validation: check if the constructed date string creates a valid date
+      const testDate = new Date(dateStr)
+      if (!isNaN(testDate.getTime())) {
+        const startDate = formatDate(dateStr, event.attributes.startTime || '09:00')
+        const endDate = formatDate(dateStr, event.attributes.endTime || '17:00')
+        
+        icsContent.push(
+          'BEGIN:VEVENT',
+          `UID:${event.id}@storyfoundry.com`,
+          `DTSTART:${startDate}`,
+          `DTEND:${endDate}`,
+          `SUMMARY:${event.name}`,
+          `DESCRIPTION:${event.description || ''}`,
+          `CATEGORIES:${event.attributes?.type || 'event'}`,
+          `PRIORITY:${event.attributes?.priority === 'high' ? '1' : event.attributes?.priority === 'low' ? '9' : '5'}`,
+          event.attributes?.location ? `LOCATION:${event.attributes.location}` : '',
+          'END:VEVENT'
+        )
+      }
     }
   })
 
