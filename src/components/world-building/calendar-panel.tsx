@@ -7,7 +7,7 @@ import {
   Star, MapPin, Users, Scroll, Settings, Filter, Download, Upload,
   Globe, Moon, Sun, ChevronLeft, ChevronRight, MoreHorizontal,
   Link2, FileText, Tag, AlertCircle, CheckCircle, Eye, X, 
-  GripVertical, Copy, RotateCcw, ArrowLeft, Calendar, Target
+  GripVertical, Copy, RotateCcw, ArrowLeft, Calendar, Target, Bell
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -112,7 +112,7 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
   // Calendar system state
   const [calendarSystems, setCalendarSystems] = useState<CalendarSystem[]>([])
   const [activeCalendarSystem, setActiveCalendarSystem] = useState<CalendarSystem | null>(null)
-  const [viewMode, setViewMode] = useState<'list' | 'month' | 'week' | 'day' | 'year' | 'timeline' | 'gantt'>('month')
+  const [viewMode, setViewMode] = useState<'list' | 'month' | 'week' | 'day' | 'year' | 'timeline' | 'gantt' | 'heatmap' | 'character' | 'location' | 'conflicts' | 'analytics'>('month')
   const [currentDate, setCurrentDate] = useState(new Date())
   const [currentEra, setCurrentEra] = useState<Era | null>(null)
   const [currentYear, setCurrentYear] = useState(1)
@@ -825,13 +825,28 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
         significance: 'minor',
         location: '',
         
-        // Date & Time
+        // Date & Time - Enhanced
         era: currentEra?.id || '',
         year: currentYear || new Date().getFullYear(),
         month: '',
         day: 1,
-        time: '',
-        duration: 1,
+        
+        // Enhanced Time Management
+        startTime: '09:00',
+        endTime: '17:00',
+        timeZone: 'default',
+        isAllDay: false,
+        multiDay: false,
+        endDate: '',
+        durationDays: 1,
+        durationHours: 8,
+        
+        // Event Dependencies
+        prerequisites: [], // Events that must happen before this
+        blockers: [], // Events that prevent this from happening
+        triggers: [], // Events that this event will trigger
+        dependencies: [], // Related events with dependency types
+        
         status: 'planned',
         isRecurring: false,
         recurrencePattern: 'yearly',
@@ -871,7 +886,34 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
         linked_elements: [],
         moon_phase: '',
         season: '',
-        weather: ''
+        weather: '',
+        
+        // World-building Integration
+        seasonalEffects: '',
+        economicImpact: 'none',
+        tradeEffects: '',
+        religiousSignificance: 'none',
+        isFestival: false,
+        festivalType: '',
+        festivalActivities: '',
+        historicalPrecedents: '',
+        populationImpact: 'none',
+        technologyChanges: '',
+        politicalConsequences: '',
+        environmentalImpact: '',
+        
+        // Enhanced Notifications & Reminders
+        reminders: [], // Array of reminder times
+        alerts: [], // Array of alert configurations
+        milestones: [], // Array of milestone checkpoints
+        conflicts: [], // Detected conflicts with other events
+        autoSuggestions: [], // AI-generated suggestions
+        notificationSettings: {
+          enabled: true,
+          reminderDays: [7, 3, 1], // Days before event
+          alertTypes: ['browser', 'calendar'], // Types of alerts
+          escalation: false // Escalate if not acknowledged
+        }
       },
       tags: [],
       created_at: '',
@@ -1004,6 +1046,75 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
                 <Plus className="w-4 h-4 mr-1" />
                 Create Event
               </Button>
+              
+              {/* Import/Export Buttons */}
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const icsContent = exportToICS(events, activeCalendarSystem?.name || 'Calendar')
+                    downloadFile(icsContent, `${activeCalendarSystem?.name || 'calendar'}.ics`, 'text/calendar')
+                  }}
+                  className="border-blue-200 hover:border-blue-300 text-blue-700 hover:bg-blue-50"
+                >
+                  <Download className="w-4 h-4 mr-1" />
+                  Export ICS
+                </Button>
+                
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const csvContent = exportToCSV(events)
+                    downloadFile(csvContent, `${activeCalendarSystem?.name || 'calendar'}.csv`, 'text/csv')
+                  }}
+                  className="border-green-200 hover:border-green-300 text-green-700 hover:bg-green-50"
+                >
+                  <Download className="w-4 h-4 mr-1" />
+                  Export CSV
+                </Button>
+
+                <label htmlFor="csv-import" className="cursor-pointer">
+                  <input
+                    id="csv-import"
+                    type="file"
+                    accept=".csv"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) {
+                        const reader = new FileReader()
+                        reader.onload = async (event) => {
+                          const csvContent = event.target?.result as string
+                          const importedEvents = parseCSVEvents(csvContent)
+                          
+                          // Batch create events
+                          for (const eventData of importedEvents) {
+                            try {
+                              await createEvent(eventData)
+                            } catch (error) {
+                              console.error('Error importing event:', eventData.name, error)
+                            }
+                          }
+                          
+                          // Refresh events list
+                          fetchEvents()
+                        }
+                        reader.readAsText(file)
+                      }
+                    }}
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-purple-200 hover:border-purple-300 text-purple-700 hover:bg-purple-50"
+                  >
+                    <Upload className="w-4 h-4 mr-1" />
+                    Import CSV
+                  </Button>
+                </label>
+              </div>
             </div>
           </div>
           
@@ -1028,6 +1139,10 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
               <TabsTrigger value="month" className="text-xs">Month</TabsTrigger>
               <TabsTrigger value="timeline" className="text-xs">Timeline</TabsTrigger>
               <TabsTrigger value="gantt" className="text-xs">Gantt</TabsTrigger>
+              <TabsTrigger value="heatmap" className="text-xs">Heatmap</TabsTrigger>
+              <TabsTrigger value="character" className="text-xs">Characters</TabsTrigger>
+              <TabsTrigger value="conflicts" className="text-xs">Conflicts</TabsTrigger>
+              <TabsTrigger value="analytics" className="text-xs">Analytics</TabsTrigger>
             </TabsList>
           </Tabs>
           
@@ -1366,6 +1481,20 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
                     <Link2 className="w-4 h-4" />
                     Connections
                   </TabsTrigger>
+                  <TabsTrigger 
+                    value="notifications" 
+                    className="inline-flex items-center justify-center whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium ring-offset-white transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-white data-[state=active]:text-gray-950 data-[state=active]:shadow-sm gap-2 flex-1"
+                  >
+                    <Bell className="w-4 h-4" />
+                    Alerts
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="worldbuilding" 
+                    className="inline-flex items-center justify-center whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium ring-offset-white transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-white data-[state=active]:text-gray-950 data-[state=active]:shadow-sm gap-2 flex-1"
+                  >
+                    <Globe className="w-4 h-4" />
+                    World
+                  </TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="basic" className="space-y-8">
@@ -1593,17 +1722,72 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
                             />
                           </div>
                           <div>
-                            <Label className="text-sm font-medium text-gray-700 mb-2 block">Time of Day</Label>
-                            <Input
-                              type="time"
-                              value={editingEvent.attributes?.time || ''}
-                              onChange={(e) => setEditingEvent({
+                            <Label className="text-sm font-medium text-gray-700 mb-2 block">Time Zone</Label>
+                            <Select
+                              value={editingEvent.attributes?.timeZone || 'default'}
+                              onValueChange={(value) => setEditingEvent({
                                 ...editingEvent, 
-                                attributes: {...editingEvent.attributes, time: e.target.value}
+                                attributes: {...editingEvent.attributes, timeZone: value}
                               })}
-                              className="h-12 border-2 border-gray-200 focus:border-blue-400 bg-white/70"
-                            />
+                            >
+                              <SelectTrigger className="h-12 border-2 border-gray-200 focus:border-blue-400 bg-white/70">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent className="z-50 bg-white border border-gray-200 shadow-lg rounded-lg">
+                                <SelectItem value="default">🌍 Default Regional Time</SelectItem>
+                                <SelectItem value="capital">🏛️ Capital City Time</SelectItem>
+                                <SelectItem value="local">📍 Local Time</SelectItem>
+                                <SelectItem value="magical">✨ Magical Time</SelectItem>
+                                <SelectItem value="divine">⚡ Divine Time</SelectItem>
+                              </SelectContent>
+                            </Select>
                           </div>
+                        </div>
+
+                        <div>
+                          <div className="flex items-center space-x-2 mb-4">
+                            <Checkbox 
+                              id="isAllDay"
+                              checked={editingEvent.attributes?.isAllDay || false}
+                              onCheckedChange={(checked) => setEditingEvent({
+                                ...editingEvent, 
+                                attributes: {...editingEvent.attributes, isAllDay: checked}
+                              })}
+                              className="data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+                            />
+                            <Label htmlFor="isAllDay" className="text-sm font-medium text-gray-700">
+                              All Day Event
+                            </Label>
+                          </div>
+                          
+                          {!editingEvent.attributes?.isAllDay && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                              <div>
+                                <Label className="text-sm font-medium text-gray-700 mb-2 block">Start Time</Label>
+                                <Input
+                                  type="time"
+                                  value={editingEvent.attributes?.startTime || '09:00'}
+                                  onChange={(e) => setEditingEvent({
+                                    ...editingEvent, 
+                                    attributes: {...editingEvent.attributes, startTime: e.target.value}
+                                  })}
+                                  className="h-12 border-2 border-gray-200 focus:border-blue-400 bg-white/70"
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-sm font-medium text-gray-700 mb-2 block">End Time</Label>
+                                <Input
+                                  type="time"
+                                  value={editingEvent.attributes?.endTime || '17:00'}
+                                  onChange={(e) => setEditingEvent({
+                                    ...editingEvent, 
+                                    attributes: {...editingEvent.attributes, endTime: e.target.value}
+                                  })}
+                                  className="h-12 border-2 border-gray-200 focus:border-blue-400 bg-white/70"
+                                />
+                              </div>
+                            </div>
+                          )}
                         </div>
 
                         <div>
@@ -1611,43 +1795,152 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
                             <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-lg flex items-center justify-center">
                               <Clock className="w-4 h-4 text-white" />
                             </div>
-                            Duration & Timing
+                            Duration & Multi-Day Events
                           </Label>
+                          
+                          <div className="flex items-center space-x-2 mb-4">
+                            <Checkbox 
+                              id="multiDay"
+                              checked={editingEvent.attributes?.multiDay || false}
+                              onCheckedChange={(checked) => setEditingEvent({
+                                ...editingEvent, 
+                                attributes: {...editingEvent.attributes, multiDay: checked}
+                              })}
+                              className="data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+                            />
+                            <Label htmlFor="multiDay" className="text-sm font-medium text-gray-700">
+                              Multi-Day Event
+                            </Label>
+                          </div>
+                          
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {editingEvent.attributes?.multiDay ? (
+                              <>
+                                <div>
+                                  <Label className="text-sm font-medium text-gray-700 mb-2 block">Duration (Days)</Label>
+                                  <Input
+                                    type="number"
+                                    value={editingEvent.attributes?.durationDays || 1}
+                                    onChange={(e) => setEditingEvent({
+                                      ...editingEvent, 
+                                      attributes: {...editingEvent.attributes, durationDays: parseInt(e.target.value) || 1}
+                                    })}
+                                    placeholder="1"
+                                    min="1"
+                                    max="365"
+                                    className="h-12 border-2 border-gray-200 focus:border-blue-400 bg-white/70"
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-sm font-medium text-gray-700 mb-2 block">End Date (Optional)</Label>
+                                  <Input
+                                    type="text"
+                                    value={editingEvent.attributes?.endDate || ''}
+                                    onChange={(e) => setEditingEvent({
+                                      ...editingEvent, 
+                                      attributes: {...editingEvent.attributes, endDate: e.target.value}
+                                    })}
+                                    placeholder="Auto-calculated or specify"
+                                    className="h-12 border-2 border-gray-200 focus:border-blue-400 bg-white/70"
+                                  />
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <div>
+                                  <Label className="text-sm font-medium text-gray-700 mb-2 block">Duration (Hours)</Label>
+                                  <Input
+                                    type="number"
+                                    value={editingEvent.attributes?.durationHours || 8}
+                                    onChange={(e) => setEditingEvent({
+                                      ...editingEvent, 
+                                      attributes: {...editingEvent.attributes, durationHours: parseInt(e.target.value) || 1}
+                                    })}
+                                    placeholder="8"
+                                    min="1"
+                                    max="24"
+                                    className="h-12 border-2 border-gray-200 focus:border-blue-400 bg-white/70"
+                                  />
+                                </div>
+                                <div className="flex items-end">
+                                  <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
+                                    <Clock className="w-4 h-4 inline mr-1" />
+                                    Single day event: {editingEvent.attributes?.durationHours || 8} hours
+                                  </div>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        <div>
+                          <Label className="text-lg font-bold text-gray-900 mb-4 block flex items-center gap-3">
+                            <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-lg flex items-center justify-center">
+                              <Target className="w-4 h-4 text-white" />
+                            </div>
+                            Event Dependencies
+                          </Label>
+                          
+                          <div className="space-y-4">
                             <div>
-                              <Label className="text-sm font-medium text-gray-700 mb-2 block">Duration (in days)</Label>
-                              <Input
-                                type="number"
-                                value={editingEvent.attributes?.duration || ''}
+                              <Label className="text-sm font-medium text-gray-700 mb-2 block">Prerequisites (Events that must happen first)</Label>
+                              <Textarea
+                                value={editingEvent.attributes?.prerequisites?.join(', ') || ''}
                                 onChange={(e) => setEditingEvent({
                                   ...editingEvent, 
-                                  attributes: {...editingEvent.attributes, duration: parseInt(e.target.value) || 1}
+                                  attributes: {...editingEvent.attributes, prerequisites: e.target.value.split(',').map(s => s.trim()).filter(Boolean)}
                                 })}
-                                placeholder="1"
-                                min="1"
-                                className="h-12 border-2 border-gray-200 focus:border-blue-400 bg-white/70"
+                                placeholder="Enter prerequisite event names, separated by commas..."
+                                className="min-h-[80px] border-2 border-gray-200 focus:border-purple-400 bg-white/70 resize-none"
                               />
                             </div>
+                            
                             <div>
-                              <Label className="text-sm font-medium text-gray-700 mb-2 block">Event Status</Label>
-                              <Select
-                                value={editingEvent.attributes?.status || 'planned'}
-                                onValueChange={(value) => setEditingEvent({
+                              <Label className="text-sm font-medium text-gray-700 mb-2 block">Triggers (Events this will cause)</Label>
+                              <Textarea
+                                value={editingEvent.attributes?.triggers?.join(', ') || ''}
+                                onChange={(e) => setEditingEvent({
                                   ...editingEvent, 
-                                  attributes: {...editingEvent.attributes, status: value}
+                                  attributes: {...editingEvent.attributes, triggers: e.target.value.split(',').map(s => s.trim()).filter(Boolean)}
                                 })}
-                              >
-                                <SelectTrigger className="h-12 border-2 border-gray-200 focus:border-blue-400 bg-white/70">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent className="z-50 bg-white border border-gray-200 shadow-lg rounded-lg">
-                                  <SelectItem value="planned">📅 Planned</SelectItem>
-                                  <SelectItem value="ongoing">🔄 Ongoing</SelectItem>
-                                  <SelectItem value="completed">✅ Completed</SelectItem>
-                                  <SelectItem value="cancelled">❌ Cancelled</SelectItem>
-                                  <SelectItem value="postponed">⏸️ Postponed</SelectItem>
-                                </SelectContent>
-                              </Select>
+                                placeholder="Enter events this will trigger, separated by commas..."
+                                className="min-h-[80px] border-2 border-gray-200 focus:border-purple-400 bg-white/70 resize-none"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div>
+                            <Label className="text-sm font-medium text-gray-700 mb-2 block">Event Status</Label>
+                            <Select
+                              value={editingEvent.attributes?.status || 'planned'}
+                              onValueChange={(value) => setEditingEvent({
+                                ...editingEvent, 
+                                attributes: {...editingEvent.attributes, status: value}
+                              })}
+                            >
+                              <SelectTrigger className="h-12 border-2 border-gray-200 focus:border-blue-400 bg-white/70">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent className="z-50 bg-white border border-gray-200 shadow-lg rounded-lg">
+                                <SelectItem value="planned">📅 Planned</SelectItem>
+                                <SelectItem value="ongoing">🔄 Ongoing</SelectItem>
+                                <SelectItem value="completed">✅ Completed</SelectItem>
+                                <SelectItem value="cancelled">❌ Cancelled</SelectItem>
+                                <SelectItem value="postponed">⏸️ Postponed</SelectItem>
+                                <SelectItem value="dependent">⏳ Waiting for Prerequisites</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium text-gray-700 mb-2 block">Conflict Detection</Label>
+                            <div className="h-12 border-2 border-gray-200 bg-gray-50 rounded-lg flex items-center px-3 text-sm text-gray-600">
+                              <AlertCircle className="w-4 h-4 mr-2" />
+                              {editingEvent.attributes?.multiDay ? 
+                                `${editingEvent.attributes?.durationDays || 1} day event` : 
+                                `${editingEvent.attributes?.durationHours || 8} hour event`
+                              }
                             </div>
                           </div>
                         </div>
@@ -1669,46 +1962,361 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
                           </div>
                           
                           {editingEvent.attributes?.isRecurring && (
-                            <div className="ml-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                  <Label className="text-sm font-medium text-gray-700 mb-2 block">Recurrence Pattern</Label>
-                                  <Select
-                                    value={editingEvent.attributes?.recurrencePattern || 'yearly'}
-                                    onValueChange={(value) => setEditingEvent({
-                                      ...editingEvent, 
-                                      attributes: {...editingEvent.attributes, recurrencePattern: value}
-                                    })}
-                                  >
-                                    <SelectTrigger className="h-10 border border-blue-300 bg-white">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent className="z-50 bg-white border border-gray-200 shadow-lg rounded-lg">
-                                      <SelectItem value="daily">Daily</SelectItem>
-                                      <SelectItem value="weekly">Weekly</SelectItem>
-                                      <SelectItem value="monthly">Monthly</SelectItem>
-                                      <SelectItem value="yearly">Yearly</SelectItem>
-                                      <SelectItem value="custom">Custom</SelectItem>
-                                    </SelectContent>
-                                  </Select>
+                            <div className="ml-6 p-6 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+                              <Label className="text-lg font-bold text-gray-900 mb-4 block">Advanced Recurrence Settings</Label>
+                              
+                              <div className="space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div>
+                                    <Label className="text-sm font-medium text-gray-700 mb-2 block">Pattern Type</Label>
+                                    <Select
+                                      value={editingEvent.attributes?.recurrencePattern || 'yearly'}
+                                      onValueChange={(value) => setEditingEvent({
+                                        ...editingEvent, 
+                                        attributes: {...editingEvent.attributes, recurrencePattern: value}
+                                      })}
+                                    >
+                                      <SelectTrigger className="h-10 border border-blue-300 bg-white">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent className="z-50 bg-white border border-gray-200 shadow-lg rounded-lg">
+                                        <SelectItem value="daily">📅 Daily</SelectItem>
+                                        <SelectItem value="weekly">📆 Weekly</SelectItem>
+                                        <SelectItem value="monthly">🗓️ Monthly</SelectItem>
+                                        <SelectItem value="yearly">📋 Yearly</SelectItem>
+                                        <SelectItem value="seasonal">🌸 Seasonal</SelectItem>
+                                        <SelectItem value="lunar">🌙 Lunar Cycle</SelectItem>
+                                        <SelectItem value="custom">⚙️ Custom</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  
+                                  <div>
+                                    <Label className="text-sm font-medium text-gray-700 mb-2 block">Interval</Label>
+                                    <Input
+                                      type="number"
+                                      value={editingEvent.attributes?.recurrenceInterval || 1}
+                                      onChange={(e) => setEditingEvent({
+                                        ...editingEvent, 
+                                        attributes: {...editingEvent.attributes, recurrenceInterval: parseInt(e.target.value) || 1}
+                                      })}
+                                      placeholder="1"
+                                      min="1"
+                                      className="h-10 border border-blue-300 bg-white"
+                                    />
+                                  </div>
                                 </div>
+
+                                {editingEvent.attributes?.recurrencePattern === 'seasonal' && (
+                                  <div>
+                                    <Label className="text-sm font-medium text-gray-700 mb-2 block">Season</Label>
+                                    <Select
+                                      value={editingEvent.attributes?.recurrenceSeason || ''}
+                                      onValueChange={(value) => setEditingEvent({
+                                        ...editingEvent, 
+                                        attributes: {...editingEvent.attributes, recurrenceSeason: value}
+                                      })}
+                                    >
+                                      <SelectTrigger className="h-10 border border-blue-300 bg-white">
+                                        <SelectValue placeholder="Select season" />
+                                      </SelectTrigger>
+                                      <SelectContent className="z-50 bg-white border border-gray-200 shadow-lg rounded-lg">
+                                        {activeCalendarSystem?.seasons?.map((season: Season) => (
+                                          <SelectItem key={season.id} value={season.id}>
+                                            {season.name}
+                                          </SelectItem>
+                                        )) || <SelectItem value="">No seasons defined</SelectItem>}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                )}
+
+                                {editingEvent.attributes?.recurrencePattern === 'lunar' && (
+                                  <div>
+                                    <Label className="text-sm font-medium text-gray-700 mb-2 block">Moon Phase</Label>
+                                    <Select
+                                      value={editingEvent.attributes?.recurrenceMoonPhase || 'full'}
+                                      onValueChange={(value) => setEditingEvent({
+                                        ...editingEvent, 
+                                        attributes: {...editingEvent.attributes, recurrenceMoonPhase: value}
+                                      })}
+                                    >
+                                      <SelectTrigger className="h-10 border border-blue-300 bg-white">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent className="z-50 bg-white border border-gray-200 shadow-lg rounded-lg">
+                                        <SelectItem value="new">🌑 New Moon</SelectItem>
+                                        <SelectItem value="waxing">🌒 Waxing Moon</SelectItem>
+                                        <SelectItem value="full">🌕 Full Moon</SelectItem>
+                                        <SelectItem value="waning">🌘 Waning Moon</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                )}
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div>
+                                    <Label className="text-sm font-medium text-gray-700 mb-2 block">End Condition</Label>
+                                    <Select
+                                      value={editingEvent.attributes?.recurrenceEndType || 'never'}
+                                      onValueChange={(value) => setEditingEvent({
+                                        ...editingEvent, 
+                                        attributes: {...editingEvent.attributes, recurrenceEndType: value}
+                                      })}
+                                    >
+                                      <SelectTrigger className="h-10 border border-blue-300 bg-white">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent className="z-50 bg-white border border-gray-200 shadow-lg rounded-lg">
+                                        <SelectItem value="never">∞ Never Ends</SelectItem>
+                                        <SelectItem value="after">🔢 After X Occurrences</SelectItem>
+                                        <SelectItem value="until">📅 Until Date</SelectItem>
+                                        <SelectItem value="event">🎯 Until Event</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+
+                                  {editingEvent.attributes?.recurrenceEndType === 'after' && (
+                                    <div>
+                                      <Label className="text-sm font-medium text-gray-700 mb-2 block">Max Occurrences</Label>
+                                      <Input
+                                        type="number"
+                                        value={editingEvent.attributes?.recurrenceMaxCount || 10}
+                                        onChange={(e) => setEditingEvent({
+                                          ...editingEvent, 
+                                          attributes: {...editingEvent.attributes, recurrenceMaxCount: parseInt(e.target.value) || 10}
+                                        })}
+                                        placeholder="10"
+                                        min="1"
+                                        className="h-10 border border-blue-300 bg-white"
+                                      />
+                                    </div>
+                                  )}
+
+                                  {editingEvent.attributes?.recurrenceEndType === 'until' && (
+                                    <div>
+                                      <Label className="text-sm font-medium text-gray-700 mb-2 block">End Date</Label>
+                                      <Input
+                                        type="text"
+                                        value={editingEvent.attributes?.recurrenceEndDate || ''}
+                                        onChange={(e) => setEditingEvent({
+                                          ...editingEvent, 
+                                          attributes: {...editingEvent.attributes, recurrenceEndDate: e.target.value}
+                                        })}
+                                        placeholder="End date"
+                                        className="h-10 border border-blue-300 bg-white"
+                                      />
+                                    </div>
+                                  )}
+
+                                  {editingEvent.attributes?.recurrenceEndType === 'event' && (
+                                    <div>
+                                      <Label className="text-sm font-medium text-gray-700 mb-2 block">End Event</Label>
+                                      <Input
+                                        type="text"
+                                        value={editingEvent.attributes?.recurrenceEndEvent || ''}
+                                        onChange={(e) => setEditingEvent({
+                                          ...editingEvent, 
+                                          attributes: {...editingEvent.attributes, recurrenceEndEvent: e.target.value}
+                                        })}
+                                        placeholder="Event that stops recurrence"
+                                        className="h-10 border border-blue-300 bg-white"
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+
                                 <div>
-                                  <Label className="text-sm font-medium text-gray-700 mb-2 block">Interval</Label>
-                                  <Input
-                                    type="number"
-                                    value={editingEvent.attributes?.recurrenceInterval || 1}
+                                  <Label className="text-sm font-medium text-gray-700 mb-2 block">Exception Dates</Label>
+                                  <Textarea
+                                    value={editingEvent.attributes?.recurrenceExceptions?.join(', ') || ''}
                                     onChange={(e) => setEditingEvent({
                                       ...editingEvent, 
-                                      attributes: {...editingEvent.attributes, recurrenceInterval: parseInt(e.target.value) || 1}
+                                      attributes: {...editingEvent.attributes, recurrenceExceptions: e.target.value.split(',').map(s => s.trim()).filter(Boolean)}
                                     })}
-                                    placeholder="1"
-                                    min="1"
-                                    className="h-10 border border-blue-300 bg-white"
+                                    placeholder="Dates to skip (e.g., wars, disasters), separated by commas..."
+                                    className="min-h-[60px] border border-blue-300 bg-white resize-none"
                                   />
                                 </div>
                               </div>
                             </div>
                           )}
+                        </div>
+
+                        {/* Smart Suggestions & Automation Panel */}
+                        <div className="mt-8">
+                          <Label className="text-lg font-bold text-gray-900 mb-4 block flex items-center gap-3">
+                            <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center">
+                              <Target className="w-4 h-4 text-white" />
+                            </div>
+                            Smart Suggestions & Automation
+                          </Label>
+                          
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            {/* Event Name Suggestions */}
+                            {editingEvent.attributes?.type && (
+                              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
+                                <h4 className="font-semibold text-blue-900 mb-3 flex items-center gap-2">
+                                  <Star className="w-4 h-4" />
+                                  Name Suggestions
+                                </h4>
+                                <div className="space-y-2">
+                                  {generateEventNameSuggestions(
+                                    editingEvent.name || '', 
+                                    editingEvent.attributes.type, 
+                                    events
+                                  ).map((suggestion, index) => (
+                                    <button
+                                      key={index}
+                                      onClick={() => setEditingEvent({...editingEvent, name: suggestion})}
+                                      className="w-full text-left text-sm text-blue-800 hover:bg-blue-100 p-2 rounded border border-blue-200 transition-colors"
+                                    >
+                                      {suggestion}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Smart Event Suggestions */}
+                            <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-4 border border-green-200">
+                              <h4 className="font-semibold text-green-900 mb-3 flex items-center gap-2">
+                                <Target className="w-4 h-4" />
+                                Event Insights
+                              </h4>
+                              <div className="space-y-2 text-sm text-green-800">
+                                {generateSmartEventSuggestions(editingEvent, events, activeCalendarSystem).map((suggestion, index) => (
+                                  <div key={index} className="flex items-start gap-2 p-2 bg-green-100 rounded">
+                                    <div className="w-1 h-1 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
+                                    <span>{suggestion}</span>
+                                  </div>
+                                ))}
+                                {generateSmartEventSuggestions(editingEvent, events, activeCalendarSystem).length === 0 && (
+                                  <div className="text-green-600 italic">Add more details to see smart suggestions</div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Auto-complete Attributes */}
+                            <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg p-4 border border-purple-200">
+                              <h4 className="font-semibold text-purple-900 mb-3 flex items-center gap-2">
+                                <Settings className="w-4 h-4" />
+                                Auto-complete Attributes
+                              </h4>
+                              <div className="space-y-2">
+                                {(() => {
+                                  const suggestions = generateAttributeSuggestions(editingEvent, events)
+                                  return Object.entries(suggestions).map(([key, value]) => (
+                                    <button
+                                      key={key}
+                                      onClick={() => setEditingEvent({
+                                        ...editingEvent, 
+                                        attributes: {...editingEvent.attributes, [key]: value}
+                                      })}
+                                      className="w-full text-left text-sm text-purple-800 hover:bg-purple-100 p-2 rounded border border-purple-200 transition-colors"
+                                    >
+                                      Set {key}: {value}
+                                    </button>
+                                  ))
+                                })()}
+                              </div>
+                            </div>
+
+                            {/* Scheduling Suggestions */}
+                            <div className="bg-gradient-to-br from-orange-50 to-yellow-50 rounded-lg p-4 border border-orange-200">
+                              <h4 className="font-semibold text-orange-900 mb-3 flex items-center gap-2">
+                                <Clock className="w-4 h-4" />
+                                Scheduling Tips
+                              </h4>
+                              <div className="space-y-2 text-sm text-orange-800">
+                                {generateSchedulingSuggestions(editingEvent, events, activeCalendarSystem).map((suggestion, index) => (
+                                  <div key={index} className="flex items-start gap-2 p-2 bg-orange-100 rounded">
+                                    <div className="w-1 h-1 bg-orange-500 rounded-full mt-2 flex-shrink-0"></div>
+                                    <span>{suggestion}</span>
+                                  </div>
+                                ))}
+                                {generateSchedulingSuggestions(editingEvent, events, activeCalendarSystem).length === 0 && (
+                                  <div className="text-orange-600 italic">Scheduling looks good!</div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Event Series Detection */}
+                          {(() => {
+                            const series = detectEventSeries(events)
+                            if (series.length > 0) {
+                              return (
+                                <div className="mt-6 bg-gradient-to-br from-cyan-50 to-blue-50 rounded-lg p-4 border border-cyan-200">
+                                  <h4 className="font-semibold text-cyan-900 mb-3 flex items-center gap-2">
+                                    <RepeatIcon className="w-4 h-4" />
+                                    Detected Event Series
+                                  </h4>
+                                  <div className="space-y-3">
+                                    {series.slice(0, 3).map((s, index) => (
+                                      <div key={index} className="bg-cyan-100 rounded p-3">
+                                        <div className="font-medium text-cyan-900">{s.pattern}</div>
+                                        <div className="text-sm text-cyan-700 mt-1">
+                                          {s.events.length} events found
+                                        </div>
+                                        {s.nextSuggested && (
+                                          <button
+                                            onClick={() => {
+                                              const suggested = s.nextSuggested!
+                                              setEditingEvent({
+                                                id: '',
+                                                project_id: projectId,
+                                                category: 'calendar',
+                                                name: suggested.name || '',
+                                                description: suggested.description || '',
+                                                attributes: suggested.attributes || {},
+                                                tags: suggested.tags || []
+                                              })
+                                            }}
+                                            className="mt-2 text-xs text-cyan-800 hover:text-cyan-900 underline"
+                                          >
+                                            Apply next suggestion: {s.nextSuggested.name}
+                                          </button>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )
+                            }
+                            return null
+                          })()}
+
+                          {/* Quick Templates */}
+                          <div className="mt-6 bg-gradient-to-br from-gray-50 to-slate-50 rounded-lg p-4 border border-gray-200">
+                            <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                              <FileIcon className="w-4 h-4" />
+                              Quick Templates
+                            </h4>
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                              {Object.entries(eventTemplates).map(([key, template]) => (
+                                <button
+                                  key={key}
+                                  onClick={() => {
+                                    setEditingEvent({
+                                      ...editingEvent,
+                                      name: template.name,
+                                      description: template.description,
+                                      attributes: {
+                                        ...editingEvent.attributes,
+                                        ...template.attributes
+                                      },
+                                      tags: [...(editingEvent.tags || []), ...template.tags]
+                                    })
+                                  }}
+                                  className="text-left text-sm text-gray-800 hover:bg-gray-100 p-3 rounded border border-gray-200 transition-colors"
+                                >
+                                  <div className="font-medium">{template.name}</div>
+                                  <div className="text-xs text-gray-600 mt-1">{template.description}</div>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </CardContent>
@@ -2077,6 +2685,481 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
                             placeholder="List any sources, references, or inspirations for this event..."
                             className="w-full h-24 border-2 border-gray-200 focus:border-green-400 bg-white/70 resize-none transition-all duration-200"
                           />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="notifications" className="space-y-8">
+                  <Card className="border-0 shadow-lg bg-white/90 backdrop-blur-sm overflow-hidden">
+                    <div className="h-1 bg-gradient-to-r from-yellow-400 via-orange-400 to-red-600" />
+                    <CardContent className="p-8">
+                      <div className="space-y-8">
+                        <div>
+                          <Label className="text-lg font-bold text-gray-900 mb-4 block flex items-center gap-3">
+                            <div className="w-8 h-8 bg-gradient-to-br from-yellow-500 to-orange-600 rounded-lg flex items-center justify-center">
+                              <Bell className="w-4 h-4 text-white" />
+                            </div>
+                            Event Reminders
+                          </Label>
+                          
+                          <div className="flex items-center space-x-2 mb-4">
+                            <Checkbox 
+                              id="enableNotifications"
+                              checked={editingEvent.attributes?.notificationSettings?.enabled ?? true}
+                              onCheckedChange={(checked) => setEditingEvent({
+                                ...editingEvent, 
+                                attributes: {
+                                  ...editingEvent.attributes, 
+                                  notificationSettings: {
+                                    ...editingEvent.attributes?.notificationSettings,
+                                    enabled: checked
+                                  }
+                                }
+                              })}
+                              className="data-[state=checked]:bg-orange-600 data-[state=checked]:border-orange-600"
+                            />
+                            <Label htmlFor="enableNotifications" className="text-sm font-medium text-gray-700">
+                              Enable notifications for this event
+                            </Label>
+                          </div>
+
+                          {editingEvent.attributes?.notificationSettings?.enabled && (
+                            <div className="space-y-6 ml-6 p-4 bg-orange-50 rounded-lg border border-orange-200">
+                              <div>
+                                <Label className="text-sm font-medium text-gray-700 mb-2 block">Reminder Schedule</Label>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                  {[30, 14, 7, 3, 1].map(days => (
+                                    <div key={days} className="flex items-center space-x-2">
+                                      <Checkbox 
+                                        id={`reminder-${days}`}
+                                        checked={editingEvent.attributes?.notificationSettings?.reminderDays?.includes(days) ?? false}
+                                        onCheckedChange={(checked) => {
+                                          const currentDays = editingEvent.attributes?.notificationSettings?.reminderDays || [7, 3, 1]
+                                          const newDays = checked 
+                                            ? [...currentDays, days]
+                                            : currentDays.filter(d => d !== days)
+                                          setEditingEvent({
+                                            ...editingEvent, 
+                                            attributes: {
+                                              ...editingEvent.attributes, 
+                                              notificationSettings: {
+                                                ...editingEvent.attributes?.notificationSettings,
+                                                reminderDays: newDays
+                                              }
+                                            }
+                                          })
+                                        }}
+                                        className="data-[state=checked]:bg-orange-600 data-[state=checked]:border-orange-600"
+                                      />
+                                      <Label htmlFor={`reminder-${days}`} className="text-sm text-gray-700">
+                                        {days} day{days !== 1 ? 's' : ''}
+                                      </Label>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+
+                              <div>
+                                <Label className="text-sm font-medium text-gray-700 mb-2 block">Alert Types</Label>
+                                <div className="space-y-2">
+                                  {['browser', 'calendar', 'email'].map(type => (
+                                    <div key={type} className="flex items-center space-x-2">
+                                      <Checkbox 
+                                        id={`alert-${type}`}
+                                        checked={editingEvent.attributes?.notificationSettings?.alertTypes?.includes(type) ?? false}
+                                        onCheckedChange={(checked) => {
+                                          const currentTypes = editingEvent.attributes?.notificationSettings?.alertTypes || ['browser']
+                                          const newTypes = checked 
+                                            ? [...currentTypes, type]
+                                            : currentTypes.filter(t => t !== type)
+                                          setEditingEvent({
+                                            ...editingEvent, 
+                                            attributes: {
+                                              ...editingEvent.attributes, 
+                                              notificationSettings: {
+                                                ...editingEvent.attributes?.notificationSettings,
+                                                alertTypes: newTypes
+                                              }
+                                            }
+                                          })
+                                        }}
+                                        className="data-[state=checked]:bg-orange-600 data-[state=checked]:border-orange-600"
+                                      />
+                                      <Label htmlFor={`alert-${type}`} className="text-sm text-gray-700 capitalize">
+                                        {type} Notification
+                                      </Label>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        <div>
+                          <Label className="text-lg font-bold text-gray-900 mb-4 block flex items-center gap-3">
+                            <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg flex items-center justify-center">
+                              <Target className="w-4 h-4 text-white" />
+                            </div>
+                            Milestones & Conflicts
+                          </Label>
+                          
+                          <div className="space-y-4">
+                            <div>
+                              <Label className="text-sm font-medium text-gray-700 mb-2 block">Event Milestones</Label>
+                              <Textarea
+                                value={editingEvent.attributes?.milestones?.join('\n') || ''}
+                                onChange={(e) => setEditingEvent({
+                                  ...editingEvent, 
+                                  attributes: {...editingEvent.attributes, milestones: e.target.value.split('\n').filter(Boolean)}
+                                })}
+                                placeholder="Enter milestone checkpoints, one per line..."
+                                className="min-h-[100px] border-2 border-gray-200 focus:border-purple-400 bg-white/70 resize-none"
+                              />
+                            </div>
+
+                            <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                              <div className="flex items-center gap-2 mb-2">
+                                <AlertCircle className="w-5 h-5 text-yellow-600" />
+                                <Label className="text-sm font-medium text-yellow-800">Conflict Detection</Label>
+                              </div>
+                              <div className="text-sm text-yellow-700">
+                                {editingEvent.attributes?.conflicts?.length > 0 
+                                  ? `⚠️ ${editingEvent.attributes.conflicts.length} potential conflicts detected`
+                                  : '✅ No conflicts detected with other events'
+                                }
+                              </div>
+                              {editingEvent.attributes?.conflicts?.length > 0 && (
+                                <ul className="mt-2 text-xs text-yellow-600 space-y-1">
+                                  {editingEvent.attributes.conflicts.map((conflict, index) => (
+                                    <li key={index}>• {conflict}</li>
+                                  ))}
+                                </ul>
+                              )}
+                            </div>
+
+                            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Star className="w-5 h-5 text-blue-600" />
+                                <Label className="text-sm font-medium text-blue-800">Smart Suggestions</Label>
+                              </div>
+                              <div className="text-sm text-blue-700">
+                                {editingEvent.attributes?.autoSuggestions?.length > 0 
+                                  ? `💡 ${editingEvent.attributes.autoSuggestions.length} suggestions available`
+                                  : '🤖 AI suggestions will appear based on your event details'
+                                }
+                              </div>
+                              {editingEvent.attributes?.autoSuggestions?.length > 0 && (
+                                <ul className="mt-2 text-xs text-blue-600 space-y-1">
+                                  {editingEvent.attributes.autoSuggestions.map((suggestion, index) => (
+                                    <li key={index}>• {suggestion}</li>
+                                  ))}
+                                </ul>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="worldbuilding" className="space-y-8">
+                  <Card className="border-0 shadow-lg bg-white/90 backdrop-blur-sm overflow-hidden">
+                    <div className="h-1 bg-gradient-to-r from-green-400 via-blue-400 to-purple-600" />
+                    <CardContent className="p-8">
+                      <div className="space-y-8">
+                        <div>
+                          <Label className="text-lg font-bold text-gray-900 mb-4 block flex items-center gap-3">
+                            <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-blue-600 rounded-lg flex items-center justify-center">
+                              <Globe className="w-4 h-4 text-white" />
+                            </div>
+                            World Integration
+                          </Label>
+                          
+                          <div className="space-y-6">
+                            {/* Weather Conditions */}
+                            <div>
+                              <Label className="text-sm font-medium text-gray-700 mb-2 block">Weather Conditions</Label>
+                              <Select 
+                                value={editingEvent.attributes?.weather || ''} 
+                                onValueChange={(value) => setEditingEvent({
+                                  ...editingEvent, 
+                                  attributes: {...editingEvent.attributes, weather: value}
+                                })}
+                              >
+                                <SelectTrigger className="border-2 border-gray-200 focus:border-green-400">
+                                  <SelectValue placeholder="Select weather conditions..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="">No weather specified</SelectItem>
+                                  <SelectItem value="clear">☀️ Clear & Sunny</SelectItem>
+                                  <SelectItem value="cloudy">☁️ Cloudy</SelectItem>
+                                  <SelectItem value="rainy">🌧️ Rainy</SelectItem>
+                                  <SelectItem value="stormy">⛈️ Stormy</SelectItem>
+                                  <SelectItem value="snowy">❄️ Snowy</SelectItem>
+                                  <SelectItem value="foggy">🌫️ Foggy</SelectItem>
+                                  <SelectItem value="windy">💨 Windy</SelectItem>
+                                  <SelectItem value="magical">✨ Magical Weather</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            {/* Seasonal Effects */}
+                            <div>
+                              <Label className="text-sm font-medium text-gray-700 mb-2 block">Seasonal Influence</Label>
+                              <Select 
+                                value={editingEvent.attributes?.seasonalEffects || ''} 
+                                onValueChange={(value) => setEditingEvent({
+                                  ...editingEvent, 
+                                  attributes: {...editingEvent.attributes, seasonalEffects: value}
+                                })}
+                              >
+                                <SelectTrigger className="border-2 border-gray-200 focus:border-green-400">
+                                  <SelectValue placeholder="Select seasonal effects..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="">No seasonal effects</SelectItem>
+                                  <SelectItem value="spring-bloom">🌸 Spring Bloom</SelectItem>
+                                  <SelectItem value="summer-heat">☀️ Summer Heat</SelectItem>
+                                  <SelectItem value="autumn-harvest">🍂 Autumn Harvest</SelectItem>
+                                  <SelectItem value="winter-frost">❄️ Winter Frost</SelectItem>
+                                  <SelectItem value="wet-season">🌧️ Wet Season</SelectItem>
+                                  <SelectItem value="dry-season">🏜️ Dry Season</SelectItem>
+                                  <SelectItem value="storm-season">⛈️ Storm Season</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            {/* Economic Impact */}
+                            <div>
+                              <Label className="text-sm font-medium text-gray-700 mb-2 block">Economic Impact</Label>
+                              <Select 
+                                value={editingEvent.attributes?.economicImpact || 'none'} 
+                                onValueChange={(value) => setEditingEvent({
+                                  ...editingEvent, 
+                                  attributes: {...editingEvent.attributes, economicImpact: value}
+                                })}
+                              >
+                                <SelectTrigger className="border-2 border-gray-200 focus:border-green-400">
+                                  <SelectValue placeholder="Select economic impact..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">No Economic Impact</SelectItem>
+                                  <SelectItem value="trade-boost">📈 Trade Boost</SelectItem>
+                                  <SelectItem value="trade-decline">📉 Trade Decline</SelectItem>
+                                  <SelectItem value="market-crash">💥 Market Crash</SelectItem>
+                                  <SelectItem value="inflation">💰 Inflation</SelectItem>
+                                  <SelectItem value="prosperity">🏆 Prosperity</SelectItem>
+                                  <SelectItem value="resource-scarcity">⚠️ Resource Scarcity</SelectItem>
+                                  <SelectItem value="new-currency">🪙 New Currency</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            {/* Trade Route Effects */}
+                            <div>
+                              <Label className="text-sm font-medium text-gray-700 mb-2 block">Trade Route Effects</Label>
+                              <Textarea
+                                value={editingEvent.attributes?.tradeEffects || ''}
+                                onChange={(e) => setEditingEvent({
+                                  ...editingEvent, 
+                                  attributes: {...editingEvent.attributes, tradeEffects: e.target.value}
+                                })}
+                                placeholder="Describe how this event affects trade routes, commerce, or economic relationships..."
+                                className="min-h-[80px] border-2 border-gray-200 focus:border-green-400 bg-white/70 resize-none"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div>
+                          <Label className="text-lg font-bold text-gray-900 mb-4 block flex items-center gap-3">
+                            <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg flex items-center justify-center">
+                              <Star className="w-4 h-4 text-white" />
+                            </div>
+                            Cultural & Religious Events
+                          </Label>
+                          
+                          <div className="space-y-6">
+                            {/* Religious Significance */}
+                            <div>
+                              <Label className="text-sm font-medium text-gray-700 mb-2 block">Religious Significance</Label>
+                              <Select 
+                                value={editingEvent.attributes?.religiousSignificance || 'none'} 
+                                onValueChange={(value) => setEditingEvent({
+                                  ...editingEvent, 
+                                  attributes: {...editingEvent.attributes, religiousSignificance: value}
+                                })}
+                              >
+                                <SelectTrigger className="border-2 border-gray-200 focus:border-purple-400">
+                                  <SelectValue placeholder="Select religious significance..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">No Religious Significance</SelectItem>
+                                  <SelectItem value="holy-day">🙏 Holy Day</SelectItem>
+                                  <SelectItem value="pilgrimage">🚶 Pilgrimage</SelectItem>
+                                  <SelectItem value="divine-intervention">✨ Divine Intervention</SelectItem>
+                                  <SelectItem value="prophecy-fulfillment">📜 Prophecy Fulfillment</SelectItem>
+                                  <SelectItem value="sacred-ritual">🕯️ Sacred Ritual</SelectItem>
+                                  <SelectItem value="religious-conflict">⚔️ Religious Conflict</SelectItem>
+                                  <SelectItem value="temple-founding">🏛️ Temple Founding</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            {/* Festival or Celebration */}
+                            <div className="flex items-center space-x-2 mb-4">
+                              <Checkbox 
+                                id="isFestival"
+                                checked={editingEvent.attributes?.isFestival ?? false}
+                                onCheckedChange={(checked) => setEditingEvent({
+                                  ...editingEvent, 
+                                  attributes: {...editingEvent.attributes, isFestival: checked}
+                                })}
+                                className="data-[state=checked]:bg-purple-600 data-[state=checked]:border-purple-600"
+                              />
+                              <Label htmlFor="isFestival" className="text-sm font-medium text-gray-700">
+                                This is a festival or celebration
+                              </Label>
+                            </div>
+
+                            {editingEvent.attributes?.isFestival && (
+                              <div className="space-y-4 ml-6 p-4 bg-purple-50 rounded-lg border border-purple-200">
+                                <div>
+                                  <Label className="text-sm font-medium text-gray-700 mb-2 block">Festival Type</Label>
+                                  <Select 
+                                    value={editingEvent.attributes?.festivalType || ''} 
+                                    onValueChange={(value) => setEditingEvent({
+                                      ...editingEvent, 
+                                      attributes: {...editingEvent.attributes, festivalType: value}
+                                    })}
+                                  >
+                                    <SelectTrigger className="border-2 border-purple-200 focus:border-purple-400">
+                                      <SelectValue placeholder="Select festival type..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="harvest">🌾 Harvest Festival</SelectItem>
+                                      <SelectItem value="religious">🙏 Religious Festival</SelectItem>
+                                      <SelectItem value="seasonal">🌸 Seasonal Celebration</SelectItem>
+                                      <SelectItem value="cultural">🎭 Cultural Festival</SelectItem>
+                                      <SelectItem value="royal">👑 Royal Celebration</SelectItem>
+                                      <SelectItem value="memorial">🕯️ Memorial</SelectItem>
+                                      <SelectItem value="victory">🏆 Victory Celebration</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+
+                                <div>
+                                  <Label className="text-sm font-medium text-gray-700 mb-2 block">Traditional Activities</Label>
+                                  <Textarea
+                                    value={editingEvent.attributes?.festivalActivities || ''}
+                                    onChange={(e) => setEditingEvent({
+                                      ...editingEvent, 
+                                      attributes: {...editingEvent.attributes, festivalActivities: e.target.value}
+                                    })}
+                                    placeholder="Describe traditional activities, rituals, or customs associated with this festival..."
+                                    className="min-h-[80px] border-2 border-purple-200 focus:border-purple-400 bg-white/70 resize-none"
+                                  />
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Historical Precedents */}
+                            <div>
+                              <Label className="text-sm font-medium text-gray-700 mb-2 block">Historical Precedents</Label>
+                              <Textarea
+                                value={editingEvent.attributes?.historicalPrecedents || ''}
+                                onChange={(e) => setEditingEvent({
+                                  ...editingEvent, 
+                                  attributes: {...editingEvent.attributes, historicalPrecedents: e.target.value}
+                                })}
+                                placeholder="Reference similar events from history, patterns, or traditions that relate to this event..."
+                                className="min-h-[80px] border-2 border-gray-200 focus:border-purple-400 bg-white/70 resize-none"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div>
+                          <Label className="text-lg font-bold text-gray-900 mb-4 block flex items-center gap-3">
+                            <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-red-600 rounded-lg flex items-center justify-center">
+                              <Target className="w-4 h-4 text-white" />
+                            </div>
+                            World State Changes
+                          </Label>
+                          
+                          <div className="space-y-6">
+                            {/* Population Changes */}
+                            <div>
+                              <Label className="text-sm font-medium text-gray-700 mb-2 block">Population Impact</Label>
+                              <Select 
+                                value={editingEvent.attributes?.populationImpact || 'none'} 
+                                onValueChange={(value) => setEditingEvent({
+                                  ...editingEvent, 
+                                  attributes: {...editingEvent.attributes, populationImpact: value}
+                                })}
+                              >
+                                <SelectTrigger className="border-2 border-gray-200 focus:border-orange-400">
+                                  <SelectValue placeholder="Select population impact..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">No Population Change</SelectItem>
+                                  <SelectItem value="growth">📈 Population Growth</SelectItem>
+                                  <SelectItem value="decline">📉 Population Decline</SelectItem>
+                                  <SelectItem value="migration-in">➡️ Immigration Wave</SelectItem>
+                                  <SelectItem value="migration-out">⬅️ Mass Exodus</SelectItem>
+                                  <SelectItem value="plague">☠️ Plague/Disease</SelectItem>
+                                  <SelectItem value="war-casualties">⚔️ War Casualties</SelectItem>
+                                  <SelectItem value="settlement">🏘️ New Settlement</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            {/* Technology Changes */}
+                            <div>
+                              <Label className="text-sm font-medium text-gray-700 mb-2 block">Technological Advancement</Label>
+                              <Textarea
+                                value={editingEvent.attributes?.technologyChanges || ''}
+                                onChange={(e) => setEditingEvent({
+                                  ...editingEvent, 
+                                  attributes: {...editingEvent.attributes, technologyChanges: e.target.value}
+                                })}
+                                placeholder="Describe new inventions, lost knowledge, or technological changes resulting from this event..."
+                                className="min-h-[80px] border-2 border-gray-200 focus:border-orange-400 bg-white/70 resize-none"
+                              />
+                            </div>
+
+                            {/* Political Changes */}
+                            <div>
+                              <Label className="text-sm font-medium text-gray-700 mb-2 block">Political Consequences</Label>
+                              <Textarea
+                                value={editingEvent.attributes?.politicalConsequences || ''}
+                                onChange={(e) => setEditingEvent({
+                                  ...editingEvent, 
+                                  attributes: {...editingEvent.attributes, politicalConsequences: e.target.value}
+                                })}
+                                placeholder="Describe changes to governments, alliances, borders, or power structures..."
+                                className="min-h-[80px] border-2 border-gray-200 focus:border-orange-400 bg-white/70 resize-none"
+                              />
+                            </div>
+
+                            {/* Environmental Changes */}
+                            <div>
+                              <Label className="text-sm font-medium text-gray-700 mb-2 block">Environmental Impact</Label>
+                              <Textarea
+                                value={editingEvent.attributes?.environmentalImpact || ''}
+                                onChange={(e) => setEditingEvent({
+                                  ...editingEvent, 
+                                  attributes: {...editingEvent.attributes, environmentalImpact: e.target.value}
+                                })}
+                                placeholder="Describe changes to landscape, climate, resources, or natural phenomena..."
+                                className="min-h-[80px] border-2 border-gray-200 focus:border-orange-400 bg-white/70 resize-none"
+                              />
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </CardContent>
@@ -2488,7 +3571,118 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
                               <p className="text-gray-900 font-semibold capitalize">{selectedEvent.attributes.historicalScope}</p>
                             </div>
                           )}
+
+                          {selectedEvent.attributes?.weather && (
+                            <div>
+                              <Label className="text-sm font-medium text-gray-600">Weather Conditions</Label>
+                              <p className="text-gray-900 font-semibold capitalize">{selectedEvent.attributes.weather}</p>
+                            </div>
+                          )}
+
+                          {selectedEvent.attributes?.seasonalEffects && (
+                            <div>
+                              <Label className="text-sm font-medium text-gray-600">Seasonal Effects</Label>
+                              <p className="text-gray-900 font-semibold capitalize">{selectedEvent.attributes.seasonalEffects}</p>
+                            </div>
+                          )}
+
+                          {selectedEvent.attributes?.economicImpact && selectedEvent.attributes.economicImpact !== 'none' && (
+                            <div>
+                              <Label className="text-sm font-medium text-gray-600">Economic Impact</Label>
+                              <p className="text-gray-900 font-semibold capitalize">{selectedEvent.attributes.economicImpact}</p>
+                            </div>
+                          )}
+
+                          {selectedEvent.attributes?.religiousSignificance && selectedEvent.attributes.religiousSignificance !== 'none' && (
+                            <div>
+                              <Label className="text-sm font-medium text-gray-600">Religious Significance</Label>
+                              <p className="text-gray-900 font-semibold capitalize">{selectedEvent.attributes.religiousSignificance}</p>
+                            </div>
+                          )}
+
+                          {selectedEvent.attributes?.isFestival && (
+                            <div>
+                              <Label className="text-sm font-medium text-gray-600">Festival Type</Label>
+                              <p className="text-gray-900 font-semibold capitalize">{selectedEvent.attributes.festivalType || 'Festival'}</p>
+                            </div>
+                          )}
+
+                          {selectedEvent.attributes?.populationImpact && selectedEvent.attributes.populationImpact !== 'none' && (
+                            <div>
+                              <Label className="text-sm font-medium text-gray-600">Population Impact</Label>
+                              <p className="text-gray-900 font-semibold capitalize">{selectedEvent.attributes.populationImpact}</p>
+                            </div>
+                          )}
                         </div>
+
+                        {/* World-Building Extended Details */}
+                        {(selectedEvent.attributes?.tradeEffects || 
+                          selectedEvent.attributes?.festivalActivities ||
+                          selectedEvent.attributes?.historicalPrecedents ||
+                          selectedEvent.attributes?.technologyChanges ||
+                          selectedEvent.attributes?.politicalConsequences ||
+                          selectedEvent.attributes?.environmentalImpact) && (
+                          <div className="space-y-6 pt-6 border-t border-gray-200">
+                            <h4 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                              <Globe className="w-5 h-5 text-green-600" />
+                              World-Building Details
+                            </h4>
+
+                            {selectedEvent.attributes?.tradeEffects && (
+                              <div>
+                                <Label className="text-sm font-medium text-gray-600 uppercase tracking-wide">Trade Route Effects</Label>
+                                <p className="text-gray-900 text-base leading-relaxed mt-2">
+                                  {selectedEvent.attributes.tradeEffects}
+                                </p>
+                              </div>
+                            )}
+
+                            {selectedEvent.attributes?.festivalActivities && (
+                              <div>
+                                <Label className="text-sm font-medium text-gray-600 uppercase tracking-wide">Festival Activities</Label>
+                                <p className="text-gray-900 text-base leading-relaxed mt-2">
+                                  {selectedEvent.attributes.festivalActivities}
+                                </p>
+                              </div>
+                            )}
+
+                            {selectedEvent.attributes?.historicalPrecedents && (
+                              <div>
+                                <Label className="text-sm font-medium text-gray-600 uppercase tracking-wide">Historical Precedents</Label>
+                                <p className="text-gray-900 text-base leading-relaxed mt-2">
+                                  {selectedEvent.attributes.historicalPrecedents}
+                                </p>
+                              </div>
+                            )}
+
+                            {selectedEvent.attributes?.technologyChanges && (
+                              <div>
+                                <Label className="text-sm font-medium text-gray-600 uppercase tracking-wide">Technology Changes</Label>
+                                <p className="text-gray-900 text-base leading-relaxed mt-2">
+                                  {selectedEvent.attributes.technologyChanges}
+                                </p>
+                              </div>
+                            )}
+
+                            {selectedEvent.attributes?.politicalConsequences && (
+                              <div>
+                                <Label className="text-sm font-medium text-gray-600 uppercase tracking-wide">Political Consequences</Label>
+                                <p className="text-gray-900 text-base leading-relaxed mt-2">
+                                  {selectedEvent.attributes.politicalConsequences}
+                                </p>
+                              </div>
+                            )}
+
+                            {selectedEvent.attributes?.environmentalImpact && (
+                              <div>
+                                <Label className="text-sm font-medium text-gray-600 uppercase tracking-wide">Environmental Impact</Label>
+                                <p className="text-gray-900 text-base leading-relaxed mt-2">
+                                  {selectedEvent.attributes.environmentalImpact}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        )}
                         
                         {selectedEvent.attributes?.additionalNotes && (
                           <div className="pt-4 border-t border-gray-200">
@@ -2604,6 +3798,553 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
                   <CalendarIcon className="w-16 h-16 mx-auto text-gray-300 mb-4" />
                   <h3 className="text-lg font-medium mb-2">Gantt Chart View</h3>
                   <p className="text-sm">Gantt chart visualization coming soon...</p>
+                </div>
+              </div>
+            )}
+
+            {/* Heat Map Visualization */}
+            {viewMode === 'heatmap' && (
+              <div className="flex-1 p-4 bg-gray-50">
+                <div className="bg-white rounded-lg shadow-sm border">
+                  <div className="p-6 border-b">
+                    <h3 className="text-xl font-bold text-gray-900 flex items-center gap-3">
+                      <div className="w-8 h-8 bg-gradient-to-br from-red-500 to-orange-600 rounded-lg flex items-center justify-center">
+                        <Target className="w-4 h-4 text-white" />
+                      </div>
+                      Event Density Heat Map
+                    </h3>
+                    <p className="text-gray-600 mt-2">Visualize event distribution and busy periods across your timeline</p>
+                  </div>
+                  
+                  <div className="p-6">
+                    {/* Heat Map Grid */}
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="text-sm font-medium text-gray-700">Event Density by Month</div>
+                        <div className="flex items-center gap-2 text-xs">
+                          <div className="w-3 h-3 bg-gray-200 rounded"></div>
+                          <span>Low</span>
+                          <div className="w-3 h-3 bg-orange-300 rounded"></div>
+                          <span>Medium</span>
+                          <div className="w-3 h-3 bg-red-500 rounded"></div>
+                          <span>High</span>
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-12 gap-1">
+                        {activeCalendarSystem?.months?.map((month) => {
+                          const monthEvents = events.filter(e => e.attributes?.month === month.id)
+                          const density = monthEvents.length === 0 ? 'low' : 
+                                         monthEvents.length <= 2 ? 'medium' : 'high'
+                          const bgColor = density === 'low' ? 'bg-gray-200' : 
+                                         density === 'medium' ? 'bg-orange-300' : 'bg-red-500'
+                          
+                          return (
+                            <div key={month.id} className="aspect-square">
+                              <div 
+                                className={`w-full h-full rounded ${bgColor} flex items-center justify-center text-xs font-medium hover:scale-110 transition-transform cursor-pointer`}
+                                title={`${month.name}: ${monthEvents.length} events`}
+                              >
+                                {month.name.slice(0, 3)}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                      
+                      {/* Event Type Distribution */}
+                      <div className="mt-8">
+                        <h4 className="text-lg font-semibold text-gray-900 mb-4">Event Type Distribution</h4>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          {getEventCategories().map(category => {
+                            const categoryEvents = events.filter(e => e.attributes?.type === category)
+                            const percentage = events.length > 0 ? (categoryEvents.length / events.length * 100).toFixed(1) : 0
+                            
+                            return (
+                              <div key={category} className="bg-white border rounded-lg p-4">
+                                <div className="text-lg font-bold text-gray-900">{categoryEvents.length}</div>
+                                <div className="text-sm text-gray-600 capitalize">{category}</div>
+                                <div className="text-xs text-gray-500">{percentage}%</div>
+                                <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                                  <div 
+                                    className="bg-gradient-to-r from-blue-500 to-purple-600 h-2 rounded-full"
+                                    style={{ width: `${percentage}%` }}
+                                  ></div>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Character Timeline View */}
+            {viewMode === 'character' && (
+              <div className="flex-1 p-4 bg-gray-50">
+                <div className="bg-white rounded-lg shadow-sm border">
+                  <div className="p-6 border-b">
+                    <h3 className="text-xl font-bold text-gray-900 flex items-center gap-3">
+                      <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg flex items-center justify-center">
+                        <Users className="w-4 h-4 text-white" />
+                      </div>
+                      Character Timelines
+                    </h3>
+                    <p className="text-gray-600 mt-2">Track individual character involvement in events</p>
+                  </div>
+                  
+                  <div className="p-6">
+                    <div className="space-y-6">
+                      {/* Character Activity Summary */}
+                      {events.map(event => event.attributes?.participants)
+                        .filter(Boolean)
+                        .join(', ')
+                        .split(',')
+                        .map(p => p.trim())
+                        .filter((value, index, self) => self.indexOf(value) === index)
+                        .slice(0, 10)
+                        .map(participant => {
+                          const participantEvents = events.filter(e => 
+                            e.attributes?.participants?.toLowerCase().includes(participant.toLowerCase())
+                          )
+                          
+                          return (
+                            <div key={participant} className="border rounded-lg p-4">
+                              <div className="flex items-center justify-between mb-3">
+                                <h4 className="font-semibold text-gray-900">{participant}</h4>
+                                <Badge variant="secondary">{participantEvents.length} events</Badge>
+                              </div>
+                              
+                              <div className="space-y-2">
+                                {participantEvents.slice(0, 5).map(event => (
+                                  <div key={event.id} className="flex items-center gap-3 p-2 bg-gray-50 rounded">
+                                    <div className={`w-2 h-2 rounded-full ${
+                                      event.attributes?.priority === 'high' ? 'bg-red-500' :
+                                      event.attributes?.priority === 'medium' ? 'bg-yellow-500' : 'bg-green-500'
+                                    }`}></div>
+                                    <div className="flex-1">
+                                      <div className="text-sm font-medium text-gray-900">{event.name}</div>
+                                      <div className="text-xs text-gray-500">
+                                        {event.attributes?.year} - {event.attributes?.type}
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                                {participantEvents.length > 5 && (
+                                  <div className="text-xs text-gray-500 pl-5">
+                                    +{participantEvents.length - 5} more events
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      
+                      {events.length === 0 && (
+                        <div className="text-center text-gray-500 py-20">
+                          <Users className="w-16 h-16 mx-auto text-gray-300 mb-4" />
+                          <h3 className="text-lg font-medium mb-2">No Character Data</h3>
+                          <p className="text-sm">Add participants to your events to see character timelines</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Conflict Visualization */}
+            {viewMode === 'conflicts' && (
+              <div className="flex-1 p-4 bg-gray-50">
+                <div className="bg-white rounded-lg shadow-sm border">
+                  <div className="p-6 border-b">
+                    <h3 className="text-xl font-bold text-gray-900 flex items-center gap-3">
+                      <div className="w-8 h-8 bg-gradient-to-br from-red-500 to-pink-600 rounded-lg flex items-center justify-center">
+                        <AlertCircle className="w-4 h-4 text-white" />
+                      </div>
+                      Event Conflicts & Overlaps
+                    </h3>
+                    <p className="text-gray-600 mt-2">Identify scheduling conflicts and simultaneous events</p>
+                  </div>
+                  
+                  <div className="p-6">
+                    <div className="space-y-6">
+                      {/* Conflict Detection Summary */}
+                      {(() => {
+                        const conflicts: Array<{event1: WorldElement, event2: WorldElement, type: string}> = []
+                        
+                        events.forEach((event1, i) => {
+                          events.slice(i + 1).forEach(event2 => {
+                            // Same date conflicts
+                            if (event1.attributes?.year === event2.attributes?.year &&
+                                event1.attributes?.month === event2.attributes?.month &&
+                                event1.attributes?.day === event2.attributes?.day) {
+                              conflicts.push({event1, event2, type: 'date'})
+                            }
+                            
+                            // Location conflicts
+                            if (event1.attributes?.location && 
+                                event2.attributes?.location === event1.attributes.location &&
+                                event1.attributes?.year === event2.attributes?.year &&
+                                event1.attributes?.month === event2.attributes?.month &&
+                                event1.attributes?.day === event2.attributes?.day) {
+                              conflicts.push({event1, event2, type: 'location'})
+                            }
+                          })
+                        })
+                        
+                        return (
+                          <>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                                <div className="text-2xl font-bold text-red-600">{conflicts.length}</div>
+                                <div className="text-sm text-red-700">Total Conflicts</div>
+                              </div>
+                              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                                <div className="text-2xl font-bold text-yellow-600">
+                                  {conflicts.filter(c => c.type === 'date').length}
+                                </div>
+                                <div className="text-sm text-yellow-700">Date Conflicts</div>
+                              </div>
+                              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                                <div className="text-2xl font-bold text-orange-600">
+                                  {conflicts.filter(c => c.type === 'location').length}
+                                </div>
+                                <div className="text-sm text-orange-700">Location Conflicts</div>
+                              </div>
+                            </div>
+                            
+                            {conflicts.length > 0 ? (
+                              <div className="space-y-4">
+                                <h4 className="font-semibold text-gray-900">Detected Conflicts</h4>
+                                {conflicts.map((conflict, index) => (
+                                  <div key={index} className="border border-red-200 rounded-lg p-4 bg-red-50">
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <AlertCircle className="w-4 h-4 text-red-500" />
+                                      <span className="text-sm font-medium text-red-800 capitalize">
+                                        {conflict.type} Conflict
+                                      </span>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                      <div className="bg-white rounded p-3 border">
+                                        <div className="font-medium text-gray-900">{conflict.event1.name}</div>
+                                        <div className="text-sm text-gray-600">
+                                          {conflict.event1.attributes?.year} - {conflict.event1.attributes?.type}
+                                        </div>
+                                        {conflict.event1.attributes?.location && (
+                                          <div className="text-xs text-gray-500">📍 {conflict.event1.attributes.location}</div>
+                                        )}
+                                      </div>
+                                      <div className="bg-white rounded p-3 border">
+                                        <div className="font-medium text-gray-900">{conflict.event2.name}</div>
+                                        <div className="text-sm text-gray-600">
+                                          {conflict.event2.attributes?.year} - {conflict.event2.attributes?.type}
+                                        </div>
+                                        {conflict.event2.attributes?.location && (
+                                          <div className="text-xs text-gray-500">📍 {conflict.event2.attributes.location}</div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="text-center text-gray-500 py-20">
+                                <CheckCircle className="w-16 h-16 mx-auto text-green-300 mb-4" />
+                                <h3 className="text-lg font-medium mb-2">No Conflicts Detected</h3>
+                                <p className="text-sm">Your events are well-scheduled with no overlaps!</p>
+                              </div>
+                            )}
+                          </>
+                        )
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Analytics & Insights Dashboard */}
+            {viewMode === 'analytics' && (
+              <div className="flex-1 p-4 bg-gray-50">
+                <div className="bg-white rounded-lg shadow-sm border">
+                  <div className="p-6 border-b">
+                    <h3 className="text-xl font-bold text-gray-900 flex items-center gap-3">
+                      <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center">
+                        <Target className="w-4 h-4 text-white" />
+                      </div>
+                      Analytics & Insights Dashboard
+                    </h3>
+                    <p className="text-gray-600 mt-2">Comprehensive analysis of your story's timeline and events</p>
+                  </div>
+                  
+                  <div className="p-6">
+                    {/* Key Metrics Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                      <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg p-6 text-white">
+                        <div className="text-3xl font-bold">{events.length}</div>
+                        <div className="text-blue-100 text-sm">Total Events</div>
+                      </div>
+                      
+                      <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-lg p-6 text-white">
+                        <div className="text-3xl font-bold">
+                          {events.map(e => e.attributes?.participants)
+                            .filter(Boolean)
+                            .join(', ')
+                            .split(',')
+                            .map(p => p.trim())
+                            .filter((value, index, self) => self.indexOf(value) === index)
+                            .length}
+                        </div>
+                        <div className="text-green-100 text-sm">Active Characters</div>
+                      </div>
+                      
+                      <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg p-6 text-white">
+                        <div className="text-3xl font-bold">
+                          {events.map(e => e.attributes?.location)
+                            .filter(Boolean)
+                            .filter((value, index, self) => self.indexOf(value) === index)
+                            .length}
+                        </div>
+                        <div className="text-purple-100 text-sm">Unique Locations</div>
+                      </div>
+                      
+                      <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg p-6 text-white">
+                        <div className="text-3xl font-bold">
+                          {events.filter(e => e.attributes?.isFestival).length}
+                        </div>
+                        <div className="text-orange-100 text-sm">Festivals & Celebrations</div>
+                      </div>
+                    </div>
+
+                    {/* Story Pacing Analysis */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                      <div className="bg-white border rounded-lg p-6">
+                        <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                          <Clock className="w-5 h-5 text-blue-600" />
+                          Story Pacing Analysis
+                        </h4>
+                        
+                        <div className="space-y-4">
+                          {(() => {
+                            const eventsByYear = events.reduce((acc, event) => {
+                              const year = event.attributes?.year || 'Unknown'
+                              acc[year] = (acc[year] || 0) + 1
+                              return acc
+                            }, {} as Record<string, number>)
+                            
+                            const yearKeys = Object.keys(eventsByYear).sort()
+                            const avgEventsPerYear = events.length / Math.max(yearKeys.length, 1)
+                            
+                            return (
+                              <>
+                                <div className="flex justify-between items-center p-3 bg-blue-50 rounded">
+                                  <span className="text-sm font-medium text-blue-900">Average Events per Year</span>
+                                  <span className="text-lg font-bold text-blue-600">{avgEventsPerYear.toFixed(1)}</span>
+                                </div>
+                                
+                                <div className="space-y-2">
+                                  <div className="text-sm font-medium text-gray-700">Timeline Distribution</div>
+                                  {yearKeys.slice(0, 5).map(year => (
+                                    <div key={year} className="flex items-center gap-3">
+                                      <div className="w-16 text-sm text-gray-600">{year}</div>
+                                      <div className="flex-1 bg-gray-200 rounded-full h-2">
+                                        <div 
+                                          className="bg-gradient-to-r from-blue-500 to-purple-600 h-2 rounded-full"
+                                          style={{ width: `${(eventsByYear[year] / Math.max(...Object.values(eventsByYear))) * 100}%` }}
+                                        ></div>
+                                      </div>
+                                      <div className="w-8 text-sm text-gray-600">{eventsByYear[year]}</div>
+                                    </div>
+                                  ))}
+                                  {yearKeys.length > 5 && (
+                                    <div className="text-xs text-gray-500">
+                                      +{yearKeys.length - 5} more years
+                                    </div>
+                                  )}
+                                </div>
+                              </>
+                            )
+                          })()}
+                        </div>
+                      </div>
+
+                      <div className="bg-white border rounded-lg p-6">
+                        <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                          <Users className="w-5 h-5 text-green-600" />
+                          Character Activity Insights
+                        </h4>
+                        
+                        <div className="space-y-4">
+                          {(() => {
+                            const characterActivity = events.reduce((acc, event) => {
+                              const participants = event.attributes?.participants || ''
+                              participants.split(',').map(p => p.trim()).filter(Boolean).forEach(char => {
+                                acc[char] = (acc[char] || 0) + 1
+                              })
+                              return acc
+                            }, {} as Record<string, number>)
+                            
+                            const topCharacters = Object.entries(characterActivity)
+                              .sort(([,a], [,b]) => b - a)
+                              .slice(0, 5)
+                            
+                            return (
+                              <>
+                                <div className="text-sm font-medium text-gray-700">Most Active Characters</div>
+                                {topCharacters.map(([char, count]) => (
+                                  <div key={char} className="flex items-center gap-3">
+                                    <div className="flex-1 truncate text-sm text-gray-800">{char}</div>
+                                    <div className="w-16 bg-gray-200 rounded-full h-2">
+                                      <div 
+                                        className="bg-gradient-to-r from-green-500 to-emerald-600 h-2 rounded-full"
+                                        style={{ width: `${(count / Math.max(...topCharacters.map(([,c]) => c))) * 100}%` }}
+                                      ></div>
+                                    </div>
+                                    <div className="w-8 text-sm text-gray-600">{count}</div>
+                                  </div>
+                                ))}
+                                {Object.keys(characterActivity).length === 0 && (
+                                  <div className="text-sm text-gray-500 italic">No character data available</div>
+                                )}
+                              </>
+                            )
+                          })()}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Event Category Analysis */}
+                    <div className="bg-white border rounded-lg p-6 mb-8">
+                      <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        <Target className="w-5 h-5 text-purple-600" />
+                        Event Category Breakdown
+                      </h4>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {(() => {
+                          const categoryCounts = events.reduce((acc, event) => {
+                            const type = event.attributes?.type || 'uncategorized'
+                            acc[type] = (acc[type] || 0) + 1
+                            return acc
+                          }, {} as Record<string, number>)
+                          
+                          return Object.entries(categoryCounts).map(([category, count]) => {
+                            const percentage = ((count / events.length) * 100).toFixed(1)
+                            
+                            return (
+                              <div key={category} className="bg-gray-50 rounded-lg p-4">
+                                <div className="flex justify-between items-center mb-2">
+                                  <div className="text-sm font-medium text-gray-900 capitalize">{category}</div>
+                                  <div className="text-sm text-gray-600">{count}</div>
+                                </div>
+                                <div className="w-full bg-gray-200 rounded-full h-2 mb-1">
+                                  <div 
+                                    className="bg-gradient-to-r from-purple-500 to-pink-600 h-2 rounded-full"
+                                    style={{ width: `${percentage}%` }}
+                                  ></div>
+                                </div>
+                                <div className="text-xs text-gray-500">{percentage}%</div>
+                              </div>
+                            )
+                          })
+                        })()}
+                      </div>
+                    </div>
+
+                    {/* World-Building Impact Analysis */}
+                    <div className="bg-white border rounded-lg p-6">
+                      <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        <Globe className="w-5 h-5 text-green-600" />
+                        World-Building Impact Analysis
+                      </h4>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {/* Cultural Impact Distribution */}
+                        <div>
+                          <div className="text-sm font-medium text-gray-700 mb-3">Cultural Impact</div>
+                          <div className="space-y-2">
+                            {['none', 'minor', 'moderate', 'major'].map(impact => {
+                              const count = events.filter(e => e.attributes?.culturalImpact === impact).length
+                              const percentage = events.length > 0 ? ((count / events.length) * 100).toFixed(0) : 0
+                              
+                              return (
+                                <div key={impact} className="flex items-center gap-2">
+                                  <div className="w-20 text-xs text-gray-600 capitalize">{impact}</div>
+                                  <div className="flex-1 bg-gray-200 rounded-full h-1.5">
+                                    <div 
+                                      className="bg-gradient-to-r from-blue-500 to-cyan-600 h-1.5 rounded-full"
+                                      style={{ width: `${percentage}%` }}
+                                    ></div>
+                                  </div>
+                                  <div className="w-8 text-xs text-gray-600">{count}</div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Economic Impact Distribution */}
+                        <div>
+                          <div className="text-sm font-medium text-gray-700 mb-3">Economic Impact</div>
+                          <div className="space-y-2">
+                            {['none', 'trade-boost', 'trade-decline', 'prosperity', 'market-crash'].map(impact => {
+                              const count = events.filter(e => e.attributes?.economicImpact === impact).length
+                              const percentage = events.length > 0 ? ((count / events.length) * 100).toFixed(0) : 0
+                              
+                              return (
+                                <div key={impact} className="flex items-center gap-2">
+                                  <div className="w-20 text-xs text-gray-600 capitalize">{impact.replace('-', ' ')}</div>
+                                  <div className="flex-1 bg-gray-200 rounded-full h-1.5">
+                                    <div 
+                                      className="bg-gradient-to-r from-green-500 to-emerald-600 h-1.5 rounded-full"
+                                      style={{ width: `${percentage}%` }}
+                                    ></div>
+                                  </div>
+                                  <div className="w-8 text-xs text-gray-600">{count}</div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Population Impact Distribution */}
+                        <div>
+                          <div className="text-sm font-medium text-gray-700 mb-3">Population Impact</div>
+                          <div className="space-y-2">
+                            {['none', 'growth', 'decline', 'migration-in', 'migration-out'].map(impact => {
+                              const count = events.filter(e => e.attributes?.populationImpact === impact).length
+                              const percentage = events.length > 0 ? ((count / events.length) * 100).toFixed(0) : 0
+                              
+                              return (
+                                <div key={impact} className="flex items-center gap-2">
+                                  <div className="w-20 text-xs text-gray-600 capitalize">{impact.replace('-', ' ')}</div>
+                                  <div className="flex-1 bg-gray-200 rounded-full h-1.5">
+                                    <div 
+                                      className="bg-gradient-to-r from-orange-500 to-red-600 h-1.5 rounded-full"
+                                      style={{ width: `${percentage}%` }}
+                                    ></div>
+                                  </div>
+                                  <div className="w-8 text-xs text-gray-600">{count}</div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {events.length === 0 && (
+                      <div className="text-center text-gray-500 py-20">
+                        <Target className="w-16 h-16 mx-auto text-gray-300 mb-4" />
+                        <h3 className="text-lg font-medium mb-2">No Data Available</h3>
+                        <p className="text-sm">Create some events to see analytics and insights</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
@@ -4559,4 +6300,690 @@ function CalendarPropertiesEditor({ calendarSystem, onUpdate, onSave, onCancel }
       </div>
     </div>
   )
+}
+
+// ============= UTILITY FUNCTIONS =============
+
+// Calendar Export Functions
+export const exportToICS = (events: WorldElement[], calendarName: string = 'StoryFoundry Calendar') => {
+  const formatDate = (dateStr: string, time?: string) => {
+    const date = new Date(dateStr)
+    if (time) {
+      const [hours, minutes] = time.split(':')
+      date.setHours(parseInt(hours), parseInt(minutes))
+    }
+    return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+  }
+
+  let icsContent = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    `PRODID:-//StoryFoundry//Calendar Export//EN`,
+    `X-WR-CALNAME:${calendarName}`,
+    'CALSCALE:GREGORIAN'
+  ]
+
+  events.forEach(event => {
+    if (event.attributes?.year && event.attributes?.month && event.attributes?.day) {
+      const dateStr = `${event.attributes.year}-${String(event.attributes.month).padStart(2, '0')}-${String(event.attributes.day).padStart(2, '0')}`
+      const startDate = formatDate(dateStr, event.attributes.startTime || '09:00')
+      const endDate = formatDate(dateStr, event.attributes.endTime || '17:00')
+      
+      icsContent.push(
+        'BEGIN:VEVENT',
+        `UID:${event.id}@storyfoundry.com`,
+        `DTSTART:${startDate}`,
+        `DTEND:${endDate}`,
+        `SUMMARY:${event.name}`,
+        `DESCRIPTION:${event.description || ''}`,
+        `CATEGORIES:${event.attributes?.type || 'event'}`,
+        `PRIORITY:${event.attributes?.priority === 'high' ? '1' : event.attributes?.priority === 'low' ? '9' : '5'}`,
+        event.attributes?.location ? `LOCATION:${event.attributes.location}` : '',
+        'END:VEVENT'
+      )
+    }
+  })
+
+  icsContent.push('END:VCALENDAR')
+  return icsContent.filter(line => line !== '').join('\r\n')
+}
+
+export const exportToCSV = (events: WorldElement[]) => {
+  const headers = [
+    'Name', 'Description', 'Type', 'Priority', 'Era', 'Year', 'Month', 'Day', 
+    'Start Time', 'End Time', 'Duration Days', 'Duration Hours', 'Status', 
+    'Location', 'Participants', 'Tags', 'Is Recurring', 'Recurrence Pattern'
+  ]
+
+  const csvRows = [headers.join(',')]
+
+  events.forEach(event => {
+    const row = [
+      `"${event.name}"`,
+      `"${event.description || ''}"`,
+      event.attributes?.type || '',
+      event.attributes?.priority || '',
+      event.attributes?.era || '',
+      event.attributes?.year || '',
+      event.attributes?.month || '',
+      event.attributes?.day || '',
+      event.attributes?.startTime || '',
+      event.attributes?.endTime || '',
+      event.attributes?.durationDays || '',
+      event.attributes?.durationHours || '',
+      event.attributes?.status || '',
+      `"${event.attributes?.location || ''}"`,
+      `"${event.attributes?.participants || ''}"`,
+      `"${event.tags?.join(';') || ''}"`,
+      event.attributes?.isRecurring ? 'true' : 'false',
+      event.attributes?.recurrencePattern || ''
+    ]
+    csvRows.push(row.join(','))
+  })
+
+  return csvRows.join('\n')
+}
+
+export const downloadFile = (content: string, filename: string, mimeType: string) => {
+  const blob = new Blob([content], { type: mimeType })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
+// Event Templates
+export const eventTemplates = {
+  battle: {
+    name: 'Battle Template',
+    description: 'A military conflict between forces',
+    attributes: {
+      type: 'battle',
+      priority: 'high',
+      significance: 'major',
+      durationHours: 12,
+      participants: 'Armies, commanders, key warriors',
+      objectives: 'Strategic goals, territorial control',
+      outcomes: 'Victory/defeat, casualties, territorial changes',
+      consequences: 'Political ramifications, morale effects',
+      culturalImpact: 'major',
+      historicalScope: 'regional'
+    },
+    tags: ['military', 'conflict', 'warfare']
+  },
+  
+  festival: {
+    name: 'Festival Template',
+    description: 'A cultural celebration or religious ceremony',
+    attributes: {
+      type: 'festival',
+      priority: 'medium',
+      significance: 'significant',
+      durationDays: 3,
+      isRecurring: true,
+      recurrencePattern: 'yearly',
+      participants: 'Citizens, clergy, performers',
+      objectives: 'Cultural celebration, religious observance',
+      culturalImpact: 'moderate',
+      historicalScope: 'local'
+    },
+    tags: ['cultural', 'celebration', 'religious']
+  },
+
+  coronation: {
+    name: 'Coronation Template',
+    description: 'The crowning of a new ruler',
+    attributes: {
+      type: 'coronation',
+      priority: 'high',
+      significance: 'major',
+      durationHours: 8,
+      participants: 'Royal family, nobility, clergy, citizens',
+      objectives: 'Legitimize new ruler, establish succession',
+      outcomes: 'New monarch crowned, political stability',
+      consequences: 'Changed power dynamics, policy shifts',
+      culturalImpact: 'major',
+      historicalScope: 'national'
+    },
+    tags: ['political', 'royal', 'ceremony']
+  },
+
+  discovery: {
+    name: 'Discovery Template',
+    description: 'A significant scientific, magical, or geographical discovery',
+    attributes: {
+      type: 'discovery',
+      priority: 'medium',
+      significance: 'significant',
+      durationDays: 1,
+      participants: 'Explorers, scholars, researchers',
+      objectives: 'Expand knowledge, find new resources',
+      outcomes: 'New knowledge gained, resources discovered',
+      consequences: 'Technological advancement, economic impact',
+      culturalImpact: 'moderate',
+      historicalScope: 'regional'
+    },
+    tags: ['discovery', 'knowledge', 'exploration']
+  },
+
+  disaster: {
+    name: 'Disaster Template',
+    description: 'A natural or magical catastrophe',
+    attributes: {
+      type: 'disaster',
+      priority: 'high',
+      significance: 'major',
+      durationDays: 7,
+      participants: 'Affected population, rescue workers',
+      objectives: 'Survival, rescue operations, damage control',
+      outcomes: 'Casualties, destruction, displacement',
+      consequences: 'Economic damage, population migration, policy changes',
+      culturalImpact: 'major',
+      historicalScope: 'regional'
+    },
+    tags: ['disaster', 'catastrophe', 'emergency']
+  },
+
+  prophecy: {
+    name: 'Prophecy Template',
+    description: 'A prophetic vision or divine revelation',
+    attributes: {
+      type: 'prophecy',
+      priority: 'high',
+      significance: 'major',
+      durationHours: 4,
+      participants: 'Prophets, priests, chosen individuals',
+      objectives: 'Receive divine message, guide future actions',
+      outcomes: 'Prophecy revealed, divine will known',
+      consequences: 'Religious impact, changed behaviors, quests begun',
+      culturalImpact: 'major',
+      historicalScope: 'national'
+    },
+    tags: ['prophecy', 'divine', 'religious', 'future']
+  }
+}
+
+// CSV Import Parser
+export const parseCSVEvents = (csvContent: string): Partial<WorldElement>[] => {
+  const lines = csvContent.split('\n')
+  const headers = lines[0].split(',').map(h => h.replace(/"/g, ''))
+  const events: Partial<WorldElement>[] = []
+
+  for (let i = 1; i < lines.length; i++) {
+    if (lines[i].trim() === '') continue
+    
+    const values = lines[i].split(',').map(v => v.replace(/"/g, ''))
+    const event: Partial<WorldElement> = {
+      name: values[0] || '',
+      description: values[1] || '',
+      category: 'calendar',
+      attributes: {
+        type: values[2] || 'event',
+        priority: values[3] || 'medium',
+        era: values[4] || '',
+        year: parseInt(values[5]) || new Date().getFullYear(),
+        month: values[6] || '',
+        day: parseInt(values[7]) || 1,
+        startTime: values[8] || '09:00',
+        endTime: values[9] || '17:00',
+        durationDays: parseInt(values[10]) || 1,
+        durationHours: parseInt(values[11]) || 8,
+        status: values[12] || 'planned',
+        location: values[13] || '',
+        participants: values[14] || '',
+        isRecurring: values[16] === 'true',
+        recurrencePattern: values[17] || 'yearly'
+      },
+      tags: values[15] ? values[15].split(';') : []
+    }
+    events.push(event)
+  }
+
+  return events
+}
+
+// Conflict Detection Algorithm
+export const detectEventConflicts = (
+  targetEvent: WorldElement, 
+  allEvents: WorldElement[]
+): string[] => {
+  const conflicts: string[] = []
+  
+  allEvents.forEach(event => {
+    if (event.id === targetEvent.id) return
+    
+    // Check for same date conflicts
+    if (event.attributes?.year === targetEvent.attributes?.year &&
+        event.attributes?.month === targetEvent.attributes?.month &&
+        event.attributes?.day === targetEvent.attributes?.day) {
+      
+      // Check for time overlap
+      if (!targetEvent.attributes?.isAllDay && !event.attributes?.isAllDay) {
+        const targetStart = targetEvent.attributes?.startTime || '09:00'
+        const targetEnd = targetEvent.attributes?.endTime || '17:00'
+        const eventStart = event.attributes?.startTime || '09:00'
+        const eventEnd = event.attributes?.endTime || '17:00'
+        
+        if ((targetStart >= eventStart && targetStart < eventEnd) ||
+            (targetEnd > eventStart && targetEnd <= eventEnd) ||
+            (targetStart <= eventStart && targetEnd >= eventEnd)) {
+          conflicts.push(`Time overlap with "${event.name}" (${eventStart}-${eventEnd})`)
+        }
+      } else {
+        conflicts.push(`Same date as "${event.name}"`)
+      }
+    }
+    
+    // Check for location conflicts
+    if (targetEvent.attributes?.location && 
+        event.attributes?.location === targetEvent.attributes.location &&
+        event.attributes?.year === targetEvent.attributes?.year &&
+        event.attributes?.month === targetEvent.attributes?.month &&
+        event.attributes?.day === targetEvent.attributes?.day) {
+      conflicts.push(`Location conflict with "${event.name}" at ${event.attributes.location}`)
+    }
+    
+    // Check for participant conflicts
+    if (targetEvent.attributes?.participants && event.attributes?.participants) {
+      const targetParticipants = targetEvent.attributes.participants.toLowerCase()
+      const eventParticipants = event.attributes.participants.toLowerCase()
+      if (targetParticipants.includes(eventParticipants) || eventParticipants.includes(targetParticipants)) {
+        conflicts.push(`Participant overlap with "${event.name}"`)
+      }
+    }
+  })
+  
+  return conflicts
+}
+
+// Auto-suggestion Generator
+export const generateEventSuggestions = (event: WorldElement, allEvents: WorldElement[]): string[] => {
+  const suggestions: string[] = []
+  
+  // Suggest related events based on type
+  const sameTypeEvents = allEvents.filter(e => 
+    e.attributes?.type === event.attributes?.type && e.id !== event.id
+  )
+  
+  if (event.attributes?.type === 'battle' && sameTypeEvents.length > 0) {
+    suggestions.push('Consider adding aftermath events: victory celebration, treaty signing, or rebuilding efforts')
+    suggestions.push('Add preparation events: troop movements, alliance formations, or strategic planning')
+  }
+  
+  if (event.attributes?.type === 'coronation') {
+    suggestions.push('Add related events: royal wedding, succession ceremony, or noble gatherings')
+    suggestions.push('Consider political consequences: policy changes, new appointments, or diplomatic missions')
+  }
+  
+  if (event.attributes?.type === 'festival' && event.attributes?.isRecurring) {
+    suggestions.push('Add preparation events: decorations, food preparation, or performer rehearsals')
+    suggestions.push('Consider creating related cultural events: market days, religious ceremonies, or competitions')
+  }
+  
+  // Suggest based on significance
+  if (event.attributes?.significance === 'major') {
+    suggestions.push('Major events often have long-lasting consequences - consider adding follow-up events')
+    suggestions.push('Add character reactions: meetings, declarations, or personal responses to this event')
+  }
+  
+  // Suggest based on participants
+  if (event.attributes?.participants?.toLowerCase().includes('king') || 
+      event.attributes?.participants?.toLowerCase().includes('queen')) {
+    suggestions.push('Royal events often affect the entire kingdom - consider adding regional reactions')
+  }
+  
+  return suggestions.slice(0, 3) // Limit to 3 suggestions
+}
+
+// Smart Event Automation System
+export const generateSmartEventSuggestions = (
+  targetEvent: WorldElement, 
+  allEvents: WorldElement[],
+  calendarSystem?: CalendarSystem
+): string[] => {
+  const suggestions: string[] = []
+  
+  // Pattern Recognition Suggestions
+  const eventType = targetEvent.attributes?.type
+  const eventPriority = targetEvent.attributes?.priority
+  const eventLocation = targetEvent.attributes?.location
+  
+  // Check for similar events in the past
+  const similarEvents = allEvents.filter(e => 
+    e.attributes?.type === eventType && 
+    e.id !== targetEvent.id
+  )
+  
+  if (similarEvents.length > 0) {
+    const latestSimilar = similarEvents.sort((a, b) => 
+      (b.attributes?.year || 0) - (a.attributes?.year || 0)
+    )[0]
+    
+    if (latestSimilar.attributes?.year && targetEvent.attributes?.year) {
+      const yearDiff = targetEvent.attributes.year - latestSimilar.attributes.year
+      if (yearDiff >= 1) {
+        suggestions.push(`💡 Similar ${eventType} events typically occur every ${yearDiff} years`)
+        
+        // Suggest recurring pattern
+        if (yearDiff === 1) {
+          suggestions.push(`🔄 Consider making this a yearly recurring event`)
+        } else if (yearDiff <= 5) {
+          suggestions.push(`🔄 This could be part of a ${yearDiff}-year cycle`)
+        }
+      }
+    }
+  }
+  
+  // Seasonal Suggestions
+  if (calendarSystem?.months && targetEvent.attributes?.month) {
+    const monthIndex = calendarSystem.months.findIndex(m => m.name === targetEvent.attributes?.month)
+    if (monthIndex !== -1) {
+      const season = getSeasonForMonth(monthIndex, calendarSystem.months.length)
+      suggestions.push(`🌸 This occurs during ${season} - consider seasonal effects`)
+      
+      // Weather suggestions
+      if (season === 'Spring') {
+        suggestions.push(`🌱 Spring events often involve renewal, planting, or new beginnings`)
+      } else if (season === 'Summer') {
+        suggestions.push(`☀️ Summer events benefit from good weather and longer days`)
+      } else if (season === 'Autumn') {
+        suggestions.push(`🍂 Autumn events often relate to harvests or preparation`)
+      } else if (season === 'Winter') {
+        suggestions.push(`❄️ Winter events should account for harsh weather conditions`)
+      }
+    }
+  }
+  
+  // Character Involvement Suggestions
+  if (targetEvent.attributes?.participants) {
+    const participants = targetEvent.attributes.participants.split(',').map(p => p.trim())
+    
+    // Check for character involvement patterns
+    participants.forEach(participant => {
+      const participantEvents = allEvents.filter(e => 
+        e.attributes?.participants?.toLowerCase().includes(participant.toLowerCase()) &&
+        e.id !== targetEvent.id
+      )
+      
+      if (participantEvents.length >= 3) {
+        suggestions.push(`👤 ${participant} is highly active - consider their character development`)
+      }
+    })
+    
+    // Suggest relationship events if multiple participants
+    if (participants.length >= 2) {
+      suggestions.push(`👥 Multiple participants - consider adding relationship dynamics`)
+    }
+  }
+  
+  // Location-Based Suggestions
+  if (targetEvent.attributes?.location) {
+    const locationEvents = allEvents.filter(e => 
+      e.attributes?.location === targetEvent.attributes.location &&
+      e.id !== targetEvent.id
+    )
+    
+    if (locationEvents.length >= 2) {
+      suggestions.push(`📍 ${targetEvent.attributes.location} is significant - consider location development`)
+    }
+  }
+  
+  // Priority-Based Suggestions
+  if (eventPriority === 'high') {
+    suggestions.push(`⚠️ High priority events often require preparation events beforehand`)
+    suggestions.push(`📊 Consider adding aftermath events to show consequences`)
+  }
+  
+  return suggestions.slice(0, 4)
+}
+
+export const getSeasonForMonth = (monthIndex: number, totalMonths: number): string => {
+  const seasonLength = totalMonths / 4
+  if (monthIndex < seasonLength) return 'Spring'
+  if (monthIndex < seasonLength * 2) return 'Summer'
+  if (monthIndex < seasonLength * 3) return 'Autumn'
+  return 'Winter'
+}
+
+// Auto-completion suggestions for event names
+export const generateEventNameSuggestions = (
+  partialName: string,
+  eventType: string,
+  allEvents: WorldElement[]
+): string[] => {
+  const suggestions: string[] = []
+  const lowerPartial = partialName.toLowerCase()
+  
+  // Common event name patterns by type
+  const namePatterns: Record<string, string[]> = {
+    battle: [
+      'Battle of [Location]',
+      'Siege of [Location]',
+      'The [Location] Conflict',
+      'War of [Cause]',
+      'The Great [Descriptor] War'
+    ],
+    festival: [
+      'Festival of [Celebration]',
+      '[Season] Celebration',
+      'The [Location] Fair',
+      '[Deity] Day',
+      'Harvest Festival'
+    ],
+    coronation: [
+      'Coronation of [Ruler]',
+      'The Crowning of [Name]',
+      '[Dynasty] Ascension',
+      'Royal Investiture'
+    ],
+    discovery: [
+      'Discovery of [Thing]',
+      'The [Location] Expedition',
+      '[Discoverer]\'s Finding',
+      'Unveiling of [Secret]'
+    ],
+    disaster: [
+      'The Great [Type] of [Year]',
+      '[Location] Catastrophe',
+      'The [Descriptor] Disaster',
+      '[Natural Phenomenon] Strike'
+    ],
+    prophecy: [
+      'The [Descriptor] Prophecy',
+      'Vision of [Future Event]',
+      '[Prophet]\'s Revelation',
+      'The Foretelling'
+    ]
+  }
+  
+  if (namePatterns[eventType]) {
+    namePatterns[eventType].forEach(pattern => {
+      if (pattern.toLowerCase().includes(lowerPartial)) {
+        suggestions.push(pattern)
+      }
+    })
+  }
+  
+  // Look for similar names in existing events
+  allEvents.forEach(event => {
+    if (event.name.toLowerCase().includes(lowerPartial) && 
+        suggestions.length < 8) {
+      const variation = event.name.replace(/\d+/g, (match) => 
+        (parseInt(match) + 1).toString()
+      )
+      if (!suggestions.includes(variation)) {
+        suggestions.push(variation)
+      }
+    }
+  })
+  
+  return suggestions.slice(0, 5)
+}
+
+// Smart attribute suggestions based on event data
+export const generateAttributeSuggestions = (
+  event: WorldElement,
+  allEvents: WorldElement[]
+): Record<string, any> => {
+  const suggestions: Record<string, any> = {}
+  
+  // Suggest duration based on event type
+  const eventType = event.attributes?.type
+  if (eventType) {
+    const typeEvents = allEvents.filter(e => e.attributes?.type === eventType)
+    if (typeEvents.length > 0) {
+      const avgDuration = typeEvents.reduce((sum, e) => 
+        sum + (e.attributes?.durationHours || 8), 0
+      ) / typeEvents.length
+      
+      suggestions.durationHours = Math.round(avgDuration)
+    }
+  }
+  
+  // Suggest participants based on event type and location
+  if (eventType === 'battle') {
+    suggestions.participants = 'Military commanders, soldiers, key warriors'
+  } else if (eventType === 'festival') {
+    suggestions.participants = 'Citizens, merchants, performers, clergy'
+  } else if (eventType === 'coronation') {
+    suggestions.participants = 'Royal family, nobility, high clergy, foreign dignitaries'
+  }
+  
+  // Suggest priority based on significance and type
+  if (event.attributes?.significance === 'major') {
+    suggestions.priority = 'high'
+  } else if (event.attributes?.significance === 'minor') {
+    suggestions.priority = 'low'
+  }
+  
+  // Suggest cultural impact based on scope
+  if (event.attributes?.historicalScope === 'national') {
+    suggestions.culturalImpact = 'major'
+  } else if (event.attributes?.historicalScope === 'local') {
+    suggestions.culturalImpact = 'minor'
+  }
+  
+  return suggestions
+}
+
+// Pattern recognition for event series
+export const detectEventSeries = (
+  allEvents: WorldElement[]
+): Array<{
+  pattern: string,
+  events: WorldElement[],
+  nextSuggested?: Partial<WorldElement>
+}> => {
+  const series: Array<{
+    pattern: string,
+    events: WorldElement[],
+    nextSuggested?: Partial<WorldElement>
+  }> = []
+  
+  // Group events by type and look for patterns
+  const eventsByType = allEvents.reduce((acc, event) => {
+    const type = event.attributes?.type || 'other'
+    if (!acc[type]) acc[type] = []
+    acc[type].push(event)
+    return acc
+  }, {} as Record<string, WorldElement[]>)
+  
+  Object.entries(eventsByType).forEach(([type, events]) => {
+    if (events.length >= 2) {
+      // Sort by year
+      const sortedEvents = events.sort((a, b) => 
+        (a.attributes?.year || 0) - (b.attributes?.year || 0)
+      )
+      
+      // Check for regular intervals
+      const intervals: number[] = []
+      for (let i = 1; i < sortedEvents.length; i++) {
+        const prevYear = sortedEvents[i-1].attributes?.year || 0
+        const currentYear = sortedEvents[i].attributes?.year || 0
+        intervals.push(currentYear - prevYear)
+      }
+      
+      // Check if intervals are consistent (within 1 year tolerance)
+      const avgInterval = intervals.reduce((sum, interval) => sum + interval, 0) / intervals.length
+      const isConsistent = intervals.every(interval => Math.abs(interval - avgInterval) <= 1)
+      
+      if (isConsistent && avgInterval > 0) {
+        const lastEvent = sortedEvents[sortedEvents.length - 1]
+        const nextYear = (lastEvent.attributes?.year || 0) + Math.round(avgInterval)
+        
+        series.push({
+          pattern: `${type.charAt(0).toUpperCase() + type.slice(1)} events every ${Math.round(avgInterval)} year(s)`,
+          events: sortedEvents,
+          nextSuggested: {
+            name: `${lastEvent.name} (${nextYear})`,
+            category: 'calendar',
+            attributes: {
+              ...lastEvent.attributes,
+              year: nextYear,
+              status: 'suggested'
+            }
+          }
+        })
+      }
+    }
+  })
+  
+  return series
+}
+
+// Auto-scheduling suggestions
+export const generateSchedulingSuggestions = (
+  targetEvent: WorldElement,
+  allEvents: WorldElement[],
+  calendarSystem?: CalendarSystem
+): string[] => {
+  const suggestions: string[] = []
+  
+  // Check for optimal scheduling
+  const eventYear = targetEvent.attributes?.year
+  const eventMonth = targetEvent.attributes?.month
+  
+  if (eventYear && eventMonth) {
+    // Check for busy periods
+    const sameMonthEvents = allEvents.filter(e => 
+      e.attributes?.year === eventYear && 
+      e.attributes?.month === eventMonth
+    )
+    
+    if (sameMonthEvents.length >= 3) {
+      suggestions.push(`⚠️ ${eventMonth} ${eventYear} is already busy with ${sameMonthEvents.length} events`)
+      
+      // Suggest alternative months
+      if (calendarSystem?.months) {
+        const monthIndex = calendarSystem.months.findIndex(m => m.name === eventMonth)
+        const prevMonth = calendarSystem.months[monthIndex - 1]?.name
+        const nextMonth = calendarSystem.months[monthIndex + 1]?.name
+        
+        if (prevMonth) suggestions.push(`📅 Consider ${prevMonth} instead`)
+        if (nextMonth) suggestions.push(`📅 Consider ${nextMonth} instead`)
+      }
+    }
+    
+    // Check for conflicts with important events
+    const conflictingEvents = allEvents.filter(e => 
+      e.attributes?.year === eventYear && 
+      e.attributes?.month === eventMonth &&
+      e.attributes?.priority === 'high'
+    )
+    
+    if (conflictingEvents.length > 0) {
+      suggestions.push(`🚨 Conflicts with important event: "${conflictingEvents[0].name}"`)
+    }
+  }
+  
+  // Suggest preparation time for high-priority events
+  if (targetEvent.attributes?.priority === 'high') {
+    suggestions.push(`⏰ High priority events need preparation time - consider adding lead-up events`)
+  }
+  
+  return suggestions
 }
