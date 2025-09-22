@@ -957,7 +957,7 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
 
   if (loading) {
     return (
-      <div className="h-full bg-white flex items-center justify-center">
+      <div className="h-full bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <CalendarIcon className="w-16 h-16 mx-auto text-gray-300 mb-4 animate-pulse" />
           <div className="text-gray-500">Loading enhanced calendar...</div>
@@ -967,10 +967,10 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
   }
 
   return (
-    <div className="h-full">
+    <div className="h-full bg-gray-50">
       {/* Main Calendar View */}
       {currentView === 'calendar' && (
-        <div className="h-full bg-white flex">
+        <div className="h-full bg-gray-50 flex">
       {/* Enhanced Sidebar */}
       <div className="w-96 border-r border-gray-200 flex flex-col">
         {/* Header */}
@@ -2089,7 +2089,7 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
           </div>
         ) : selectedEvent ? (
           // Enhanced Event Details View
-          <div className="flex-1 p-6 overflow-y-auto">
+          <div className="flex-1 p-6 overflow-y-auto bg-gray-50">
             <div className="max-w-4xl mx-auto">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
@@ -2121,11 +2121,20 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
                     <Trash2 className="w-4 h-4 mr-1" />
                     Delete
                   </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setSelectedEvent(null)}
+                    className="text-gray-600 hover:text-gray-700 hover:bg-gray-50"
+                  >
+                    <X className="w-4 h-4 mr-1" />
+                    Close
+                  </Button>
                 </div>
               </div>
               
               {/* Enhanced Event Details View */}
-              <div className="space-y-8">
+              <div className="space-y-1">
                 {/* Event Header Card */}
                 <Card className="border-0 shadow-lg bg-white/90 backdrop-blur-sm overflow-hidden">
                   <div className="h-1 bg-gradient-to-r from-orange-400 via-amber-400 to-orange-600" />
@@ -2572,9 +2581,9 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
           </div>
         ) : (
           // Calendar Views
-          <div className="flex-1 flex flex-col">
+          <div className="flex-1 flex flex-col bg-gray-50">
             {viewMode === 'timeline' && (
-              <div className="flex-1 p-4">
+              <div className="flex-1 p-4 bg-gray-50">
                 <div className="text-center text-gray-500 py-20">
                   <CalendarIcon className="w-16 h-16 mx-auto text-gray-300 mb-4" />
                   <h3 className="text-lg font-medium mb-2">Timeline View</h3>
@@ -2584,7 +2593,7 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
             )}
 
             {viewMode === 'gantt' && (
-              <div className="flex-1 p-4">
+              <div className="flex-1 p-4 bg-gray-50">
                 <div className="text-center text-gray-500 py-20">
                   <CalendarIcon className="w-16 h-16 mx-auto text-gray-300 mb-4" />
                   <h3 className="text-lg font-medium mb-2">Gantt Chart View</h3>
@@ -2594,7 +2603,7 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
             )}
 
             {(viewMode === 'month' || viewMode === 'list') && (
-              <div className="flex-1 p-4">
+              <div className="flex-1 p-4 bg-gray-50">
                 
                 {activeCalendarSystem ? (
                   <div className="space-y-6">
