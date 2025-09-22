@@ -1111,7 +1111,6 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
               <CalendarIcon className="w-12 h-12 mx-auto text-gray-300 mb-3" />
               <div className="mb-2">No events found</div>
               <Button 
-                variant="outline" 
                 size="sm"
                 onClick = {() => {
                               const newEvent = {
@@ -1316,7 +1315,7 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
                     <Button 
                       variant="outline" 
                       onClick={handleCancel}
-                      className="px-6 py-3 border-2 border-gray-200 hover:border-gray-300 text-gray-700 hover:bg-gray-50 transition-all duration-200"
+                      className="px-6 py-3 border-2 border-orange-200 hover:border-orange-300 text-orange-700 hover:bg-orange-50 transition-all duration-200"
                     >
                       <X className="w-4 h-4 mr-2" />
                       Cancel
@@ -2098,12 +2097,12 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
                 </div>
                 <div className="flex gap-2">
                   <Button 
-                    variant="outline" 
                     size="sm"
                     onClick={() => {
                       setEditingEvent(selectedEvent)
                       setIsCreating(false)
                     }}
+                    className="bg-orange-500 hover:bg-orange-600 text-white border-orange-500 hover:border-orange-600"
                   >
                     <Edit3 className="w-4 h-4 mr-1" />
                     Edit
@@ -2116,7 +2115,7 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
                         deleteEvent(selectedEvent.id)
                       }
                     }}
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 hover:border-red-300"
                   >
                     <Trash2 className="w-4 h-4 mr-1" />
                     Delete
@@ -2125,7 +2124,7 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
                     variant="outline" 
                     size="sm"
                     onClick={() => setSelectedEvent(null)}
-                    className="text-gray-600 hover:text-gray-700 hover:bg-gray-50"
+                    className="text-orange-600 hover:text-orange-700 hover:bg-orange-50 border-orange-200 hover:border-orange-300"
                   >
                     <X className="w-4 h-4 mr-1" />
                     Close
@@ -2139,13 +2138,16 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   
                   {/* Main Event Information Card - Large */}
-                  <Card className="lg:col-span-2 border-0 shadow-lg bg-white/90 backdrop-blur-sm overflow-hidden">
+                  <Card className="lg:col-span-2 border-0 shadow-lg bg-white/90 backdrop-blur-sm overflow-hidden hover:shadow-xl hover:scale-[1.01] transition-all duration-300">
                     <div className="h-1 bg-gradient-to-r from-orange-400 via-amber-400 to-orange-600" />
                     <CardContent className="p-6">
                       <div className="space-y-6">
                         {/* Description Section */}
                         <div>
-                          <Label className="text-sm font-medium text-gray-600 uppercase tracking-wide">Description</Label>
+                          <Label className="text-sm font-medium text-gray-600 uppercase tracking-wide flex items-center gap-2">
+                            <div className="w-1.5 h-1.5 bg-orange-500 rounded-full" />
+                            Description
+                          </Label>
                           <p className="text-gray-900 text-base leading-relaxed mt-2">
                             {selectedEvent.description || 'No description provided.'}
                           </p>
@@ -2154,7 +2156,10 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
                         {/* Objectives Section */}
                         {selectedEvent.attributes?.objectives && (
                           <div>
-                            <Label className="text-sm font-medium text-gray-600 uppercase tracking-wide">Objectives</Label>
+                            <Label className="text-sm font-medium text-gray-600 uppercase tracking-wide flex items-center gap-2">
+                              <div className="w-1.5 h-1.5 bg-amber-500 rounded-full" />
+                              Objectives
+                            </Label>
                             <p className="text-gray-900 text-base leading-relaxed mt-2">
                               {selectedEvent.attributes.objectives}
                             </p>
@@ -2163,8 +2168,8 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
 
                         {/* Event Metadata Grid */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-gray-100">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-amber-600 rounded-lg flex items-center justify-center">
+                          <div className="flex items-center gap-3 group">
+                            <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-amber-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform duration-200">
                               {selectedEvent.attributes?.type === 'battle' ? '⚔️' :
                                selectedEvent.attributes?.type === 'celebration' ? '🎉' :
                                selectedEvent.attributes?.type === 'political' ? '🏛️' : '🎭'}
@@ -2177,8 +2182,8 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
                             </div>
                           </div>
                           
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-lg flex items-center justify-center">
+                          <div className="flex items-center gap-3 group">
+                            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform duration-200">
                               <Star className="w-5 h-5 text-white" />
                             </div>
                             <div>
@@ -2190,8 +2195,8 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
                           </div>
 
                           {selectedEvent.attributes?.location && (
-                            <div className="flex items-center gap-3 md:col-span-2">
-                              <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
+                            <div className="flex items-center gap-3 md:col-span-2 group">
+                              <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform duration-200">
                                 <MapPin className="w-5 h-5 text-white" />
                               </div>
                               <div>
@@ -2208,7 +2213,7 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
                   </Card>
 
                   {/* Date & Time Information Card - Compact */}
-                  <Card className="border-0 shadow-lg bg-white/90 backdrop-blur-sm overflow-hidden">
+                  <Card className="border-0 shadow-lg bg-white/90 backdrop-blur-sm overflow-hidden hover:shadow-xl hover:scale-[1.02] transition-all duration-300">
                     <div className="h-1 bg-gradient-to-r from-blue-400 via-cyan-400 to-blue-600" />
                     <CardContent className="p-6">
                       <div className="flex items-center gap-3 mb-4">
@@ -2721,8 +2726,8 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
                               </div>
                               <Button 
                                 size="sm" 
-                                variant="ghost"
                                 onClick={() => setSelectedEvent(event)}
+                                className="bg-orange-500 hover:bg-orange-600 text-white"
                               >
                                 View
                               </Button>
@@ -2991,7 +2996,7 @@ export default function CalendarPanel({ projectId }: CalendarPanelProps) {
                   setIsCreatingCalendar(false)
                   setEditingCalendarSystem(null)
                 }}
-                className="px-10 py-4 text-lg font-medium"
+                className="px-10 py-4 text-lg font-medium border-orange-200 hover:border-orange-300 text-orange-700 hover:bg-orange-50"
               >
                 <ChevronLeft className="w-5 h-5 mr-2" />
                 Back to Selection
