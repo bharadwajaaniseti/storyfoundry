@@ -1,12 +1,13 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect } from 'react'
 import { 
-  Plus, Target, Search, Trash2, Edit3, BookOpen,
-  TrendingUp, Users, Calendar, MapPin, User, Heart,
-  ArrowLeft, CheckCircle, Circle, AlertTriangle, Star, BarChart3,
-  GitBranch, Layers, Activity, Grid, List, FileText,
-  Palette, Tag, MessageSquare, SlidersHorizontal, Save, X, Eye
+  Plus, Target, Search, MoreVertical, Trash2, Edit3, BookOpen,
+  TrendingUp, Users, Clock, Flag, ChevronDown, ChevronRight,
+  Save, X, Calendar, MapPin, User, Zap, Heart, Crown, Eye, EyeOff,
+  ArrowRight, ArrowLeft, CheckCircle, Circle, AlertTriangle, Star, BarChart3,
+  GitBranch, Layers, Activity, Grid, List, Download, FileText,
+  Filter, SortAsc, Palette, Tag, Link, MessageSquare, History, SlidersHorizontal
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -181,7 +182,14 @@ interface Character {
   id: string
   name: string
   description?: string
-  attributes?: Record<string, unknown>
+  attributes?: any
+}
+
+interface Location {
+  id: string
+  name: string
+  description?: string
+  attributes?: any
 }
 
 interface Chapter {
@@ -197,13 +205,7 @@ interface Chapter {
 
 interface ArcsManagerProps {
   projectId: string
-  selectedElement?: {
-    id: string
-    name: string
-    description: string
-    category: string
-    attributes: Record<string, unknown>
-  }
+  selectedElement?: any
   onArcsChange?: () => void
   onClearSelection?: () => void
 }
@@ -254,10 +256,24 @@ const CONFLICT_TYPES = [
   { value: 'technology', label: 'Technology', description: 'Character vs. technology' }
 ]
 
+const TENSION_LEVELS = [
+  { value: 1, label: 'Very Low', color: '#10B981' },
+  { value: 2, label: 'Low', color: '#84CC16' },
+  { value: 3, label: 'Moderate', color: '#F59E0B' },
+  { value: 4, label: 'High', color: '#EF4444' },
+  { value: 5, label: 'Very High', color: '#DC2626' }
+]
+
 const COMMON_THEMES = [
   'Love', 'Redemption', 'Coming of Age', 'Good vs Evil', 'Sacrifice', 'Identity',
   'Family', 'Friendship', 'Power', 'Justice', 'Freedom', 'Hope', 'Betrayal',
   'Forgiveness', 'Loyalty', 'Survival', 'Truth', 'Change', 'Loss', 'Growth'
+]
+
+const COMMON_MOODS = [
+  'Adventurous', 'Dark', 'Hopeful', 'Melancholic', 'Mysterious', 'Romantic',
+  'Suspenseful', 'Uplifting', 'Tense', 'Peaceful', 'Dramatic', 'Humorous',
+  'Nostalgic', 'Ominous', 'Inspiring', 'Tragic', 'Whimsical', 'Intense'
 ]
 
 // Helper function for status badge styling
@@ -281,6 +297,7 @@ const getStatusBadgeClass = (status: string) => {
 export default function ArcsManager({ projectId, selectedElement, onArcsChange, onClearSelection }: ArcsManagerProps) {
   const [arcs, setArcs] = useState<Arc[]>([])
   const [characters, setCharacters] = useState<Character[]>([])
+  const [locations, setLocations] = useState<Location[]>([])
   const [chapters, setChapters] = useState<Chapter[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
@@ -308,87 +325,15 @@ export default function ArcsManager({ projectId, selectedElement, onArcsChange, 
     // Enhanced fields
     template: {
       type: 'three_act',
-      structure_beats: [] as Array<{
-        beat_name: string
-        target_percentage: number
-        actual_percentage?: number
-        milestone_id?: string
-        completed: boolean
-      }>
+      structure_beats: [] as any[]
     },
-    dependencies: [] as Array<{
-      arc_id: string
-      relationship_type: string
-      description?: string
-      strength?: number
-    }>,
-    character_development: [] as Array<{
-      character_id: string
-      character_name: string
-      growth_arc: string
-      starting_state: string
-      ending_state: string
-      key_moments: Array<{
-        milestone_id: string
-        growth_description: string
-        emotional_state: string
-        relationship_changes?: Array<{
-          with_character: string
-          change_type: string
-          description: string
-        }>
-      }>
-      screen_time_percentage?: number
-    }>,
-    chapter_breakdown: [] as Array<{
-      chapter_id: string
-      chapter_name: string
-      chapter_order: number
-      arc_prominence: number
-      key_events: string[]
-      setup_elements: string[]
-      payoff_elements: string[]
-      scenes?: Array<{
-        scene_id: string
-        scene_name: string
-        scene_order: number
-        arc_prominence: number
-        plot_beats: string[]
-        character_moments: string[]
-        tension_level: number
-        emotional_tone: string
-      }>
-    }>,
-    pacing_profile: [] as Array<{
-      chapter_number: number
-      intensity_level: number
-      screen_time_percentage: number
-      plot_advancement: number
-      character_development: number
-      tension_curve: number
-    }>,
+    dependencies: [] as any[],
+    character_development: [] as any[],
+    chapter_breakdown: [] as any[],
+    pacing_profile: [] as any[],
     themes: [] as string[],
-    motifs: [] as Array<{
-      name: string
-      description: string
-      appearances: Array<{
-        chapter: string
-        scene?: string
-        context: string
-      }>
-      significance: string
-    }>,
-    conflicts: [] as Array<{
-      type: string
-      description: string
-      stakes: string
-      resolution_type?: string
-      escalation_points: Array<{
-        chapter: string
-        description: string
-        intensity: number
-      }>
-    }>,
+    motifs: [] as any[],
+    conflicts: [] as any[],
     manuscript_integration: {
       word_count_target: 0,
       actual_word_count: 0,
@@ -398,18 +343,24 @@ export default function ArcsManager({ projectId, selectedElement, onArcsChange, 
     }
   })
 
-  const loadData = useCallback(async () => {
+  useEffect(() => {
+    loadData()
+  }, [projectId])
+
+  const loadData = async () => {
     try {
       const supabase = createSupabaseClient()
       
-      const [arcsResult, charactersResult, chaptersResult] = await Promise.all([
+      const [arcsResult, charactersResult, locationsResult, chaptersResult] = await Promise.all([
         supabase.from('world_elements').select('*').eq('project_id', projectId).eq('category', 'arcs'),
         supabase.from('world_elements').select('*').eq('project_id', projectId).eq('category', 'characters'),
+        supabase.from('world_elements').select('*').eq('project_id', projectId).eq('category', 'locations'),
         supabase.from('project_chapters').select('*').eq('project_id', projectId).order('sort_order')
       ])
 
       if (arcsResult.data) setArcs(arcsResult.data)
       if (charactersResult.data) setCharacters(charactersResult.data)
+      if (locationsResult.data) setLocations(locationsResult.data)
       if (chaptersResult.data) setChapters(chaptersResult.data)
       
     } catch (error) {
@@ -417,11 +368,7 @@ export default function ArcsManager({ projectId, selectedElement, onArcsChange, 
     } finally {
       setLoading(false)
     }
-  }, [projectId])
-
-  useEffect(() => {
-    loadData()
-  }, [loadData])
+  }
 
   // Handle selectedElement from sidebar clicks
   useEffect(() => {
@@ -432,27 +379,31 @@ export default function ArcsManager({ projectId, selectedElement, onArcsChange, 
         description: selectedElement.description,
         attributes: {
           ...selectedElement.attributes,
-          type: (selectedElement.attributes?.type as string) || '',
-          status: (selectedElement.attributes?.status as string) || 'planned',
-          priority: (selectedElement.attributes?.priority as number) || 1,
-          progress: (selectedElement.attributes?.progress as number) || 0,
-          color: (selectedElement.attributes?.color as string) || ARC_COLORS[0],
-          character_ids: (selectedElement.attributes?.character_ids as string[]) || [],
-          location_ids: (selectedElement.attributes?.location_ids as string[]) || [],
-          chapter_ids: (selectedElement.attributes?.chapter_ids as string[]) || [],
-          tags: (selectedElement.attributes?.tags as string[]) || [],
-          notes: (selectedElement.attributes?.notes as string) || '',
-          template: (selectedElement.attributes?.template as typeof formData.template) || {
+          type: selectedElement.attributes?.type || '',
+          status: selectedElement.attributes?.status || 'planned',
+          priority: selectedElement.attributes?.priority || 1,
+          progress: selectedElement.attributes?.progress || 0,
+          color: selectedElement.attributes?.color || ARC_COLORS[0],
+          character_ids: selectedElement.attributes?.character_ids || [],
+          location_ids: selectedElement.attributes?.location_ids || [],
+          chapter_ids: selectedElement.attributes?.chapter_ids || [],
+          tags: selectedElement.attributes?.tags || [],
+          notes: selectedElement.attributes?.notes || '',
+          template: selectedElement.attributes?.template || {
             type: 'three_act',
             structure_beats: []
           },
-          dependencies: (selectedElement.attributes?.dependencies as typeof formData.dependencies) || [],
-          character_development: (selectedElement.attributes?.character_development as typeof formData.character_development) || [],
-          chapter_breakdown: (selectedElement.attributes?.chapter_breakdown as typeof formData.chapter_breakdown) || [],
-          pacing_profile: (selectedElement.attributes?.pacing_profile as typeof formData.pacing_profile) || [],
-          themes: (selectedElement.attributes?.themes as string[]) || [],
-          motifs: (selectedElement.attributes?.motifs as typeof formData.motifs) || [],
-          conflicts: (selectedElement.attributes?.conflicts as typeof formData.conflicts) || []
+          dependencies: selectedElement.attributes?.dependencies || [],
+          character_development: selectedElement.attributes?.character_development || [],
+          chapter_breakdown: selectedElement.attributes?.chapter_breakdown || [],
+          pacing_profile: selectedElement.attributes?.pacing_profile || {
+            tension_curve: 'rising',
+            emotional_beats: [],
+            pacing_notes: ''
+          },
+          themes: selectedElement.attributes?.themes || [],
+          motifs: selectedElement.attributes?.motifs || [],
+          conflicts: selectedElement.attributes?.conflicts || []
         }
       }
       
@@ -855,10 +806,8 @@ export default function ArcsManager({ projectId, selectedElement, onArcsChange, 
                   <Button
                     variant="outline"
                     onClick={() => {
-                      if (viewingArc) {
-                        handleEdit(viewingArc)
-                        setViewingArc(null)
-                      }
+                      handleEdit(viewingArc)
+                      setViewingArc(null)
                     }}
                     className="bg-white/20 border-white/30 text-white hover:bg-white/30 backdrop-blur-sm"
                   >
@@ -868,7 +817,7 @@ export default function ArcsManager({ projectId, selectedElement, onArcsChange, 
                   <Button
                     variant="outline"
                     onClick={() => {
-                      if (viewingArc && confirm('Are you sure you want to delete this arc?')) {
+                      if (confirm('Are you sure you want to delete this arc?')) {
                         handleDelete(viewingArc.id)
                         setViewingArc(null)
                       }
@@ -903,7 +852,7 @@ export default function ArcsManager({ projectId, selectedElement, onArcsChange, 
                     {viewingArc.attributes.priority && (
                       <div className="flex items-center gap-1">
                         {Array.from({ length: 5 }).map((_, i) => (
-                          <Star key={i} className={`w-4 h-4 ${i < (viewingArc.attributes.priority || 0) ? 'fill-white text-white' : 'text-white/40'}`} />
+                          <Star key={i} className={`w-4 h-4 ${i < viewingArc.attributes.priority ? 'fill-white text-white' : 'text-white/40'}`} />
                         ))}
                       </div>
                     )}
@@ -974,7 +923,7 @@ export default function ArcsManager({ projectId, selectedElement, onArcsChange, 
                       return (
                         <div key={id} className="group relative">
                           {/* Timeline connector */}
-                          {index < (viewingArc.attributes.chapter_ids?.length || 0) - 1 && (
+                          {index < viewingArc.attributes.chapter_ids.length - 1 && (
                             <div className="absolute left-6 top-16 w-0.5 h-6 bg-gradient-to-b from-green-300 to-green-200"></div>
                           )}
                           
@@ -1122,6 +1071,245 @@ export default function ArcsManager({ projectId, selectedElement, onArcsChange, 
         /* Arcs Grid/List */
         <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6' : 'space-y-3'}>
           {filteredArcs.map((arc) => (
+                </Button>
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-8 h-8 rounded-full shadow-lg border-2 border-white/30"
+                    style={{ backgroundColor: viewingArc.attributes.color || ARC_COLORS[0] }}
+                  />
+                  <div>
+                    <h1 className="text-2xl font-bold">{viewingArc.name}</h1>
+                    <div className="flex items-center gap-3 mt-1">
+                      {viewingArc.attributes.type && (
+                        <span className="px-2 py-1 bg-white/20 rounded-full text-xs font-medium">
+                          {ARC_TYPES.find(t => t.value === viewingArc.attributes.type)?.label || viewingArc.attributes.type}
+                        </span>
+                      )}
+                      {viewingArc.attributes.status && (
+                        <span className="px-2 py-1 bg-white/20 rounded-full text-xs font-medium">
+                          {ARC_STATUS.find(s => s.value === viewingArc.attributes.status)?.label || viewingArc.attributes.status}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    handleEdit(viewingArc)
+                    setViewingArc(null)
+                  }}
+                  className="bg-white/20 border-white/30 text-white hover:bg-white/30"
+                >
+                  <Edit3 className="w-4 h-4 mr-2" />
+                  Edit
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    if (confirm('Are you sure you want to delete this arc?')) {
+                      handleDelete(viewingArc.id)
+                      setViewingArc(null)
+                    }
+                  }}
+                  className="bg-red-500/20 border-red-300/30 text-white hover:bg-red-500/30"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Progress Overview */}
+          {viewingArc.attributes.progress !== undefined && (
+            <Card className="p-6 bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-lg text-green-800">Progress Overview</h3>
+                <span className="text-2xl font-bold text-green-600">{viewingArc.attributes.progress}%</span>
+              </div>
+              <Progress value={viewingArc.attributes.progress} className="h-3 bg-green-100" />
+              <div className="flex justify-between text-sm text-green-700 mt-2">
+                <span>Started</span>
+                <span>In Progress</span>
+                <span>Complete</span>
+              </div>
+            </Card>
+          )}
+
+          {/* Main Content Grid */}
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+            {/* Left Column - Story Details */}
+            <div className="xl:col-span-2 space-y-6">
+              {/* Description */}
+              <Card className="p-6">
+                <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-blue-500" />
+                  Story Description
+                </h3>
+                <div className="prose prose-sm max-w-none">
+                  <p className="text-gray-700 leading-relaxed">
+                    {viewingArc.description || 'No description provided for this arc.'}
+                  </p>
+                </div>
+              </Card>
+
+              {/* Chapters Timeline */}
+              <Card className="p-6">
+                <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                  <BookOpen className="w-5 h-5 text-green-500" />
+                  Chapter Timeline
+                  <Badge variant="outline" className="ml-2">
+                    {viewingArc.attributes.chapter_ids?.length || 0} chapters
+                  </Badge>
+                </h3>
+                {viewingArc.attributes.chapter_ids && viewingArc.attributes.chapter_ids.length > 0 ? (
+                  <div className="space-y-3">
+                    {viewingArc.attributes.chapter_ids.map((id, index) => {
+                      const chapter = chapters.find(c => c.id === id)
+                      return (
+                        <div key={id} className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                          <div className="flex items-center justify-center w-8 h-8 bg-green-500 text-white rounded-full text-sm font-medium">
+                            {chapter?.chapter_number || index + 1}
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="font-medium text-gray-900">
+                              {chapter ? stripHtmlTags(chapter.title) : `Chapter ${index + 1}`}
+                            </h4>
+                            {chapter?.content && (
+                              <p className="text-sm text-gray-600 mt-1">
+                                {stripHtmlTags(chapter.content).substring(0, 100)}...
+                              </p>
+                            )}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            Chapter {chapter?.chapter_number || '?'}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <BookOpen className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                    <p>No chapters assigned to this arc</p>
+                  </div>
+                )}
+              </Card>
+
+              {/* Notes */}
+              {viewingArc.attributes.notes && (
+                <Card className="p-6">
+                  <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                    <MessageSquare className="w-5 h-5 text-purple-500" />
+                    Notes & Ideas
+                  </h3>
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                    <p className="text-gray-700 whitespace-pre-wrap">{viewingArc.attributes.notes}</p>
+                  </div>
+                </Card>
+              )}
+            </div>
+
+            {/* Right Column - Sidebar Info */}
+            <div className="space-y-6">
+              {/* Quick Stats */}
+              <Card className="p-6">
+                <h3 className="font-semibold text-lg mb-4">Quick Stats</h3>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600">Priority</span>
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <Star key={i} className={`w-4 h-4 ${i < (viewingArc.attributes.priority || 1) ? 'fill-orange-400 text-orange-400' : 'text-gray-300'}`} />
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600">Characters</span>
+                    <span className="font-medium">{viewingArc.attributes.character_ids?.length || 0}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600">Locations</span>
+                    <span className="font-medium">{viewingArc.attributes.location_ids?.length || 0}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600">Chapters</span>
+                    <span className="font-medium">{viewingArc.attributes.chapter_ids?.length || 0}</span>
+                  </div>
+                </div>
+              </Card>
+
+              {/* Characters */}
+              {viewingArc.attributes.character_ids && viewingArc.attributes.character_ids.length > 0 && (
+                <Card className="p-6">
+                  <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                    <Users className="w-5 h-5 text-blue-500" />
+                    Characters
+                  </h3>
+                  <div className="space-y-2">
+                    {viewingArc.attributes.character_ids.map((id, index) => {
+                      const character = characters.find(c => c.id === id)
+                      return (
+                        <div key={id} className="flex items-center gap-3 p-2 bg-blue-50 rounded-lg">
+                          <User className="w-4 h-4 text-blue-500" />
+                          <span className="text-sm font-medium text-blue-900">
+                            {character?.name || `Character ${index + 1}`}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </Card>
+              )}
+
+              {/* Locations */}
+              {viewingArc.attributes.location_ids && viewingArc.attributes.location_ids.length > 0 && (
+                <Card className="p-6">
+                  <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                    <MapPin className="w-5 h-5 text-green-500" />
+                    Locations
+                  </h3>
+                  <div className="space-y-2">
+                    {viewingArc.attributes.location_ids.map((id, index) => {
+                      const location = locations.find(l => l.id === id)
+                      return (
+                        <div key={id} className="flex items-center gap-3 p-2 bg-green-50 rounded-lg">
+                          <MapPin className="w-4 h-4 text-green-500" />
+                          <span className="text-sm font-medium text-green-900">
+                            {location?.name || `Location ${index + 1}`}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </Card>
+              )}
+
+              {/* Tags */}
+              {viewingArc.attributes.tags && viewingArc.attributes.tags.length > 0 && (
+                <Card className="p-6">
+                  <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                    <Tag className="w-5 h-5 text-amber-500" />
+                    Tags
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    {viewingArc.attributes.tags.map((tag, index) => (
+                      <Badge key={index} variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
+                </Card>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* Arcs Grid/List */
+        <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6' : 'space-y-3'}>
+        {filteredArcs.map((arc) => (
           <Card 
             key={arc.id} 
             className={`hover:shadow-lg transition-all duration-200 border border-gray-200 bg-white/80 backdrop-blur-sm cursor-pointer ${
