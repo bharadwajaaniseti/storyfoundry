@@ -1372,32 +1372,90 @@ export default function ArcsManager({ projectId, selectedElement, onArcsChange, 
           resetForm()
         }
       }}>
-        <DialogContent className="!w-[95vw] !max-w-[1400px] !h-[90vh] overflow-hidden bg-gradient-to-br from-white to-orange-50 border-0 shadow-2xl flex flex-col">
-          <DialogHeader className="border-b border-orange-100 pb-6 bg-gradient-to-r from-orange-50 to-amber-50 -m-6 mb-0 p-6 rounded-t-lg flex-shrink-0">
-            <DialogTitle className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-              <div className="p-2 bg-orange-100 rounded-lg">
-                <Target className="w-6 h-6 text-orange-600" />
+        <DialogContent className="!w-[98vw] !max-w-[1600px] !h-[95vh] overflow-hidden bg-white border-0 shadow-2xl rounded-2xl flex flex-col">
+          {/* Compact Header */}
+          <DialogHeader className="relative border-b border-gray-200 pb-4 bg-gradient-to-r from-orange-50 to-amber-50 -m-6 mb-0 p-6 rounded-t-2xl flex-shrink-0">
+            {/* Close Button */}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="absolute top-4 right-4 z-10 bg-white/80 hover:bg-white border border-gray-200 shadow-sm rounded-full w-8 h-8 p-0"
+              onClick={() => setShowCreateDialog(false)}
+            >
+              <X className="w-4 h-4" />
+            </Button>
+            
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-gradient-to-br from-orange-500 to-amber-500 rounded-lg shadow-md">
+                <Target className="w-5 h-5 text-white" />
               </div>
-              <span className="bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">
-                {editingArc ? 'Edit Arc' : 'Create New Arc'}
-              </span>
-            </DialogTitle>
-            <DialogDescription className="text-gray-600 mt-2">
-              {editingArc ? 'Modify the arc details and structure below.' : 'Create a comprehensive story arc with advanced narrative features.'}
-            </DialogDescription>
+              <div>
+                <DialogTitle className="text-xl font-bold text-gray-900">
+                  <span className="bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">
+                    {editingArc ? 'Edit Arc' : 'Create New Arc'}
+                  </span>
+                  {editingArc && (
+                    <span className="text-sm font-normal text-orange-600 ml-2">
+                      • {editingArc.name}
+                    </span>
+                  )}
+                </DialogTitle>
+                <DialogDescription className="text-gray-600 text-sm mt-1">
+                  {editingArc ? 'Modify arc details and structure' : 'Build a comprehensive story arc with narrative tools'}
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
           
-          <Tabs defaultValue="basic" className="flex-1 flex flex-col min-h-0 mt-6">
-            <TabsList className="grid w-full grid-cols-6 mb-6 bg-white/80 backdrop-blur-sm border border-orange-200 rounded-lg shadow-sm flex-shrink-0">
-              <TabsTrigger value="basic" className="text-xs font-medium data-[state=active]:bg-orange-500 data-[state=active]:text-white transition-all">Basic Info</TabsTrigger>
-              <TabsTrigger value="dependencies" className="text-xs font-medium data-[state=active]:bg-orange-500 data-[state=active]:text-white transition-all">Dependencies</TabsTrigger>
-              <TabsTrigger value="characters" className="text-xs font-medium data-[state=active]:bg-orange-500 data-[state=active]:text-white transition-all">Characters</TabsTrigger>
-              <TabsTrigger value="chapters" className="text-xs font-medium data-[state=active]:bg-orange-500 data-[state=active]:text-white transition-all">Chapters</TabsTrigger>
-              <TabsTrigger value="pacing" className="text-xs font-medium data-[state=active]:bg-orange-500 data-[state=active]:text-white transition-all">Pacing</TabsTrigger>
-              <TabsTrigger value="advanced" className="text-xs font-medium data-[state=active]:bg-orange-500 data-[state=active]:text-white transition-all">Advanced</TabsTrigger>
+          <Tabs defaultValue="basic" className="flex-1 flex flex-col min-h-0 mt-4">
+            {/* Compact Tab Navigation */}
+            <TabsList className="grid w-full grid-cols-6 bg-white border border-gray-200 rounded-lg shadow-sm p-1 h-12 mb-4 flex-shrink-0">
+              <TabsTrigger 
+                value="basic" 
+                className="flex items-center justify-center gap-1 text-xs font-medium data-[state=active]:bg-orange-500 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all duration-200 rounded-md"
+              >
+                <Edit3 className="w-3 h-3" />
+                <span className="hidden sm:inline">Basic</span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="dependencies" 
+                className="flex items-center justify-center gap-1 text-xs font-medium data-[state=active]:bg-orange-500 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all duration-200 rounded-md"
+              >
+                <GitBranch className="w-3 h-3" />
+                <span className="hidden sm:inline">Dependencies</span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="characters" 
+                className="flex items-center justify-center gap-1 text-xs font-medium data-[state=active]:bg-orange-500 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all duration-200 rounded-md"
+              >
+                <Users className="w-3 h-3" />
+                <span className="hidden sm:inline">Characters</span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="chapters" 
+                className="flex items-center justify-center gap-1 text-xs font-medium data-[state=active]:bg-orange-500 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all duration-200 rounded-md"
+              >
+                <BookOpen className="w-3 h-3" />
+                <span className="hidden sm:inline">Chapters</span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="pacing" 
+                className="flex items-center justify-center gap-1 text-xs font-medium data-[state=active]:bg-orange-500 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all duration-200 rounded-md"
+              >
+                <Activity className="w-3 h-3" />
+                <span className="hidden sm:inline">Pacing</span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="advanced" 
+                className="flex items-center justify-center gap-1 text-xs font-medium data-[state=active]:bg-orange-500 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all duration-200 rounded-md"
+              >
+                <Star className="w-3 h-3" />
+                <span className="hidden sm:inline">Advanced</span>
+              </TabsTrigger>
             </TabsList>
 
-            <div className="flex-1 overflow-y-auto bg-white/50 backdrop-blur-sm rounded-lg p-6 min-h-0">
+            {/* Maximized Content Area */}
+            <div className="flex-1 overflow-y-auto bg-gradient-to-br from-gray-50 to-white rounded-xl border border-gray-200 shadow-inner p-6 scrollbar-thin scrollbar-thumb-orange-300 scrollbar-track-gray-100 min-h-0">
               <TabsContent value="basic" className="space-y-6 mt-0 h-full">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                   {/* Left Column - Basic Information */}
@@ -2205,12 +2263,11 @@ export default function ArcsManager({ projectId, selectedElement, onArcsChange, 
                       <div className="space-y-4">
                         <div className="flex justify-between items-center">
                           <p className="text-sm text-gray-600">Track intensity and development across chapters</p>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
+                          <Select onValueChange={(chapterId) => {
+                            const selectedChapter = chapters.find(ch => ch.id === chapterId)
+                            if (selectedChapter && !formData.pacing_profile.some(p => p.chapter_number === selectedChapter.chapter_number)) {
                               const newProfile = {
-                                chapter_number: formData.pacing_profile.length + 1,
+                                chapter_number: selectedChapter.chapter_number || chapters.indexOf(selectedChapter) + 1,
                                 intensity_level: 5,
                                 screen_time_percentage: 10,
                                 plot_advancement: 5,
@@ -2221,17 +2278,38 @@ export default function ArcsManager({ projectId, selectedElement, onArcsChange, 
                                 ...prev,
                                 pacing_profile: [...prev.pacing_profile, newProfile]
                               }))
-                            }}
-                          >
-                            <Plus className="w-4 h-4 mr-2" />
-                            Add Chapter
-                          </Button>
+                            }
+                          }}>
+                            <SelectTrigger className="w-48">
+                              <SelectValue placeholder="Add Chapter" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-white border border-gray-200 shadow-lg">
+                              {chapters
+                                .filter(chapter => !formData.pacing_profile.some(p => p.chapter_number === chapter.chapter_number))
+                                .map(chapter => (
+                                  <SelectItem key={chapter.id} value={chapter.id}>
+                                    Chapter {chapter.chapter_number || '?'}: {stripHtmlTags(chapter.title).substring(0, 30)}...
+                                  </SelectItem>
+                                ))
+                              }
+                              {chapters.filter(chapter => !formData.pacing_profile.some(p => p.chapter_number === chapter.chapter_number)).length === 0 && (
+                                <SelectItem value="" disabled>All chapters already added</SelectItem>
+                              )}
+                            </SelectContent>
+                          </Select>
                         </div>
 
-                        {formData.pacing_profile.map((profile, index) => (
+                        {formData.pacing_profile.map((profile, index) => {
+                          const chapter = chapters.find(ch => ch.chapter_number === profile.chapter_number)
+                          return (
                           <Card key={index} className="p-4 border border-gray-200">
                             <div className="flex items-center justify-between mb-3">
-                              <h5 className="font-medium">Chapter {profile.chapter_number}</h5>
+                              <div>
+                                <h5 className="font-medium">Chapter {profile.chapter_number}</h5>
+                                {chapter && (
+                                  <p className="text-sm text-gray-600">{stripHtmlTags(chapter.title)}</p>
+                                )}
+                              </div>
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -2330,7 +2408,8 @@ export default function ArcsManager({ projectId, selectedElement, onArcsChange, 
                               </div>
                             </div>
                           </Card>
-                        ))}
+                          )
+                        })}
 
                         {formData.pacing_profile.length === 0 && (
                           <div className="text-center py-8 text-gray-500">
@@ -2690,18 +2769,20 @@ export default function ArcsManager({ projectId, selectedElement, onArcsChange, 
             </div>
           </Tabs>
 
-          <div className="flex justify-end gap-3 pt-6 border-t border-orange-100 bg-gradient-to-r from-orange-50/50 to-amber-50/50 -m-6 mt-6 p-6 rounded-b-lg">
+          {/* Enhanced Footer */}
+          <div className="flex justify-end gap-4 pt-8 border-t border-gray-200 bg-gradient-to-r from-gray-50 to-white -m-8 mt-8 p-8 rounded-b-2xl flex-shrink-0">
             <Button
               variant="outline"
               onClick={() => setShowCreateDialog(false)}
-              className="border-gray-300 hover:bg-gray-50 hover:border-gray-400 transition-colors"
+              className="px-6 py-3 border-gray-300 hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 font-medium rounded-lg"
             >
+              <X className="w-4 h-4 mr-2" />
               Cancel
             </Button>
             <Button
               onClick={handleSave}
               disabled={!formData.name.trim()}
-              className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-200 border-0 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-200 border-0 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg"
             >
               <Save className="w-4 h-4 mr-2" />
               {editingArc ? 'Update Arc' : 'Create Arc'}
