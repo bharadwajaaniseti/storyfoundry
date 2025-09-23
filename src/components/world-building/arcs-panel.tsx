@@ -5,9 +5,9 @@ import {
   Plus, Target, Search, MoreVertical, Trash2, Edit3, BookOpen,
   TrendingUp, Users, Clock, Flag, ChevronDown, ChevronRight,
   Save, X, Calendar, MapPin, User, Zap, Heart, Crown, Eye, EyeOff,
-  ArrowRight, CheckCircle, Circle, AlertTriangle, Star, BarChart3,
+  ArrowRight, ArrowLeft, CheckCircle, Circle, AlertTriangle, Star, BarChart3,
   GitBranch, Layers, Activity, Grid, List, Download, FileText,
-  Filter, SortAsc, Palette, Tag, Link, MessageSquare, History
+  Filter, SortAsc, Palette, Tag, Link, MessageSquare, History, SlidersHorizontal
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -19,16 +19,23 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+
+// Utility function to strip HTML tags from text
+const stripHtmlTags = (html: string): string => {
+  if (!html) return ''
+  return html.replace(/<[^>]*>/g, '').trim()
+}
 
 interface Arc {
   id: string
   name: string
   description: string
   attributes: {
-    type?: string // character, plot, theme, relationship, world, subplot
-    status?: string // planned, active, completed, abandoned, on_hold
-    priority?: number // 1-5 scale
-    progress?: number // 0-100 percentage
+    type?: string
+    status?: string
+    priority?: number
+    progress?: number
     start_chapter?: string
     end_chapter?: string
     character_ids?: string[]
@@ -39,557 +46,371 @@ interface Arc {
     chapter_names?: string[]
     timeline_event_ids?: string[]
     relationship_ids?: string[]
-    parent_arc_id?: string // for sub-arcs
+    parent_arc_id?: string
     sub_arc_ids?: string[]
-    color?: string // for visual organization
+    color?: string
+    
+    // Enhanced features
     milestones?: Array<{
       id: string
       title: string
       description: string
       chapter?: string
+      scene?: string
       completed: boolean
       order: number
-      beat_type?: string // setup, conflict, climax, resolution, custom
+      beat_type?: string
       character_growth?: string
+      emotional_impact?: number
+      tension_level?: number
       mood?: string
       theme?: string
+      pacing_notes?: string
+      dependencies?: string[]
+      estimated_word_count?: number
+      actual_word_count?: number
+      completion_date?: string
     }>
-    themes?: string[]
-    moods?: string[]
-    conflicts?: string[]
-    resolution?: string
-    notes?: string
-    comments?: Array<{
-      id: string
-      author: string
-      content: string
-      timestamp: string
+    
+    dependencies?: Array<{
+      arc_id: string
+      relationship_type: string
+      description?: string
+      strength?: number
     }>
-    ai_suggestions?: Array<{
+    
+    character_development?: Array<{
+      character_id: string
+      character_name: string
+      growth_arc: string
+      starting_state: string
+      ending_state: string
+      key_moments: Array<{
+        milestone_id: string
+        growth_description: string
+        emotional_state: string
+        relationship_changes?: Array<{
+          with_character: string
+          change_type: string
+          description: string
+        }>
+      }>
+      screen_time_percentage?: number
+    }>
+    
+    chapter_breakdown?: Array<{
+      chapter_id: string
+      chapter_name: string
+      chapter_order: number
+      scenes?: Array<{
+        scene_id: string
+        scene_name: string
+        scene_order: number
+        arc_prominence: number
+        plot_beats: string[]
+        character_moments: string[]
+        tension_level: number
+        emotional_tone: string
+      }>
+      arc_prominence: number
+      key_events: string[]
+      setup_elements: string[]
+      payoff_elements: string[]
+    }>
+    
+    pacing_profile?: Array<{
+      chapter_number: number
+      intensity_level: number
+      screen_time_percentage: number
+      plot_advancement: number
+      character_development: number
+      tension_curve: number
+    }>
+    
+    template?: {
       type: string
-      content: string
-      confidence: number
+      structure_beats: Array<{
+        beat_name: string
+        target_percentage: number
+        actual_percentage?: number
+        milestone_id?: string
+        completed: boolean
+      }>
+    }
+    
+    themes?: string[]
+    motifs?: Array<{
+      name: string
+      description: string
+      appearances: Array<{
+        chapter: string
+        scene?: string
+        context: string
+      }>
+      significance: string
     }>
-    [key: string]: any
+    
+    conflicts?: Array<{
+      type: string
+      description: string
+      stakes: string
+      resolution_type?: string
+      escalation_points: Array<{
+        chapter: string
+        description: string
+        intensity: number
+      }>
+    }>
+    
+    manuscript_integration?: {
+      word_count_target: number
+      actual_word_count: number
+      scenes_written: number
+      scenes_total: number
+      draft_status: string
+      last_writing_session?: string
+    }
+    
+    notes?: string
+    tags?: string[]
+    created_at?: string
+    updated_at?: string
   }
-  tags: string[]
-  project_id: string
-  created_at: string
-  updated_at: string
-  category: string
 }
 
 interface Character {
   id: string
   name: string
-  description: string
-  category: string
-}
-
-interface Chapter {
-  id: string
-  name: string
-  description: string
-  category: string
-  order?: number
+  description?: string
+  attributes?: any
 }
 
 interface Location {
   id: string
   name: string
-  description: string
-  category: string
+  description?: string
+  attributes?: any
 }
 
-interface TimelineEvent {
+interface Chapter {
   id: string
-  name: string
-  description: string
-  category: string
-  date?: string
+  title: string
+  chapter_number?: number
+  sort_order?: number
+  content?: string
+  project_id: string
+  created_at?: string
+  updated_at?: string
 }
 
-interface Relationship {
-  id: string
-  name: string
-  description: string
-  category: string
-}
-
-interface ArcsPanelProps {
+interface ArcsManagerProps {
   projectId: string
   selectedElement?: any
   onArcsChange?: () => void
   onClearSelection?: () => void
-  onSelectArc?: (arc: Arc) => void
 }
 
+// Constants
 const ARC_TYPES = [
   { value: 'character', label: 'Character Arc', icon: User, color: 'blue' },
   { value: 'plot', label: 'Plot Arc', icon: BookOpen, color: 'green' },
-  { value: 'subplot', label: 'Subplot', icon: GitBranch, color: 'teal' },
-  { value: 'theme', label: 'Thematic Arc', icon: Heart, color: 'purple' },
+  { value: 'theme', label: 'Theme Arc', icon: Heart, color: 'purple' },
   { value: 'relationship', label: 'Relationship Arc', icon: Users, color: 'pink' },
-  { value: 'world', label: 'World Arc', icon: Crown, color: 'amber' },
-  { value: 'mystery', label: 'Mystery Arc', icon: Eye, color: 'indigo' }
+  { value: 'world', label: 'World Building Arc', icon: MapPin, color: 'yellow' },
+  { value: 'subplot', label: 'Subplot', icon: GitBranch, color: 'gray' }
 ]
 
 const ARC_STATUS = [
   { value: 'planned', label: 'Planned', color: 'gray' },
-  { value: 'active', label: 'In Progress', color: 'blue' },
+  { value: 'active', label: 'Active', color: 'blue' },
   { value: 'completed', label: 'Completed', color: 'green' },
-  { value: 'on_hold', label: 'On Hold', color: 'yellow' },
-  { value: 'archived', label: 'Archived', color: 'red' }
+  { value: 'abandoned', label: 'Abandoned', color: 'red' },
+  { value: 'on_hold', label: 'On Hold', color: 'yellow' }
 ]
 
-const BEAT_TYPES = [
-  { value: 'setup', label: 'Setup', color: 'blue' },
-  { value: 'inciting_incident', label: 'Inciting Incident', color: 'orange' },
-  { value: 'conflict', label: 'Conflict', color: 'red' },
-  { value: 'climax', label: 'Climax', color: 'purple' },
-  { value: 'resolution', label: 'Resolution', color: 'green' },
-  { value: 'custom', label: 'Custom', color: 'gray' }
+const ARC_COLORS = ['#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#6B7280', '#F97316', '#06B6D4', '#84CC16']
+
+const STORY_TEMPLATES = [
+  { value: 'three_act', label: 'Three-Act Structure', description: 'Classic beginning, middle, end' },
+  { value: 'heros_journey', label: "Hero's Journey", description: 'Joseph Campbell\'s monomyth' },
+  { value: 'freytag', label: 'Freytag\'s Pyramid', description: 'Five-act dramatic structure' },
+  { value: 'seven_point', label: 'Seven-Point Story', description: 'Dan Wells\' story structure' },
+  { value: 'save_the_cat', label: 'Save the Cat', description: 'Blake Snyder\'s beat sheet' },
+  { value: 'custom', label: 'Custom Structure', description: 'Define your own beats' }
 ]
 
-const VIEW_MODES = [
-  { value: 'list', label: 'List View', icon: List },
-  { value: 'timeline', label: 'Timeline View', icon: Activity },
-  { value: 'graph', label: 'Graph View', icon: GitBranch }
+const RELATIONSHIP_TYPES = [
+  { value: 'prerequisite', label: 'Prerequisite', color: 'red', description: 'Must complete before this arc' },
+  { value: 'parallel', label: 'Parallel', color: 'blue', description: 'Runs alongside this arc' },
+  { value: 'consequence', label: 'Consequence', color: 'green', description: 'Results from this arc' },
+  { value: 'conflict', label: 'Conflict', color: 'orange', description: 'Competes with this arc' },
+  { value: 'support', label: 'Support', color: 'purple', description: 'Enhances this arc' }
 ]
 
-const ARC_COLORS = [
-  '#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4',
-  '#3b82f6', '#8b5cf6', '#ec4899', '#f43f5e', '#84cc16'
+const CONFLICT_TYPES = [
+  { value: 'internal', label: 'Internal', description: 'Character vs. self' },
+  { value: 'external', label: 'External', description: 'Character vs. external force' },
+  { value: 'interpersonal', label: 'Interpersonal', description: 'Character vs. character' },
+  { value: 'societal', label: 'Societal', description: 'Character vs. society' },
+  { value: 'nature', label: 'Nature', description: 'Character vs. nature' },
+  { value: 'technology', label: 'Technology', description: 'Character vs. technology' }
+]
+
+const TENSION_LEVELS = [
+  { value: 1, label: 'Very Low', color: '#10B981' },
+  { value: 2, label: 'Low', color: '#84CC16' },
+  { value: 3, label: 'Moderate', color: '#F59E0B' },
+  { value: 4, label: 'High', color: '#EF4444' },
+  { value: 5, label: 'Very High', color: '#DC2626' }
 ]
 
 const COMMON_THEMES = [
-  'redemption', 'coming_of_age', 'sacrifice', 'love', 'betrayal', 'power', 'justice',
-  'family', 'friendship', 'revenge', 'discovery', 'transformation', 'loss', 'hope',
-  'identity', 'survival', 'corruption', 'freedom', 'loyalty', 'forgiveness'
+  'Love', 'Redemption', 'Coming of Age', 'Good vs Evil', 'Sacrifice', 'Identity',
+  'Family', 'Friendship', 'Power', 'Justice', 'Freedom', 'Hope', 'Betrayal',
+  'Forgiveness', 'Loyalty', 'Survival', 'Truth', 'Change', 'Loss', 'Growth'
 ]
 
 const COMMON_MOODS = [
-  'hopeful', 'melancholic', 'tense', 'mysterious', 'romantic', 'triumphant',
-  'dark', 'lighthearted', 'suspenseful', 'peaceful', 'chaotic', 'inspiring'
+  'Adventurous', 'Dark', 'Hopeful', 'Melancholic', 'Mysterious', 'Romantic',
+  'Suspenseful', 'Uplifting', 'Tense', 'Peaceful', 'Dramatic', 'Humorous',
+  'Nostalgic', 'Ominous', 'Inspiring', 'Tragic', 'Whimsical', 'Intense'
 ]
 
-export default function ArcsPanel({ 
-  projectId, 
-  selectedElement, 
-  onArcsChange,
-  onClearSelection,
-  onSelectArc 
-}: ArcsPanelProps) {
+// Helper function for status badge styling
+const getStatusBadgeClass = (status: string) => {
+  switch (status) {
+    case 'planned':
+      return 'border-gray-300 text-gray-700 bg-gray-50'
+    case 'active':
+      return 'border-orange-300 text-orange-700 bg-orange-50'
+    case 'completed':
+      return 'border-green-300 text-green-700 bg-green-50'
+    case 'abandoned':
+      return 'border-red-300 text-red-700 bg-red-50'
+    case 'on_hold':
+      return 'border-yellow-300 text-yellow-700 bg-yellow-50'
+    default:
+      return 'border-gray-300 text-gray-700 bg-gray-50'
+  }
+}
+
+export default function ArcsManager({ projectId, selectedElement, onArcsChange, onClearSelection }: ArcsManagerProps) {
   const [arcs, setArcs] = useState<Arc[]>([])
   const [characters, setCharacters] = useState<Character[]>([])
-  const [chapters, setChapters] = useState<Chapter[]>([])
   const [locations, setLocations] = useState<Location[]>([])
-  const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([])
-  const [relationships, setRelationships] = useState<Relationship[]>([])
+  const [chapters, setChapters] = useState<Chapter[]>([])
   const [loading, setLoading] = useState(true)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [selectedType, setSelectedType] = useState<string>('all')
-  const [selectedStatus, setSelectedStatus] = useState<string>('all')
-  const [selectedTags, setSelectedTags] = useState<string[]>([])
-  const [viewMode, setViewMode] = useState<string>('list')
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [editingArc, setEditingArc] = useState<Arc | null>(null)
-  const [selectedArc, setSelectedArc] = useState<Arc | null>(null)
-  const [showDetailView, setShowDetailView] = useState(false)
-  const [expandedArcs, setExpandedArcs] = useState<string[]>([])
-  const [sortBy, setSortBy] = useState<string>('updated_at')
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
-  const [showSubArcs, setShowSubArcs] = useState(true)
-  const [filterByParent, setFilterByParent] = useState<string>('all')
+  const [viewingArc, setViewingArc] = useState<Arc | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const [filterType, setFilterType] = useState<string>('')
+  const [filterStatus, setFilterStatus] = useState<string>('')
 
-  // Form state
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     type: '',
     status: 'planned',
-    priority: 3,
+    priority: 1,
     progress: 0,
-    start_chapter: '',
-    end_chapter: '',
+    color: ARC_COLORS[0],
     character_ids: [] as string[],
     location_ids: [] as string[],
     chapter_ids: [] as string[],
-    timeline_event_ids: [] as string[],
-    relationship_ids: [] as string[],
-    parent_arc_id: 'none',
-    color: ARC_COLORS[0],
-    themes: [] as string[],
-    moods: [] as string[],
-    conflicts: [] as string[],
-    resolution: '',
-    notes: '',
     tags: [] as string[],
-    milestones: [] as Array<{
-      id: string
-      title: string
-      description: string
-      chapter?: string
-      completed: boolean
-      order: number
-      beat_type?: string
-      character_growth?: string
-      mood?: string
-      theme?: string
-    }>
+    notes: '',
+    
+    // Enhanced fields
+    template: {
+      type: 'three_act',
+      structure_beats: [] as any[]
+    },
+    dependencies: [] as any[],
+    character_development: [] as any[],
+    chapter_breakdown: [] as any[],
+    pacing_profile: [] as any[],
+    themes: [] as string[],
+    motifs: [] as any[],
+    conflicts: [] as any[],
+    manuscript_integration: {
+      word_count_target: 0,
+      actual_word_count: 0,
+      scenes_written: 0,
+      scenes_total: 0,
+      draft_status: 'outline'
+    }
   })
 
-  const supabase = createSupabaseClient()
-
   useEffect(() => {
-    loadArcs()
-    loadCharacters()
-    loadChapters()
-    loadLocations()
-    loadTimelineEvents()
-    loadRelationships()
+    loadData()
   }, [projectId])
 
-  useEffect(() => {
-    if (selectedElement && selectedElement.category === 'arcs') {
-      setSelectedArc(selectedElement)
-      setShowDetailView(true)
-    }
-  }, [selectedElement])
-
-  const loadArcs = async () => {
+  const loadData = async () => {
     try {
-      const { data, error } = await supabase
-        .from('world_elements')
-        .select('*')
-        .eq('project_id', projectId)
-        .eq('category', 'arcs')
-        .order('created_at', { ascending: false })
+      const supabase = createSupabaseClient()
+      
+      const [arcsResult, charactersResult, locationsResult, chaptersResult] = await Promise.all([
+        supabase.from('world_elements').select('*').eq('project_id', projectId).eq('category', 'arcs'),
+        supabase.from('world_elements').select('*').eq('project_id', projectId).eq('category', 'characters'),
+        supabase.from('world_elements').select('*').eq('project_id', projectId).eq('category', 'locations'),
+        supabase.from('project_chapters').select('*').eq('project_id', projectId).order('sort_order')
+      ])
 
-      if (error) throw error
-      setArcs(data || [])
+      if (arcsResult.data) setArcs(arcsResult.data)
+      if (charactersResult.data) setCharacters(charactersResult.data)
+      if (locationsResult.data) setLocations(locationsResult.data)
+      if (chaptersResult.data) setChapters(chaptersResult.data)
+      
     } catch (error) {
-      console.error('Error loading arcs:', error)
+      console.error('Error loading data:', error)
     } finally {
       setLoading(false)
     }
   }
 
-  const loadCharacters = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('world_elements')
-        .select('id, name, description, category')
-        .eq('project_id', projectId)
-        .eq('category', 'characters')
-        .order('name')
-
-      if (error) throw error
-      setCharacters(data || [])
-    } catch (error) {
-      console.error('Error loading characters:', error)
-    }
-  }
-
-  const loadChapters = async () => {
-    try {
-      // First try to load from project_chapters table
-      let { data, error } = await supabase
-        .from('project_chapters')
-        .select('id, title, chapter_number')
-        .eq('project_id', projectId)
-        .order('chapter_number', { ascending: true })
-
-      if (error) {
-        // Fallback to world_elements table
-        const fallbackResult = await supabase
-          .from('world_elements')
-          .select('id, name, description, category, attributes')
-          .eq('project_id', projectId)
-          .eq('category', 'chapters')
-          .order('name')
-        
-        if (fallbackResult.error) {
-          throw fallbackResult.error
-        }
-        
-        setChapters(fallbackResult.data?.map(chapter => ({
-          id: chapter.id,
-          name: chapter.name,
-          description: chapter.description || '',
-          category: 'chapters' as const,
-          order: chapter.attributes?.order || 0
-        })) || [])
-        return
-      }
-
-      setChapters(data?.map(chapter => ({
-        id: chapter.id,
-        name: chapter.title,
-        description: '', // No description field in project_chapters table
-        category: 'chapters' as const,
-        order: chapter.chapter_number || 0
-      })) || [])
-    } catch (error) {
-      console.error('Error loading chapters:', error)
-    }
-  }
-
-  const loadLocations = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('world_elements')
-        .select('id, name, description, category')
-        .eq('project_id', projectId)
-        .eq('category', 'locations')
-        .order('name')
-
-      if (error) throw error
-      setLocations(data || [])
-    } catch (error) {
-      console.error('Error loading locations:', error)
-    }
-  }
-
-  const loadTimelineEvents = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('world_elements')
-        .select('id, name, description, category, attributes')
-        .eq('project_id', projectId)
-        .eq('category', 'timeline')
-        .order('name')
-
-      if (error) throw error
-      setTimelineEvents(data?.map(event => ({
-        ...event,
-        date: event.attributes?.date || ''
-      })) || [])
-    } catch (error) {
-      console.error('Error loading timeline events:', error)
-    }
-  }
-
-  const loadRelationships = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('world_elements')
-        .select('id, name, description, category')
-        .eq('project_id', projectId)
-        .eq('category', 'relationships')
-        .order('name')
-
-      if (error) throw error
-      setRelationships(data || [])
-    } catch (error) {
-      console.error('Error loading relationships:', error)
-    }
-  }
-
-  const populateFormData = (arc: Arc) => {
-    setFormData({
-      name: arc.name,
-      description: arc.description,
-      type: arc.attributes?.type || '',
-      status: arc.attributes?.status || 'planned',
-      priority: arc.attributes?.priority || 3,
-      progress: arc.attributes?.progress || 0,
-      start_chapter: arc.attributes?.start_chapter || '',
-      end_chapter: arc.attributes?.end_chapter || '',
-      character_ids: arc.attributes?.character_ids || [],
-      location_ids: arc.attributes?.location_ids || [],
-      chapter_ids: arc.attributes?.chapter_ids || [],
-      timeline_event_ids: arc.attributes?.timeline_event_ids || [],
-      relationship_ids: arc.attributes?.relationship_ids || [],
-      parent_arc_id: arc.attributes?.parent_arc_id || 'none',
-      color: arc.attributes?.color || ARC_COLORS[0],
-      themes: arc.attributes?.themes || [],
-      moods: arc.attributes?.moods || [],
-      conflicts: arc.attributes?.conflicts || [],
-      resolution: arc.attributes?.resolution || '',
-      notes: arc.attributes?.notes || '',
-      tags: arc.tags || [],
-      milestones: arc.attributes?.milestones || []
-    })
-  }
-
-  const filteredArcs = arcs.filter(arc => {
-    const matchesSearch = !searchTerm || 
-      arc.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      arc.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      arc.attributes?.themes?.some((theme: string) => 
-        theme.toLowerCase().includes(searchTerm.toLowerCase())
-      ) ||
-      arc.tags?.some((tag: string) => 
-        tag.toLowerCase().includes(searchTerm.toLowerCase())
-      )
-    
-    const matchesType = selectedType === 'all' || !selectedType || arc.attributes?.type === selectedType
-    const matchesStatus = selectedStatus === 'all' || !selectedStatus || arc.attributes?.status === selectedStatus
-    
-    const matchesTags = selectedTags.length === 0 || 
-      selectedTags.some(tag => arc.tags?.includes(tag))
-
-    const matchesParent = filterByParent === 'all' || 
-      (filterByParent === 'main' && !arc.attributes?.parent_arc_id) ||
-      (filterByParent === 'sub' && arc.attributes?.parent_arc_id) ||
-      arc.attributes?.parent_arc_id === filterByParent
-    
-    return matchesSearch && matchesType && matchesStatus && matchesTags && matchesParent
-  })
-
-  // Sort arcs
-  const sortedArcs = [...filteredArcs].sort((a, b) => {
-    let aValue, bValue
-    
-    switch (sortBy) {
-      case 'name':
-        aValue = a.name.toLowerCase()
-        bValue = b.name.toLowerCase()
-        break
-      case 'type':
-        aValue = a.attributes?.type || ''
-        bValue = b.attributes?.type || ''
-        break
-      case 'status':
-        aValue = a.attributes?.status || ''
-        bValue = b.attributes?.status || ''
-        break
-      case 'priority':
-        aValue = a.attributes?.priority || 0
-        bValue = b.attributes?.priority || 0
-        break
-      case 'progress':
-        aValue = a.attributes?.progress || 0
-        bValue = b.attributes?.progress || 0
-        break
-      case 'updated_at':
-      default:
-        aValue = new Date(a.updated_at).getTime()
-        bValue = new Date(b.updated_at).getTime()
-        break
-    }
-    
-    if (aValue < bValue) return sortOrder === 'asc' ? -1 : 1
-    if (aValue > bValue) return sortOrder === 'asc' ? 1 : -1
-    return 0
-  })
-
-  const handleCreateArc = async () => {
-    try {
-      const selectedCharacters = characters.filter(c => formData.character_ids.includes(c.id))
-      const selectedLocations = locations.filter(l => formData.location_ids.includes(l.id))
-      const selectedChapters = chapters.filter(c => formData.chapter_ids.includes(c.id))
-      const selectedTimelineEvents = timelineEvents.filter(t => formData.timeline_event_ids.includes(t.id))
-      const selectedRelationships = relationships.filter(r => formData.relationship_ids.includes(r.id))
-      
-      const arcData = {
-        project_id: projectId,
-        category: 'arcs',
-        name: formData.name,
-        description: formData.description,
+  // Handle selectedElement from sidebar clicks
+  useEffect(() => {
+    if (selectedElement && selectedElement.category === 'arcs') {
+      const arc: Arc = {
+        id: selectedElement.id,
+        name: selectedElement.name,
+        description: selectedElement.description,
         attributes: {
-          type: formData.type,
-          status: formData.status,
-          priority: formData.priority,
-          progress: formData.progress,
-          start_chapter: formData.start_chapter,
-          end_chapter: formData.end_chapter,
-          character_ids: formData.character_ids,
-          character_names: selectedCharacters.map(c => c.name),
-          location_ids: formData.location_ids,
-          location_names: selectedLocations.map(l => l.name),
-          chapter_ids: formData.chapter_ids,
-          chapter_names: selectedChapters.map(c => c.name),
-          timeline_event_ids: formData.timeline_event_ids,
-          relationship_ids: formData.relationship_ids,
-          parent_arc_id: formData.parent_arc_id === 'none' ? null : formData.parent_arc_id,
-          color: formData.color,
-          themes: formData.themes,
-          moods: formData.moods,
-          conflicts: formData.conflicts,
-          resolution: formData.resolution,
-          notes: formData.notes,
-          milestones: formData.milestones
-        },
-        tags: formData.tags
-      }
-
-      let result: Arc
-      if (editingArc) {
-        const { data, error } = await supabase
-          .from('world_elements')
-          .update({ ...arcData, updated_at: new Date().toISOString() })
-          .eq('id', editingArc.id)
-          .select()
-          .single()
-
-        if (error) throw error
-        result = data as Arc
-
-        setArcs(prev => prev.map(a => a.id === editingArc.id ? result : a))
-      } else {
-        const { data, error } = await supabase
-          .from('world_elements')
-          .insert(arcData)
-          .select()
-          .single()
-
-        if (error) throw error
-        result = data as Arc
-
-        setArcs(prev => [result, ...prev])
-
-        // If this is a sub-arc, update the parent's sub_arc_ids
-        if (formData.parent_arc_id && formData.parent_arc_id !== 'none') {
-          const parentArc = arcs.find(a => a.id === formData.parent_arc_id)
-          if (parentArc) {
-            const updatedSubArcIds = [...(parentArc.attributes?.sub_arc_ids || []), result.id]
-            await supabase
-              .from('world_elements')
-              .update({
-                attributes: {
-                  ...parentArc.attributes,
-                  sub_arc_ids: updatedSubArcIds
-                },
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', formData.parent_arc_id)
-          }
+          ...selectedElement.attributes,
+          type: selectedElement.attributes?.type || '',
+          status: selectedElement.attributes?.status || 'planned',
+          priority: selectedElement.attributes?.priority || 1,
+          progress: selectedElement.attributes?.progress || 0,
+          color: selectedElement.attributes?.color || ARC_COLORS[0],
+          character_ids: selectedElement.attributes?.character_ids || [],
+          location_ids: selectedElement.attributes?.location_ids || [],
+          chapter_ids: selectedElement.attributes?.chapter_ids || [],
+          tags: selectedElement.attributes?.tags || [],
+          notes: selectedElement.attributes?.notes || '',
+          template: selectedElement.attributes?.template || {
+            type: 'three_act',
+            structure_beats: []
+          },
+          dependencies: selectedElement.attributes?.dependencies || [],
+          character_development: selectedElement.attributes?.character_development || [],
+          chapter_breakdown: selectedElement.attributes?.chapter_breakdown || [],
+          pacing_profile: selectedElement.attributes?.pacing_profile || {
+            tension_curve: 'rising',
+            emotional_beats: [],
+            pacing_notes: ''
+          },
+          themes: selectedElement.attributes?.themes || [],
+          motifs: selectedElement.attributes?.motifs || [],
+          conflicts: selectedElement.attributes?.conflicts || []
         }
       }
-
-      // Broadcast change
-      window.dispatchEvent(new CustomEvent('arcCreated', { 
-        detail: { arc: result, projectId } 
-      }))
-
-      setShowCreateDialog(false)
-      setEditingArc(null)
-      resetForm()
-      onArcsChange?.()
-    } catch (error) {
-      console.error('Error creating/updating arc:', error)
+      
+      setViewingArc(arc)
+      // Don't clear selection immediately - let the view handle it
     }
-  }
-
-  const handleDeleteArc = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this arc?')) return
-
-    try {
-      const { error } = await supabase
-        .from('world_elements')
-        .delete()
-        .eq('id', id)
-
-      if (error) throw error
-
-      setArcs(prev => prev.filter(a => a.id !== id))
-      onArcsChange?.()
-    } catch (error) {
-      console.error('Error deleting arc:', error)
-    }
-  }
+  }, [selectedElement])
 
   const resetForm = () => {
     setFormData({
@@ -597,1526 +418,2206 @@ export default function ArcsPanel({
       description: '',
       type: '',
       status: 'planned',
-      priority: 3,
+      priority: 1,
       progress: 0,
-      start_chapter: '',
-      end_chapter: '',
+      color: ARC_COLORS[0],
       character_ids: [],
       location_ids: [],
       chapter_ids: [],
-      timeline_event_ids: [],
-      relationship_ids: [],
-      parent_arc_id: 'none',
-      color: ARC_COLORS[0],
-      themes: [],
-      moods: [],
-      conflicts: [],
-      resolution: '',
-      notes: '',
       tags: [],
-      milestones: []
+      notes: '',
+      template: {
+        type: 'three_act',
+        structure_beats: []
+      },
+      dependencies: [],
+      character_development: [],
+      chapter_breakdown: [],
+      pacing_profile: [],
+      themes: [],
+      motifs: [],
+      conflicts: [],
+      manuscript_integration: {
+        word_count_target: 0,
+        actual_word_count: 0,
+        scenes_written: 0,
+        scenes_total: 0,
+        draft_status: 'outline'
+      }
     })
   }
 
-  const addMilestone = () => {
-    const newMilestone = {
-      id: Date.now().toString(),
-      title: '',
-      description: '',
-      chapter: '',
-      completed: false,
-      order: formData.milestones.length + 1,
-      beat_type: 'custom',
-      character_growth: '',
-      mood: '',
-      theme: ''
+  const handleSave = async () => {
+    try {
+      const supabase = createSupabaseClient()
+      
+      const arcData = {
+        name: formData.name,
+        description: formData.description,
+        project_id: projectId,
+        category: 'arcs',
+        attributes: {
+          type: formData.type,
+          status: formData.status,
+          priority: formData.priority,
+          progress: formData.progress,
+          color: formData.color,
+          character_ids: formData.character_ids,
+          location_ids: formData.location_ids,
+          chapter_ids: formData.chapter_ids,
+          tags: formData.tags,
+          notes: formData.notes,
+          template: formData.template,
+          dependencies: formData.dependencies,
+          character_development: formData.character_development,
+          chapter_breakdown: formData.chapter_breakdown,
+          pacing_profile: formData.pacing_profile,
+          themes: formData.themes,
+          motifs: formData.motifs,
+          conflicts: formData.conflicts,
+          manuscript_integration: formData.manuscript_integration
+        }
+      }
+
+      let result
+      if (editingArc) {
+        result = await supabase
+          .from('world_elements')
+          .update(arcData)
+          .eq('id', editingArc.id)
+          .select()
+      } else {
+        result = await supabase
+          .from('world_elements')
+          .insert(arcData)
+          .select()
+      }
+
+      if (result.error) throw result.error
+
+      await loadData()
+      onArcsChange?.() // Notify parent component to refresh
+      setShowCreateDialog(false)
+      setEditingArc(null)
+      resetForm()
+      
+    } catch (error) {
+      console.error('Error saving arc:', error)
     }
-    setFormData(prev => ({
-      ...prev,
-      milestones: [...prev.milestones, newMilestone]
-    }))
   }
 
-  const updateMilestone = (id: string, updates: Partial<typeof formData.milestones[0]>) => {
-    setFormData(prev => ({
-      ...prev,
-      milestones: prev.milestones.map(m => 
-        m.id === id ? { ...m, ...updates } : m
-      )
-    }))
+  const handleEdit = (arc: Arc) => {
+    setEditingArc(arc)
+    setFormData({
+      name: arc.name,
+      description: arc.description,
+      type: arc.attributes.type || '',
+      status: arc.attributes.status || 'planned',
+      priority: arc.attributes.priority || 1,
+      progress: arc.attributes.progress || 0,
+      color: arc.attributes.color || ARC_COLORS[0],
+      character_ids: arc.attributes.character_ids || [],
+      location_ids: arc.attributes.location_ids || [],
+      chapter_ids: arc.attributes.chapter_ids || [],
+      tags: arc.attributes.tags || [],
+      notes: arc.attributes.notes || '',
+      template: arc.attributes.template || { type: 'three_act', structure_beats: [] },
+      dependencies: arc.attributes.dependencies || [],
+      character_development: arc.attributes.character_development || [],
+      chapter_breakdown: arc.attributes.chapter_breakdown || [],
+      pacing_profile: arc.attributes.pacing_profile || [],
+      themes: arc.attributes.themes || [],
+      motifs: arc.attributes.motifs || [],
+      conflicts: arc.attributes.conflicts || [],
+      manuscript_integration: arc.attributes.manuscript_integration || {
+        word_count_target: 0,
+        actual_word_count: 0,
+        scenes_written: 0,
+        scenes_total: 0,
+        draft_status: 'outline'
+      }
+    })
+    setShowCreateDialog(true)
   }
 
-  const removeMilestone = (id: string) => {
-    setFormData(prev => ({
-      ...prev,
-      milestones: prev.milestones.filter(m => m.id !== id)
-    }))
+  const handleDelete = async (arcId: string) => {
+    if (!confirm('Are you sure you want to delete this arc?')) return
+    
+    try {
+      const supabase = createSupabaseClient()
+      await supabase.from('world_elements').delete().eq('id', arcId)
+      await loadData()
+    } catch (error) {
+      console.error('Error deleting arc:', error)
+    }
   }
 
-  const getArcTypeIcon = (type: string) => {
-    const arcType = ARC_TYPES.find(t => t.value === type)
-    return arcType ? arcType.icon : Target
-  }
-
-  const getArcTypeColor = (type: string) => {
-    const arcType = ARC_TYPES.find(t => t.value === type)
-    return arcType ? arcType.color : 'gray'
-  }
-
-  const getStatusColor = (status: string) => {
-    const statusObj = ARC_STATUS.find(s => s.value === status)
-    return statusObj ? statusObj.color : 'gray'
-  }
-
-  const toggleArcExpansion = (arcId: string) => {
-    setExpandedArcs(prev => 
-      prev.includes(arcId) 
-        ? prev.filter(id => id !== arcId)
-        : [...prev, arcId]
-    )
-  }
+  const filteredArcs = arcs.filter(arc => {
+    const matchesSearch = arc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         arc.description.toLowerCase().includes(searchQuery.toLowerCase())
+    const matchesType = !filterType || filterType === 'all' || arc.attributes.type === filterType
+    const matchesStatus = !filterStatus || filterStatus === 'all' || arc.attributes.status === filterStatus
+    
+    return matchesSearch && matchesType && matchesStatus
+  })
 
   if (loading) {
     return (
-      <div className="h-full bg-white p-6 overflow-y-auto">
-        <div className="max-w-5xl mx-auto">
-          <div className="animate-pulse">
-            <div className="h-8 bg-gray-200 rounded w-48 mb-4"></div>
-            <div className="space-y-4">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="h-32 bg-gray-100 rounded-lg"></div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // Detail View Component
-  if (showDetailView && selectedArc) {
-    const TypeIcon = getArcTypeIcon(selectedArc.attributes?.type || '')
-    const typeColor = getArcTypeColor(selectedArc.attributes?.type || '')
-    const statusColor = getStatusColor(selectedArc.attributes?.status || 'planned')
-    const progress = selectedArc.attributes?.progress || 0
-
-    return (
-      <div className="h-full bg-gray-50 overflow-y-auto">
-        <div className="max-w-6xl mx-auto p-6">
-          {/* Header */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    setShowDetailView(false)
-                    setSelectedArc(null)
-                    onClearSelection?.()
-                  }}
-                  className="p-2 hover:bg-gray-100"
-                >
-                  <ArrowRight className="w-5 h-5 rotate-180 text-gray-600" />
-                </Button>
-                <div className="flex items-center gap-3">
-                  <div 
-                    className="w-3 h-3 rounded-full" 
-                    style={{ 
-                      backgroundColor: selectedArc.attributes?.color || ARC_COLORS[0]
-                    }}
-                  />
-                  <TypeIcon className={`w-6 h-6 text-${typeColor}-500`} />
-                  <div>
-                    <h1 className="text-2xl font-semibold text-gray-900">{selectedArc.name}</h1>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-${statusColor}-100 text-${statusColor}-800`}>
-                        {ARC_STATUS.find(s => s.value === selectedArc.attributes?.status)?.label || 'Planned'}
-                      </span>
-                      {selectedArc.attributes?.priority && (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                          Priority: {selectedArc.attributes.priority}/5
-                        </span>
-                      )}
-                      {selectedArc.attributes?.parent_arc_id && (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-                          Sub-arc
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="flex gap-3">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setEditingArc(selectedArc)
-                    populateFormData(selectedArc)
-                    setShowCreateDialog(true)
-                  }}
-                  className="border-gray-300 text-gray-700 hover:bg-gray-50"
-                >
-                  <Edit3 className="w-4 h-4 mr-2" />
-                  Edit Arc
-                </Button>
-                <Button
-                  onClick={() => {
-                    // Create sub-arc
-                    setFormData(prev => ({ ...prev, parent_arc_id: selectedArc.id }))
-                    setShowCreateDialog(true)
-                  }}
-                  className="bg-amber-500 hover:bg-amber-600 text-white"
-                >
-                  <GitBranch className="w-4 h-4 mr-2" />
-                  Add Sub-arc
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          {/* Content Grid */}
-          <div className="space-y-6">
-            {/* Progress Section */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <TrendingUp className="w-5 h-5 text-blue-500" />
-                <h2 className="text-lg font-semibold text-gray-900">Progress & Status</h2>
-              </div>
-              <div className="space-y-4">
-                <div>
-                  <div className="flex justify-between text-sm text-gray-600 mb-2">
-                    <span>Overall Progress</span>
-                    <span className="font-semibold text-blue-600">{progress}%</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="bg-blue-500 h-2 rounded-full transition-all duration-300" 
-                      style={{ width: `${progress}%` }}
-                    ></div>
-                  </div>
-                </div>
-                
-                {selectedArc.attributes?.start_chapter && selectedArc.attributes?.end_chapter && (
-                  <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-100">
-                    <div>
-                      <label className="text-sm font-medium text-gray-500">Start Chapter</label>
-                      <p className="text-lg font-semibold text-gray-900">{selectedArc.attributes.start_chapter}</p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-500">End Chapter</label>
-                      <p className="text-lg font-semibold text-gray-900">{selectedArc.attributes.end_chapter}</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Description */}
-            {selectedArc.description && (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <BookOpen className="w-5 h-5 text-gray-500" />
-                  <h2 className="text-lg font-semibold text-gray-900">Description</h2>
-                </div>
-                <p className="text-gray-700 leading-relaxed">{selectedArc.description}</p>
-              </div>
-            )}
-
-            {/* Connected Elements Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Characters */}
-              {selectedArc.attributes?.character_names && selectedArc.attributes.character_names.length > 0 && (
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <div className="flex items-center gap-2 mb-4">
-                    <User className="w-5 h-5 text-blue-500" />
-                    <h3 className="text-base font-semibold text-gray-900">Characters ({selectedArc.attributes.character_names.length})</h3>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedArc.attributes.character_names.map((name: string) => (
-                      <span key={name} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
-                        {name}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Locations */}
-              {selectedArc.attributes?.location_names && selectedArc.attributes.location_names.length > 0 && (
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <div className="flex items-center gap-2 mb-4">
-                    <MapPin className="w-5 h-5 text-green-500" />
-                    <h3 className="text-base font-semibold text-gray-900">Locations ({selectedArc.attributes.location_names.length})</h3>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedArc.attributes.location_names.map((name: string) => (
-                      <span key={name} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">
-                        {name}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Chapters */}
-              {selectedArc.attributes?.chapter_names && selectedArc.attributes.chapter_names.length > 0 && (
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <div className="flex items-center gap-2 mb-4">
-                    <BookOpen className="w-5 h-5 text-purple-500" />
-                    <h3 className="text-base font-semibold text-gray-900">Chapters ({selectedArc.attributes.chapter_names.length})</h3>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedArc.attributes.chapter_names.map((name: string) => (
-                      <span key={name} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200">
-                        {name}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Themes */}
-              {selectedArc.attributes?.themes && selectedArc.attributes.themes.length > 0 && (
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <div className="flex items-center gap-2 mb-4">
-                    <Heart className="w-5 h-5 text-pink-500" />
-                    <h3 className="text-base font-semibold text-gray-900">Themes ({selectedArc.attributes.themes.length})</h3>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedArc.attributes.themes.map((theme: string) => (
-                      <span key={theme} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-pink-50 text-pink-700 border border-pink-200 capitalize">
-                        {theme.replace('_', ' ')}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Milestones */}
-            {selectedArc.attributes?.milestones && selectedArc.attributes.milestones.length > 0 && (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center gap-2 mb-6">
-                  <Flag className="w-5 h-5 text-orange-500" />
-                  <h2 className="text-lg font-semibold text-gray-900">Milestones ({selectedArc.attributes.milestones.length})</h2>
-                </div>
-                <div className="space-y-4">
-                  {selectedArc.attributes.milestones.map((milestone: any, index: number) => (
-                    <div key={milestone.id} className="relative">
-                      {index > 0 && <div className="absolute top-0 left-2.5 w-0.5 h-6 bg-gray-200 -translate-y-6"></div>}
-                      <div className="flex items-start gap-4 p-4 bg-gray-50 rounded-lg border border-gray-100">
-                        <div className="flex-shrink-0 mt-0.5">
-                          {milestone.completed ? 
-                            <CheckCircle className="w-5 h-5 text-green-500" /> :
-                            <Circle className="w-5 h-5 text-gray-400" />
-                          }
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-3 mb-2">
-                            <h4 className={`text-sm font-medium ${milestone.completed ? 'line-through text-gray-500' : 'text-gray-900'}`}>
-                              {milestone.title}
-                            </h4>
-                            {milestone.beat_type && milestone.beat_type !== 'custom' && (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">
-                                {BEAT_TYPES.find(b => b.value === milestone.beat_type)?.label}
-                              </span>
-                            )}
-                            {milestone.chapter && (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
-                                Ch. {milestone.chapter}
-                              </span>
-                            )}
-                          </div>
-                          {milestone.description && (
-                            <p className="text-sm text-gray-600 mb-2">{milestone.description}</p>
-                          )}
-                          {milestone.character_growth && (
-                            <p className="text-sm text-blue-600">
-                              <span className="font-medium">Character Growth:</span> {milestone.character_growth}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Resolution */}
-            {selectedArc.attributes?.resolution && (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <CheckCircle className="w-5 h-5 text-green-500" />
-                  <h2 className="text-lg font-semibold text-gray-900">Arc Resolution</h2>
-                </div>
-                <p className="text-gray-700 leading-relaxed">{selectedArc.attributes.resolution}</p>
-              </div>
-            )}
-
-            {/* Notes */}
-            {selectedArc.attributes?.notes && (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <FileText className="w-5 h-5 text-gray-500" />
-                  <h2 className="text-lg font-semibold text-gray-900">Additional Notes</h2>
-                </div>
-                <div className="prose prose-sm max-w-none">
-                  <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{selectedArc.attributes.notes}</p>
-                </div>
-              </div>
-            )}
-
-            {/* Tags */}
-            {selectedArc.tags && selectedArc.tags.length > 0 && (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <Tag className="w-5 h-5 text-indigo-500" />
-                  <h2 className="text-lg font-semibold text-gray-900">Tags</h2>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {selectedArc.tags.map(tag => (
-                    <span key={tag} className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
       </div>
     )
   }
 
   return (
-    <div className="h-full bg-white overflow-y-auto">
-      <div className="max-w-6xl mx-auto p-6">
-        {/* Header */}
-        <div className="mb-8">
+    <div className="space-y-6 p-6">
+      {/* Header - Hidden when viewing an arc */}
+      {!viewingArc && (
+        <>
+          {/* Top Header */}
           <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-                <Target className="w-7 h-7 text-amber-500" />
-                Story Arcs
-              </h2>
-              <p className="text-gray-600 mt-1">Plan character development and plot progression throughout your story</p>
-            </div>
-            <div className="flex items-center gap-3">
-              {/* View Mode Toggle */}
-              <div className="flex bg-gray-100 rounded-lg p-1">
-                {VIEW_MODES.map(mode => {
-                  const Icon = mode.icon
-                  return (
-                    <button
-                      key={mode.value}
-                      onClick={() => setViewMode(mode.value)}
-                      className={`flex items-center gap-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                        viewMode === mode.value 
-                          ? 'bg-white text-amber-600 shadow-sm' 
-                          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                      }`}
-                    >
-                      <Icon className="w-4 h-4" />
-                      {mode.label}
-                    </button>
-                  )
-                })}
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-gradient-to-br from-orange-100 to-amber-100 rounded-xl shadow-sm border border-orange-200">
+                <Target className="w-8 h-8 text-orange-600" />
               </div>
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">Story Arcs</h2>
+                <p className="text-sm text-gray-600">Plan character development and plot progression throughout your story</p>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
+                className="border-gray-300 hover:bg-gray-50 hover:border-gray-400 transition-colors"
+              >
+                {viewMode === 'grid' ? <List className="w-4 h-4" /> : <Grid className="w-4 h-4" />}
+              </Button>
+              
               <Button
                 onClick={() => {
-                  setEditingArc(null)
                   resetForm()
+                  setEditingArc(null)
                   setShowCreateDialog(true)
                 }}
-                className="bg-amber-500 hover:bg-amber-600 text-white"
+                className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-200 border-0"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 New Arc
               </Button>
             </div>
           </div>
-        </div>
 
-        {/* Filters */}
-        <div className="mb-6">
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-center gap-4">
-              <div className="flex-1 min-w-64">
-                <Input
-                  placeholder="Search arcs..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="bg-white border-gray-300 focus:border-amber-500 focus:ring-amber-500"
-                />
-              </div>
-              <Select value={selectedType} onValueChange={setSelectedType}>
-                <SelectTrigger className="w-48 bg-white border-gray-300 focus:border-amber-500 focus:ring-amber-500 transition-colors duration-200">
-                  <SelectValue placeholder="All Types" />
-                </SelectTrigger>
-                <SelectContent className="bg-white animate-in fade-in-0 zoom-in-95 duration-200">
-                  <SelectItem value="all">All Types</SelectItem>
-                  {ARC_TYPES.map(type => (
-                    <SelectItem key={type.value} value={type.value} className="hover:bg-gray-50 transition-colors duration-150">
-                      <div className="flex items-center gap-2">
-                        <type.icon className="w-4 h-4" />
-                        {type.label}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                <SelectTrigger className="w-48 bg-white border-gray-300 focus:border-amber-500 focus:ring-amber-500 transition-colors duration-200">
-                  <SelectValue placeholder="All Statuses" />
-                </SelectTrigger>
-                <SelectContent className="bg-white animate-in fade-in-0 zoom-in-95 duration-200">
-                  <SelectItem value="all">All Statuses</SelectItem>
-                  {ARC_STATUS.map(status => (
-                    <SelectItem key={status.value} value={status.value} className="hover:bg-gray-50 transition-colors duration-150">
-                      <div className="flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full bg-${status.color}-500`}></div>
-                        {status.label}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="flex flex-wrap items-center gap-4">
-              <Select value={filterByParent} onValueChange={setFilterByParent}>
-                <SelectTrigger className="w-48 bg-white border-gray-300 focus:border-amber-500 focus:ring-amber-500 transition-colors duration-200">
-                  <SelectValue placeholder="Arc hierarchy" />
-                </SelectTrigger>
-                <SelectContent className="bg-white animate-in fade-in-0 zoom-in-95 duration-200">
-                  <SelectItem value="all" className="hover:bg-gray-50 transition-colors duration-150">All Arcs</SelectItem>
-                  <SelectItem value="main" className="hover:bg-gray-50 transition-colors duration-150">Main Arcs Only</SelectItem>
-                  <SelectItem value="sub" className="hover:bg-gray-50 transition-colors duration-150">Sub-arcs Only</SelectItem>
-                  {arcs.filter(arc => !arc.attributes?.parent_arc_id).map(arc => (
-                    <SelectItem key={arc.id} value={arc.id} className="hover:bg-gray-50 transition-colors duration-150">
-                      Sub-arcs of {arc.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              
-              <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger className="w-48 bg-white border-gray-300 focus:border-amber-500 focus:ring-amber-500 transition-colors duration-200">
-                  <SelectValue placeholder="Sort by" />
-                </SelectTrigger>
-                <SelectContent className="bg-white animate-in fade-in-0 zoom-in-95 duration-200">
-                  <SelectItem value="updated_at" className="hover:bg-gray-50 transition-colors duration-150">Last Updated</SelectItem>
-                  <SelectItem value="name" className="hover:bg-gray-50 transition-colors duration-150">Name</SelectItem>
-                  <SelectItem value="type" className="hover:bg-gray-50 transition-colors duration-150">Type</SelectItem>
-                  <SelectItem value="status" className="hover:bg-gray-50 transition-colors duration-150">Status</SelectItem>
-                  <SelectItem value="priority" className="hover:bg-gray-50 transition-colors duration-150">Priority</SelectItem>
-                  <SelectItem value="progress" className="hover:bg-gray-50 transition-colors duration-150">Progress</SelectItem>
-                </SelectContent>
-              </Select>
-              
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
-                className="border-gray-300 text-gray-700 hover:bg-gray-50"
-              >
-                <SortAsc className={`w-4 h-4 ${sortOrder === 'desc' ? 'rotate-180' : ''}`} />
-              </Button>
-
-              {/* Tag filter chips */}
-              <div className="flex items-center gap-2">
-                {Array.from(new Set(arcs.flatMap(arc => arc.tags || []))).slice(0, 5).map(tag => (
-                  <button 
-                    key={tag}
-                    onClick={() => setSelectedTags(prev => 
-                      prev.includes(tag) 
-                        ? prev.filter(t => t !== tag)
-                        : [...prev, tag]
-                    )}
-                    className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
-                      selectedTags.includes(tag)
-                        ? 'bg-amber-100 text-amber-700 border border-amber-300'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200'
-                    }`}
-                  >
-                    <Tag className="w-3 h-3 mr-1" />
-                    {tag}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Content */}
-        {sortedArcs.length === 0 ? (
-          <div className="text-center py-12">
-            <Target className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">No story arcs yet</h3>
-            <p className="text-gray-600 mb-6">
-              Create arcs to track character development and plot progression throughout your story.
-            </p>
-            <Button 
-              onClick={() => {
-                setEditingArc(null)
-                resetForm()
-                setShowCreateDialog(true)
-              }}
-              className="bg-amber-500 hover:bg-amber-600 text-white"
+          {/* View Mode Tabs */}
+          <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg w-fit">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="px-4 py-2 text-sm font-medium rounded-md text-gray-600 hover:text-gray-900"
             >
-              <Plus className="w-4 h-4 mr-2" />
-              Create First Arc
+              <Calendar className="w-4 h-4 mr-2" />
+              Timeline View
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="px-4 py-2 text-sm font-medium rounded-md text-gray-600 hover:text-gray-900"
+            >
+              <BarChart3 className="w-4 h-4 mr-2" />
+              Graph View
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="px-4 py-2 text-sm font-medium rounded-md text-gray-600 hover:text-gray-900"
+            >
+              <Grid className="w-4 h-4 mr-2" />
+              Heatmap View
             </Button>
           </div>
-        ) : (
-          <div className="space-y-6">
-            {/* Arc Statistics */}
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
-              <div className="bg-white rounded-lg border border-gray-200 p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Total Arcs</p>
-                    <p className="text-2xl font-bold text-gray-900">{arcs.length}</p>
-                  </div>
-                  <Target className="w-8 h-8 text-amber-500" />
-                </div>
+
+          {/* Search and Filters */}
+          <div className="flex flex-wrap gap-4 items-center">
+            <div className="flex-1 min-w-64">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <Input
+                  placeholder="Search arcs..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 border-gray-300 focus:border-orange-500 focus:ring-orange-500"
+                />
               </div>
-              <div className="bg-white rounded-lg border border-gray-200 p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">In Progress</p>
-                    <p className="text-2xl font-bold text-gray-900">
-                      {arcs.filter(arc => arc.attributes?.status === 'active').length}
-                    </p>
-                  </div>
-                  <Activity className="w-8 h-8 text-blue-500" />
+            </div>
+            
+            <Select value={filterType} onValueChange={setFilterType}>
+              <SelectTrigger className="w-48 border-gray-300 focus:border-orange-500">
+                <SelectValue placeholder="All Types" />
+              </SelectTrigger>
+              <SelectContent className="bg-white border border-gray-200 shadow-lg">
+                <SelectItem value="all">All Types</SelectItem>
+                {ARC_TYPES.map(type => (
+                  <SelectItem key={type.value} value={type.value}>
+                    <div className="flex items-center gap-2">
+                      <type.icon className="w-4 h-4" />
+                      {type.label}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            
+            <Select value={filterStatus} onValueChange={setFilterStatus}>
+              <SelectTrigger className="w-48 border-gray-300 focus:border-orange-500">
+                <SelectValue placeholder="All Statuses" />
+              </SelectTrigger>
+              <SelectContent className="bg-white border border-gray-200 shadow-lg">
+                <SelectItem value="all">All Statuses</SelectItem>
+                {ARC_STATUS.map(status => (
+                  <SelectItem key={status.value} value={status.value}>
+                    {status.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <div className="flex items-center gap-2">
+              <Select value="all">
+                <SelectTrigger className="w-32 border-gray-300 focus:border-orange-500">
+                  <SelectValue placeholder="All Arcs" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Arcs</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value="updated">
+                <SelectTrigger className="w-40 border-gray-300 focus:border-orange-500">
+                  <SelectValue placeholder="Last Updated" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="updated">Last Updated</SelectItem>
+                  <SelectItem value="created">Date Created</SelectItem>
+                  <SelectItem value="name">Name</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Button variant="outline" size="sm" className="px-3">
+                <SlidersHorizontal className="w-4 h-4" />
+              </Button>
+
+              <Button variant="outline" size="sm" className="px-3">
+                <Eye className="w-4 h-4" />
+                Entry
+              </Button>
+            </div>
+          </div>
+
+          {/* Statistics Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="bg-white rounded-lg border border-gray-200 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Total Arcs</p>
+                  <p className="text-2xl font-bold text-gray-900">{arcs.length}</p>
                 </div>
-              </div>
-              <div className="bg-white rounded-lg border border-gray-200 p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Completed</p>
-                    <p className="text-2xl font-bold text-gray-900">
-                      {arcs.filter(arc => arc.attributes?.status === 'completed').length}
-                    </p>
-                  </div>
-                  <CheckCircle className="w-8 h-8 text-green-500" />
-                </div>
-              </div>
-              <div className="bg-white rounded-lg border border-gray-200 p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Avg Progress</p>
-                    <p className="text-2xl font-bold text-gray-900">
-                      {Math.round(arcs.reduce((sum, arc) => sum + (arc.attributes?.progress || 0), 0) / arcs.length || 0)}%
-                    </p>
-                  </div>
-                  <TrendingUp className="w-8 h-8 text-purple-500" />
+                <div className="p-3 bg-orange-100 rounded-full">
+                  <Target className="w-6 h-6 text-orange-600" />
                 </div>
               </div>
             </div>
 
-            {/* View Mode Content */}
-            {viewMode === 'list' && (
-              <div className="space-y-4">
-                {sortedArcs.map(arc => {
-                  const TypeIcon = getArcTypeIcon(arc.attributes?.type || '')
-                  const typeColor = getArcTypeColor(arc.attributes?.type || '')
-                  const statusColor = getStatusColor(arc.attributes?.status || 'planned')
-                  const isExpanded = expandedArcs.includes(arc.id)
-                  const progress = arc.attributes?.progress || 0
-                  const isSubArc = !!arc.attributes?.parent_arc_id
-                  
-                  return (
-                    <div key={arc.id} className={`bg-white rounded-lg border border-gray-200 hover:shadow-sm transition-shadow ${
-                      isSubArc ? 'ml-8 border-l-4 border-l-amber-300' : ''
-                    }`}>
-                      <div className="p-6">
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-center gap-3 flex-1">
-                            <button
-                              onClick={() => toggleArcExpansion(arc.id)}
-                              className="p-1 hover:bg-gray-100 rounded transition-colors"
-                            >
-                              {isExpanded ? 
-                                <ChevronDown className="w-4 h-4 text-gray-400" /> : 
-                                <ChevronRight className="w-4 h-4 text-gray-400" />
-                              }
-                            </button>
-                            <div 
-                              className="w-3 h-3 rounded-full" 
-                              style={{ 
-                                backgroundColor: arc.attributes?.color || ARC_COLORS[0]
-                              }}
-                            />
-                            <TypeIcon className={`w-5 h-5 text-${typeColor}-500`} />
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-2">
-                                <button
-                                  onClick={() => {
-                                    setSelectedArc(arc)
-                                    setShowDetailView(true)
-                                    onSelectArc?.(arc)
-                                  }}
-                                  className="text-lg font-semibold text-gray-900 hover:text-amber-600 transition-colors cursor-pointer text-left"
-                                >
-                                  {arc.name}
-                                </button>
-                                {isSubArc && (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">
-                                    Sub-arc
-                                  </span>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2 mb-3">
-                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-${statusColor}-100 text-${statusColor}-800`}>
-                                  {ARC_STATUS.find(s => s.value === arc.attributes?.status)?.label || 'Planned'}
-                                </span>
-                                {arc.attributes?.priority && (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
-                                    Priority: {arc.attributes.priority}/5
-                                  </span>
-                                )}
-                                {arc.attributes?.character_names && arc.attributes.character_names.length > 0 && (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                                    {arc.attributes.character_names.length} character{arc.attributes.character_names.length > 1 ? 's' : ''}
-                                  </span>
-                                )}
-                                {arc.tags && arc.tags.length > 0 && (
-                                  <div className="flex gap-1">
-                                    {arc.tags.slice(0, 2).map(tag => (
-                                      <span key={tag} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">
-                                        {tag}
-                                      </span>
-                                    ))}
-                                    {arc.tags.length > 2 && (
-                                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">
-                                        +{arc.tags.length - 2}
-                                      </span>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                              {/* Progress bar */}
-                              <div className="flex items-center gap-3">
-                                <span className="text-sm text-gray-600">Progress</span>
-                                <div className="flex-1 bg-gray-200 rounded-full h-2">
-                                  <div 
-                                    className="bg-blue-500 h-2 rounded-full transition-all duration-300" 
-                                    style={{ width: `${progress}%` }}
-                                  ></div>
-                                </div>
-                                <span className="text-sm font-medium text-gray-900">{progress}%</span>
-                              </div>
-                              {arc.description && (
-                                <p className="text-gray-600 text-sm mt-3">{arc.description}</p>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2 ml-4">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setEditingArc(arc)
-                                populateFormData(arc)
-                                setShowCreateDialog(true)
-                              }}
-                              className="text-gray-500 hover:text-gray-700 hover:bg-gray-100"
-                            >
-                              <Edit3 className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDeleteArc(arc.id)}
-                              className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* Expanded Content */}
-                      {isExpanded && (
-                        <div className="border-t border-gray-100 pt-4 mt-4">
-                          <div className="space-y-4">
-                            {/* Linked Elements */}
-                            <div className="grid grid-cols-2 gap-4">
-                              {/* Characters */}
-                              {arc.attributes?.character_names && arc.attributes.character_names.length > 0 && (
-                                <div>
-                                  <h4 className="font-medium text-sm text-gray-700 mb-2 flex items-center gap-1">
-                                    <User className="w-4 h-4" />
-                                    Characters
-                                  </h4>
-                                  <div className="flex flex-wrap gap-1">
-                                    {arc.attributes.character_names.map((name: string) => (
-                                      <span key={name} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
-                                        {name}
-                                      </span>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
+            <div className="bg-white rounded-lg border border-gray-200 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">In Progress</p>
+                  <p className="text-2xl font-bold text-blue-600">
+                    {arcs.filter(arc => arc.attributes.status === 'in_progress').length}
+                  </p>
+                </div>
+                <div className="p-3 bg-blue-100 rounded-full">
+                  <TrendingUp className="w-6 h-6 text-blue-600" />
+                </div>
+              </div>
+            </div>
 
-                              {/* Locations */}
-                              {arc.attributes?.location_names && arc.attributes.location_names.length > 0 && (
-                                <div>
-                                  <h4 className="font-medium text-sm text-gray-700 mb-2 flex items-center gap-1">
-                                    <MapPin className="w-4 h-4" />
-                                    Locations
-                                  </h4>
-                                  <div className="flex flex-wrap gap-1">
-                                    {arc.attributes.location_names.map((name: string) => (
-                                      <span key={name} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">
-                                        {name}
-                                      </span>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
+            <div className="bg-white rounded-lg border border-gray-200 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Completed</p>
+                  <p className="text-2xl font-bold text-green-600">
+                    {arcs.filter(arc => arc.attributes.status === 'completed').length}
+                  </p>
+                </div>
+                <div className="p-3 bg-green-100 rounded-full">
+                  <CheckCircle className="w-6 h-6 text-green-600" />
+                </div>
+              </div>
+            </div>
 
-                              {/* Chapters */}
-                              {arc.attributes?.chapter_names && arc.attributes.chapter_names.length > 0 && (
-                                <div>
-                                  <h4 className="font-medium text-sm text-gray-700 mb-2 flex items-center gap-1">
-                                    <BookOpen className="w-4 h-4" />
-                                    Chapters
-                                  </h4>
-                                  <div className="flex flex-wrap gap-1">
-                                    {arc.attributes.chapter_names.map((name: string) => (
-                                      <span key={name} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200">
-                                        {name}
-                                      </span>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
+            <div className="bg-white rounded-lg border border-gray-200 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Avg Progress</p>
+                  <p className="text-2xl font-bold text-purple-600">
+                    {arcs.length > 0 ? Math.round(arcs.reduce((sum, arc) => sum + (arc.attributes.progress || 0), 0) / arcs.length) : 0}%
+                  </p>
+                </div>
+                <div className="p-3 bg-purple-100 rounded-full">
+                  <BarChart3 className="w-6 h-6 text-purple-600" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
-                              {/* Themes */}
-                              {arc.attributes?.themes && arc.attributes.themes.length > 0 && (
-                                <div>
-                                  <h4 className="font-medium text-sm text-gray-700 mb-2 flex items-center gap-1">
-                                    <Heart className="w-4 h-4" />
-                                    Themes
-                                  </h4>
-                                  <div className="flex flex-wrap gap-1">
-                                    {arc.attributes.themes.map((theme: string) => (
-                                      <span key={theme} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-pink-50 text-pink-700 border border-pink-200">
-                                        {theme}
-                                      </span>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Sub-arcs */}
-                            {arc.attributes?.sub_arc_ids && arc.attributes.sub_arc_ids.length > 0 && (
-                              <div>
-                                <h4 className="font-medium text-sm text-gray-700 mb-2 flex items-center gap-1">
-                                  <GitBranch className="w-4 h-4" />
-                                  Sub-arcs
-                                </h4>
-                                <div className="flex flex-wrap gap-1">
-                                  {arc.attributes.sub_arc_ids.map((subArcId: string) => {
-                                    const subArc = arcs.find(a => a.id === subArcId)
-                                    return subArc ? (
-                                      <span key={subArcId} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
-                                        {subArc.name}
-                                      </span>
-                                    ) : null
-                                  })}
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Milestones */}
-                            {arc.attributes?.milestones && arc.attributes.milestones.length > 0 && (
-                              <div>
-                                <h4 className="font-medium text-sm text-gray-700 mb-2 flex items-center gap-1">
-                                  <Flag className="w-4 h-4" />
-                                  Milestones
-                                </h4>
-                                <div className="space-y-2">
-                                  {arc.attributes.milestones.slice(0, 3).map((milestone: any) => (
-                                    <div key={milestone.id} className="flex items-center gap-2 text-sm">
-                                      {milestone.completed ? 
-                                        <CheckCircle className="w-4 h-4 text-green-500" /> :
-                                        <Circle className="w-4 h-4 text-gray-400" />
-                                      }
-                                      <span className={milestone.completed ? 'line-through text-gray-500' : ''}>
-                                        {milestone.title}
-                                      </span>
-                                      {milestone.beat_type && milestone.beat_type !== 'custom' && (
-                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-                                          {BEAT_TYPES.find(b => b.value === milestone.beat_type)?.label}
-                                        </span>
-                                      )}
-                                      {milestone.chapter && (
-                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                                          Ch. {milestone.chapter}
-                                        </span>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Actions */}
-                            <div className="flex justify-between items-center pt-4 border-t border-gray-100">
-                              <div className="flex gap-2">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => {
-                                    setEditingArc(arc)
-                                    populateFormData(arc)
-                                    setShowCreateDialog(true)
-                                  }}
-                                  className="text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-                                >
-                                  <Edit3 className="w-4 h-4 mr-1" />
-                                  Edit
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => {
-                                    // Create sub-arc
-                                    setFormData(prev => ({ ...prev, parent_arc_id: arc.id }))
-                                    setShowCreateDialog(true)
-                                  }}
-                                  className="text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-                                >
-                                  <GitBranch className="w-4 h-4 mr-1" />
-                                  Add Sub-arc
-                                </Button>
-                              </div>
-                              <span className="text-xs text-gray-500">
-                                {new Date(arc.updated_at).toLocaleDateString()}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
+      {/* Main Content Area */}
+      {viewingArc ? (
+        /* Detailed Arc View */
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="bg-gradient-to-r from-orange-500 to-amber-500 rounded-xl p-6 text-white">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setViewingArc(null)
+                    onClearSelection?.()
+                  }}
+                  className="text-white hover:bg-white/20 border-white/30"
+                >
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Back
+                </Button>
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-8 h-8 rounded-full shadow-lg border-2 border-white/30"
+                    style={{ backgroundColor: viewingArc.attributes.color || ARC_COLORS[0] }}
+                  />
+                  <div>
+                    <h1 className="text-2xl font-bold">{viewingArc.name}</h1>
+                    <div className="flex items-center gap-3 mt-1">
+                      {viewingArc.attributes.type && (
+                        <span className="px-2 py-1 bg-white/20 rounded-full text-xs font-medium">
+                          {ARC_TYPES.find(t => t.value === viewingArc.attributes.type)?.label || viewingArc.attributes.type}
+                        </span>
+                      )}
+                      {viewingArc.attributes.status && (
+                        <span className="px-2 py-1 bg-white/20 rounded-full text-xs font-medium">
+                          {ARC_STATUS.find(s => s.value === viewingArc.attributes.status)?.label || viewingArc.attributes.status}
+                        </span>
                       )}
                     </div>
-                  )
-                })}
+                  </div>
+                </div>
               </div>
-            )}
-
-            {/* Timeline View Placeholder */}
-            {viewMode === 'timeline' && (
-              <div className="text-center py-12">
-                <Activity className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Timeline View</h3>
-                <p className="text-gray-600 mb-2">
-                  Interactive timeline visualization showing arc progression across chapters.
-                </p>
-                <p className="text-sm text-amber-600 font-medium">Coming soon!</p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    handleEdit(viewingArc)
+                    setViewingArc(null)
+                  }}
+                  className="bg-white/20 border-white/30 text-white hover:bg-white/30"
+                >
+                  <Edit3 className="w-4 h-4 mr-2" />
+                  Edit
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    if (confirm('Are you sure you want to delete this arc?')) {
+                      handleDelete(viewingArc.id)
+                      setViewingArc(null)
+                    }
+                  }}
+                  className="bg-red-500/20 border-red-300/30 text-white hover:bg-red-500/30"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
               </div>
-            )}
-
-            {/* Graph View Placeholder */}
-            {viewMode === 'graph' && (
-              <div className="text-center py-12">
-                <GitBranch className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Graph View</h3>
-                <p className="text-gray-600 mb-2">
-                  Network diagram showing relationships between arcs, characters, and plot points.
-                </p>
-                <p className="text-sm text-amber-600 font-medium">Coming soon!</p>
-              </div>
-            )}
+            </div>
           </div>
-        )}
 
-        {/* Create/Edit Dialog */}
-        <Dialog open={showCreateDialog} onOpenChange={(open) => {
-          setShowCreateDialog(open)
-          if (!open) {
-            setEditingArc(null)
-            resetForm()
-            onClearSelection?.()
-          }
-        }}>
-          <DialogContent className="max-w-7xl w-[95vw] sm:max-w-7xl md:max-w-7xl lg:max-w-7xl xl:max-w-7xl max-h-[95vh] bg-white border border-gray-200 shadow-2xl overflow-hidden">
-            <div className="bg-gradient-to-r from-amber-500 to-orange-500 p-4 -m-6 mb-0">
-              <DialogHeader className="text-white">
-                <DialogTitle className="text-xl font-bold flex items-center gap-2">
-                  <Target className="w-6 h-6" />
-                  {editingArc ? 'Edit Arc' : 'Create New Arc'}
-                </DialogTitle>
-                <DialogDescription className="text-amber-100 text-sm mt-1">
-                  Define a story arc to track character development and plot progression throughout your narrative.
-                </DialogDescription>
-              </DialogHeader>
+          {/* Progress Overview */}
+          {viewingArc.attributes.progress !== undefined && (
+            <Card className="p-6 bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-lg text-green-800">Progress Overview</h3>
+                <span className="text-2xl font-bold text-green-600">{viewingArc.attributes.progress}%</span>
+              </div>
+              <Progress value={viewingArc.attributes.progress} className="h-3 bg-green-100" />
+              <div className="flex justify-between text-sm text-green-700 mt-2">
+                <span>Started</span>
+                <span>In Progress</span>
+                <span>Complete</span>
+              </div>
+            </Card>
+          )}
+
+          {/* Main Content Grid */}
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+            {/* Left Column - Story Details */}
+            <div className="xl:col-span-2 space-y-6">
+              {/* Description */}
+              <Card className="p-6">
+                <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-blue-500" />
+                  Story Description
+                </h3>
+                <div className="prose prose-sm max-w-none">
+                  <p className="text-gray-700 leading-relaxed">
+                    {viewingArc.description || 'No description provided for this arc.'}
+                  </p>
+                </div>
+              </Card>
+
+              {/* Chapters Timeline */}
+              <Card className="p-6">
+                <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                  <BookOpen className="w-5 h-5 text-green-500" />
+                  Chapter Timeline
+                  <Badge variant="outline" className="ml-2">
+                    {viewingArc.attributes.chapter_ids?.length || 0} chapters
+                  </Badge>
+                </h3>
+                {viewingArc.attributes.chapter_ids && viewingArc.attributes.chapter_ids.length > 0 ? (
+                  <div className="space-y-3">
+                    {viewingArc.attributes.chapter_ids.map((id, index) => {
+                      const chapter = chapters.find(c => c.id === id)
+                      return (
+                        <div key={id} className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                          <div className="flex items-center justify-center w-8 h-8 bg-green-500 text-white rounded-full text-sm font-medium">
+                            {chapter?.chapter_number || index + 1}
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="font-medium text-gray-900">
+                              {chapter ? stripHtmlTags(chapter.title) : `Chapter ${index + 1}`}
+                            </h4>
+                            {chapter?.content && (
+                              <p className="text-sm text-gray-600 mt-1">
+                                {stripHtmlTags(chapter.content).substring(0, 100)}...
+                              </p>
+                            )}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            Chapter {chapter?.chapter_number || '?'}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <BookOpen className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                    <p>No chapters assigned to this arc</p>
+                  </div>
+                )}
+              </Card>
+
+              {/* Notes */}
+              {viewingArc.attributes.notes && (
+                <Card className="p-6">
+                  <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                    <MessageSquare className="w-5 h-5 text-purple-500" />
+                    Notes & Ideas
+                  </h3>
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                    <p className="text-gray-700 whitespace-pre-wrap">{viewingArc.attributes.notes}</p>
+                  </div>
+                </Card>
+              )}
             </div>
 
-            <div className="max-h-[70vh] overflow-y-auto p-8">
-              <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-                {/* Left Column - Basic Information */}
-                <div className="xl:col-span-1 space-y-6">
-                  <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-6 border border-gray-200 shadow-sm">
-                    <h3 className="font-bold text-xl text-gray-900 mb-6 flex items-center gap-3">
-                      <BookOpen className="w-6 h-6 text-amber-500" />
-                      Basic Information
-                    </h3>
+            {/* Right Column - Sidebar Info */}
+            <div className="space-y-6">
+              {/* Quick Stats */}
+              <Card className="p-6">
+                <h3 className="font-semibold text-lg mb-4">Quick Stats</h3>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600">Priority</span>
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <Star key={i} className={`w-4 h-4 ${i < (viewingArc.attributes.priority || 1) ? 'fill-orange-400 text-orange-400' : 'text-gray-300'}`} />
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600">Characters</span>
+                    <span className="font-medium">{viewingArc.attributes.character_ids?.length || 0}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600">Locations</span>
+                    <span className="font-medium">{viewingArc.attributes.location_ids?.length || 0}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600">Chapters</span>
+                    <span className="font-medium">{viewingArc.attributes.chapter_ids?.length || 0}</span>
+                  </div>
+                </div>
+              </Card>
+
+              {/* Characters */}
+              {viewingArc.attributes.character_ids && viewingArc.attributes.character_ids.length > 0 && (
+                <Card className="p-6">
+                  <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                    <Users className="w-5 h-5 text-blue-500" />
+                    Characters
+                  </h3>
+                  <div className="space-y-2">
+                    {viewingArc.attributes.character_ids.map((id, index) => {
+                      const character = characters.find(c => c.id === id)
+                      return (
+                        <div key={id} className="flex items-center gap-3 p-2 bg-blue-50 rounded-lg">
+                          <User className="w-4 h-4 text-blue-500" />
+                          <span className="text-sm font-medium text-blue-900">
+                            {character?.name || `Character ${index + 1}`}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </Card>
+              )}
+
+              {/* Locations */}
+              {viewingArc.attributes.location_ids && viewingArc.attributes.location_ids.length > 0 && (
+                <Card className="p-6">
+                  <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                    <MapPin className="w-5 h-5 text-green-500" />
+                    Locations
+                  </h3>
+                  <div className="space-y-2">
+                    {viewingArc.attributes.location_ids.map((id, index) => {
+                      const location = locations.find(l => l.id === id)
+                      return (
+                        <div key={id} className="flex items-center gap-3 p-2 bg-green-50 rounded-lg">
+                          <MapPin className="w-4 h-4 text-green-500" />
+                          <span className="text-sm font-medium text-green-900">
+                            {location?.name || `Location ${index + 1}`}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </Card>
+              )}
+
+              {/* Tags */}
+              {viewingArc.attributes.tags && viewingArc.attributes.tags.length > 0 && (
+                <Card className="p-6">
+                  <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                    <Tag className="w-5 h-5 text-amber-500" />
+                    Tags
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    {viewingArc.attributes.tags.map((tag, index) => (
+                      <Badge key={index} variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
+                </Card>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* Arcs Grid/List */
+        <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6' : 'space-y-3'}>
+        {filteredArcs.map((arc) => (
+          <Card 
+            key={arc.id} 
+            className={`hover:shadow-lg transition-all duration-200 border border-gray-200 bg-white/80 backdrop-blur-sm cursor-pointer ${
+              viewMode === 'list' 
+                ? 'hover:scale-[1.01] flex items-center p-4' 
+                : 'hover:scale-[1.02]'
+            }`}
+            onClick={() => setViewingArc(arc)}
+          >
+            {viewMode === 'list' ? (
+              /* Compact List View with Left/Right Layout and Consistent Columns */
+              <div className="flex items-center justify-between w-full py-2">
+                {/* Left Side - Arc Info */}
+                <div className="flex items-center gap-3 flex-1 min-w-0 mr-6">
+                  <div
+                    className="w-4 h-4 rounded-full shadow-sm flex-shrink-0"
+                    style={{ backgroundColor: arc.attributes.color || ARC_COLORS[0] }}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-semibold text-gray-900 truncate">{arc.name}</h3>
+                    <p className="text-sm text-gray-600 truncate">
+                      {arc.description}
+                    </p>
+                  </div>
+                </div>
+                
+                {/* Right Side - Consistent Columns */}
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  {/* Type Badge Column */}
+                  <div className="w-28 flex justify-start">
+                    {arc.attributes.type && (
+                      <Badge variant="secondary" className="text-xs bg-orange-50 text-orange-700 border-orange-200">
+                        {ARC_TYPES.find(t => t.value === arc.attributes.type)?.label || arc.attributes.type}
+                      </Badge>
+                    )}
+                  </div>
+                  
+                  {/* Status Badge Column */}
+                  <div className="w-20 flex justify-start">
+                    {arc.attributes.status && (
+                      <Badge 
+                        variant="outline" 
+                        className={`text-xs ${getStatusBadgeClass(arc.attributes.status)}`}
+                      >
+                        {ARC_STATUS.find(s => s.value === arc.attributes.status)?.label || arc.attributes.status}
+                      </Badge>
+                    )}
+                  </div>
+                  
+                  {/* Progress Column */}
+                  <div className="w-24 flex items-center gap-2">
+                    {arc.attributes.progress !== undefined && (
+                      <>
+                        <div className="w-14 h-2 bg-gray-200 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-orange-500 transition-all duration-300"
+                            style={{ width: `${arc.attributes.progress}%` }}
+                          />
+                        </div>
+                        <span className="text-xs text-gray-500 w-8 text-right">{arc.attributes.progress}%</span>
+                      </>
+                    )}
+                  </div>
+                  
+                  {/* Character Count Column */}
+                  <div className="w-8 flex justify-center">
+                    {arc.attributes.character_ids && arc.attributes.character_ids.length > 0 && (
+                      <span className="flex items-center gap-1 text-xs text-gray-500">
+                        <Users className="w-3 h-3" />
+                        {arc.attributes.character_ids.length}
+                      </span>
+                    )}
+                  </div>
+                  
+                  {/* Chapter Count Column */}
+                  <div className="w-8 flex justify-center">
+                    {arc.attributes.chapter_ids && arc.attributes.chapter_ids.length > 0 && (
+                      <span className="flex items-center gap-1 text-xs text-gray-500">
+                        <BookOpen className="w-3 h-3" />
+                        {arc.attributes.chapter_ids.length}
+                      </span>
+                    )}
+                  </div>
+                  
+                  {/* Action Buttons Column */}
+                  <div className="w-16 flex items-center justify-end gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleEdit(arc)
+                      }}
+                      className="hover:bg-orange-50 hover:text-orange-600 transition-colors p-1"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDelete(arc.id)
+                      }}
+                      className="hover:bg-red-50 hover:text-red-600 transition-colors p-1"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* Original Grid View */
+              <>
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="w-4 h-4 rounded-full shadow-sm"
+                        style={{ backgroundColor: arc.attributes.color || ARC_COLORS[0] }}
+                      />
+                      <div>
+                        <CardTitle className="text-lg text-gray-900">{arc.name}</CardTitle>
+                        <div className="flex items-center gap-2 mt-1">
+                          {arc.attributes.type && (
+                            <Badge variant="secondary" className="text-xs bg-orange-50 text-orange-700 border-orange-200">
+                              {ARC_TYPES.find(t => t.value === arc.attributes.type)?.label || arc.attributes.type}
+                            </Badge>
+                          )}
+                          {arc.attributes.status && (
+                            <Badge 
+                              variant="outline" 
+                              className={`text-xs ${getStatusBadgeClass(arc.attributes.status)}`}
+                            >
+                              {ARC_STATUS.find(s => s.value === arc.attributes.status)?.label || arc.attributes.status}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                     
-                    <div className="space-y-6">
-                      <div>
-                        <Label htmlFor="name" className="text-sm font-semibold text-gray-700 mb-2 block">Arc Name</Label>
-                        <Input
-                          id="name"
-                          value={formData.name}
-                          onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                          placeholder="Enter arc name..."
-                          className="border-gray-300 focus:border-amber-500 focus:ring-amber-500 text-base py-3"
-                        />
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleEdit(arc)
+                        }}
+                        className="hover:bg-orange-50 hover:text-orange-600 transition-colors"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleDelete(arc.id)
+                        }}
+                        className="hover:bg-red-50 hover:text-red-600 transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardHeader>
+                
+                <CardContent>
+                  <p className="text-sm text-gray-600 mb-4 line-clamp-2">
+                    {arc.description}
+                  </p>
+                  
+                  {arc.attributes.progress !== undefined && (
+                    <div className="mb-4">
+                      <div className="flex justify-between text-xs text-gray-500 mb-2">
+                        <span>Progress</span>
+                        <span>{arc.attributes.progress}%</span>
                       </div>
-
-                      <div>
-                        <Label htmlFor="type" className="text-sm font-semibold text-gray-700 mb-2 block">Arc Type</Label>
-                        <Select value={formData.type} onValueChange={(value) => 
-                          setFormData(prev => ({ ...prev, type: value }))
-                        }>
-                          <SelectTrigger className="border-gray-300 focus:border-amber-500 py-3 text-base">
-                            <SelectValue placeholder="Select type" />
-                          </SelectTrigger>
-                          <SelectContent className="bg-white border border-gray-200 shadow-xl">
-                            {ARC_TYPES.map(type => (
-                              <SelectItem key={type.value} value={type.value} className="hover:bg-amber-50 py-3">
-                                <div className="flex items-center gap-3">
-                                  <type.icon className="w-5 h-5" />
-                                  <span className="text-base">{type.label}</span>
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                      <Progress value={arc.attributes.progress} className="h-2" />
+                    </div>
+                  )}
+                  
+                  <div className="flex items-center justify-between text-xs text-gray-500">
+                    <div className="flex items-center gap-4">
+                      {arc.attributes.character_ids && arc.attributes.character_ids.length > 0 && (
+                        <span className="flex items-center gap-1">
+                          <Users className="w-3 h-3" />
+                          {arc.attributes.character_ids.length}
+                        </span>
+                      )}
+                      {arc.attributes.chapter_ids && arc.attributes.chapter_ids.length > 0 && (
+                        <span className="flex items-center gap-1">
+                          <BookOpen className="w-3 h-3" />
+                          {arc.attributes.chapter_ids.length}
+                        </span>
+                      )}
+                    </div>
+                    
+                    {arc.attributes.priority && (
+                      <div className="flex items-center gap-1">
+                        <Star className="w-3 h-3" />
+                        {arc.attributes.priority}
                       </div>
+                    )}
+                  </div>
+                </CardContent>
+              </>
+            )}
+          </Card>
+        ))}
+        </div>
+      )}
 
-                      <div>
-                        <Label htmlFor="description" className="text-sm font-semibold text-gray-700 mb-2 block">Description</Label>
-                        <Textarea
-                          id="description"
-                          value={formData.description}
-                          onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                          placeholder="Describe this arc..."
-                          rows={4}
-                          className="border-gray-300 focus:border-amber-500 focus:ring-amber-500 text-base resize-none"
-                        />
-                      </div>
+      {filteredArcs.length === 0 && !viewingArc && (
+        <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
+          <div className="p-4 bg-orange-50 rounded-full w-24 h-24 mx-auto mb-6 flex items-center justify-center">
+            <Target className="w-12 h-12 text-orange-500" />
+          </div>
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">No arcs found</h3>
+          <p className="text-gray-600 mb-6 max-w-md mx-auto">
+            {searchQuery || filterType || filterStatus 
+              ? 'Try adjusting your search or filters to find the arcs you\'re looking for.'
+              : 'Get started by creating your first story arc to organize your narrative structure.'
+            }
+          </p>
+          {!searchQuery && !filterType && !filterStatus && (
+            <Button
+              onClick={() => {
+                resetForm()
+                setEditingArc(null)
+                setShowCreateDialog(true)
+              }}
+              className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-200 border-0"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Create Your First Arc
+            </Button>
+          )}
+        </div>
+      )}
 
-                      {/* Parent Arc Selection */}
-                      <div>
-                        <Label htmlFor="parent_arc" className="text-sm font-semibold text-gray-700 mb-2 block">Parent Arc</Label>
-                        <p className="text-xs text-gray-500 mb-3">Create a sub-arc under another arc</p>
-                        <Select 
-                          value={formData.parent_arc_id} 
-                          onValueChange={(value) => 
-                            setFormData(prev => ({ ...prev, parent_arc_id: value }))
-                          }
-                        >
-                          <SelectTrigger className="border-gray-300 focus:border-amber-500 py-3 text-base">
-                            <SelectValue placeholder="Select parent arc (optional)" />
-                          </SelectTrigger>
-                          <SelectContent className="bg-white border border-gray-200 shadow-xl">
-                            <SelectItem value="none" className="hover:bg-amber-50 py-3">
-                              <span className="text-base">None (Main Arc)</span>
-                            </SelectItem>
-                            {arcs.filter(arc => !arc.attributes?.parent_arc_id && arc.id !== editingArc?.id).map(arc => (
-                              <SelectItem key={arc.id} value={arc.id} className="hover:bg-amber-50 py-3">
-                                <span className="text-base">{arc.name}</span>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+      {/* Create/Edit Dialog */}
+      <Dialog open={showCreateDialog} onOpenChange={(open) => {
+        setShowCreateDialog(open)
+        if (!open) {
+          setEditingArc(null)
+          resetForm()
+        }
+      }}>
+        <DialogContent className="!w-[95vw] !max-w-[1400px] !h-[90vh] overflow-hidden bg-gradient-to-br from-white to-orange-50 border-0 shadow-2xl flex flex-col">
+          <DialogHeader className="border-b border-orange-100 pb-6 bg-gradient-to-r from-orange-50 to-amber-50 -m-6 mb-0 p-6 rounded-t-lg flex-shrink-0">
+            <DialogTitle className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+              <div className="p-2 bg-orange-100 rounded-lg">
+                <Target className="w-6 h-6 text-orange-600" />
+              </div>
+              <span className="bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">
+                {editingArc ? 'Edit Arc' : 'Create New Arc'}
+              </span>
+            </DialogTitle>
+            <DialogDescription className="text-gray-600 mt-2">
+              {editingArc ? 'Modify the arc details and structure below.' : 'Create a comprehensive story arc with advanced narrative features.'}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <Tabs defaultValue="basic" className="flex-1 flex flex-col min-h-0 mt-6">
+            <TabsList className="grid w-full grid-cols-6 mb-6 bg-white/80 backdrop-blur-sm border border-orange-200 rounded-lg shadow-sm flex-shrink-0">
+              <TabsTrigger value="basic" className="text-xs font-medium data-[state=active]:bg-orange-500 data-[state=active]:text-white transition-all">Basic Info</TabsTrigger>
+              <TabsTrigger value="dependencies" className="text-xs font-medium data-[state=active]:bg-orange-500 data-[state=active]:text-white transition-all">Dependencies</TabsTrigger>
+              <TabsTrigger value="characters" className="text-xs font-medium data-[state=active]:bg-orange-500 data-[state=active]:text-white transition-all">Characters</TabsTrigger>
+              <TabsTrigger value="chapters" className="text-xs font-medium data-[state=active]:bg-orange-500 data-[state=active]:text-white transition-all">Chapters</TabsTrigger>
+              <TabsTrigger value="pacing" className="text-xs font-medium data-[state=active]:bg-orange-500 data-[state=active]:text-white transition-all">Pacing</TabsTrigger>
+              <TabsTrigger value="advanced" className="text-xs font-medium data-[state=active]:bg-orange-500 data-[state=active]:text-white transition-all">Advanced</TabsTrigger>
+            </TabsList>
 
-                      {/* Color Picker */}
-                      <div>
-                        <Label className="text-sm font-semibold text-gray-700 mb-2 block">Arc Color</Label>
-                        <p className="text-xs text-gray-500 mb-4">Choose a color for visual organization</p>
-                        <div className="flex flex-wrap gap-4 p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
-                          {ARC_COLORS.map(color => (
-                            <button
-                              key={color}
-                              type="button"
-                              onClick={() => setFormData(prev => ({ ...prev, color }))}
-                              className={`w-12 h-12 rounded-full border-4 transition-all hover:scale-110 shadow-md ${
-                                formData.color === color 
-                                  ? 'border-gray-900 shadow-xl scale-110' 
-                                  : 'border-gray-300 hover:border-gray-400'
-                              }`}
-                              style={{ backgroundColor: color }}
-                              title={`Select ${color}`}
-                            />
-                          ))}
+            <div className="flex-1 overflow-y-auto bg-white/50 backdrop-blur-sm rounded-lg p-6 min-h-0">
+              <TabsContent value="basic" className="space-y-6 mt-0 h-full">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  {/* Left Column - Basic Information */}
+                  <div className="space-y-6">
+                    <div className="p-6 bg-white rounded-xl border border-gray-200 shadow-sm">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        <Edit3 className="w-5 h-5 text-orange-500" />
+                        Basic Information
+                      </h3>
+                      
+                      <div className="space-y-4">
+                        <div>
+                          <Label htmlFor="name" className="text-sm font-medium mb-2 block text-gray-700">Arc Name</Label>
+                          <Input
+                            id="name"
+                            value={formData.name}
+                            onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                            placeholder="Enter arc name..."
+                            className="h-11 border-gray-300 focus:border-orange-500 focus:ring-orange-500"
+                          />
+                        </div>
+
+                        <div>
+                          <Label htmlFor="type" className="text-sm font-medium mb-2 block text-gray-700">Arc Type</Label>
+                          <Select value={formData.type} onValueChange={(value) => 
+                            setFormData(prev => ({ ...prev, type: value }))
+                          }>
+                            <SelectTrigger className="h-11 border-gray-300 focus:border-orange-500">
+                              <SelectValue placeholder="Select type" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-white border border-gray-200 shadow-lg">
+                              {ARC_TYPES.map(type => (
+                                <SelectItem key={type.value} value={type.value}>
+                                  <div className="flex items-center gap-2">
+                                    <type.icon className="w-4 h-4" />
+                                    <span>{type.label}</span>
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div>
+                          <Label htmlFor="description" className="text-sm font-medium mb-2 block text-gray-700">Description</Label>
+                          <Textarea
+                            id="description"
+                            value={formData.description}
+                            onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                            placeholder="Describe this arc..."
+                            rows={4}
+                            className="resize-none border-gray-300 focus:border-orange-500 focus:ring-orange-500"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label className="text-sm font-medium mb-2 block text-gray-700">Status</Label>
+                            <Select value={formData.status} onValueChange={(value) => 
+                              setFormData(prev => ({ ...prev, status: value }))
+                            }>
+                              <SelectTrigger className="h-11 border-gray-300 focus:border-orange-500">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent className="bg-white border border-gray-200 shadow-lg">
+                                {ARC_STATUS.map(status => (
+                                  <SelectItem key={status.value} value={status.value}>
+                                    {status.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div>
+                            <Label className="text-sm font-medium mb-2 block text-gray-700">Priority</Label>
+                            <Select value={formData.priority.toString()} onValueChange={(value) => 
+                              setFormData(prev => ({ ...prev, priority: parseInt(value) }))
+                            }>
+                              <SelectTrigger className="h-11 border-gray-300 focus:border-orange-500">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent className="bg-white border border-gray-200 shadow-lg">
+                                {[1, 2, 3, 4, 5].map(num => (
+                                  <SelectItem key={num} value={num.toString()}>
+                                    Priority {num}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Middle Column - Status & Progress */}
-                <div className="xl:col-span-1 space-y-6">
-                  <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-6 border border-blue-200 shadow-sm">
-                    <h3 className="font-bold text-xl text-gray-900 mb-6 flex items-center gap-3">
-                      <TrendingUp className="w-6 h-6 text-blue-500" />
-                      Status & Progress
-                    </h3>
+                  {/* Right Column - Template & Color */}
+                  <div className="space-y-6">
+                    <div className="p-6 bg-white rounded-xl border border-gray-200 shadow-sm">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        <Palette className="w-5 h-5 text-orange-500" />
+                        Visual & Structure
+                      </h3>
+                      
+                      <div className="space-y-4">
+                        <div>
+                          <Label className="text-sm font-medium mb-2 block text-gray-700">Story Template</Label>
+                          <Select 
+                            value={formData.template.type} 
+                            onValueChange={(value) => 
+                              setFormData(prev => ({ 
+                                ...prev, 
+                                template: { ...prev.template, type: value }
+                              }))
+                            }
+                          >
+                            <SelectTrigger className="h-11 border-gray-300 focus:border-orange-500">
+                              <SelectValue placeholder="Select template" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-white border border-gray-200 shadow-lg">
+                              {STORY_TEMPLATES.map(template => (
+                                <SelectItem key={template.value} value={template.value}>
+                                  <div>
+                                    <div className="font-medium">{template.label}</div>
+                                    <div className="text-xs text-gray-500">{template.description}</div>
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
 
-                    <div className="space-y-6">
-                      <div>
-                        <Label htmlFor="status" className="text-sm font-semibold text-gray-700 mb-2 block">Status</Label>
-                        <Select value={formData.status} onValueChange={(value) => 
-                          setFormData(prev => ({ ...prev, status: value }))
-                        }>
-                          <SelectTrigger className="border-gray-300 focus:border-blue-500 py-3 text-base">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="bg-white border border-gray-200 shadow-xl">
-                            {ARC_STATUS.map(status => (
-                              <SelectItem key={status.value} value={status.value} className="hover:bg-blue-50 py-3">
-                                <div className="flex items-center gap-3">
-                                  <div className={`w-4 h-4 rounded-full bg-${status.color}-500`}></div>
-                                  <span className="text-base">{status.label}</span>
-                                </div>
-                              </SelectItem>
+                        <div>
+                          <Label className="text-sm font-medium mb-2 block text-gray-700">Arc Color</Label>
+                          <div className="flex flex-wrap gap-2 p-4 bg-gray-50 rounded-lg border border-gray-300">
+                            {ARC_COLORS.map(color => (
+                              <button
+                                key={color}
+                                type="button"
+                                onClick={() => setFormData(prev => ({ ...prev, color }))}
+                                className={`w-10 h-10 rounded-lg border-2 transition-all hover:scale-110 shadow-sm ${
+                                  formData.color === color 
+                                    ? 'border-orange-400 scale-110 shadow-md' 
+                                    : 'border-gray-300 hover:border-gray-400'
+                                }`}
+                                style={{ backgroundColor: color }}
+                              />
                             ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div>
-                        <Label htmlFor="priority" className="text-sm font-semibold text-gray-700 mb-2 block">Priority</Label>
-                        <div className="bg-white rounded-xl p-4 border border-gray-200">
-                          <Input
-                            id="priority"
-                            type="range"
-                            min="1"
-                            max="5"
-                            value={formData.priority}
-                            onChange={(e) => setFormData(prev => ({ ...prev, priority: parseInt(e.target.value) }))}
-                            className="w-full h-3"
-                          />
-                          <div className="flex justify-between text-sm text-gray-500 mt-3">
-                            <span className="font-medium">Low</span>
-                            <span className="font-bold text-blue-600 text-lg">{formData.priority}/5</span>
-                            <span className="font-medium">High</span>
                           </div>
                         </div>
-                      </div>
 
-                      <div>
-                        <Label htmlFor="progress" className="text-sm font-semibold text-gray-700 mb-2 block">Progress</Label>
-                        <div className="bg-white rounded-xl p-4 border border-gray-200">
+                        <div>
+                          <Label className="text-sm font-medium mb-2 block text-gray-700">Progress: {formData.progress}%</Label>
                           <Input
-                            id="progress"
                             type="range"
                             min="0"
                             max="100"
                             value={formData.progress}
                             onChange={(e) => setFormData(prev => ({ ...prev, progress: parseInt(e.target.value) }))}
-                            className="w-full h-3"
+                            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                           />
-                          <div className="flex justify-between text-sm text-gray-500 mt-3 mb-3">
-                            <span className="font-medium">0%</span>
-                            <span className="font-bold text-blue-600 text-lg">{formData.progress}%</span>
-                            <span className="font-medium">100%</span>
+                          <Progress value={formData.progress} className="mt-3 h-3 bg-gray-200" />
+                        </div>
+
+                        <div>
+                          <Label className="text-sm font-medium mb-2 block text-gray-700">Notes</Label>
+                          <Textarea
+                            value={formData.notes}
+                            onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+                            placeholder="Additional notes..."
+                            rows={4}
+                            className="resize-none border-gray-300 focus:border-orange-500 focus:ring-orange-500"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="dependencies" className="space-y-6">
+                <div className="p-6 bg-white rounded-xl border border-gray-200 shadow-sm">
+                  <h3 className="font-bold text-xl text-gray-900 mb-6 flex items-center gap-3">
+                    <div className="p-2 bg-purple-100 rounded-lg">
+                      <GitBranch className="w-6 h-6 text-purple-600" />
+                    </div>
+                    <span className="bg-gradient-to-r from-purple-600 to-violet-600 bg-clip-text text-transparent">
+                      Arc Dependencies
+                    </span>
+                  </h3>
+                  
+                  <div className="space-y-4">
+                    <div className="flex gap-4">
+                      <Select onValueChange={(arcId) => {
+                        const newDep = {
+                          arc_id: arcId,
+                          relationship_type: 'prerequisite',
+                          strength: 1,
+                          description: ''
+                        }
+                        setFormData(prev => ({
+                          ...prev,
+                          dependencies: [...prev.dependencies, newDep]
+                        }))
+                      }}>
+                        <SelectTrigger className="flex-1 border-gray-300 focus:border-orange-500">
+                          <SelectValue placeholder="Select arc to add dependency..." />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white border border-gray-200 shadow-lg">
+                          {arcs.filter(arc => arc.id !== editingArc?.id && !formData.dependencies.some(dep => dep.arc_id === arc.id)).map(arc => (
+                            <SelectItem key={arc.id} value={arc.id}>{arc.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {formData.dependencies.map((dep, index) => {
+                      const arc = arcs.find(a => a.id === dep.arc_id)
+                      return (
+                        <Card key={index} className="p-4 bg-gradient-to-r from-gray-50 to-purple-50 border border-purple-200">
+                          <div className="flex items-center justify-between mb-3">
+                            <h4 className="font-semibold text-gray-900">{arc?.name || 'Unknown Arc'}</h4>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setFormData(prev => ({
+                                ...prev,
+                                dependencies: prev.dependencies.filter((_, i) => i !== index)
+                              }))}
+                              className="hover:bg-red-50 hover:text-red-600"
+                            >
+                              <X className="w-4 h-4" />
+                            </Button>
                           </div>
-                          <Progress value={formData.progress} className="h-3" />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <Label htmlFor="start_chapter" className="text-sm font-semibold text-gray-700 mb-2 block">Start Chapter</Label>
-                          <Input
-                            id="start_chapter"
-                            value={formData.start_chapter}
-                            onChange={(e) => setFormData(prev => ({ ...prev, start_chapter: e.target.value }))}
-                            placeholder="e.g., 1"
-                            className="border-gray-300 focus:border-blue-500 text-base py-3"
+                          <div className="grid grid-cols-2 gap-4">
+                            <Select 
+                              value={dep.relationship_type} 
+                              onValueChange={(value) => {
+                                const updated = [...formData.dependencies]
+                                updated[index].relationship_type = value
+                                setFormData(prev => ({ ...prev, dependencies: updated }))
+                              }}
+                            >
+                              <SelectTrigger className="border-gray-300 focus:border-orange-500">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent className="bg-white border border-gray-200 shadow-lg">
+                                {RELATIONSHIP_TYPES.map(rel => (
+                                  <SelectItem key={rel.value} value={rel.value}>
+                                    <div className="flex items-center gap-2">
+                                      <div className={`w-3 h-3 rounded-full bg-${rel.color}-500`}></div>
+                                      {rel.label}
+                                    </div>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <div>
+                              <Label className="text-sm text-gray-700">Strength: {dep.strength}</Label>
+                              <Input
+                                type="range"
+                                min="1"
+                                max="5"
+                                value={dep.strength}
+                                onChange={(e) => {
+                                  const updated = [...formData.dependencies]
+                                  updated[index].strength = parseInt(e.target.value)
+                                  setFormData(prev => ({ ...prev, dependencies: updated }))
+                                }}
+                                className="mt-1"
+                              />
+                            </div>
+                          </div>
+                          <Textarea
+                            placeholder="Describe the relationship..."
+                            value={dep.description || ''}
+                            onChange={(e) => {
+                              const updated = [...formData.dependencies]
+                              updated[index].description = e.target.value
+                              setFormData(prev => ({ ...prev, dependencies: updated }))
+                            }}
+                            className="mt-3 border-gray-300 focus:border-orange-500"
+                            rows={2}
                           />
-                        </div>
-                        <div>
-                          <Label htmlFor="end_chapter" className="text-sm font-semibold text-gray-700 mb-2 block">End Chapter</Label>
-                          <Input
-                            id="end_chapter"
-                            value={formData.end_chapter}
-                            onChange={(e) => setFormData(prev => ({ ...prev, end_chapter: e.target.value }))}
-                            placeholder="e.g., 10"
-                            className="border-gray-300 focus:border-blue-500 text-base py-3"
-                          />
-                        </div>
-                      </div>
+                        </Card>
+                      )
+                    })}
+                  </div>
+                </div>
+              </TabsContent>
 
-                      {/* Tags */}
-                      <div>
-                        <Label className="text-sm font-semibold text-gray-700 mb-2 block">Tags</Label>
-                        <p className="text-xs text-gray-500 mb-3">Separate tags with commas</p>
-                        <Input
-                          placeholder="adventure, mystery, romance..."
-                          value={formData.tags.join(', ')}
-                          onChange={(e) => setFormData(prev => ({ 
-                            ...prev, 
-                            tags: e.target.value.split(',').map(tag => tag.trim()).filter(Boolean)
-                          }))}
-                          className="border-gray-300 focus:border-blue-500 text-base py-3"
-                        />
-                        {formData.tags.length > 0 && (
-                          <div className="flex flex-wrap gap-2 mt-4 p-3 bg-white rounded-xl border border-gray-200">
-                            {formData.tags.map(tag => (
-                              <Badge key={tag} variant="secondary" className="bg-blue-100 text-blue-700 px-3 py-1">
-                                <Tag className="w-3 h-3 mr-1" />
-                                {tag}
-                              </Badge>
+              <TabsContent value="characters" className="space-y-6">
+                <div className="p-6 bg-white rounded-xl border border-gray-200 shadow-sm">
+                  <h3 className="font-bold text-xl text-gray-900 mb-6 flex items-center gap-3">
+                    <div className="p-2 bg-blue-100 rounded-lg">
+                      <Users className="w-6 h-6 text-blue-600" />
+                    </div>
+                    <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                      Character Development
+                    </span>
+                  </h3>
+                  
+                  <div className="space-y-4">
+                    <div className="flex gap-4">
+                      <Select onValueChange={(characterId) => {
+                        const character = characters.find(c => c.id === characterId)
+                        if (character) {
+                          const newDev = {
+                            character_id: characterId,
+                            character_name: character.name,
+                            growth_arc: '',
+                            starting_state: '',
+                            ending_state: '',
+                            key_moments: [],
+                            screen_time_percentage: 0
+                          }
+                          setFormData(prev => ({
+                            ...prev,
+                            character_development: [...prev.character_development, newDev]
+                          }))
+                        }
+                      }}>
+                        <SelectTrigger className="flex-1 border-gray-300 focus:border-orange-500">
+                          <SelectValue placeholder="Add character to this arc..." />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white border border-gray-200 shadow-lg">
+                          {characters.filter(char => !formData.character_development.some(dev => dev.character_id === char.id)).map(character => (
+                            <SelectItem key={character.id} value={character.id}>{character.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {formData.character_development.map((dev, index) => (
+                      <Card key={index} className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200">
+                        <div className="flex items-center justify-between mb-4">
+                          <h4 className="font-semibold text-lg text-gray-900">{dev.character_name}</h4>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setFormData(prev => ({
+                              ...prev,
+                              character_development: prev.character_development.filter((_, i) => i !== index)
+                            }))}
+                            className="hover:bg-red-50 hover:text-red-600"
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                          <div>
+                            <Label className="text-sm font-medium mb-2 block">Growth Arc Type</Label>
+                            <Input
+                              placeholder="e.g., Hero's Journey, Fall from Grace..."
+                              value={dev.growth_arc}
+                              onChange={(e) => {
+                                const updated = [...formData.character_development]
+                                updated[index].growth_arc = e.target.value
+                                setFormData(prev => ({ ...prev, character_development: updated }))
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium mb-2 block">Screen Time: {dev.screen_time_percentage}%</Label>
+                            <Input
+                              type="range"
+                              min="0"
+                              max="100"
+                              value={dev.screen_time_percentage}
+                              onChange={(e) => {
+                                const updated = [...formData.character_development]
+                                updated[index].screen_time_percentage = parseInt(e.target.value)
+                                setFormData(prev => ({ ...prev, character_development: updated }))
+                              }}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <Label className="text-sm font-medium mb-2 block">Starting State</Label>
+                            <Textarea
+                              placeholder="How does this character begin this arc?"
+                              value={dev.starting_state}
+                              onChange={(e) => {
+                                const updated = [...formData.character_development]
+                                updated[index].starting_state = e.target.value
+                                setFormData(prev => ({ ...prev, character_development: updated }))
+                              }}
+                              rows={3}
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium mb-2 block">Ending State</Label>
+                            <Textarea
+                              placeholder="How does this character end this arc?"
+                              value={dev.ending_state}
+                              onChange={(e) => {
+                                const updated = [...formData.character_development]
+                                updated[index].ending_state = e.target.value
+                                setFormData(prev => ({ ...prev, character_development: updated }))
+                              }}
+                              rows={3}
+                            />
+                          </div>
+                        </div>
+                      </Card>
+                    ))}
+
+                    {formData.character_development.length === 0 && (
+                      <div className="text-center py-12 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border-2 border-dashed border-blue-200">
+                        <div className="p-4 bg-blue-100 rounded-full w-20 h-20 mx-auto mb-4 flex items-center justify-center">
+                          <Users className="w-10 h-10 text-blue-500" />
+                        </div>
+                        <p className="text-gray-700 font-medium mb-2">No characters assigned to this arc yet.</p>
+                        <p className="text-sm text-gray-600">Add characters to track their development through this story arc.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="chapters" className="space-y-6">
+                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-6 border border-green-200 shadow-sm">
+                  <div className="space-y-6">
+                    {/* Existing Chapters Section */}
+                    <Card className="p-4 bg-white/80">
+                      <h4 className="font-semibold mb-4 flex items-center gap-2">
+                        <BookOpen className="w-5 h-5 text-green-600" />
+                        Chapter Integration
+                      </h4>
+                      
+                      {chapters.length > 0 ? (
+                        <div className="space-y-3">
+                          <p className="text-sm text-gray-600 mb-4">
+                            Select which chapters this arc spans across:
+                          </p>
+                          
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 max-h-60 overflow-y-auto">
+                            {chapters.map((chapter) => (
+                              <label key={chapter.id} className="flex items-start space-x-2 p-2 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={formData.chapter_ids?.includes(chapter.id) || false}
+                                  onChange={(e) => {
+                                    const isChecked = e.target.checked
+                                    setFormData(prev => ({
+                                      ...prev,
+                                      chapter_ids: isChecked
+                                        ? [...(prev.chapter_ids || []), chapter.id]
+                                        : (prev.chapter_ids || []).filter((id: string) => id !== chapter.id)
+                                    }))
+                                  }}
+                                  className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500 focus:ring-2 mt-0.5 flex-shrink-0"
+                                />
+                                <div className="flex-1 min-w-0 overflow-hidden">
+                                  <div className="font-medium text-gray-900 text-xs leading-tight truncate">
+                                    {chapter.chapter_number ? `Ch ${chapter.chapter_number}` : 'Ch'}: {stripHtmlTags(chapter.title) || 'Untitled'}
+                                  </div>
+                                  {chapter.content && (
+                                    <div className="text-xs text-gray-500 mt-0.5 overflow-hidden" style={{
+                                      display: '-webkit-box',
+                                      WebkitLineClamp: 1,
+                                      WebkitBoxOrient: 'vertical'
+                                    }}>
+                                      {stripHtmlTags(chapter.content).substring(0, 40)}...
+                                    </div>
+                                  )}
+                                </div>
+                              </label>
                             ))}
+                          </div>
+                          
+                          {formData.chapter_ids && formData.chapter_ids.length > 0 && (
+                            <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                              <p className="text-sm font-medium text-green-800">
+                                Arc spans {formData.chapter_ids.length} chapter(s)
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="text-center py-8">
+                          <BookOpen className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                          <p className="text-gray-700 font-medium mb-2">No chapters found in this project.</p>
+                          <p className="text-sm text-gray-600">Create chapters first to assign this arc to them.</p>
+                        </div>
+                      )}
+                    </Card>
+
+                    {/* Chapter Breakdown */}
+                    <div>
+                      <div className="flex justify-between items-center mb-4">
+                        <h4 className="font-semibold flex items-center gap-2">
+                          <Layers className="w-5 h-5 text-green-600" />
+                          Chapter Breakdown
+                        </h4>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const newChapter = {
+                              chapter_id: `temp-${Date.now()}`,
+                              chapter_name: `Chapter ${formData.chapter_breakdown.length + 1}`,
+                              chapter_order: formData.chapter_breakdown.length + 1,
+                              arc_prominence: 5,
+                              key_events: [],
+                              setup_elements: [],
+                              payoff_elements: [],
+                              scenes: []
+                            }
+                            setFormData(prev => ({
+                              ...prev,
+                              chapter_breakdown: [...prev.chapter_breakdown, newChapter]
+                            }))
+                          }}
+                        >
+                          <Plus className="w-4 h-4 mr-2" />
+                          Add Chapter
+                        </Button>
+                      </div>
+
+                      <div className="space-y-4">
+                        {formData.chapter_breakdown.map((chapter, index) => (
+                          <Card key={index} className="p-4">
+                            <div className="flex items-center justify-between mb-4">
+                              <div className="flex items-center gap-3">
+                                <Input
+                                  value={chapter.chapter_name}
+                                  onChange={(e) => {
+                                    const updated = [...formData.chapter_breakdown]
+                                    updated[index].chapter_name = e.target.value
+                                    setFormData(prev => ({ ...prev, chapter_breakdown: updated }))
+                                  }}
+                                  className="font-semibold text-lg w-64"
+                                />
+                                <Badge variant="secondary">Order: {chapter.chapter_order}</Badge>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setFormData(prev => ({
+                                  ...prev,
+                                  chapter_breakdown: prev.chapter_breakdown.filter((_, i) => i !== index)
+                                }))}
+                              >
+                                <X className="w-4 h-4" />
+                              </Button>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <Label className="text-sm font-medium mb-2 block">Arc Prominence: {chapter.arc_prominence}/10</Label>
+                                <Input
+                                  type="range"
+                                  min="1"
+                                  max="10"
+                                  value={chapter.arc_prominence}
+                                  onChange={(e) => {
+                                    const updated = [...formData.chapter_breakdown]
+                                    updated[index].arc_prominence = parseInt(e.target.value)
+                                    setFormData(prev => ({ ...prev, chapter_breakdown: updated }))
+                                  }}
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-sm font-medium mb-2 block">Chapter Order</Label>
+                                <Input
+                                  type="number"
+                                  min="1"
+                                  value={chapter.chapter_order}
+                                  onChange={(e) => {
+                                    const updated = [...formData.chapter_breakdown]
+                                    updated[index].chapter_order = parseInt(e.target.value) || 1
+                                    setFormData(prev => ({ ...prev, chapter_breakdown: updated }))
+                                  }}
+                                />
+                              </div>
+                            </div>
+
+                            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <div>
+                                <Label className="text-sm font-medium mb-2 block">Key Events</Label>
+                                <Textarea
+                                  placeholder="Major plot points in this chapter..."
+                                  value={chapter.key_events.join('\n')}
+                                  onChange={(e) => {
+                                    const updated = [...formData.chapter_breakdown]
+                                    updated[index].key_events = e.target.value.split('\n').filter(item => item.trim())
+                                    setFormData(prev => ({ ...prev, chapter_breakdown: updated }))
+                                  }}
+                                  rows={3}
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-sm font-medium mb-2 block">Setup Elements</Label>
+                                <Textarea
+                                  placeholder="What gets set up for later..."
+                                  value={chapter.setup_elements.join('\n')}
+                                  onChange={(e) => {
+                                    const updated = [...formData.chapter_breakdown]
+                                    updated[index].setup_elements = e.target.value.split('\n').filter(item => item.trim())
+                                    setFormData(prev => ({ ...prev, chapter_breakdown: updated }))
+                                  }}
+                                  rows={3}
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-sm font-medium mb-2 block">Payoff Elements</Label>
+                                <Textarea
+                                  placeholder="What gets resolved or revealed..."
+                                  value={chapter.payoff_elements.join('\n')}
+                                  onChange={(e) => {
+                                    const updated = [...formData.chapter_breakdown]
+                                    updated[index].payoff_elements = e.target.value.split('\n').filter(item => item.trim())
+                                    setFormData(prev => ({ ...prev, chapter_breakdown: updated }))
+                                  }}
+                                  rows={3}
+                                />
+                              </div>
+                            </div>
+                          </Card>
+                        ))}
+
+                        {formData.chapter_breakdown.length === 0 && (
+                          <div className="text-center py-8 text-gray-500">
+                            <BookOpen className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                            <p>No chapters defined for this arc yet.</p>
+                            <p className="text-sm">Add chapters to plan how this arc unfolds through your story.</p>
                           </div>
                         )}
                       </div>
                     </div>
                   </div>
                 </div>
+              </TabsContent>
 
-                {/* Right Column - Connections */}
-                <div className="xl:col-span-1 space-y-6">
-                  <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-6 border border-green-200 shadow-sm">
-                    <h3 className="font-bold text-xl text-gray-900 mb-6 flex items-center gap-3">
-                      <Link className="w-6 h-6 text-green-500" />
-                      Connections
-                    </h3>
-
-                    <div className="space-y-6">
-                      {/* Character Selection */}
-                      <div>
-                        <Label className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                          <User className="w-5 h-5" />
-                          Characters
-                        </Label>
-                        <div className="max-h-32 overflow-y-auto bg-white border border-gray-300 rounded-xl p-4 shadow-sm">
-                          {characters.length === 0 ? (
-                            <p className="text-sm text-gray-500 italic text-center py-4">No characters available</p>
-                          ) : (
-                            <div className="space-y-2">
-                              {characters.map(character => (
-                                <label key={character.id} className="flex items-center space-x-3 text-sm hover:bg-green-50 p-2 rounded-lg cursor-pointer transition-colors">
-                                  <input
-                                    type="checkbox"
-                                    checked={formData.character_ids.includes(character.id)}
-                                    onChange={(e) => {
-                                      if (e.target.checked) {
-                                        setFormData(prev => ({ 
-                                          ...prev, 
-                                          character_ids: [...prev.character_ids, character.id] 
-                                        }))
-                                      } else {
-                                        setFormData(prev => ({ 
-                                          ...prev, 
-                                          character_ids: prev.character_ids.filter(id => id !== character.id) 
-                                        }))
-                                      }
-                                    }}
-                                    className="rounded border-gray-300 text-green-600 focus:ring-green-500 w-4 h-4"
-                                  />
-                                  <span className="font-medium">{character.name}</span>
-                                </label>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Location Selection */}
-                      <div>
-                        <Label className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                          <MapPin className="w-5 h-5" />
-                          Locations
-                        </Label>
-                        <div className="max-h-28 overflow-y-auto bg-white border border-gray-300 rounded-xl p-4 shadow-sm">
-                          {locations.length === 0 ? (
-                            <p className="text-sm text-gray-500 italic text-center py-4">No locations available</p>
-                          ) : (
-                            <div className="space-y-2">
-                              {locations.map(location => (
-                                <label key={location.id} className="flex items-center space-x-3 text-sm hover:bg-green-50 p-2 rounded-lg cursor-pointer transition-colors">
-                                  <input
-                                    type="checkbox"
-                                    checked={formData.location_ids.includes(location.id)}
-                                    onChange={(e) => {
-                                      if (e.target.checked) {
-                                        setFormData(prev => ({ 
-                                          ...prev, 
-                                          location_ids: [...prev.location_ids, location.id] 
-                                        }))
-                                      } else {
-                                        setFormData(prev => ({ 
-                                          ...prev, 
-                                          location_ids: prev.location_ids.filter(id => id !== location.id) 
-                                        }))
-                                      }
-                                    }}
-                                    className="rounded border-gray-300 text-green-600 focus:ring-green-500 w-4 h-4"
-                                  />
-                                  <span className="font-medium">{location.name}</span>
-                                </label>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Chapter Selection */}
-                      <div>
-                        <Label className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                          <BookOpen className="w-5 h-5" />
-                          Chapters
-                        </Label>
-                        <div className="max-h-28 overflow-y-auto bg-white border border-gray-300 rounded-xl p-4 shadow-sm">
-                          {chapters.length === 0 ? (
-                            <p className="text-sm text-gray-500 italic text-center py-4">No chapters available</p>
-                          ) : (
-                            <div className="space-y-2">
-                              {chapters.map(chapter => (
-                                <label key={chapter.id} className="flex items-center space-x-3 text-sm hover:bg-green-50 p-2 rounded-lg cursor-pointer transition-colors">
-                                  <input
-                                    type="checkbox"
-                                    checked={formData.chapter_ids.includes(chapter.id)}
-                                    onChange={(e) => {
-                                      if (e.target.checked) {
-                                        setFormData(prev => ({ 
-                                          ...prev, 
-                                          chapter_ids: [...prev.chapter_ids, chapter.id] 
-                                        }))
-                                      } else {
-                                        setFormData(prev => ({ 
-                                          ...prev, 
-                                          chapter_ids: prev.chapter_ids.filter(id => id !== chapter.id) 
-                                        }))
-                                      }
-                                    }}
-                                    className="rounded border-gray-300 text-green-600 focus:ring-green-500 w-4 h-4"
-                                  />
-                                  <span className="font-medium">{chapter.name}</span>
-                                </label>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Themes & Notes Section - Full Width */}
-              <div className="mt-10 bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-8 border border-purple-200 shadow-sm">
-                <h3 className="font-bold text-2xl text-gray-900 mb-8 flex items-center gap-3">
-                  <Heart className="w-7 h-7 text-purple-500" />
-                  Themes & Additional Information
-                </h3>
-                
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                  <div>
-                    <Label className="text-lg font-bold text-gray-700 mb-4 block">Themes</Label>
-                    <p className="text-sm text-gray-500 mb-6">Select themes that appear in this arc</p>
-                    <div className="max-h-48 overflow-y-auto bg-white border border-gray-300 rounded-xl p-6 shadow-sm">
-                      <div className="grid grid-cols-2 gap-4">
-                        {COMMON_THEMES.map(theme => (
-                          <label key={theme} className="flex items-center space-x-3 text-sm hover:bg-purple-50 p-3 rounded-lg cursor-pointer transition-colors">
-                            <input
-                              type="checkbox"
-                              checked={formData.themes.includes(theme)}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setFormData(prev => ({ 
-                                    ...prev, 
-                                    themes: [...prev.themes, theme] 
-                                  }))
-                                } else {
-                                  setFormData(prev => ({ 
-                                    ...prev, 
-                                    themes: prev.themes.filter(t => t !== theme) 
-                                  }))
+              <TabsContent value="pacing" className="space-y-6">
+                <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-6 border border-orange-200 shadow-sm">
+                  <h3 className="font-bold text-xl text-gray-900 mb-6 flex items-center gap-3">
+                    <Activity className="w-6 h-6 text-orange-500" />
+                    Pacing & Structure
+                  </h3>
+                  
+                  <div className="space-y-6">
+                    {/* Story Structure Template Beats */}
+                    <Card className="p-4 bg-white/80">
+                      <h4 className="font-semibold mb-4 flex items-center gap-2">
+                        <BarChart3 className="w-5 h-5 text-orange-600" />
+                        Story Structure Beats ({formData.template.type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())})
+                      </h4>
+                      
+                      <div className="space-y-3">
+                        {formData.template.structure_beats.length === 0 && (
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              let defaultBeats = []
+                              if (formData.template.type === 'three_act') {
+                                defaultBeats = [
+                                  { beat_name: 'Inciting Incident', target_percentage: 12, completed: false },
+                                  { beat_name: 'Plot Point 1', target_percentage: 25, completed: false },
+                                  { beat_name: 'Midpoint', target_percentage: 50, completed: false },
+                                  { beat_name: 'Plot Point 2', target_percentage: 75, completed: false },
+                                  { beat_name: 'Climax', target_percentage: 88, completed: false },
+                                  { beat_name: 'Resolution', target_percentage: 95, completed: false }
+                                ]
+                              } else if (formData.template.type === 'heros_journey') {
+                                defaultBeats = [
+                                  { beat_name: 'Call to Adventure', target_percentage: 10, completed: false },
+                                  { beat_name: 'Crossing the Threshold', target_percentage: 20, completed: false },
+                                  { beat_name: 'Tests and Trials', target_percentage: 35, completed: false },
+                                  { beat_name: 'Ordeal', target_percentage: 50, completed: false },
+                                  { beat_name: 'Reward', target_percentage: 65, completed: false },
+                                  { beat_name: 'The Road Back', target_percentage: 80, completed: false },
+                                  { beat_name: 'Return Transformed', target_percentage: 95, completed: false }
+                                ]
+                              } else {
+                                defaultBeats = [
+                                  { beat_name: 'Opening', target_percentage: 5, completed: false },
+                                  { beat_name: 'Inciting Incident', target_percentage: 15, completed: false },
+                                  { beat_name: 'Rising Action', target_percentage: 40, completed: false },
+                                  { beat_name: 'Climax', target_percentage: 70, completed: false },
+                                  { beat_name: 'Falling Action', target_percentage: 85, completed: false },
+                                  { beat_name: 'Resolution', target_percentage: 95, completed: false }
+                                ]
+                              }
+                              setFormData(prev => ({
+                                ...prev,
+                                template: {
+                                  ...prev.template,
+                                  structure_beats: defaultBeats
                                 }
+                              }))
+                            }}
+                          >
+                            <Plus className="w-4 h-4 mr-2" />
+                            Generate Default Structure Beats
+                          </Button>
+                        )}
+
+                        {formData.template.structure_beats.map((beat, index) => (
+                          <div key={index} className="flex items-center gap-4 p-3 bg-white rounded-lg border">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                const updated = [...formData.template.structure_beats]
+                                updated[index].completed = !updated[index].completed
+                                setFormData(prev => ({
+                                  ...prev,
+                                  template: {
+                                    ...prev.template,
+                                    structure_beats: updated
+                                  }
+                                }))
                               }}
-                              className="rounded border-gray-300 text-purple-600 focus:ring-purple-500 w-4 h-4"
-                            />
-                            <span className="capitalize font-semibold">{theme.replace('_', ' ')}</span>
-                          </label>
+                            >
+                              {beat.completed ? <CheckCircle className="w-4 h-4 text-green-500" /> : <Circle className="w-4 h-4 text-gray-400" />}
+                            </Button>
+                            <div className="flex-1">
+                              <Input
+                                value={beat.beat_name}
+                                onChange={(e) => {
+                                  const updated = [...formData.template.structure_beats]
+                                  updated[index].beat_name = e.target.value
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    template: {
+                                      ...prev.template,
+                                      structure_beats: updated
+                                    }
+                                  }))
+                                }}
+                                className="font-medium"
+                              />
+                            </div>
+                            <div className="w-24">
+                              <Input
+                                type="number"
+                                min="0"
+                                max="100"
+                                value={beat.target_percentage}
+                                onChange={(e) => {
+                                  const updated = [...formData.template.structure_beats]
+                                  updated[index].target_percentage = parseInt(e.target.value) || 0
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    template: {
+                                      ...prev.template,
+                                      structure_beats: updated
+                                    }
+                                  }))
+                                }}
+                              />
+                            </div>
+                            <span className="text-sm text-gray-500">%</span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setFormData(prev => ({
+                                ...prev,
+                                template: {
+                                  ...prev.template,
+                                  structure_beats: prev.template.structure_beats.filter((_, i) => i !== index)
+                                }
+                              }))}
+                            >
+                              <X className="w-4 h-4" />
+                            </Button>
+                          </div>
                         ))}
+
+                        {formData.template.structure_beats.length > 0 && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setFormData(prev => ({
+                              ...prev,
+                              template: {
+                                ...prev.template,
+                                structure_beats: [...prev.template.structure_beats, {
+                                  beat_name: 'New Beat',
+                                  target_percentage: 50,
+                                  completed: false
+                                }]
+                              }
+                            }))}
+                          >
+                            <Plus className="w-4 h-4 mr-2" />
+                            Add Custom Beat
+                          </Button>
+                        )}
                       </div>
-                    </div>
-                  </div>
+                    </Card>
 
-                  <div>
-                    <Label className="text-lg font-bold text-gray-700 mb-4 block">Additional Notes</Label>
-                    <p className="text-sm text-gray-500 mb-6">Any additional context, ideas, or development notes</p>
-                    <Textarea
-                      value={formData.notes}
-                      onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-                      placeholder="Add any additional notes about this arc's development, key scenes, character motivations, plot twists, or other important details..."
-                      rows={10}
-                      className="border-gray-300 focus:border-purple-500 focus:ring-purple-500 text-base resize-none shadow-sm"
-                    />
+                    {/* Pacing Profile */}
+                    <Card className="p-4 bg-white/80">
+                      <h4 className="font-semibold mb-4 flex items-center gap-2">
+                        <TrendingUp className="w-5 h-5 text-orange-600" />
+                        Pacing Profile
+                      </h4>
+                      
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center">
+                          <p className="text-sm text-gray-600">Track intensity and development across chapters</p>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              const newProfile = {
+                                chapter_number: formData.pacing_profile.length + 1,
+                                intensity_level: 5,
+                                screen_time_percentage: 10,
+                                plot_advancement: 5,
+                                character_development: 5,
+                                tension_curve: 5
+                              }
+                              setFormData(prev => ({
+                                ...prev,
+                                pacing_profile: [...prev.pacing_profile, newProfile]
+                              }))
+                            }}
+                          >
+                            <Plus className="w-4 h-4 mr-2" />
+                            Add Chapter
+                          </Button>
+                        </div>
+
+                        {formData.pacing_profile.map((profile, index) => (
+                          <Card key={index} className="p-4 border border-gray-200">
+                            <div className="flex items-center justify-between mb-3">
+                              <h5 className="font-medium">Chapter {profile.chapter_number}</h5>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setFormData(prev => ({
+                                  ...prev,
+                                  pacing_profile: prev.pacing_profile.filter((_, i) => i !== index)
+                                }))}
+                              >
+                                <X className="w-4 h-4" />
+                              </Button>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                              <div>
+                                <Label className="text-sm font-medium mb-2 block">Intensity Level: {profile.intensity_level}/10</Label>
+                                <Input
+                                  type="range"
+                                  min="1"
+                                  max="10"
+                                  value={profile.intensity_level}
+                                  onChange={(e) => {
+                                    const updated = [...formData.pacing_profile]
+                                    updated[index].intensity_level = parseInt(e.target.value)
+                                    setFormData(prev => ({ ...prev, pacing_profile: updated }))
+                                  }}
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-sm font-medium mb-2 block">Screen Time: {profile.screen_time_percentage}%</Label>
+                                <Input
+                                  type="range"
+                                  min="0"
+                                  max="50"
+                                  value={profile.screen_time_percentage}
+                                  onChange={(e) => {
+                                    const updated = [...formData.pacing_profile]
+                                    updated[index].screen_time_percentage = parseInt(e.target.value)
+                                    setFormData(prev => ({ ...prev, pacing_profile: updated }))
+                                  }}
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-sm font-medium mb-2 block">Plot Advancement: {profile.plot_advancement}/10</Label>
+                                <Input
+                                  type="range"
+                                  min="1"
+                                  max="10"
+                                  value={profile.plot_advancement}
+                                  onChange={(e) => {
+                                    const updated = [...formData.pacing_profile]
+                                    updated[index].plot_advancement = parseInt(e.target.value)
+                                    setFormData(prev => ({ ...prev, pacing_profile: updated }))
+                                  }}
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-sm font-medium mb-2 block">Character Development: {profile.character_development}/10</Label>
+                                <Input
+                                  type="range"
+                                  min="1"
+                                  max="10"
+                                  value={profile.character_development}
+                                  onChange={(e) => {
+                                    const updated = [...formData.pacing_profile]
+                                    updated[index].character_development = parseInt(e.target.value)
+                                    setFormData(prev => ({ ...prev, pacing_profile: updated }))
+                                  }}
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-sm font-medium mb-2 block">Tension Curve: {profile.tension_curve}/10</Label>
+                                <Input
+                                  type="range"
+                                  min="1"
+                                  max="10"
+                                  value={profile.tension_curve}
+                                  onChange={(e) => {
+                                    const updated = [...formData.pacing_profile]
+                                    updated[index].tension_curve = parseInt(e.target.value)
+                                    setFormData(prev => ({ ...prev, pacing_profile: updated }))
+                                  }}
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-sm font-medium mb-2 block">Chapter Number</Label>
+                                <Input
+                                  type="number"
+                                  min="1"
+                                  value={profile.chapter_number}
+                                  onChange={(e) => {
+                                    const updated = [...formData.pacing_profile]
+                                    updated[index].chapter_number = parseInt(e.target.value) || 1
+                                    setFormData(prev => ({ ...prev, pacing_profile: updated }))
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          </Card>
+                        ))}
+
+                        {formData.pacing_profile.length === 0 && (
+                          <div className="text-center py-8 text-gray-500">
+                            <Activity className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                            <p>No pacing profile defined yet.</p>
+                            <p className="text-sm">Add chapters to track pacing and intensity throughout your arc.</p>
+                          </div>
+                        )}
+                      </div>
+                    </Card>
                   </div>
                 </div>
-              </div>
+              </TabsContent>
 
-            {/* Milestones Section */}
-            <div className="space-y-6 pt-8 border-t border-gray-200">
-              <div className="flex justify-between items-center">
-                <div>
-                  <Label className="text-xl font-bold text-gray-700 mb-2 block">Arc Milestones</Label>
-                  <p className="text-sm text-gray-500">Define key story beats and character development moments</p>
-                </div>
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  size="lg"
-                  onClick={addMilestone}
-                  className="border-gray-300 hover:bg-gray-50"
-                >
-                  <Plus className="w-5 h-5 mr-2" />
-                  Add Milestone
-                </Button>
-              </div>
-              <div className="space-y-6 max-h-96 overflow-y-auto">
-                {formData.milestones.map((milestone, index) => (
-                  <div key={milestone.id} className="border border-gray-200 rounded-xl p-6 bg-gray-50 shadow-sm">
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="flex-1 grid grid-cols-3 gap-4">
-                        <Input
-                          placeholder="Milestone title..."
-                          value={milestone.title}
-                          onChange={(e) => updateMilestone(milestone.id, { title: e.target.value })}
-                          className="text-base py-3"
-                        />
-                        <Select 
-                          value={milestone.beat_type || 'custom'} 
-                          onValueChange={(value) => updateMilestone(milestone.id, { beat_type: value })}
+              <TabsContent value="advanced" className="space-y-6">
+                <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-6 border border-red-200 shadow-sm">
+                  <h3 className="font-bold text-xl text-gray-900 mb-6 flex items-center gap-3">
+                    <AlertTriangle className="w-6 h-6 text-red-500" />
+                    Advanced Features
+                  </h3>
+                  
+                  <div className="space-y-6">
+                    {/* Themes */}
+                    <Card className="p-4 bg-white/80">
+                      <h4 className="font-semibold mb-4 flex items-center gap-2">
+                        <Heart className="w-5 h-5 text-red-600" />
+                        Themes
+                      </h4>
+                      
+                      <div className="space-y-3">
+                        <div className="flex gap-2">
+                          <Select onValueChange={(theme) => {
+                            if (theme && !formData.themes.includes(theme)) {
+                              setFormData(prev => ({
+                                ...prev,
+                                themes: [...prev.themes, theme]
+                              }))
+                            }
+                          }}>
+                            <SelectTrigger className="flex-1">
+                              <SelectValue placeholder="Add a theme..." />
+                            </SelectTrigger>
+                            <SelectContent className="bg-white border border-gray-200 shadow-lg">
+                              {COMMON_THEMES.filter(theme => !formData.themes.includes(theme)).map(theme => (
+                                <SelectItem key={theme} value={theme}>{theme}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          {formData.themes.map((theme, index) => (
+                            <Badge key={index} variant="secondary" className="flex items-center gap-1">
+                              {theme}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-auto p-0 ml-1"
+                                onClick={() => setFormData(prev => ({
+                                  ...prev,
+                                  themes: prev.themes.filter((_, i) => i !== index)
+                                }))}
+                              >
+                                <X className="w-3 h-3" />
+                              </Button>
+                            </Badge>
+                          ))}
+                        </div>
+
+                        {formData.themes.length === 0 && (
+                          <p className="text-sm text-gray-500">No themes selected. Choose from common themes or add custom ones.</p>
+                        )}
+                      </div>
+                    </Card>
+
+                    {/* Conflicts */}
+                    <Card className="p-4 bg-white/80">
+                      <h4 className="font-semibold mb-4 flex items-center gap-2">
+                        <AlertTriangle className="w-5 h-5 text-red-600" />
+                        Conflicts
+                      </h4>
+                      
+                      <div className="space-y-4">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const newConflict = {
+                              type: 'internal',
+                              description: '',
+                              stakes: '',
+                              resolution_type: '',
+                              escalation_points: []
+                            }
+                            setFormData(prev => ({
+                              ...prev,
+                              conflicts: [...prev.conflicts, newConflict]
+                            }))
+                          }}
                         >
-                          <SelectTrigger className="py-3 text-base">
-                            <SelectValue placeholder="Beat type" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {BEAT_TYPES.map(beat => (
-                              <SelectItem key={beat.value} value={beat.value} className="py-3">
-                                <span className="text-base">{beat.label}</span>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <Input
-                          placeholder="Chapter"
-                          value={milestone.chapter || ''}
-                          onChange={(e) => updateMilestone(milestone.id, { chapter: e.target.value })}
-                          className="text-base py-3"
-                        />
+                          <Plus className="w-4 h-4 mr-2" />
+                          Add Conflict
+                        </Button>
+
+                        {formData.conflicts.map((conflict, index) => (
+                          <Card key={index} className="p-4 border border-gray-200">
+                            <div className="flex items-center justify-between mb-3">
+                              <Select
+                                value={conflict.type}
+                                onValueChange={(value) => {
+                                  const updated = [...formData.conflicts]
+                                  updated[index].type = value
+                                  setFormData(prev => ({ ...prev, conflicts: updated }))
+                                }}
+                              >
+                                <SelectTrigger className="w-48">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent className="bg-white border border-gray-200 shadow-lg">
+                                  {CONFLICT_TYPES.map(type => (
+                                    <SelectItem key={type.value} value={type.value}>
+                                      <div>
+                                        <div className="font-medium">{type.label}</div>
+                                        <div className="text-sm text-gray-500">{type.description}</div>
+                                      </div>
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setFormData(prev => ({
+                                  ...prev,
+                                  conflicts: prev.conflicts.filter((_, i) => i !== index)
+                                }))}
+                              >
+                                <X className="w-4 h-4" />
+                              </Button>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <Label className="text-sm font-medium mb-2 block">Description</Label>
+                                <Textarea
+                                  placeholder="Describe the conflict..."
+                                  value={conflict.description}
+                                  onChange={(e) => {
+                                    const updated = [...formData.conflicts]
+                                    updated[index].description = e.target.value
+                                    setFormData(prev => ({ ...prev, conflicts: updated }))
+                                  }}
+                                  rows={3}
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-sm font-medium mb-2 block">Stakes</Label>
+                                <Textarea
+                                  placeholder="What's at risk if this conflict isn't resolved?"
+                                  value={conflict.stakes}
+                                  onChange={(e) => {
+                                    const updated = [...formData.conflicts]
+                                    updated[index].stakes = e.target.value
+                                    setFormData(prev => ({ ...prev, conflicts: updated }))
+                                  }}
+                                  rows={3}
+                                />
+                              </div>
+                            </div>
+
+                            <div className="mt-4">
+                              <Label className="text-sm font-medium mb-2 block">Resolution Type</Label>
+                              <Input
+                                placeholder="How will this conflict be resolved?"
+                                value={conflict.resolution_type || ''}
+                                onChange={(e) => {
+                                  const updated = [...formData.conflicts]
+                                  updated[index].resolution_type = e.target.value
+                                  setFormData(prev => ({ ...prev, conflicts: updated }))
+                                }}
+                              />
+                            </div>
+                          </Card>
+                        ))}
+
+                        {formData.conflicts.length === 0 && (
+                          <div className="text-center py-6 text-gray-500">
+                            <AlertTriangle className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                            <p className="text-sm">No conflicts defined yet. Add conflicts to create tension and drive your story.</p>
+                          </div>
+                        )}
                       </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeMilestone(milestone.id)}
-                        className="ml-4"
-                      >
-                        <X className="w-5 h-5 text-red-500" />
-                      </Button>
-                    </div>
-                    <Textarea
-                      placeholder="Milestone description..."
-                      value={milestone.description}
-                      onChange={(e) => updateMilestone(milestone.id, { description: e.target.value })}
-                      rows={3}
-                      className="mb-4 text-base resize-none"
-                    />
-                    <div className="grid grid-cols-3 gap-4">
-                      <Input
-                        placeholder="Character growth..."
-                        value={milestone.character_growth || ''}
-                        onChange={(e) => updateMilestone(milestone.id, { character_growth: e.target.value })}
-                        className="text-base py-3"
+                    </Card>
+
+                    {/* Motifs */}
+                    <Card className="p-4 bg-white/80">
+                      <h4 className="font-semibold mb-4 flex items-center gap-2">
+                        <Palette className="w-5 h-5 text-red-600" />
+                        Motifs & Symbolism
+                      </h4>
+                      
+                      <div className="space-y-4">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const newMotif = {
+                              name: '',
+                              description: '',
+                              significance: '',
+                              appearances: []
+                            }
+                            setFormData(prev => ({
+                              ...prev,
+                              motifs: [...prev.motifs, newMotif]
+                            }))
+                          }}
+                        >
+                          <Plus className="w-4 h-4 mr-2" />
+                          Add Motif
+                        </Button>
+
+                        {formData.motifs.map((motif, index) => (
+                          <Card key={index} className="p-4 border border-gray-200">
+                            <div className="flex items-center justify-between mb-3">
+                              <Input
+                                placeholder="Motif name (e.g., 'Birds', 'Mirrors', 'Red roses')"
+                                value={motif.name}
+                                onChange={(e) => {
+                                  const updated = [...formData.motifs]
+                                  updated[index].name = e.target.value
+                                  setFormData(prev => ({ ...prev, motifs: updated }))
+                                }}
+                                className="font-medium flex-1 mr-3"
+                              />
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setFormData(prev => ({
+                                  ...prev,
+                                  motifs: prev.motifs.filter((_, i) => i !== index)
+                                }))}
+                              >
+                                <X className="w-4 h-4" />
+                              </Button>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <Label className="text-sm font-medium mb-2 block">Description</Label>
+                                <Textarea
+                                  placeholder="Describe the motif and how it appears..."
+                                  value={motif.description}
+                                  onChange={(e) => {
+                                    const updated = [...formData.motifs]
+                                    updated[index].description = e.target.value
+                                    setFormData(prev => ({ ...prev, motifs: updated }))
+                                  }}
+                                  rows={3}
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-sm font-medium mb-2 block">Significance</Label>
+                                <Textarea
+                                  placeholder="What does this motif represent or symbolize?"
+                                  value={motif.significance}
+                                  onChange={(e) => {
+                                    const updated = [...formData.motifs]
+                                    updated[index].significance = e.target.value
+                                    setFormData(prev => ({ ...prev, motifs: updated }))
+                                  }}
+                                  rows={3}
+                                />
+                              </div>
+                            </div>
+                          </Card>
+                        ))}
+
+                        {formData.motifs.length === 0 && (
+                          <div className="text-center py-6 text-gray-500">
+                            <Palette className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                            <p className="text-sm">No motifs defined yet. Add recurring symbols or themes to enrich your storytelling.</p>
+                          </div>
+                        )}
+                      </div>
+                    </Card>
+
+                    {/* Notes & Additional Information */}
+                    <Card className="p-4 bg-white/80">
+                      <h4 className="font-semibold mb-4 flex items-center gap-2">
+                        <MessageSquare className="w-5 h-5 text-red-600" />
+                        Additional Notes
+                      </h4>
+                      
+                      <Textarea
+                        placeholder="Any additional notes, ideas, or reminders for this arc..."
+                        value={formData.notes}
+                        onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+                        rows={6}
+                        className="resize-none"
                       />
-                      <Input
-                        placeholder="Mood..."
-                        value={milestone.mood || ''}
-                        onChange={(e) => updateMilestone(milestone.id, { mood: e.target.value })}
-                        className="text-base py-3"
-                      />
-                      <div className="flex items-center gap-3 bg-white rounded-lg px-4 py-3 border border-gray-300">
-                        <label className="flex items-center space-x-3 text-base font-medium">
-                          <input
-                            type="checkbox"
-                            checked={milestone.completed}
-                            onChange={(e) => updateMilestone(milestone.id, { completed: e.target.checked })}
-                            className="rounded border-gray-300 w-5 h-5"
+                    </Card>
+
+                    {/* Tags */}
+                    <Card className="p-4 bg-white/80">
+                      <h4 className="font-semibold mb-4 flex items-center gap-2">
+                        <Tag className="w-5 h-5 text-red-600" />
+                        Tags
+                      </h4>
+                      
+                      <div className="space-y-3">
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="Add a tag..."
+                            onKeyPress={(e) => {
+                              if (e.key === 'Enter') {
+                                const value = e.currentTarget.value.trim()
+                                if (value && !formData.tags.includes(value)) {
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    tags: [...prev.tags, value]
+                                  }))
+                                  e.currentTarget.value = ''
+                                }
+                              }
+                            }}
                           />
-                          <span>Completed</span>
-                        </label>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          {formData.tags.map((tag, index) => (
+                            <Badge key={index} variant="outline" className="flex items-center gap-1">
+                              {tag}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-auto p-0 ml-1"
+                                onClick={() => setFormData(prev => ({
+                                  ...prev,
+                                  tags: prev.tags.filter((_, i) => i !== index)
+                                }))}
+                              >
+                                <X className="w-3 h-3" />
+                              </Button>
+                            </Badge>
+                          ))}
+                        </div>
+
+                        {formData.tags.length === 0 && (
+                          <p className="text-sm text-gray-500">No tags added. Use tags to organize and categorize your arcs.</p>
+                        )}
                       </div>
-                    </div>
+                    </Card>
                   </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Resolution */}
-            <div className="pt-8 border-t border-gray-200">
-              <Label htmlFor="resolution" className="text-xl font-bold text-gray-700 mb-4 block">Arc Resolution</Label>
-              <p className="text-sm text-gray-500 mb-4">Describe how this arc concludes and its impact on the story</p>
-              <Textarea
-                id="resolution"
-                value={formData.resolution}
-                onChange={(e) => setFormData(prev => ({ ...prev, resolution: e.target.value }))}
-                placeholder="How does this arc resolve? What is the outcome for the characters and story?"
-                rows={4}
-                className="text-base resize-none"
-              />
-            </div>
-            </div>
-
-            {/* Footer Actions */}
-            <div className="bg-gradient-to-r from-gray-50 to-gray-100 border-t border-gray-200 px-8 py-6 mt-6">
-              <div className="flex justify-between items-center">
-                <div className="text-lg text-gray-600 font-medium">
-                  {editingArc ? 'Updating existing arc' : 'Creating new story arc'}
                 </div>
-                <div className="flex space-x-6">
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setShowCreateDialog(false)
-                      setEditingArc(null)
-                      resetForm()
-                      onClearSelection?.()
-                    }}
-                    className="border-gray-300 text-gray-700 hover:bg-gray-100 px-8 py-4 text-lg font-medium"
-                  >
-                    <X className="w-5 h-5 mr-2" />
-                    Cancel
-                  </Button>
-                  <Button 
-                    onClick={handleCreateArc} 
-                    disabled={!formData.name.trim()}
-                    className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white border-0 shadow-lg disabled:from-gray-400 disabled:to-gray-400 px-10 py-4 text-lg font-bold"
-                  >
-                    <Save className="w-5 h-5 mr-2" />
-                    {editingArc ? 'Update Arc' : 'Create Arc'}
-                  </Button>
-                </div>
-              </div>
+              </TabsContent>
             </div>
-          </DialogContent>
-        </Dialog>
-      </div>
+          </Tabs>
+
+          <div className="flex justify-end gap-3 pt-6 border-t border-orange-100 bg-gradient-to-r from-orange-50/50 to-amber-50/50 -m-6 mt-6 p-6 rounded-b-lg">
+            <Button
+              variant="outline"
+              onClick={() => setShowCreateDialog(false)}
+              className="border-gray-300 hover:bg-gray-50 hover:border-gray-400 transition-colors"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={!formData.name.trim()}
+              className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-200 border-0 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Save className="w-4 h-4 mr-2" />
+              {editingArc ? 'Update Arc' : 'Create Arc'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
