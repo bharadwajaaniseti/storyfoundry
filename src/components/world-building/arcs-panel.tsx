@@ -6,7 +6,7 @@ import {
   TrendingUp, Users, Calendar, MapPin, User, Heart,
   ArrowLeft, CheckCircle, Circle, AlertTriangle, Star, BarChart3,
   GitBranch, Layers, Activity, Grid, List, FileText,
-  Palette, Tag, MessageSquare, SlidersHorizontal, Save, X, Eye
+  Palette, Tag, MessageSquare, SlidersHorizontal, Save, X, Eye, ChevronDown, Check
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -19,6 +19,287 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { cn } from '@/lib/utils'
+
+// Enhanced Range Slider Styles
+const rangeSliderStyles = `
+  .enhanced-range-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent;
+    cursor: pointer;
+  }
+  
+  .enhanced-range-slider:focus {
+    outline: none;
+  }
+  
+  .enhanced-range-slider::-webkit-slider-track {
+    background: #e5e7eb;
+    height: 8px;
+    border-radius: 4px;
+  }
+  
+  .enhanced-range-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 20px;
+    width: 20px;
+    border-radius: 50%;
+    background: #f97316;
+    border: 2px solid #ffffff;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .enhanced-range-slider::-webkit-slider-thumb:hover {
+    background: #ea580c;
+    transform: scale(1.1);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  }
+  
+  .enhanced-range-slider::-moz-range-track {
+    background: #e5e7eb;
+    height: 8px;
+    border-radius: 4px;
+    border: none;
+  }
+  
+  .enhanced-range-slider::-moz-range-thumb {
+    height: 20px;
+    width: 20px;
+    border-radius: 50%;
+    background: #f97316;
+    border: 2px solid #ffffff;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: none;
+  }
+  
+  .enhanced-range-slider::-moz-range-thumb:hover {
+    background: #ea580c;
+    transform: scale(1.1);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  }
+`
+
+// Inject styles
+if (typeof document !== 'undefined') {
+  const styleElement = document.createElement('style')
+  styleElement.textContent = rangeSliderStyles
+  document.head.appendChild(styleElement)
+}
+
+// Enhanced Custom Components
+const EnhancedSelect = ({ 
+  value, 
+  onValueChange, 
+  placeholder, 
+  children, 
+  className,
+  triggerClassName,
+  contentClassName,
+  customDisplay,
+  ...props 
+}: any) => {
+  const [isOpen, setIsOpen] = React.useState(false)
+  
+  return (
+    <Select 
+      value={value} 
+      onValueChange={onValueChange} 
+      onOpenChange={setIsOpen}
+      {...props}
+    >
+      <SelectTrigger 
+        className={cn(
+          "relative bg-white border-2 border-gray-200 rounded-xl shadow-sm px-5 py-4",
+          "hover:border-orange-300 focus:border-orange-500 focus:ring-2 focus:ring-orange-100",
+          "transition-all duration-300 ease-out text-left overflow-hidden",
+          "data-[state=open]:border-orange-500 data-[state=open]:ring-2 data-[state=open]:ring-orange-100",
+          "data-[state=open]:shadow-lg",
+          "[&>svg]:hidden", // Hide the default chevron
+          triggerClassName,
+          className
+        )}
+      >
+        <div className="flex-1 pr-8 min-w-0 overflow-hidden">
+          {customDisplay ? (
+            <span className="text-base font-medium block truncate w-full text-left text-gray-900">
+              {customDisplay}
+            </span>
+          ) : (
+            <SelectValue 
+              placeholder={placeholder} 
+              className="text-base font-medium block truncate w-full text-left" 
+            />
+          )}
+        </div>
+        <ChevronDown 
+          className={cn(
+            "absolute right-5 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-500 flex-shrink-0",
+            "transition-transform duration-200 pointer-events-none",
+            isOpen && "rotate-180"
+          )} 
+        />
+      </SelectTrigger>
+      <SelectContent 
+        className={cn(
+          "bg-white border-2 border-gray-200 rounded-xl shadow-xl p-3 min-w-[300px]",
+          "animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
+          "data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2",
+          "data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
+          "backdrop-blur-sm max-h-[400px] overflow-y-auto",
+          contentClassName
+        )}
+        sideOffset={6}
+      >
+        {children}
+      </SelectContent>
+    </Select>
+  )
+}
+
+const EnhancedSelectItem = ({ children, className, ...props }: any) => {
+  return (
+    <SelectItem
+      className={cn(
+        "relative flex cursor-pointer select-none items-center rounded-xl px-5 py-4 mx-1 my-1.5",
+        "text-base outline-none transition-all duration-200",
+        "hover:bg-orange-50 hover:text-orange-900 focus:bg-orange-50 focus:text-orange-900",
+        "data-[state=checked]:bg-orange-500 data-[state=checked]:text-white",
+        "data-[state=checked]:shadow-md min-h-[56px]",
+        className
+      )}
+      {...props}
+    >
+      <span className="absolute right-4 flex h-5 w-5 items-center justify-center">
+        <Check className="h-4 w-4 opacity-0 data-[state=checked]:opacity-100 transition-opacity duration-200" />
+      </span>
+      <div className="flex-1 pr-8">
+        {children}
+      </div>
+    </SelectItem>
+  )
+}
+
+const EnhancedProgress = ({ value, className, showLabel = true, label, ...props }: any) => {
+  return (
+    <div className="space-y-2">
+      {showLabel && (
+        <div className="flex justify-between text-sm">
+          <span className="text-gray-600">{label || 'Progress'}</span>
+          <span className="font-medium text-orange-600">{value}%</span>
+        </div>
+      )}
+      <div className={cn(
+        "relative h-3 bg-gray-100 rounded-full overflow-hidden shadow-inner",
+        className
+      )}>
+        <div
+          className={cn(
+            "h-full rounded-full transition-all duration-700 ease-out",
+            "bg-gradient-to-r from-orange-400 to-orange-500",
+            "shadow-sm relative overflow-hidden"
+          )}
+          style={{ width: `${value}%` }}
+        >
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-pulse" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const EnhancedCheckbox = ({ 
+  checked, 
+  onChange, 
+  label, 
+  className,
+  checkboxClassName,
+  ...props 
+}: any) => {
+  return (
+    <div className={cn("flex items-center space-x-3", className)}>
+      <div className="relative">
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={onChange}
+          className="sr-only"
+          {...props}
+        />
+        <div
+          className={cn(
+            "w-5 h-5 rounded-md border-2 transition-all duration-200 cursor-pointer",
+            "flex items-center justify-center",
+            checked 
+              ? "bg-orange-500 border-orange-500 shadow-md" 
+              : "bg-white border-gray-300 hover:border-orange-300",
+            "hover:shadow-sm",
+            checkboxClassName
+          )}
+          onClick={() => onChange?.({ target: { checked: !checked } })}
+        >
+          <Check 
+            className={cn(
+              "w-3 h-3 text-white transition-all duration-200",
+              checked ? "opacity-100 scale-100" : "opacity-0 scale-50"
+            )} 
+          />
+        </div>
+      </div>
+      {label && (
+        <label 
+          className="text-sm font-medium text-gray-700 cursor-pointer select-none"
+          onClick={() => onChange?.({ target: { checked: !checked } })}
+        >
+          {label}
+        </label>
+      )}
+    </div>
+  )
+}
+
+const EnhancedRangeSlider = ({ 
+  value, 
+  onChange, 
+  min = 0, 
+  max = 100, 
+  step = 1,
+  label,
+  showValue = true,
+  className,
+  ...props 
+}: any) => {
+  return (
+    <div className={cn("space-y-3", className)}>
+      {(label || showValue) && (
+        <div className="flex justify-between items-center">
+          {label && <span className="text-sm font-medium text-gray-700">{label}</span>}
+          {showValue && <span className="text-sm font-semibold text-orange-600">{value}%</span>}
+        </div>
+      )}
+      <div className="relative px-1">
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={onChange}
+          className="enhanced-range-slider w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-opacity-50"
+          style={{
+            background: `linear-gradient(to right, #f97316 0%, #f97316 ${value}%, #e5e7eb ${value}%, #e5e7eb 100%)`
+          }}
+          {...props}
+        />
+      </div>
+    </div>
+  )
+}
 
 // Utility function to strip HTML tags from text
 const stripHtmlTags = (html: string): string => {
@@ -701,57 +982,55 @@ export default function ArcsManager({ projectId, selectedElement, onArcsChange, 
               </div>
             </div>
             
-            <Select value={filterType} onValueChange={setFilterType}>
-              <SelectTrigger className="w-48 border-gray-300 focus:border-orange-500">
-                <SelectValue placeholder="All Types" />
-              </SelectTrigger>
-              <SelectContent className="bg-white border border-gray-200 shadow-lg">
-                <SelectItem value="all">All Types</SelectItem>
-                {ARC_TYPES.map(type => (
-                  <SelectItem key={type.value} value={type.value}>
-                    <div className="flex items-center gap-2">
-                      <type.icon className="w-4 h-4" />
-                      {type.label}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <EnhancedSelect 
+              value={filterType} 
+              onValueChange={setFilterType}
+              placeholder="All Types"
+              className="w-48"
+            >
+              <EnhancedSelectItem value="all">All Types</EnhancedSelectItem>
+              {ARC_TYPES.map(type => (
+                <EnhancedSelectItem key={type.value} value={type.value}>
+                  <div className="flex items-center gap-2">
+                    <type.icon className="w-4 h-4" />
+                    {type.label}
+                  </div>
+                </EnhancedSelectItem>
+              ))}
+            </EnhancedSelect>
             
-            <Select value={filterStatus} onValueChange={setFilterStatus}>
-              <SelectTrigger className="w-48 border-gray-300 focus:border-orange-500">
-                <SelectValue placeholder="All Statuses" />
-              </SelectTrigger>
-              <SelectContent className="bg-white border border-gray-200 shadow-lg">
-                <SelectItem value="all">All Statuses</SelectItem>
-                {ARC_STATUS.map(status => (
-                  <SelectItem key={status.value} value={status.value}>
-                    {status.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <EnhancedSelect 
+              value={filterStatus} 
+              onValueChange={setFilterStatus}
+              placeholder="All Statuses"
+              className="w-48"
+            >
+              <EnhancedSelectItem value="all">All Statuses</EnhancedSelectItem>
+              {ARC_STATUS.map(status => (
+                <EnhancedSelectItem key={status.value} value={status.value}>
+                  {status.label}
+                </EnhancedSelectItem>
+              ))}
+            </EnhancedSelect>
 
             <div className="flex items-center gap-2">
-              <Select value="all">
-                <SelectTrigger className="w-32 border-gray-300 focus:border-orange-500">
-                  <SelectValue placeholder="All Arcs" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Arcs</SelectItem>
-                </SelectContent>
-              </Select>
+              <EnhancedSelect 
+                value="all"
+                placeholder="All Arcs"
+                className="w-32"
+              >
+                <EnhancedSelectItem value="all">All Arcs</EnhancedSelectItem>
+              </EnhancedSelect>
 
-              <Select value="updated">
-                <SelectTrigger className="w-40 border-gray-300 focus:border-orange-500">
-                  <SelectValue placeholder="Last Updated" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="updated">Last Updated</SelectItem>
-                  <SelectItem value="created">Date Created</SelectItem>
-                  <SelectItem value="name">Name</SelectItem>
-                </SelectContent>
-              </Select>
+              <EnhancedSelect 
+                value="updated"
+                placeholder="Last Updated"
+                className="w-40"
+              >
+                <EnhancedSelectItem value="updated">Last Updated</EnhancedSelectItem>
+                <EnhancedSelectItem value="created">Date Created</EnhancedSelectItem>
+                <EnhancedSelectItem value="name">Name</EnhancedSelectItem>
+              </EnhancedSelect>
 
               <Button variant="outline" size="sm" className="px-3">
                 <SlidersHorizontal className="w-4 h-4" />
@@ -1297,11 +1576,11 @@ export default function ArcsManager({ projectId, selectedElement, onArcsChange, 
                   
                   {arc.attributes.progress !== undefined && (
                     <div className="mb-4">
-                      <div className="flex justify-between text-xs text-gray-500 mb-2">
-                        <span>Progress</span>
-                        <span>{arc.attributes.progress}%</span>
-                      </div>
-                      <Progress value={arc.attributes.progress} className="h-2" />
+                      <EnhancedProgress 
+                        value={arc.attributes.progress} 
+                        label="Progress"
+                        showLabel={true}
+                      />
                     </div>
                   )}
                   
@@ -1375,16 +1654,6 @@ export default function ArcsManager({ projectId, selectedElement, onArcsChange, 
         <DialogContent className="!w-[98vw] !max-w-[1600px] !h-[95vh] overflow-hidden bg-white border-0 shadow-2xl rounded-2xl flex flex-col">
           {/* Compact Header */}
           <DialogHeader className="relative border-b border-gray-200 pb-4 bg-gradient-to-r from-orange-50 to-amber-50 -m-6 mb-0 p-6 rounded-t-2xl flex-shrink-0">
-            {/* Close Button */}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="absolute top-4 right-4 z-10 bg-white/80 hover:bg-white border border-gray-200 shadow-sm rounded-full w-8 h-8 p-0"
-              onClick={() => setShowCreateDialog(false)}
-            >
-              <X className="w-4 h-4" />
-            </Button>
-            
             <div className="flex items-center gap-3">
               <div className="p-2 bg-gradient-to-br from-orange-500 to-amber-500 rounded-lg shadow-md">
                 <Target className="w-5 h-5 text-white" />
@@ -1480,23 +1749,21 @@ export default function ArcsManager({ projectId, selectedElement, onArcsChange, 
 
                         <div>
                           <Label htmlFor="type" className="text-sm font-medium mb-2 block text-gray-700">Arc Type</Label>
-                          <Select value={formData.type} onValueChange={(value) => 
-                            setFormData(prev => ({ ...prev, type: value }))
-                          }>
-                            <SelectTrigger className="h-11 border-gray-300 focus:border-orange-500">
-                              <SelectValue placeholder="Select type" />
-                            </SelectTrigger>
-                            <SelectContent className="bg-white border border-gray-200 shadow-lg">
-                              {ARC_TYPES.map(type => (
-                                <SelectItem key={type.value} value={type.value}>
-                                  <div className="flex items-center gap-2">
-                                    <type.icon className="w-4 h-4" />
-                                    <span>{type.label}</span>
-                                  </div>
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <EnhancedSelect 
+                            value={formData.type} 
+                            onValueChange={(value: string) => setFormData(prev => ({ ...prev, type: value }))}
+                            placeholder="Select type"
+                            className="h-14"
+                          >
+                            {ARC_TYPES.map(type => (
+                              <EnhancedSelectItem key={type.value} value={type.value}>
+                                <div className="flex items-center gap-2">
+                                  <type.icon className="w-4 h-4" />
+                                  <span>{type.label}</span>
+                                </div>
+                              </EnhancedSelectItem>
+                            ))}
+                          </EnhancedSelect>
                         </div>
 
                         <div>
@@ -1514,38 +1781,32 @@ export default function ArcsManager({ projectId, selectedElement, onArcsChange, 
                         <div className="grid grid-cols-2 gap-4">
                           <div>
                             <Label className="text-sm font-medium mb-2 block text-gray-700">Status</Label>
-                            <Select value={formData.status} onValueChange={(value) => 
-                              setFormData(prev => ({ ...prev, status: value }))
-                            }>
-                              <SelectTrigger className="h-11 border-gray-300 focus:border-orange-500">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent className="bg-white border border-gray-200 shadow-lg">
-                                {ARC_STATUS.map(status => (
-                                  <SelectItem key={status.value} value={status.value}>
-                                    {status.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <EnhancedSelect 
+                              value={formData.status} 
+                              onValueChange={(value: string) => setFormData(prev => ({ ...prev, status: value }))}
+                              className="h-14"
+                            >
+                              {ARC_STATUS.map(status => (
+                                <EnhancedSelectItem key={status.value} value={status.value}>
+                                  {status.label}
+                                </EnhancedSelectItem>
+                              ))}
+                            </EnhancedSelect>
                           </div>
 
                           <div>
                             <Label className="text-sm font-medium mb-2 block text-gray-700">Priority</Label>
-                            <Select value={formData.priority.toString()} onValueChange={(value) => 
-                              setFormData(prev => ({ ...prev, priority: parseInt(value) }))
-                            }>
-                              <SelectTrigger className="h-11 border-gray-300 focus:border-orange-500">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent className="bg-white border border-gray-200 shadow-lg">
-                                {[1, 2, 3, 4, 5].map(num => (
-                                  <SelectItem key={num} value={num.toString()}>
-                                    Priority {num}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <EnhancedSelect 
+                              value={formData.priority.toString()} 
+                              onValueChange={(value: string) => setFormData(prev => ({ ...prev, priority: parseInt(value) }))}
+                              className="h-14"
+                            >
+                              {[1, 2, 3, 4, 5].map(num => (
+                                <EnhancedSelectItem key={num} value={num.toString()}>
+                                  Priority {num}
+                                </EnhancedSelectItem>
+                              ))}
+                            </EnhancedSelect>
                           </div>
                         </div>
                       </div>
@@ -1563,29 +1824,34 @@ export default function ArcsManager({ projectId, selectedElement, onArcsChange, 
                       <div className="space-y-4">
                         <div>
                           <Label className="text-sm font-medium mb-2 block text-gray-700">Story Template</Label>
-                          <Select 
+                          <EnhancedSelect 
                             value={formData.template.type} 
-                            onValueChange={(value) => 
+                            onValueChange={(value: string) => 
                               setFormData(prev => ({ 
                                 ...prev, 
                                 template: { ...prev.template, type: value }
                               }))
                             }
+                            placeholder="Select template"
+                            className="h-14 w-full text-base"
+                            customDisplay={
+                              formData.template.type ? 
+                                (() => {
+                                  const template = STORY_TEMPLATES.find(t => t.value === formData.template.type);
+                                  return template ? `${template.label} - ${template.description}` : undefined;
+                                })()
+                                : undefined
+                            }
                           >
-                            <SelectTrigger className="h-11 border-gray-300 focus:border-orange-500">
-                              <SelectValue placeholder="Select template" />
-                            </SelectTrigger>
-                            <SelectContent className="bg-white border border-gray-200 shadow-lg">
-                              {STORY_TEMPLATES.map(template => (
-                                <SelectItem key={template.value} value={template.value}>
-                                  <div>
-                                    <div className="font-medium">{template.label}</div>
-                                    <div className="text-xs text-gray-500">{template.description}</div>
-                                  </div>
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                            {STORY_TEMPLATES.map(template => (
+                              <EnhancedSelectItem key={template.value} value={template.value}>
+                                <div className="w-full">
+                                  <div className="font-semibold text-gray-900 text-base leading-tight">{template.label}</div>
+                                  <div className="text-sm text-gray-600 leading-relaxed line-clamp-2 mt-1">{template.description}</div>
+                                </div>
+                              </EnhancedSelectItem>
+                            ))}
+                          </EnhancedSelect>
                         </div>
 
                         <div>
@@ -1608,16 +1874,21 @@ export default function ArcsManager({ projectId, selectedElement, onArcsChange, 
                         </div>
 
                         <div>
-                          <Label className="text-sm font-medium mb-2 block text-gray-700">Progress: {formData.progress}%</Label>
-                          <Input
-                            type="range"
-                            min="0"
-                            max="100"
+                          <EnhancedRangeSlider
                             value={formData.progress}
-                            onChange={(e) => setFormData(prev => ({ ...prev, progress: parseInt(e.target.value) }))}
-                            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                            onChange={(e: any) => setFormData(prev => ({ ...prev, progress: parseInt(e.target.value) }))}
+                            label="Arc Progress"
+                            showValue={true}
+                            min={0}
+                            max={100}
                           />
-                          <Progress value={formData.progress} className="mt-3 h-3 bg-gray-200" />
+                          <div className="mt-3">
+                            <EnhancedProgress 
+                              value={formData.progress} 
+                              label="Completion"
+                              showLabel={true}
+                            />
+                          </div>
                         </div>
 
                         <div>
@@ -1649,7 +1920,7 @@ export default function ArcsManager({ projectId, selectedElement, onArcsChange, 
                   
                   <div className="space-y-4">
                     <div className="flex gap-4">
-                      <Select onValueChange={(arcId) => {
+                      <EnhancedSelect onValueChange={(arcId: string) => {
                         const newDep = {
                           arc_id: arcId,
                           relationship_type: 'prerequisite',
@@ -1660,16 +1931,14 @@ export default function ArcsManager({ projectId, selectedElement, onArcsChange, 
                           ...prev,
                           dependencies: [...prev.dependencies, newDep]
                         }))
-                      }}>
-                        <SelectTrigger className="flex-1 border-gray-300 focus:border-orange-500">
-                          <SelectValue placeholder="Select arc to add dependency..." />
-                        </SelectTrigger>
-                        <SelectContent className="bg-white border border-gray-200 shadow-lg">
-                          {arcs.filter(arc => arc.id !== editingArc?.id && !formData.dependencies.some(dep => dep.arc_id === arc.id)).map(arc => (
-                            <SelectItem key={arc.id} value={arc.id}>{arc.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      }}
+                      placeholder="Select arc to add dependency..."
+                      className="flex-1"
+                      >
+                        {arcs.filter(arc => arc.id !== editingArc?.id && !formData.dependencies.some(dep => dep.arc_id === arc.id)).map(arc => (
+                          <EnhancedSelectItem key={arc.id} value={arc.id}>{arc.name}</EnhancedSelectItem>
+                        ))}
+                      </EnhancedSelect>
                     </div>
 
                     {formData.dependencies.map((dep, index) => {
@@ -1691,28 +1960,34 @@ export default function ArcsManager({ projectId, selectedElement, onArcsChange, 
                             </Button>
                           </div>
                           <div className="grid grid-cols-2 gap-4">
-                            <Select 
+                            <EnhancedSelect 
                               value={dep.relationship_type} 
-                              onValueChange={(value) => {
+                              onValueChange={(value: string) => {
                                 const updated = [...formData.dependencies]
                                 updated[index].relationship_type = value
                                 setFormData(prev => ({ ...prev, dependencies: updated }))
                               }}
+                              customDisplay={
+                                dep.relationship_type ? 
+                                  (() => {
+                                    const rel = RELATIONSHIP_TYPES.find(r => r.value === dep.relationship_type);
+                                    return rel ? `${rel.label} - ${rel.description}` : undefined;
+                                  })()
+                                  : undefined
+                              }
                             >
-                              <SelectTrigger className="border-gray-300 focus:border-orange-500">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent className="bg-white border border-gray-200 shadow-lg">
-                                {RELATIONSHIP_TYPES.map(rel => (
-                                  <SelectItem key={rel.value} value={rel.value}>
-                                    <div className="flex items-center gap-2">
+                              {RELATIONSHIP_TYPES.map(rel => (
+                                <EnhancedSelectItem key={rel.value} value={rel.value}>
+                                  <div className="space-y-2">
+                                    <div className="flex items-center gap-2 font-semibold text-gray-900">
                                       <div className={`w-3 h-3 rounded-full bg-${rel.color}-500`}></div>
                                       {rel.label}
                                     </div>
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                                    <div className="text-sm text-gray-600 leading-relaxed">{rel.description}</div>
+                                  </div>
+                                </EnhancedSelectItem>
+                              ))}
+                            </EnhancedSelect>
                             <div>
                               <Label className="text-sm text-gray-700">Strength: {dep.strength}</Label>
                               <Input
@@ -1760,7 +2035,7 @@ export default function ArcsManager({ projectId, selectedElement, onArcsChange, 
                   
                   <div className="space-y-4">
                     <div className="flex gap-4">
-                      <Select onValueChange={(characterId) => {
+                      <EnhancedSelect onValueChange={(characterId: string) => {
                         const character = characters.find(c => c.id === characterId)
                         if (character) {
                           const newDev = {
@@ -1777,16 +2052,14 @@ export default function ArcsManager({ projectId, selectedElement, onArcsChange, 
                             character_development: [...prev.character_development, newDev]
                           }))
                         }
-                      }}>
-                        <SelectTrigger className="flex-1 border-gray-300 focus:border-orange-500">
-                          <SelectValue placeholder="Add character to this arc..." />
-                        </SelectTrigger>
-                        <SelectContent className="bg-white border border-gray-200 shadow-lg">
-                          {characters.filter(char => !formData.character_development.some(dev => dev.character_id === char.id)).map(character => (
-                            <SelectItem key={character.id} value={character.id}>{character.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      }}
+                      placeholder="Add character to this arc..."
+                      className="flex-1"
+                      >
+                        {characters.filter(char => !formData.character_development.some(dev => dev.character_id === char.id)).map(character => (
+                          <EnhancedSelectItem key={character.id} value={character.id}>{character.name}</EnhancedSelectItem>
+                        ))}
+                      </EnhancedSelect>
                     </div>
 
                     {formData.character_development.map((dev, index) => (
@@ -1897,11 +2170,10 @@ export default function ArcsManager({ projectId, selectedElement, onArcsChange, 
                           
                           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 max-h-60 overflow-y-auto">
                             {chapters.map((chapter) => (
-                              <label key={chapter.id} className="flex items-start space-x-2 p-2 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer">
-                                <input
-                                  type="checkbox"
+                              <div key={chapter.id} className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors duration-200">
+                                <EnhancedCheckbox
                                   checked={formData.chapter_ids?.includes(chapter.id) || false}
-                                  onChange={(e) => {
+                                  onChange={(e: any) => {
                                     const isChecked = e.target.checked
                                     setFormData(prev => ({
                                       ...prev,
@@ -1910,23 +2182,25 @@ export default function ArcsManager({ projectId, selectedElement, onArcsChange, 
                                         : (prev.chapter_ids || []).filter((id: string) => id !== chapter.id)
                                     }))
                                   }}
-                                  className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500 focus:ring-2 mt-0.5 flex-shrink-0"
-                                />
-                                <div className="flex-1 min-w-0 overflow-hidden">
-                                  <div className="font-medium text-gray-900 text-xs leading-tight truncate">
-                                    {chapter.chapter_number ? `Ch ${chapter.chapter_number}` : 'Ch'}: {stripHtmlTags(chapter.title) || 'Untitled'}
-                                  </div>
-                                  {chapter.content && (
-                                    <div className="text-xs text-gray-500 mt-0.5 overflow-hidden" style={{
-                                      display: '-webkit-box',
-                                      WebkitLineClamp: 1,
-                                      WebkitBoxOrient: 'vertical'
-                                    }}>
-                                      {stripHtmlTags(chapter.content).substring(0, 40)}...
+                                  label={
+                                    <div className="flex-1 min-w-0 overflow-hidden">
+                                      <div className="font-medium text-gray-900 text-xs leading-tight truncate">
+                                        {chapter.chapter_number ? `Ch ${chapter.chapter_number}` : 'Ch'}: {stripHtmlTags(chapter.title) || 'Untitled'}
+                                      </div>
+                                      {chapter.content && (
+                                        <div className="text-xs text-gray-500 mt-0.5 overflow-hidden" style={{
+                                          display: '-webkit-box',
+                                          WebkitLineClamp: 1,
+                                          WebkitBoxOrient: 'vertical'
+                                        }}>
+                                          {stripHtmlTags(chapter.content).substring(0, 40)}...
+                                        </div>
+                                      )}
                                     </div>
-                                  )}
-                                </div>
-                              </label>
+                                  }
+                                  className="items-start"
+                                />
+                              </div>
                             ))}
                           </div>
                           
@@ -1946,150 +2220,6 @@ export default function ArcsManager({ projectId, selectedElement, onArcsChange, 
                         </div>
                       )}
                     </Card>
-
-                    {/* Chapter Breakdown */}
-                    <div>
-                      <div className="flex justify-between items-center mb-4">
-                        <h4 className="font-semibold flex items-center gap-2">
-                          <Layers className="w-5 h-5 text-green-600" />
-                          Chapter Breakdown
-                        </h4>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            const newChapter = {
-                              chapter_id: `temp-${Date.now()}`,
-                              chapter_name: `Chapter ${formData.chapter_breakdown.length + 1}`,
-                              chapter_order: formData.chapter_breakdown.length + 1,
-                              arc_prominence: 5,
-                              key_events: [],
-                              setup_elements: [],
-                              payoff_elements: [],
-                              scenes: []
-                            }
-                            setFormData(prev => ({
-                              ...prev,
-                              chapter_breakdown: [...prev.chapter_breakdown, newChapter]
-                            }))
-                          }}
-                        >
-                          <Plus className="w-4 h-4 mr-2" />
-                          Add Chapter
-                        </Button>
-                      </div>
-
-                      <div className="space-y-4">
-                        {formData.chapter_breakdown.map((chapter, index) => (
-                          <Card key={index} className="p-4">
-                            <div className="flex items-center justify-between mb-4">
-                              <div className="flex items-center gap-3">
-                                <Input
-                                  value={chapter.chapter_name}
-                                  onChange={(e) => {
-                                    const updated = [...formData.chapter_breakdown]
-                                    updated[index].chapter_name = e.target.value
-                                    setFormData(prev => ({ ...prev, chapter_breakdown: updated }))
-                                  }}
-                                  className="font-semibold text-lg w-64"
-                                />
-                                <Badge variant="secondary">Order: {chapter.chapter_order}</Badge>
-                              </div>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setFormData(prev => ({
-                                  ...prev,
-                                  chapter_breakdown: prev.chapter_breakdown.filter((_, i) => i !== index)
-                                }))}
-                              >
-                                <X className="w-4 h-4" />
-                              </Button>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div>
-                                <Label className="text-sm font-medium mb-2 block">Arc Prominence: {chapter.arc_prominence}/10</Label>
-                                <Input
-                                  type="range"
-                                  min="1"
-                                  max="10"
-                                  value={chapter.arc_prominence}
-                                  onChange={(e) => {
-                                    const updated = [...formData.chapter_breakdown]
-                                    updated[index].arc_prominence = parseInt(e.target.value)
-                                    setFormData(prev => ({ ...prev, chapter_breakdown: updated }))
-                                  }}
-                                />
-                              </div>
-                              <div>
-                                <Label className="text-sm font-medium mb-2 block">Chapter Order</Label>
-                                <Input
-                                  type="number"
-                                  min="1"
-                                  value={chapter.chapter_order}
-                                  onChange={(e) => {
-                                    const updated = [...formData.chapter_breakdown]
-                                    updated[index].chapter_order = parseInt(e.target.value) || 1
-                                    setFormData(prev => ({ ...prev, chapter_breakdown: updated }))
-                                  }}
-                                />
-                              </div>
-                            </div>
-
-                            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-                              <div>
-                                <Label className="text-sm font-medium mb-2 block">Key Events</Label>
-                                <Textarea
-                                  placeholder="Major plot points in this chapter..."
-                                  value={chapter.key_events.join('\n')}
-                                  onChange={(e) => {
-                                    const updated = [...formData.chapter_breakdown]
-                                    updated[index].key_events = e.target.value.split('\n').filter(item => item.trim())
-                                    setFormData(prev => ({ ...prev, chapter_breakdown: updated }))
-                                  }}
-                                  rows={3}
-                                />
-                              </div>
-                              <div>
-                                <Label className="text-sm font-medium mb-2 block">Setup Elements</Label>
-                                <Textarea
-                                  placeholder="What gets set up for later..."
-                                  value={chapter.setup_elements.join('\n')}
-                                  onChange={(e) => {
-                                    const updated = [...formData.chapter_breakdown]
-                                    updated[index].setup_elements = e.target.value.split('\n').filter(item => item.trim())
-                                    setFormData(prev => ({ ...prev, chapter_breakdown: updated }))
-                                  }}
-                                  rows={3}
-                                />
-                              </div>
-                              <div>
-                                <Label className="text-sm font-medium mb-2 block">Payoff Elements</Label>
-                                <Textarea
-                                  placeholder="What gets resolved or revealed..."
-                                  value={chapter.payoff_elements.join('\n')}
-                                  onChange={(e) => {
-                                    const updated = [...formData.chapter_breakdown]
-                                    updated[index].payoff_elements = e.target.value.split('\n').filter(item => item.trim())
-                                    setFormData(prev => ({ ...prev, chapter_breakdown: updated }))
-                                  }}
-                                  rows={3}
-                                />
-                              </div>
-                            </div>
-                          </Card>
-                        ))}
-
-                        {formData.chapter_breakdown.length === 0 && (
-                          <div className="text-center py-8 text-gray-500">
-                            <BookOpen className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                            <p>No chapters defined for this arc yet.</p>
-                            <p className="text-sm">Add chapters to plan how this arc unfolds through your story.</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
                   </div>
                 </div>
               </TabsContent>
@@ -2263,7 +2393,7 @@ export default function ArcsManager({ projectId, selectedElement, onArcsChange, 
                       <div className="space-y-4">
                         <div className="flex justify-between items-center">
                           <p className="text-sm text-gray-600">Track intensity and development across chapters</p>
-                          <Select onValueChange={(chapterId) => {
+                          <EnhancedSelect onValueChange={(chapterId: string) => {
                             const selectedChapter = chapters.find(ch => ch.id === chapterId)
                             if (selectedChapter && !formData.pacing_profile.some(p => p.chapter_number === selectedChapter.chapter_number)) {
                               const newProfile = {
@@ -2279,24 +2409,22 @@ export default function ArcsManager({ projectId, selectedElement, onArcsChange, 
                                 pacing_profile: [...prev.pacing_profile, newProfile]
                               }))
                             }
-                          }}>
-                            <SelectTrigger className="w-48">
-                              <SelectValue placeholder="Add Chapter" />
-                            </SelectTrigger>
-                            <SelectContent className="bg-white border border-gray-200 shadow-lg">
-                              {chapters
-                                .filter(chapter => !formData.pacing_profile.some(p => p.chapter_number === chapter.chapter_number))
-                                .map(chapter => (
-                                  <SelectItem key={chapter.id} value={chapter.id}>
-                                    Chapter {chapter.chapter_number || '?'}: {stripHtmlTags(chapter.title).substring(0, 30)}...
-                                  </SelectItem>
-                                ))
-                              }
-                              {chapters.filter(chapter => !formData.pacing_profile.some(p => p.chapter_number === chapter.chapter_number)).length === 0 && (
-                                <SelectItem value="" disabled>All chapters already added</SelectItem>
-                              )}
-                            </SelectContent>
-                          </Select>
+                          }}
+                          placeholder="Add Chapter"
+                          className="w-48"
+                          >
+                            {chapters
+                              .filter(chapter => !formData.pacing_profile.some(p => p.chapter_number === chapter.chapter_number))
+                              .map(chapter => (
+                                <EnhancedSelectItem key={chapter.id} value={chapter.id}>
+                                  Chapter {chapter.chapter_number || '?'}: {stripHtmlTags(chapter.title).substring(0, 30)}...
+                                </EnhancedSelectItem>
+                              ))
+                            }
+                            {chapters.filter(chapter => !formData.pacing_profile.some(p => p.chapter_number === chapter.chapter_number)).length === 0 && (
+                              <EnhancedSelectItem value="" disabled>All chapters already added</EnhancedSelectItem>
+                            )}
+                          </EnhancedSelect>
                         </div>
 
                         {formData.pacing_profile.map((profile, index) => {
@@ -2441,23 +2569,21 @@ export default function ArcsManager({ projectId, selectedElement, onArcsChange, 
                       
                       <div className="space-y-3">
                         <div className="flex gap-2">
-                          <Select onValueChange={(theme) => {
+                          <EnhancedSelect onValueChange={(theme: string) => {
                             if (theme && !formData.themes.includes(theme)) {
                               setFormData(prev => ({
                                 ...prev,
                                 themes: [...prev.themes, theme]
                               }))
                             }
-                          }}>
-                            <SelectTrigger className="flex-1">
-                              <SelectValue placeholder="Add a theme..." />
-                            </SelectTrigger>
-                            <SelectContent className="bg-white border border-gray-200 shadow-lg">
-                              {COMMON_THEMES.filter(theme => !formData.themes.includes(theme)).map(theme => (
-                                <SelectItem key={theme} value={theme}>{theme}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          }}
+                          placeholder="Add a theme..."
+                          className="flex-1"
+                          >
+                            {COMMON_THEMES.filter(theme => !formData.themes.includes(theme)).map(theme => (
+                              <EnhancedSelectItem key={theme} value={theme}>{theme}</EnhancedSelectItem>
+                            ))}
+                          </EnhancedSelect>
                         </div>
 
                         <div className="flex flex-wrap gap-2">
@@ -2517,28 +2643,32 @@ export default function ArcsManager({ projectId, selectedElement, onArcsChange, 
                         {formData.conflicts.map((conflict, index) => (
                           <Card key={index} className="p-4 border border-gray-200">
                             <div className="flex items-center justify-between mb-3">
-                              <Select
+                              <EnhancedSelect
                                 value={conflict.type}
-                                onValueChange={(value) => {
+                                onValueChange={(value: string) => {
                                   const updated = [...formData.conflicts]
                                   updated[index].type = value
                                   setFormData(prev => ({ ...prev, conflicts: updated }))
                                 }}
+                                className="w-100"
+                                customDisplay={
+                                  conflict.type ? 
+                                    (() => {
+                                      const type = CONFLICT_TYPES.find(t => t.value === conflict.type);
+                                      return type ? `${type.label} - ${type.description}` : undefined;
+                                    })()
+                                    : undefined
+                                }
                               >
-                                <SelectTrigger className="w-48">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent className="bg-white border border-gray-200 shadow-lg">
-                                  {CONFLICT_TYPES.map(type => (
-                                    <SelectItem key={type.value} value={type.value}>
-                                      <div>
-                                        <div className="font-medium">{type.label}</div>
-                                        <div className="text-sm text-gray-500">{type.description}</div>
-                                      </div>
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                                {CONFLICT_TYPES.map(type => (
+                                  <EnhancedSelectItem key={type.value} value={type.value}>
+                                    <div className="space-y-2">
+                                      <div className="font-semibold text-gray-900 text-base">{type.label}</div>
+                                      <div className="text-sm text-gray-600 leading-relaxed line-clamp-2">{type.description}</div>
+                                    </div>
+                                  </EnhancedSelectItem>
+                                ))}
+                              </EnhancedSelect>
                               <Button
                                 variant="ghost"
                                 size="sm"
