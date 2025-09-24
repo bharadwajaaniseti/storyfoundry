@@ -60,6 +60,7 @@ interface WorldBuildingSidebarProps {
 
 const CATEGORIES = [
   { key: 'characters', label: 'Characters', icon: Users, color: 'blue' },
+  { key: 'relationships', label: 'Relationships', icon: Heart, color: 'rose' },
   { key: 'locations', label: 'Locations', icon: MapPin, color: 'green' },
   { key: 'timeline', label: 'Timeline', icon: Clock, color: 'purple' },
   { key: 'calendar', label: 'Calendar', icon: Calendar, color: 'orange' },
@@ -561,7 +562,7 @@ export default function WorldBuildingSidebar({
     setShowNewLocation(false)
   }
 
-  // Enhanced context menu handler with smart positioning
+  // Enhanced context menu handler with improved smart positioning
   const handleElementContextMenu = (e: React.MouseEvent, element: WorldElement) => {
     console.log('🔥 SIDEBAR Context menu triggered for:', element.name)
     
@@ -588,7 +589,7 @@ export default function WorldBuildingSidebar({
     const spaceBelow = viewportHeight - mouseY
     const spaceAbove = mouseY
     
-    // Determine horizontal position
+    // Determine horizontal position with improved logic
     let x: number
     if (spaceRight >= menuWidth + margin) {
       // Show to the right (default)
@@ -597,25 +598,30 @@ export default function WorldBuildingSidebar({
       // Show to the left
       x = mouseX - menuWidth - 4
     } else {
-      // Use whatever space is available
-      x = spaceRight > spaceLeft 
-        ? Math.max(margin, viewportWidth - menuWidth - margin)
-        : margin
+      // Center horizontally if neither side has enough space
+      x = Math.max(margin, Math.min(
+        mouseX - menuWidth / 2,
+        viewportWidth - menuWidth - margin
+      ))
     }
     
-    // Determine vertical position
+    // Determine vertical position with improved logic
     let y: number
     if (spaceBelow >= menuHeight + margin) {
       // Show below (default)
       y = mouseY + 4
     } else if (spaceAbove >= menuHeight + margin) {
-      // Show above
+      // Show above - this is the key fix for bottom screen items
       y = mouseY - menuHeight - 4
     } else {
-      // Use whatever space is available
-      y = spaceBelow > spaceAbove 
-        ? Math.max(margin, viewportHeight - menuHeight - margin)
-        : margin
+      // If neither above nor below has enough space, position optimally
+      if (spaceAbove > spaceBelow) {
+        // More space above, position at top of available space
+        y = Math.max(margin, mouseY - menuHeight - 4)
+      } else {
+        // More space below, position at bottom of available space
+        y = Math.min(mouseY + 4, viewportHeight - menuHeight - margin)
+      }
     }
     
     // Final viewport clamping for absolute safety
@@ -630,7 +636,7 @@ export default function WorldBuildingSidebar({
       finalPosition: { x, y },
       positioning: {
         horizontal: x > mouseX ? 'right' : x < mouseX ? 'left' : 'centered',
-        vertical: y > mouseY ? 'below' : y < mouseY ? 'above' : 'centered'
+        vertical: y > mouseY ? 'below' : y < mouseX ? 'above' : 'centered'
       }
     })
     
@@ -938,6 +944,15 @@ export default function WorldBuildingSidebar({
                                 
                                 if (element.category === 'characters' && onShowCharacterEditor) {
                                   onShowCharacterEditor(element)
+                                } else if (element.category === 'relationships') {
+                                  // Always open canvas for relationships
+                                  console.log('🎯 SIDEBAR RELATIONSHIP CLICKED:', element.name)
+                                  window.dispatchEvent(new CustomEvent('openRelationshipCanvas', {
+                                    detail: {
+                                      relationship: element,
+                                      projectId: projectId
+                                    }
+                                  }))
                                 } else if (element.category === 'timeline') {
                                   // Handle timeline selection
                                   setSelectedElement(element)

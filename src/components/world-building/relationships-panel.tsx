@@ -8,7 +8,7 @@ import {
   Save, User, AlertTriangle, CheckCircle, Clock, Calendar,
   GitBranch, Network, BarChart3, TrendingUp, Activity, Grid,
   Layers, Move, RotateCcw, Share2, Download, Upload, Settings,
-  Home, Swords, BookOpen
+  Home, Swords, BookOpen, UserCircle, Palette, ZoomIn, ZoomOut
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -251,6 +251,7 @@ const RELATIONSHIP_TYPES = [
   { value: 'conflict', label: 'Conflict', icon: Zap, color: 'orange', description: 'Enemies, adversaries' },
   { value: 'hierarchy', label: 'Hierarchy', icon: Crown, color: 'violet', description: 'Power structures, authority' },
   { value: 'dependency', label: 'Dependency', icon: GitBranch, color: 'teal', description: 'One-sided reliance' },
+  { value: 'relationship_web', label: 'Visual Web', icon: Network, color: 'indigo', description: 'Canvas-based relationship network' },
   { value: 'other', label: 'Other', icon: MessageCircle, color: 'gray', description: 'Custom relationship type' }
 ]
 
@@ -328,7 +329,10 @@ function RelationshipCard({
   const statusColor = getStatusColor(relationship.attributes?.status || 'active')
   
   return (
-    <Card className="hover:shadow-md transition-shadow border border-gray-200">
+    <Card 
+      className="hover:shadow-md transition-shadow border border-gray-200 cursor-pointer" 
+      onClick={() => onEdit(relationship)}
+    >
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-2">
@@ -363,7 +367,10 @@ function RelationshipCard({
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => onDelete(relationship.id)}
+            onClick={(e) => {
+              e.stopPropagation()
+              onDelete(relationship.id)
+            }}
           >
             <Trash2 className="w-4 h-4 text-red-500" />
           </Button>
@@ -432,7 +439,10 @@ function RelationshipCard({
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => onEdit(relationship)}
+              onClick={(e) => {
+                e.stopPropagation()
+                onEdit(relationship)
+              }}
             >
               <Edit3 className="w-4 h-4 mr-1" />
               Edit
@@ -858,10 +868,34 @@ export default function RelationshipsPanel({
 
   useEffect(() => {
     if (selectedElement && selectedElement.category === 'relationships') {
+      console.log('🎯 SELECTED ELEMENT: Opening canvas for:', selectedElement.name)
+      // Always open canvas for any relationship
+      setRelationshipName(selectedElement.name)
       setEditingRelationship(selectedElement)
-      setShowCreateDialog(true)
+      setShowCanvas(true)
     }
   }, [selectedElement])
+
+  // Listen for canvas relationship events from sidebar
+  useEffect(() => {
+    const handleOpenRelationshipCanvas = (event: any) => {
+      console.log('🎯 RECEIVED openRelationshipCanvas event:', event.detail?.relationship?.name)
+      const relationship = event.detail.relationship
+      
+      // Always open canvas for any relationship
+      if (relationship) {
+        console.log('🎯 OPENING CANVAS from event')
+        setRelationshipName(relationship.name)
+        setEditingRelationship(relationship)
+        setShowCanvas(true)
+      }
+    }
+
+    window.addEventListener('openRelationshipCanvas', handleOpenRelationshipCanvas)
+    return () => {
+      window.removeEventListener('openRelationshipCanvas', handleOpenRelationshipCanvas)
+    }
+  }, [])
 
   const loadRelationships = async () => {
     try {
@@ -1092,16 +1126,41 @@ export default function RelationshipsPanel({
     try {
       const supabase = createSupabaseClient()
       
-      // Create the relationship web as a world element
-      const relationshipWeb = {
-        name: relationshipName,
+      // Debug logging
+      console.log('Canvas save debug:', {
+        relationshipName,
+        projectId,
+        editingRelationship: editingRelationship?.id,
+        canvasDataNodes: canvasData?.nodes?.length || 0,
+        canvasDataConnections: canvasData?.connections?.length || 0,
+        canvasData
+      })
+      
+      // Validate required data
+      if (!projectId) {
+        console.error('No projectId provided')
+        return
+      }
+      
+      if (!canvasData || !canvasData.nodes || !canvasData.connections) {
+        console.error('Invalid canvas data:', canvasData)
+        return
+      }
+      
+      // Generate a name if none is provided
+      const webName = relationshipName?.trim() || (editingRelationship?.name) || `Relationship Web - ${new Date().toLocaleDateString()}`
+      
+      // Create the relationship web data
+      const relationshipWebData = {
+        name: webName,
         description: `Visual relationship web showing connections between ${canvasData.nodes.length} elements`,
-        category: 'relationship',
+        category: 'relationships',
         project_id: projectId,
-        data: {
+        attributes: {
           type: 'relationship_web',
           canvas_data: canvasData,
-          created_at: new Date().toISOString(),
+          created_at: editingRelationship?.attributes?.created_at || new Date().toISOString(),
+          updated_at: new Date().toISOString(),
           // Convert connections to traditional relationships for compatibility
           relationships: canvasData.connections.map(conn => {
             const fromNode = canvasData.nodes.find(n => n.id === conn.fromNodeId)
@@ -1121,15 +1180,56 @@ export default function RelationshipsPanel({
         tags: ['relationship', 'visual', 'canvas']
       }
 
-      const { data, error } = await supabase
-        .from('world_elements')
-        .insert([relationshipWeb])
-        .select()
+      console.log('Relationship web object:', JSON.stringify(relationshipWebData, null, 2))
+
+      let data: any, error: any
+
+      if (editingRelationship) {
+        // Update existing relationship
+        const updateResult = await supabase
+          .from('world_elements')
+          .update(relationshipWebData)
+          .eq('id', editingRelationship.id)
+          .select()
+          .single()
+        
+        data = updateResult.data
+        error = updateResult.error
+        
+        if (!error && data) {
+          // Update the relationships list
+          setRelationships(prev => prev.map(r => r.id === editingRelationship.id ? data : r))
+        }
+      } else {
+        // Create new relationship
+        const insertResult = await supabase
+          .from('world_elements')
+          .insert(relationshipWebData)
+          .select()
+          .single()
+        
+        data = insertResult.data
+        error = insertResult.error
+        
+        if (!error && data) {
+          // Add to relationships list
+          setRelationships(prev => [data, ...prev])
+        }
+      }
 
       if (error) {
-        console.error('Error saving relationship web:', error)
+        console.error('Error saving relationship web:', JSON.stringify(error, null, 2))
+        console.error('Attempted to save:', JSON.stringify(relationshipWebData, null, 2))
         return
       }
+
+      if (!data) {
+        console.error('No data returned from relationship web insert')
+        console.error('Insert result - data:', data, 'error:', error)
+        return
+      }
+
+      const savedRelationshipWeb = data
 
       // Also create individual relationships for each connection
       for (const connection of canvasData.connections) {
@@ -1141,9 +1241,9 @@ export default function RelationshipsPanel({
           const relationshipData = {
             name: connection.label || `${fromNode.name} - ${toNode.name}`,
             description: `${connection.type} relationship between ${fromNode.name} and ${toNode.name}`,
-            category: 'relationship',
+            category: 'relationships',
             project_id: projectId,
-            data: {
+            attributes: {
               type: connection.type,
               character_1_id: fromNode.id,
               character_2_id: toNode.id,
@@ -1160,13 +1260,14 @@ export default function RelationshipsPanel({
 
           const { data: relationshipResult, error: relationshipError } = await supabase
             .from('world_elements')
-            .insert([relationshipData])
+            .insert(relationshipData)
             .select()
+            .single()
 
-          if (!relationshipError && relationshipResult?.[0]) {
+          if (!relationshipError && relationshipResult) {
             // Dispatch event for each individual relationship created
             window.dispatchEvent(new CustomEvent('relationshipCreated', { 
-              detail: { relationship: relationshipResult[0], projectId } 
+              detail: { relationship: relationshipResult, projectId } 
             }))
           }
         }
@@ -1175,11 +1276,20 @@ export default function RelationshipsPanel({
       // Refresh the relationships list
       await loadRelationships()
       
-      // Broadcast change for sidebar update - add main relationship web to sidebar
-      window.dispatchEvent(new CustomEvent('relationshipCreated', { 
-        detail: { relationship: data[0], projectId } 
-      }))
+      // Broadcast change for sidebar update
+      if (editingRelationship) {
+        window.dispatchEvent(new CustomEvent('relationshipUpdated', { 
+          detail: { relationship: savedRelationshipWeb, projectId } 
+        }))
+      } else {
+        window.dispatchEvent(new CustomEvent('relationshipCreated', { 
+          detail: { relationship: savedRelationshipWeb, projectId } 
+        }))
+      }
 
+      // Clear editing state
+      setEditingRelationship(null)
+      
       onRelationshipsChange?.()
     } catch (error) {
       console.error('Error saving canvas relationship:', error)
@@ -1314,6 +1424,7 @@ export default function RelationshipsPanel({
         <InlineRelationshipCanvas
           relationshipName={relationshipName}
           characters={characters}
+          existingRelationship={editingRelationship}
           onClose={() => {
             setShowCanvas(false)
             setRelationshipName('')
@@ -1581,31 +1692,11 @@ export default function RelationshipsPanel({
                     key={relationship.id}
                     relationship={relationship}
                     onEdit={(rel) => {
+                      console.log('🎯 CARD CLICK: Opening canvas for:', rel.name)
+                      // Always open canvas for any relationship
+                      setRelationshipName(rel.name)
                       setEditingRelationship(rel)
-                      setFormData({
-                        name: rel.name,
-                        description: rel.description,
-                        type: rel.attributes?.type || '',
-                        strength: rel.attributes?.strength || 5,
-                        status: rel.attributes?.status || 'active',
-                        character_1_id: rel.attributes?.character_1_id || '',
-                        character_2_id: rel.attributes?.character_2_id || '',
-                        dynamics: rel.attributes?.dynamics || [],
-                        history: rel.attributes?.history || '',
-                        current_state: rel.attributes?.current_state || '',
-                        notes: rel.attributes?.notes || '',
-                        tension_level: rel.attributes?.tension_level || 0,
-                        intimacy_level: rel.attributes?.intimacy_level || 5,
-                        dependency_level: rel.attributes?.dependency_level || 0,
-                        trust_level: rel.attributes?.trust_level || 5,
-                        respect_level: rel.attributes?.respect_level || 5,
-                        power_balance: rel.attributes?.power_balance || 'equal',
-                        conflict_sources: rel.attributes?.conflict_sources || [],
-                        bonding_factors: rel.attributes?.bonding_factors || [],
-                        relationship_goals: rel.attributes?.relationship_goals || '',
-                        story_importance: rel.attributes?.story_importance || 'secondary'
-                      })
-                      setShowCreateDialog(true)
+                      setShowCanvas(true)
                     }}
                     onDelete={handleDeleteRelationship}
                   />
@@ -2333,6 +2424,7 @@ interface CanvasConnection {
 interface RelationshipCanvasProps {
   relationshipName: string
   characters: Character[]
+  existingRelationship?: Relationship | null
   onClose: () => void
   onSave: (data: { nodes: CanvasNode[], connections: CanvasConnection[] }) => void
 }
@@ -2340,6 +2432,7 @@ interface RelationshipCanvasProps {
 const RelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
   relationshipName,
   characters,
+  existingRelationship,
   onClose,
   onSave
 }) => {
@@ -2355,6 +2448,23 @@ const RelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
   const [canvasOffset, setCanvasOffset] = useState({ x: 0, y: 0 })
   const [scale, setScale] = useState(1)
   const [showElementsPanel, setShowElementsPanel] = useState(true)
+
+  // Initialize canvas with existing relationship data if available
+  useEffect(() => {
+    if (existingRelationship && existingRelationship.attributes?.canvas_data) {
+      console.log('🎯 INITIALIZING CANVAS with existing data:', existingRelationship.attributes.canvas_data)
+      const canvasData = existingRelationship.attributes.canvas_data
+      
+      if (canvasData.nodes) {
+        setNodes(canvasData.nodes)
+      }
+      if (canvasData.connections) {
+        setConnections(canvasData.connections)
+      }
+    } else {
+      console.log('🎯 CANVAS: No existing data, starting empty')
+    }
+  }, [existingRelationship])
 
   // Add character to canvas
   const addCharacterToCanvas = (character: Character) => {
@@ -2397,7 +2507,7 @@ const RelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
 
   const handleMouseUp = () => {
     setIsDragging(false)
-    setSelectedNode(null)
+    // setSelectedNode(null) // Commented out to preserve node selection
   }
 
   // Connection creation
@@ -2731,6 +2841,7 @@ const RelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
 const InlineRelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
   relationshipName,
   characters,
+  existingRelationship,
   onClose,
   onSave
 }) => {
@@ -2746,8 +2857,44 @@ const InlineRelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
   const [scale, setScale] = useState(1)
   const [showElementsPanel, setShowElementsPanel] = useState(true)
 
+  // Initialize canvas with existing relationship data if available
+  useEffect(() => {
+    if (existingRelationship && existingRelationship.attributes?.canvas_data) {
+      console.log('🎯 INLINE CANVAS: Initializing with existing data:', existingRelationship.attributes.canvas_data)
+      const canvasData = existingRelationship.attributes.canvas_data
+      
+      if (canvasData.nodes) {
+        setNodes(canvasData.nodes)
+      }
+      if (canvasData.connections) {
+        setConnections(canvasData.connections)
+      }
+    } else {
+      console.log('🎯 INLINE CANVAS: No existing data, starting empty')
+    }
+  }, [existingRelationship])
+
+  // Clean up duplicate nodes
+  useEffect(() => {
+    setNodes(prev => {
+      const uniqueNodes = prev.filter((node, index, self) => 
+        index === self.findIndex(n => n.id === node.id)
+      )
+      if (uniqueNodes.length !== prev.length) {
+        console.log('Removed duplicate nodes:', prev.length - uniqueNodes.length)
+      }
+      return uniqueNodes
+    })
+  }, [])
+
   // Add character to canvas
   const addCharacterToCanvas = (character: Character) => {
+    // Check if character is already on canvas
+    if (nodes.some(node => node.id === character.id)) {
+      console.log('Character already on canvas:', character.name)
+      return
+    }
+
     const newNode: CanvasNode = {
       id: character.id,
       type: 'character',
@@ -2758,6 +2905,7 @@ const InlineRelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
       height: 80,
       color: '#f43f5e'
     }
+    console.log('Adding character to canvas:', character.name)
     setNodes(prev => [...prev, newNode])
   }
 
@@ -2786,7 +2934,7 @@ const InlineRelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
 
   const handleMouseUp = () => {
     setIsDragging(false)
-    setSelectedNode(null)
+    // setSelectedNode(null) // Commented out to preserve node selection
   }
 
   // Connection creation
@@ -2839,31 +2987,63 @@ const InlineRelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
   }
 
   return (
-    <div className="flex h-full bg-white rounded-xl shadow-sm border">
+    <div className="flex h-full bg-gradient-to-br from-slate-50 to-gray-100 rounded-xl shadow-lg border border-gray-200/80 overflow-hidden">
       {/* Elements Panel */}
       {showElementsPanel && (
-        <div className="w-80 bg-gray-50 border-r overflow-y-auto">
-          <div className="p-4 border-b bg-white">
-            <h3 className="text-lg font-semibold text-gray-900">Add Elements</h3>
+        <div className="w-80 bg-white/90 backdrop-blur-sm border-r border-gray-200/60 overflow-y-auto">
+          <div className="p-4 border-b border-gray-200/60 bg-gradient-to-r from-blue-50 to-indigo-50">
+            <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+              <Users className="w-5 h-5 mr-2 text-blue-600" />
+              Add Elements
+            </h3>
             <p className="text-sm text-gray-600 mt-1">Click characters to add them to the canvas</p>
           </div>
           
           <div className="p-4 space-y-4">
             <div>
-              <h4 className="font-medium text-gray-900 mb-3">Characters</h4>
+              <h4 className="font-medium text-gray-900 mb-3 flex items-center">
+                <UserCircle className="w-4 h-4 mr-2 text-gray-500" />
+                Characters
+              </h4>
               <div className="space-y-2">
-                {characters.map(character => (
-                  <div
-                    key={character.id}
-                    onClick={() => addCharacterToCanvas(character)}
-                    className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:border-rose-300 hover:bg-rose-50 cursor-pointer transition-colors"
-                  >
-                    <div className="w-10 h-10 bg-rose-100 rounded-full flex items-center justify-center text-sm font-medium text-rose-700">
-                      {character.name.charAt(0).toUpperCase()}
+                {characters.map(character => {
+                  const isOnCanvas = nodes.some(node => node.id === character.id)
+                  return (
+                    <div
+                      key={character.id}
+                      onClick={() => addCharacterToCanvas(character)}
+                      className={cn(
+                        "group flex items-center gap-3 p-3 rounded-xl border transition-all duration-200",
+                        isOnCanvas 
+                          ? "border-green-300 bg-green-50/50 cursor-default" 
+                          : "border-gray-200/60 hover:border-blue-300 hover:bg-gradient-to-r hover:from-blue-50/50 hover:to-indigo-50/50 cursor-pointer hover:shadow-sm hover:scale-[1.02]"
+                      )}
+                    >
+                      <div className={cn(
+                        "w-12 h-12 rounded-xl flex items-center justify-center text-sm font-semibold shadow-sm transition-shadow",
+                        isOnCanvas
+                          ? "bg-gradient-to-br from-green-100 to-emerald-100 text-green-700 group-hover:shadow-md"
+                          : "bg-gradient-to-br from-blue-100 to-indigo-100 text-blue-700 group-hover:shadow-md"
+                      )}>
+                        {character.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1">
+                        <span className="font-medium text-gray-900 block">{character.name}</span>
+                        <span className={cn(
+                          "text-xs",
+                          isOnCanvas ? "text-green-600" : "text-gray-500"
+                        )}>
+                          {isOnCanvas ? "On Canvas" : "Character"}
+                        </span>
+                      </div>
+                      {isOnCanvas ? (
+                        <CheckCircle className="w-4 h-4 text-green-500" />
+                      ) : (
+                        <Plus className="w-4 h-4 text-gray-400 group-hover:text-blue-500 transition-colors" />
+                      )}
                     </div>
-                    <span className="font-medium text-gray-900">{character.name}</span>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           </div>
@@ -2873,10 +3053,16 @@ const InlineRelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
       {/* Main Canvas Area */}
       <div className="flex-1 flex flex-col">
         {/* Header */}
-        <div className="bg-white border-b px-4 py-3 flex items-center justify-between">
+        <div className="bg-white/95 backdrop-blur-sm border-b border-gray-200/60 px-6 py-4 flex items-center justify-between shadow-sm">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">{relationshipName}</h2>
-            <p className="text-sm text-gray-600">Visual Relationship Editor</p>
+            <h2 className="text-xl font-bold text-gray-900 flex items-center">
+              <Network className="w-6 h-6 mr-2 text-indigo-600" />
+              {relationshipName}
+            </h2>
+            <p className="text-sm text-gray-600 flex items-center mt-1">
+              <Palette className="w-4 h-4 mr-1" />
+              Visual Relationship Editor
+            </p>
           </div>
           
           <div className="flex items-center gap-2">
@@ -2884,111 +3070,220 @@ const InlineRelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
               variant="outline"
               size="sm"
               onClick={() => setShowElementsPanel(!showElementsPanel)}
-              className="border-gray-300"
+              className="border-gray-300 hover:border-indigo-300 hover:bg-indigo-50 transition-colors"
             >
-              <Layers className="w-4 h-4 mr-1" />
-              {showElementsPanel ? 'Hide' : 'Show'}
+              <Layers className="w-4 h-4 mr-2" />
+              {showElementsPanel ? 'Hide Panel' : 'Show Panel'}
             </Button>
             
-            <div className="flex items-center gap-1 border rounded-lg">
-              <Button variant="ghost" size="sm" onClick={zoomOut} className="px-2">
-                <span className="text-sm">-</span>
+            <div className="flex items-center gap-0 border border-gray-200 rounded-xl bg-white shadow-sm">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={zoomOut} 
+                className="px-3 rounded-l-xl hover:bg-gray-50"
+                disabled={scale <= 0.3}
+              >
+                <ZoomOut className="w-4 h-4" />
               </Button>
-              <span className="px-2 text-xs font-medium">{Math.round(scale * 100)}%</span>
-              <Button variant="ghost" size="sm" onClick={zoomIn} className="px-2">
-                <span className="text-sm">+</span>
+              <div className="px-4 py-1.5 text-xs font-medium text-gray-700 border-x border-gray-200 bg-gray-50">
+                {Math.round(scale * 100)}%
+              </div>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={zoomIn} 
+                className="px-3 rounded-r-xl hover:bg-gray-50"
+                disabled={scale >= 3}
+              >
+                <ZoomIn className="w-4 h-4" />
               </Button>
             </div>
             
-            <Button variant="outline" size="sm" onClick={resetZoom}>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={resetZoom}
+              className="border-gray-300 hover:border-gray-400 hover:bg-gray-50"
+            >
               <RotateCcw className="w-4 h-4" />
             </Button>
             
-            <Button onClick={handleSave} size="sm" className="bg-green-600 hover:bg-green-700 text-white">
-              <Save className="w-4 h-4 mr-1" />
-              Save
+            <Button 
+              onClick={handleSave} 
+              size="sm" 
+              className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white shadow-sm hover:shadow-md transition-all duration-200"
+            >
+              <Save className="w-4 h-4 mr-2" />
+              Save Canvas
             </Button>
             
-            <Button variant="outline" size="sm" onClick={onClose}>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={onClose}
+              className="border-gray-300 hover:border-red-300 hover:bg-red-50 hover:text-red-600"
+            >
               <X className="w-4 h-4" />
             </Button>
           </div>
         </div>
 
         {/* Canvas */}
-        <div className="flex-1 relative overflow-hidden bg-gray-50">
+        <div className="flex-1 relative overflow-hidden bg-gradient-to-br from-gray-50 via-blue-50/20 to-indigo-50/30">
           <div
             ref={canvasRef}
             className="w-full h-full relative cursor-move"
             style={{
-              transform: `scale(${scale})`
+              transform: `scale(${scale})`,
+              transformOrigin: 'center center'
             }}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
+            onClick={(e) => {
+              // Clear selection if clicking on canvas background (not on nodes or buttons)
+              const target = e.target as HTMLElement
+              const isNode = target.closest('[data-node-id]')
+              const isButton = target.closest('button')
+              
+              if (!isNode && !isButton) {
+                setSelectedNode(null)
+              }
+            }}
           >
-            {/* Grid Background */}
-            <div className="absolute inset-0 opacity-20">
+            {/* Enhanced Grid Background */}
+            <div className="absolute inset-0 opacity-30 pointer-events-none">
               <svg width="100%" height="100%">
                 <defs>
-                  <pattern id="inline-grid" width="20" height="20" patternUnits="userSpaceOnUse">
-                    <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#e5e7eb" strokeWidth="1"/>
+                  <pattern id="enhanced-grid" width="30" height="30" patternUnits="userSpaceOnUse">
+                    <path d="M 30 0 L 0 0 0 30" fill="none" stroke="#e2e8f0" strokeWidth="1"/>
+                    <circle cx="0" cy="0" r="1" fill="#cbd5e1" opacity="0.5"/>
                   </pattern>
+                  <radialGradient id="grid-fade" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stopColor="white" stopOpacity="0"/>
+                    <stop offset="100%" stopColor="white" stopOpacity="0.3"/>
+                  </radialGradient>
                 </defs>
-                <rect width="100%" height="100%" fill="url(#inline-grid)" />
+                <rect width="100%" height="100%" fill="url(#enhanced-grid)" />
+                <rect width="100%" height="100%" fill="url(#grid-fade)" />
               </svg>
             </div>
 
-            {/* Connections */}
+            {/* Enhanced Connections */}
             <svg className="absolute inset-0 w-full h-full pointer-events-none">
-              {connections.map(connection => (
-                <g key={connection.id}>
-                  <path
-                    d={getConnectionPath(connection)}
-                    stroke={connection.color}
-                    strokeWidth="3"
-                    fill="none"
-                    className="pointer-events-auto cursor-pointer hover:stroke-width-4"
-                    onClick={() => setSelectedConnection(connection.id)}
-                  />
-                  {connection.hasArrow && (
-                    <>
-                      <defs>
-                        <marker
-                          id={`inline-arrowhead-${connection.id}`}
-                          markerWidth="10"
-                          markerHeight="7"
-                          refX="9"
-                          refY="3.5"
-                          orient="auto"
+              <defs>
+                <filter id="connection-glow" x="-50%" y="-50%" width="200%" height="200%">
+                  <feMorphology operator="dilate" radius="2"/>
+                  <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                  <feMerge> 
+                    <feMergeNode in="coloredBlur"/>
+                    <feMergeNode in="SourceGraphic"/> 
+                  </feMerge>
+                </filter>
+                <linearGradient id="connection-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="currentColor" stopOpacity="0.6"/>
+                  <stop offset="50%" stopColor="currentColor" stopOpacity="1"/>
+                  <stop offset="100%" stopColor="currentColor" stopOpacity="0.6"/>
+                </linearGradient>
+              </defs>
+              {connections.map(connection => {
+                const fromNode = nodes.find(n => n.id === connection.fromNodeId)
+                const toNode = nodes.find(n => n.id === connection.toNodeId)
+                if (!fromNode || !toNode) return null
+                
+                const fromX = fromNode.x + fromNode.width / 2
+                const fromY = fromNode.y + fromNode.height / 2
+                const toX = toNode.x + toNode.width / 2
+                const toY = toNode.y + toNode.height / 2
+                
+                // Calculate label position (midpoint)
+                const labelX = (fromX + toX) / 2
+                const labelY = (fromY + toY) / 2
+                
+                return (
+                  <g key={connection.id}>
+                    {/* Connection Line with Glow Effect */}
+                    <path
+                      d={`M ${fromX} ${fromY} L ${toX} ${toY}`}
+                      stroke={connection.color}
+                      strokeWidth="4"
+                      fill="none"
+                      filter="url(#connection-glow)"
+                      className="pointer-events-auto cursor-pointer hover:stroke-width-6 transition-all duration-200"
+                      onClick={() => setSelectedConnection(connection.id)}
+                      style={{ color: connection.color }}
+                    />
+                    {/* Connection Label */}
+                    {connection.label && (
+                      <g>
+                        <rect
+                          x={labelX - (connection.label.length * 3)}
+                          y={labelY - 12}
+                          width={connection.label.length * 6}
+                          height="20"
+                          fill="white"
+                          stroke={connection.color}
+                          strokeWidth="1"
+                          rx="10"
+                          className="pointer-events-none"
+                          filter="url(#connection-glow)"
+                        />
+                        <text
+                          x={labelX}
+                          y={labelY - 2}
+                          textAnchor="middle"
+                          className="text-xs font-medium pointer-events-none"
+                          fill={connection.color}
                         >
-                          <polygon
-                            points="0 0, 10 3.5, 0 7"
-                            fill={connection.color}
-                          />
-                        </marker>
-                      </defs>
-                      <path
-                        d={getConnectionPath(connection)}
-                        stroke={connection.color}
-                        strokeWidth="3"
-                        fill="none"
-                        markerEnd={`url(#inline-arrowhead-${connection.id})`}
-                        className="pointer-events-none"
-                      />
-                    </>
-                  )}
-                </g>
-              ))}
+                          {connection.label}
+                        </text>
+                      </g>
+                    )}
+                    {/* Enhanced Arrow */}
+                    {connection.hasArrow && (
+                      <>
+                        <defs>
+                          <marker
+                            id={`enhanced-arrowhead-${connection.id}`}
+                            markerWidth="12"
+                            markerHeight="12"
+                            refX="10"
+                            refY="6"
+                            orient="auto"
+                          >
+                            <path
+                              d="M 0 0 L 12 6 L 0 12 L 3 6 Z"
+                              fill={connection.color}
+                              filter="url(#connection-glow)"
+                            />
+                          </marker>
+                        </defs>
+                        <path
+                          d={`M ${fromX} ${fromY} L ${toX} ${toY}`}
+                          stroke={connection.color}
+                          strokeWidth="4"
+                          fill="none"
+                          markerEnd={`url(#enhanced-arrowhead-${connection.id})`}
+                          className="pointer-events-none"
+                        />
+                      </>
+                    )}
+                  </g>
+                )
+              })}
             </svg>
 
-            {/* Nodes */}
+            {/* Enhanced Character Nodes */}
             {nodes.map(node => (
               <div
                 key={node.id}
+                data-node-id={node.id}
                 className={cn(
-                  "absolute bg-white rounded-xl shadow-lg border-2 cursor-move select-none",
-                  selectedNode === node.id ? "border-rose-500" : "border-gray-200",
-                  "hover:shadow-xl transition-shadow"
+                  "absolute bg-gradient-to-br from-white via-white to-gray-50 rounded-2xl shadow-lg border-2 cursor-move select-none group transition-all duration-200",
+                  selectedNode === node.id 
+                    ? "border-blue-400 shadow-blue-200/50 shadow-xl scale-105" 
+                    : "border-gray-200/80 hover:border-blue-300 hover:shadow-xl hover:scale-102",
+                  "backdrop-blur-sm"
                 )}
                 style={{
                   left: node.x,
@@ -3005,65 +3300,123 @@ const InlineRelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
                   }
                 }}
               >
-                <div className="p-4 h-full flex items-center justify-center">
+                {/* Card Background with Gradient Overlay */}
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-50/30 via-transparent to-indigo-50/30 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                
+                <div className="relative p-4 h-full flex items-center justify-center">
                   <div className="text-center">
-                    <div className="w-8 h-8 bg-rose-100 rounded-full flex items-center justify-center text-sm font-medium text-rose-700 mx-auto mb-2">
-                      {node.name.charAt(0).toUpperCase()}
+                    {/* Enhanced Avatar */}
+                    <div className="relative w-12 h-12 mx-auto mb-3">
+                      <div className="w-full h-full bg-gradient-to-br from-blue-100 via-indigo-100 to-purple-100 rounded-full flex items-center justify-center text-lg font-bold text-blue-700 shadow-md group-hover:shadow-lg transition-shadow">
+                        {node.name.charAt(0).toUpperCase()}
+                      </div>
+                      {/* Avatar Ring */}
+                      <div className="absolute inset-0 rounded-full border-2 border-white shadow-sm group-hover:border-blue-200 transition-colors" />
+                      {/* Pulse Effect for Selected */}
+                      {selectedNode === node.id && (
+                        <div className="absolute inset-0 rounded-full border-2 border-blue-400 animate-pulse" />
+                      )}
                     </div>
-                    <span className="text-sm font-medium text-gray-900">{node.name}</span>
-                    <div className="text-xs text-gray-500 capitalize">{node.type}</div>
+                    
+                    {/* Enhanced Name */}
+                    <div className="mb-1">
+                      <span className="text-sm font-semibold text-gray-900 block leading-tight">
+                        {node.name}
+                      </span>
+                    </div>
+                    
+                    {/* Enhanced Type Badge */}
+                    <div className="inline-flex items-center px-2 py-1 rounded-full bg-gradient-to-r from-blue-100 to-indigo-100 text-xs font-medium text-blue-700 border border-blue-200/50">
+                      <UserCircle className="w-3 h-3 mr-1" />
+                      {node.type}
+                    </div>
                   </div>
                 </div>
 
-                {/* Node Actions */}
+                {/* Enhanced Node Actions */}
                 {selectedNode === node.id && (
-                  <div className="absolute -top-2 -right-2 flex gap-1">
+                  <div className="absolute -top-4 -right-4 flex gap-1 z-50">
                     <Button
                       size="sm"
-                      variant="outline"
-                      className="w-6 h-6 p-0 bg-blue-500 hover:bg-blue-600 text-white border-blue-500"
+                      className="w-10 h-10 p-0 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white border-2 border-white shadow-lg hover:shadow-xl transition-all duration-200 rounded-full"
                       onClick={(e) => {
                         e.stopPropagation()
+                        e.preventDefault()
                         startConnection(node.id)
                       }}
+                      title="Create Connection"
                     >
-                      <Link2 className="w-3 h-3" />
+                      <Link2 className="w-4 h-4" />
                     </Button>
                     <Button
                       size="sm"
-                      variant="outline"
-                      className="w-6 h-6 p-0 bg-red-500 hover:bg-red-600 text-white border-red-500"
+                      className="w-10 h-10 p-0 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white border-2 border-white shadow-lg hover:shadow-xl transition-all duration-200 rounded-full"
                       onClick={(e) => {
                         e.stopPropagation()
-                        setNodes(prev => prev.filter(n => n.id !== node.id))
-                        setConnections(prev => prev.filter(c => 
-                          c.fromNodeId !== node.id && c.toNodeId !== node.id
-                        ))
+                        e.preventDefault()
+                        
+                        // Remove the node from the nodes array
+                        setNodes(prev => {
+                          const filtered = prev.filter(n => n.id !== node.id)
+                          return filtered
+                        })
+                        
+                        // Remove all connections involving this node
+                        setConnections(prev => {
+                          const filtered = prev.filter(c => c.fromNodeId !== node.id && c.toNodeId !== node.id)
+                          return filtered
+                        })
+                        
+                        // Clear selection
+                        // setSelectedNode(null) // Commented out to preserve node selection
                       }}
+                      title="Delete Node"
                     >
-                      <Trash2 className="w-3 h-3" />
+                      <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
+                )}
+
+                {/* Connection Indicator */}
+                {isConnecting && connectionStart && (
+                  <div className="absolute inset-0 rounded-2xl border-2 border-dashed border-blue-400 bg-blue-50/50 animate-pulse" />
                 )}
               </div>
             ))}
 
-            {/* Connection Guide */}
+            {/* Enhanced Connection Guide */}
             {isConnecting && (
-              <div className="absolute top-4 left-4 bg-blue-100 text-blue-800 px-3 py-2 rounded-lg shadow text-sm">
-                Click on another element to create a connection
+              <div className="absolute top-6 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-800 px-6 py-3 rounded-2xl shadow-lg text-sm font-medium border border-blue-200/50 backdrop-blur-sm">
+                <div className="flex items-center">
+                  <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse mr-3" />
+                  Click on another character to create a connection
+                </div>
               </div>
             )}
           </div>
         </div>
 
-        {/* Connection Properties Panel */}
+        {/* Enhanced Connection Properties Panel */}
         {selectedConnection && (
-          <div className="absolute bottom-4 right-4 w-64 bg-white rounded-xl shadow-xl border p-3">
-            <h4 className="font-medium text-gray-900 mb-3 text-sm">Connection Properties</h4>
-            <div className="space-y-3">
+          <div className="absolute bottom-6 right-6 w-72 bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl border border-gray-200/60 p-4 animate-in slide-in-from-bottom-2">
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="font-semibold text-gray-900 flex items-center">
+                <Settings className="w-4 h-4 mr-2 text-gray-600" />
+                Connection Properties
+              </h4>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setSelectedConnection(null)}
+                className="w-6 h-6 p-0 text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-3 h-3" />
+              </Button>
+            </div>
+            
+            <div className="space-y-4">
               <div>
-                <Label className="text-xs">Label</Label>
+                <Label className="text-xs font-medium text-gray-700 mb-2 block">Connection Label</Label>
                 <Input
                   value={connections.find(c => c.id === selectedConnection)?.label || ''}
                   onChange={(e) => {
@@ -3073,25 +3426,46 @@ const InlineRelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
                         : conn
                     ))
                   }}
-                  className="text-sm"
+                  className="text-sm bg-white border-gray-200/80"
+                  placeholder="Enter relationship type"
                 />
               </div>
+              
               <div>
-                <Label className="text-xs">Color</Label>
-                <input
-                  type="color"
-                  value={connections.find(c => c.id === selectedConnection)?.color || '#10b981'}
-                  onChange={(e) => {
-                    setConnections(prev => prev.map(conn => 
-                      conn.id === selectedConnection 
-                        ? { ...conn, color: e.target.value }
-                        : conn
-                    ))
-                  }}
-                  className="w-full h-8 rounded border"
-                />
+                <Label className="text-xs font-medium text-gray-700 mb-2 block">Color Theme</Label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={connections.find(c => c.id === selectedConnection)?.color || '#10b981'}
+                    onChange={(e) => {
+                      setConnections(prev => prev.map(conn => 
+                        conn.id === selectedConnection 
+                          ? { ...conn, color: e.target.value }
+                          : conn
+                      ))
+                    }}
+                    className="w-10 h-10 rounded-xl border-2 border-gray-200 cursor-pointer"
+                  />
+                  <div className="flex gap-1">
+                    {['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899'].map(color => (
+                      <button
+                        key={color}
+                        onClick={() => {
+                          setConnections(prev => prev.map(conn => 
+                            conn.id === selectedConnection 
+                              ? { ...conn, color }
+                              : conn
+                          ))
+                        }}
+                        className="w-6 h-6 rounded-lg border-2 border-white shadow-sm hover:scale-110 transition-transform"
+                        style={{ backgroundColor: color }}
+                      />
+                    ))}
+                  </div>
+                </div>
               </div>
-              <div className="flex justify-between">
+              
+              <div className="flex justify-between pt-2 border-t border-gray-100">
                 <Button
                   variant="outline"
                   size="sm"
@@ -3099,16 +3473,17 @@ const InlineRelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
                     setConnections(prev => prev.filter(c => c.id !== selectedConnection))
                     setSelectedConnection(null)
                   }}
-                  className="text-red-600 border-red-200 hover:bg-red-50 text-xs px-2"
+                  className="text-red-600 border-red-200 hover:bg-red-50 text-xs px-3 py-1.5"
                 >
+                  <Trash2 className="w-3 h-3 mr-1" />
                   Delete
                 </Button>
                 <Button
-                  variant="outline"
                   size="sm"
                   onClick={() => setSelectedConnection(null)}
-                  className="text-xs px-2"
+                  className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white text-xs px-3 py-1.5"
                 >
+                  <CheckCircle className="w-3 h-3 mr-1" />
                   Done
                 </Button>
               </div>
