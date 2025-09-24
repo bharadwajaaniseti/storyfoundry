@@ -1,11 +1,14 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { 
   Plus, Heart, Search, MoreVertical, Trash2, Edit3, Users, 
   ArrowRight, Eye, EyeOff, Filter, X, ChevronDown, ChevronRight,
   Link2, Target, Zap, Crown, Shield, MessageCircle, Flame,
-  Save, User, AlertTriangle, CheckCircle, Clock, Calendar
+  Save, User, AlertTriangle, CheckCircle, Clock, Calendar,
+  GitBranch, Network, BarChart3, TrendingUp, Activity, Grid,
+  Layers, Move, RotateCcw, Share2, Download, Upload, Settings,
+  Home, Swords, BookOpen
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,6 +19,163 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Progress } from '@/components/ui/progress'
+import { Separator } from '@/components/ui/separator'
+import { cn } from '@/lib/utils'
+
+// Enhanced Custom Components matching site design
+const EnhancedSelect = ({ 
+  value, 
+  onValueChange, 
+  placeholder, 
+  children, 
+  className,
+  triggerClassName,
+  contentClassName,
+  customDisplay,
+  ...props 
+}: any) => {
+  const [isOpen, setIsOpen] = React.useState(false)
+  
+  return (
+    <Select 
+      value={value} 
+      onValueChange={onValueChange} 
+      onOpenChange={setIsOpen}
+      {...props}
+    >
+      <SelectTrigger 
+        className={cn(
+          "relative bg-white border-2 border-gray-200 rounded-xl shadow-sm px-5 py-4",
+          "hover:border-rose-300 focus:border-rose-500 focus:ring-2 focus:ring-rose-100",
+          "transition-all duration-300 ease-out text-left overflow-hidden",
+          "data-[state=open]:border-rose-500 data-[state=open]:ring-2 data-[state=open]:ring-rose-100",
+          "data-[state=open]:shadow-lg",
+          "[&>svg]:hidden", // Hide the default chevron
+          triggerClassName,
+          className
+        )}
+      >
+        <div className="flex-1 pr-8 min-w-0 overflow-hidden">
+          {customDisplay ? (
+            <span className="text-base font-medium block truncate w-full text-left text-gray-900">
+              {customDisplay}
+            </span>
+          ) : (
+            <SelectValue 
+              placeholder={placeholder} 
+              className="text-base font-medium block truncate w-full text-left" 
+            />
+          )}
+        </div>
+        <ChevronDown 
+          className={cn(
+            "absolute right-5 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-500 flex-shrink-0",
+            "transition-transform duration-200 pointer-events-none",
+            isOpen && "rotate-180"
+          )} 
+        />
+      </SelectTrigger>
+      <SelectContent 
+        className={cn(
+          "bg-white border-2 border-gray-200 rounded-xl shadow-xl p-3 min-w-[300px]",
+          "animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
+          "data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2",
+          "data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
+          "backdrop-blur-sm max-h-[400px] overflow-y-auto",
+          contentClassName
+        )}
+        sideOffset={6}
+      >
+        {children}
+      </SelectContent>
+    </Select>
+  )
+}
+
+const EnhancedSelectItem = ({ children, className, ...props }: any) => {
+  return (
+    <SelectItem
+      className={cn(
+        "relative flex cursor-pointer select-none items-center rounded-xl px-5 py-4 mx-1 my-1.5",
+        "text-base outline-none transition-all duration-200",
+        "hover:bg-rose-50 hover:text-rose-900 focus:bg-rose-50 focus:text-rose-900",
+        "data-[state=checked]:bg-rose-500 data-[state=checked]:text-white",
+        "data-[state=checked]:shadow-md min-h-[56px]",
+        className
+      )}
+      {...props}
+    >
+      <span className="absolute right-4 flex h-5 w-5 items-center justify-center">
+        <CheckCircle className="h-4 w-4 opacity-0 data-[state=checked]:opacity-100 transition-opacity duration-200" />
+      </span>
+      <div className="flex-1 pr-8">
+        {children}
+      </div>
+    </SelectItem>
+  )
+}
+
+const EnhancedInput = React.forwardRef<HTMLInputElement, any>(({ className, ...props }, ref) => {
+  return (
+    <Input
+      ref={ref}
+      className={cn(
+        "bg-white border-2 border-gray-200 rounded-xl shadow-sm px-5 py-4 text-base",
+        "hover:border-rose-300 focus:border-rose-500 focus:ring-2 focus:ring-rose-100",
+        "transition-all duration-300 ease-out placeholder:text-gray-400",
+        className
+      )}
+      {...props}
+    />
+  )
+})
+
+const EnhancedTextarea = React.forwardRef<HTMLTextAreaElement, any>(({ className, ...props }, ref) => {
+  return (
+    <Textarea
+      ref={ref}
+      className={cn(
+        "bg-white border-2 border-gray-200 rounded-xl shadow-sm px-5 py-4 text-base min-h-[120px]",
+        "hover:border-rose-300 focus:border-rose-500 focus:ring-2 focus:ring-rose-100",
+        "transition-all duration-300 ease-out placeholder:text-gray-400 resize-none",
+        className
+      )}
+      {...props}
+    />
+  )
+})
+
+const EnhancedSlider = ({ value, onChange, min = 0, max = 10, label, color = "rose", className, ...props }: any) => {
+  return (
+    <div className="space-y-3">
+      <Input
+        type="range"
+        min={min}
+        max={max}
+        value={value}
+        onChange={onChange}
+        className={cn(
+          "w-full h-3 bg-gray-200 rounded-xl appearance-none cursor-pointer",
+          "slider-thumb:appearance-none slider-thumb:w-6 slider-thumb:h-6",
+          `slider-thumb:bg-${color}-500 slider-thumb:rounded-full slider-thumb:shadow-lg`,
+          "slider-thumb:border-4 slider-thumb:border-white slider-thumb:cursor-pointer",
+          "hover:bg-gray-300 transition-colors duration-200",
+          className
+        )}
+        {...props}
+      />
+      <div className="flex justify-between text-sm text-gray-500">
+        <span>{props.leftLabel || 'Low'}</span>
+        <span className={`font-medium text-${color}-500`}>
+          {label ? `${label}: ` : ''}{value}/{max}
+        </span>
+        <span>{props.rightLabel || 'High'}</span>
+      </div>
+    </div>
+  )
+}
 
 interface Relationship {
   id: string
@@ -33,11 +193,30 @@ interface Relationship {
     character_2_id?: string
     character_2_name?: string
     notes?: string
+    // Enhanced Campfire-style features
     timeline_events?: Array<{
       date: string
       event: string
       description: string
+      impact_level: 'low' | 'medium' | 'high'
+      relationship_change: number // -5 to +5
     }>
+    tension_level?: number // 0-10 scale for conflict/tension
+    intimacy_level?: number // 0-10 scale for emotional closeness
+    dependency_level?: number // 0-10 scale for how much they need each other
+    trust_level?: number // 0-10 scale
+    respect_level?: number // 0-10 scale
+    power_balance?: 'equal' | 'character_1_dominant' | 'character_2_dominant' | 'shifting'
+    relationship_arc?: Array<{
+      phase: string
+      description: string
+      chapters: string[]
+      key_scenes: string[]
+    }>
+    conflict_sources?: string[] // money, values, goals, past, secrets, etc.
+    bonding_factors?: string[] // shared_experiences, common_goals, mutual_respect, etc.
+    relationship_goals?: string // where should this relationship go
+    story_importance?: 'primary' | 'secondary' | 'background'
     [key: string]: any
   }
   tags: string[]
@@ -62,33 +241,553 @@ interface RelationshipsPanelProps {
 }
 
 const RELATIONSHIP_TYPES = [
-  { value: 'romantic', label: 'Romantic', icon: Heart, color: 'rose' },
-  { value: 'familial', label: 'Family', icon: Users, color: 'blue' },
-  { value: 'friendship', label: 'Friendship', icon: User, color: 'green' },
-  { value: 'rivalry', label: 'Rivalry', icon: Flame, color: 'red' },
-  { value: 'professional', label: 'Professional', icon: Shield, color: 'purple' },
-  { value: 'mentorship', label: 'Mentorship', icon: Target, color: 'amber' },
-  { value: 'alliance', label: 'Alliance', icon: Link2, color: 'cyan' },
-  { value: 'conflict', label: 'Conflict', icon: Zap, color: 'orange' },
-  { value: 'hierarchy', label: 'Hierarchy', icon: Crown, color: 'violet' },
-  { value: 'other', label: 'Other', icon: MessageCircle, color: 'gray' }
+  { value: 'romantic', label: 'Romantic', icon: Heart, color: 'rose', description: 'Love, attraction, partnership' },
+  { value: 'familial', label: 'Family', icon: Users, color: 'blue', description: 'Blood relations, chosen family' },
+  { value: 'friendship', label: 'Friendship', icon: User, color: 'green', description: 'Platonic bonds, companionship' },
+  { value: 'rivalry', label: 'Rivalry', icon: Flame, color: 'red', description: 'Competition, antagonism' },
+  { value: 'professional', label: 'Professional', icon: Shield, color: 'purple', description: 'Work relationships, business' },
+  { value: 'mentorship', label: 'Mentorship', icon: Target, color: 'amber', description: 'Teacher-student, guidance' },
+  { value: 'alliance', label: 'Alliance', icon: Link2, color: 'cyan', description: 'Strategic partnerships' },
+  { value: 'conflict', label: 'Conflict', icon: Zap, color: 'orange', description: 'Enemies, adversaries' },
+  { value: 'hierarchy', label: 'Hierarchy', icon: Crown, color: 'violet', description: 'Power structures, authority' },
+  { value: 'dependency', label: 'Dependency', icon: GitBranch, color: 'teal', description: 'One-sided reliance' },
+  { value: 'other', label: 'Other', icon: MessageCircle, color: 'gray', description: 'Custom relationship type' }
 ]
 
 const RELATIONSHIP_STATUS = [
-  { value: 'active', label: 'Active', color: 'green' },
-  { value: 'former', label: 'Former', color: 'gray' },
-  { value: 'complicated', label: 'Complicated', color: 'yellow' },
-  { value: 'unknown', label: 'Unknown', color: 'slate' },
-  { value: 'developing', label: 'Developing', color: 'blue' },
-  { value: 'strained', label: 'Strained', color: 'orange' },
-  { value: 'broken', label: 'Broken', color: 'red' }
+  { value: 'developing', label: 'Developing', color: 'blue', description: 'Relationship is forming' },
+  { value: 'active', label: 'Active', color: 'green', description: 'Currently engaged relationship' },
+  { value: 'strained', label: 'Strained', color: 'yellow', description: 'Under tension or pressure' },
+  { value: 'complicated', label: 'Complicated', color: 'orange', description: 'Complex, mixed dynamics' },
+  { value: 'former', label: 'Former', color: 'gray', description: 'Past relationship, no longer active' },
+  { value: 'broken', label: 'Broken', color: 'red', description: 'Severed or destroyed relationship' },
+  { value: 'unknown', label: 'Unknown', color: 'slate', description: 'Status unclear or undefined' },
+  { value: 'secret', label: 'Secret', color: 'purple', description: 'Hidden from others' }
 ]
 
 const RELATIONSHIP_DYNAMICS = [
   'mutual_respect', 'one_sided', 'toxic', 'supportive', 'competitive',
   'protective', 'dependent', 'manipulative', 'inspiring', 'challenging',
-  'nurturing', 'conflicted', 'secretive', 'open', 'balanced'
+  'nurturing', 'conflicted', 'secretive', 'open', 'balanced',
+  'volatile', 'stable', 'passionate', 'distant', 'codependent'
 ]
+
+const CONFLICT_SOURCES = [
+  'money', 'values', 'goals', 'past_betrayal', 'secrets', 'jealousy',
+  'power', 'resources', 'territory', 'ideology', 'love_triangle',
+  'family_honor', 'revenge', 'misunderstanding', 'competition'
+]
+
+const BONDING_FACTORS = [
+  'shared_trauma', 'common_goals', 'mutual_respect', 'shared_values',
+  'complementary_skills', 'similar_background', 'shared_secrets',
+  'mutual_protection', 'intellectual_connection', 'emotional_support'
+]
+
+const POWER_BALANCE_OPTIONS = [
+  { value: 'equal', label: 'Equal Partnership', description: 'Both have equal influence' },
+  { value: 'character_1_dominant', label: 'First Character Dominant', description: 'First character has more control' },
+  { value: 'character_2_dominant', label: 'Second Character Dominant', description: 'Second character has more control' },
+  { value: 'shifting', label: 'Shifting Power', description: 'Power changes based on situation' }
+]
+
+const STORY_IMPORTANCE = [
+  { value: 'primary', label: 'Primary', color: 'red', description: 'Central to main plot' },
+  { value: 'secondary', label: 'Secondary', color: 'amber', description: 'Important subplot element' },
+  { value: 'background', label: 'Background', color: 'gray', description: 'Adds depth and context' }
+]
+
+// Helper functions for relationship display
+function getRelationshipTypeIcon(type: string) {
+  const relationshipType = RELATIONSHIP_TYPES.find(t => t.value === type)
+  return relationshipType ? relationshipType.icon : Heart
+}
+
+function getRelationshipTypeColor(type: string) {
+  const relationshipType = RELATIONSHIP_TYPES.find(t => t.value === type)
+  return relationshipType ? relationshipType.color : 'gray'
+}
+
+function getStatusColor(status: string) {
+  const statusObj = RELATIONSHIP_STATUS.find(s => s.value === status)
+  return statusObj ? statusObj.color : 'gray'
+}
+
+// Component for individual relationship card
+function RelationshipCard({ 
+  relationship, 
+  onEdit, 
+  onDelete 
+}: { 
+  relationship: Relationship
+  onEdit: (rel: Relationship) => void
+  onDelete: (id: string) => void 
+}) {
+  const TypeIcon = getRelationshipTypeIcon(relationship.attributes?.type || '')
+  const typeColor = getRelationshipTypeColor(relationship.attributes?.type || '')
+  const statusColor = getStatusColor(relationship.attributes?.status || 'active')
+  
+  return (
+    <Card className="hover:shadow-md transition-shadow border border-gray-200">
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-2">
+            <TypeIcon className={`w-5 h-5 text-${typeColor}-500`} />
+            <div>
+              <CardTitle className="text-lg font-semibold truncate">
+                {relationship.name}
+              </CardTitle>
+              <div className="flex items-center gap-2 mt-1">
+                <Badge 
+                  variant="secondary" 
+                  className={`bg-${statusColor}-100 text-${statusColor}-700`}
+                >
+                  {RELATIONSHIP_STATUS.find(s => s.value === relationship.attributes?.status)?.label || 'Active'}
+                </Badge>
+                {relationship.attributes?.strength && (
+                  <Badge variant="outline">
+                    Strength: {relationship.attributes.strength}/10
+                  </Badge>
+                )}
+                {relationship.attributes?.story_importance && (
+                  <Badge 
+                    variant="outline"
+                    className={`bg-${STORY_IMPORTANCE.find(s => s.value === relationship.attributes?.story_importance)?.color}-100`}
+                  >
+                    {STORY_IMPORTANCE.find(s => s.value === relationship.attributes?.story_importance)?.label}
+                  </Badge>
+                )}
+              </div>
+            </div>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onDelete(relationship.id)}
+          >
+            <Trash2 className="w-4 h-4 text-red-500" />
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3">
+          {/* Characters */}
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-blue-600">
+              {relationship.attributes?.character_1_name || 'Character 1'}
+            </span>
+            <ArrowRight className="w-4 h-4 text-gray-400" />
+            <span className="text-sm font-medium text-blue-600">
+              {relationship.attributes?.character_2_name || 'Character 2'}
+            </span>
+          </div>
+
+          {/* Enhanced Metrics */}
+          <div className="grid grid-cols-3 gap-2 text-xs">
+            {relationship.attributes?.tension_level !== undefined && (
+              <div className="text-center">
+                <div className="text-red-500 font-medium">Tension</div>
+                <div>{relationship.attributes.tension_level}/10</div>
+              </div>
+            )}
+            {relationship.attributes?.trust_level !== undefined && (
+              <div className="text-center">
+                <div className="text-blue-500 font-medium">Trust</div>
+                <div>{relationship.attributes.trust_level}/10</div>
+              </div>
+            )}
+            {relationship.attributes?.intimacy_level !== undefined && (
+              <div className="text-center">
+                <div className="text-purple-500 font-medium">Intimacy</div>
+                <div>{relationship.attributes.intimacy_level}/10</div>
+              </div>
+            )}
+          </div>
+
+          {/* Description */}
+          {relationship.description && (
+            <p className="text-sm text-gray-600 line-clamp-3">
+              {relationship.description}
+            </p>
+          )}
+
+          {/* Dynamics */}
+          {relationship.attributes?.dynamics && relationship.attributes.dynamics.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {relationship.attributes.dynamics.slice(0, 3).map((dynamic: string) => (
+                <Badge key={dynamic} variant="outline" className="text-xs">
+                  {dynamic.replace('_', ' ')}
+                </Badge>
+              ))}
+              {relationship.attributes.dynamics.length > 3 && (
+                <Badge variant="outline" className="text-xs">
+                  +{relationship.attributes.dynamics.length - 3} more
+                </Badge>
+              )}
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="flex justify-between items-center pt-2 border-t">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onEdit(relationship)}
+            >
+              <Edit3 className="w-4 h-4 mr-1" />
+              Edit
+            </Button>
+            <span className="text-xs text-gray-500">
+              {new Date(relationship.updated_at).toLocaleDateString()}
+            </span>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+// Flowchart View Component - Campfire-style visual relationship creation
+function FlowchartView({ 
+  relationships, 
+  characters, 
+  onCreateRelationship 
+}: { 
+  relationships: Relationship[]
+  characters: Character[]
+  onCreateRelationship: (char1Id: string, char2Id: string) => void
+}) {
+  const [selectedCharacter, setSelectedCharacter] = useState<string | null>(null)
+  const [hoveredCharacter, setHoveredCharacter] = useState<string | null>(null)
+  
+  const getCharacterConnections = (characterId: string) => {
+    return relationships.filter(r => 
+      r.attributes?.character_1_id === characterId || 
+      r.attributes?.character_2_id === characterId
+    ).length
+  }
+
+  const getRelationshipBetween = (char1Id: string, char2Id: string) => {
+    return relationships.find(r => 
+      (r.attributes?.character_1_id === char1Id && r.attributes?.character_2_id === char2Id) ||
+      (r.attributes?.character_1_id === char2Id && r.attributes?.character_2_id === char1Id)
+    )
+  }
+
+  const renderConnectionLines = () => {
+    return relationships.map(relationship => {
+      const char1 = characters.find(c => c.id === relationship.attributes?.character_1_id)
+      const char2 = characters.find(c => c.id === relationship.attributes?.character_2_id)
+      if (!char1 || !char2) return null
+
+      const typeColor = getRelationshipTypeColor(relationship.attributes?.type || '')
+      const isConflict = relationship.attributes?.type === 'conflict' || relationship.attributes?.type === 'rivalry'
+
+      return (
+        <div key={relationship.id} className="absolute inset-0 pointer-events-none">
+          <svg className="w-full h-full">
+            <line
+              x1="50%"
+              y1="50%"
+              x2="50%"
+              y2="50%"
+              stroke={`rgb(var(--${typeColor}-500))`}
+              strokeWidth={isConflict ? 3 : 2}
+              strokeDasharray={isConflict ? "8,4" : "0"}
+              opacity={0.6}
+              className="connection-line"
+            />
+          </svg>
+        </div>
+      )
+    })
+  }
+
+  if (characters.length === 0) {
+    return (
+      <div className="text-center py-16">
+        <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+        <p className="text-gray-600 text-lg mb-2">No Characters Available</p>
+        <p className="text-gray-500 text-sm">
+          Create characters first to use the flowchart relationship builder
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-gradient-to-br from-rose-50 to-pink-50 rounded-2xl border-2 border-rose-100 p-8 min-h-[600px] relative overflow-hidden">
+      {/* Instructions */}
+      <div className="absolute top-4 left-4 bg-white/80 backdrop-blur-sm rounded-lg p-3 shadow-sm border border-rose-200">
+        <p className="text-sm text-gray-600 mb-1">
+          <strong>Flowchart Mode:</strong> Click characters to connect them
+        </p>
+        <p className="text-xs text-gray-500">
+          {selectedCharacter ? 'Now click another character to create a relationship' : 'Select a character to start'}
+        </p>
+      </div>
+
+      {/* Legend */}
+      <div className="absolute top-4 right-4 bg-white/80 backdrop-blur-sm rounded-lg p-3 shadow-sm border border-rose-200">
+        <div className="text-sm font-medium text-gray-700 mb-2">Connections</div>
+        <div className="space-y-1 text-xs">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-0.5 bg-green-500"></div>
+            <span>Friendly</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-0.5 bg-red-500 border-dashed"></div>
+            <span>Conflict</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-0.5 bg-rose-500"></div>
+            <span>Romantic</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Character Nodes */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6 pt-20">
+        {characters.map(character => {
+          const isSelected = selectedCharacter === character.id
+          const isHovered = hoveredCharacter === character.id
+          const connections = getCharacterConnections(character.id)
+          const hasConnectionToSelected = selectedCharacter && getRelationshipBetween(selectedCharacter, character.id)
+          
+          return (
+            <div
+              key={character.id}
+              className="relative flex flex-col items-center group cursor-pointer"
+              onClick={() => {
+                if (selectedCharacter && selectedCharacter !== character.id) {
+                  // Create connection
+                  onCreateRelationship(selectedCharacter, character.id)
+                  setSelectedCharacter(null)
+                } else {
+                  setSelectedCharacter(character.id === selectedCharacter ? null : character.id)
+                }
+              }}
+              onMouseEnter={() => setHoveredCharacter(character.id)}
+              onMouseLeave={() => setHoveredCharacter(null)}
+            >
+              {/* Connection indicator */}
+              <div className={cn(
+                "absolute -top-2 -right-2 w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center",
+                connections > 0 ? "bg-rose-500 text-white" : "bg-gray-200 text-gray-500"
+              )}>
+                {connections}
+              </div>
+              
+              {/* Character Circle */}
+              <div className={cn(
+                "w-16 h-16 rounded-full flex items-center justify-center font-bold text-xl transition-all duration-300",
+                "border-4 shadow-lg hover:shadow-xl transform hover:scale-110",
+                isSelected ? "bg-rose-500 text-white border-rose-600 shadow-rose-200 scale-110" :
+                hasConnectionToSelected ? "bg-blue-100 border-blue-300 text-blue-700" :
+                isHovered ? "bg-rose-100 border-rose-300 text-rose-700" :
+                "bg-white border-gray-300 text-gray-700 hover:border-rose-300"
+              )}>
+                {character.name.charAt(0).toUpperCase()}
+              </div>
+              
+              {/* Character Name */}
+              <div className="mt-3 text-center">
+                <div className={cn(
+                  "font-medium text-sm transition-colors duration-300",
+                  isSelected ? "text-rose-600" : "text-gray-700 group-hover:text-rose-600"
+                )}>
+                  {character.name}
+                </div>
+                {connections > 0 && (
+                  <div className="text-xs text-gray-500">
+                    {connections} connection{connections !== 1 ? 's' : ''}
+                  </div>
+                )}
+              </div>
+              
+              {/* Selection Highlight */}
+              {isSelected && (
+                <div className="absolute inset-0 rounded-full border-4 border-rose-400 animate-pulse pointer-events-none scale-125"></div>
+              )}
+              
+              {/* Hover Effect */}
+              {isHovered && !isSelected && (
+                <div className="absolute inset-0 rounded-full bg-rose-100 opacity-20 scale-125 pointer-events-none"></div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Connection Lines */}
+      {renderConnectionLines()}
+      
+      {/* Empty State */}
+      {relationships.length === 0 && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="text-center bg-white/60 backdrop-blur-sm rounded-2xl p-8 border-2 border-dashed border-rose-200">
+            <Heart className="w-12 h-12 text-rose-300 mx-auto mb-4" />
+            <p className="text-rose-600 font-medium">Start Creating Connections</p>
+            <p className="text-rose-500 text-sm">Click on characters to connect them</p>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Network View Component
+function NetworkView({ 
+  relationships, 
+  characters, 
+  networkData 
+}: { 
+  relationships: Relationship[]
+  characters: Character[]
+  networkData: { nodes: any[], links: any[] }
+}) {
+  return (
+    <div className="h-96 border rounded-lg bg-gray-50 flex items-center justify-center">
+      <div className="text-center">
+        <Network className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+        <p className="text-gray-600 text-lg mb-2">Network View</p>
+        <p className="text-gray-500 text-sm">
+          Interactive relationship network visualization coming soon
+        </p>
+      </div>
+    </div>
+  )
+}
+
+// Matrix View Component
+function MatrixView({ 
+  characters, 
+  relationships, 
+  matrix 
+}: { 
+  characters: Character[]
+  relationships: Relationship[]
+  matrix: Array<Array<Relationship | null>>
+}) {
+  if (characters.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <BarChart3 className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+        <p className="text-gray-600">No characters available for matrix view</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="min-w-full border border-gray-200">
+        <thead>
+          <tr className="bg-gray-50">
+            <th className="border border-gray-200 p-2 text-left font-medium">Character</th>
+            {characters.map(char => (
+              <th key={char.id} className="border border-gray-200 p-2 text-center font-medium min-w-24">
+                <div className="truncate" title={char.name}>
+                  {char.name.slice(0, 8)}...
+                </div>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {characters.map((char1, i) => (
+            <tr key={char1.id}>
+              <td className="border border-gray-200 p-2 font-medium bg-gray-50">
+                {char1.name}
+              </td>
+              {characters.map((char2, j) => {
+                const relationship = matrix[i][j]
+                const isSelf = i === j
+                
+                return (
+                  <td key={char2.id} className="border border-gray-200 p-1 text-center">
+                    {isSelf ? (
+                      <div className="w-6 h-6 bg-gray-200 rounded mx-auto"></div>
+                    ) : relationship ? (
+                      <div 
+                        className={`w-6 h-6 rounded mx-auto bg-${getRelationshipTypeColor(relationship.attributes?.type || '')}-500`}
+                        title={`${relationship.name} (${relationship.attributes?.type})`}
+                      ></div>
+                    ) : (
+                      <div className="w-6 h-6 border border-gray-300 rounded mx-auto bg-white"></div>
+                    )}
+                  </td>
+                )
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      
+      {/* Legend */}
+      <div className="mt-4 flex flex-wrap gap-4 text-sm">
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 bg-gray-200 rounded"></div>
+          <span>Self</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 border border-gray-300 rounded bg-white"></div>
+          <span>No relationship</span>
+        </div>
+        {RELATIONSHIP_TYPES.slice(0, 5).map(type => (
+          <div key={type.value} className="flex items-center gap-2">
+            <div className={`w-4 h-4 bg-${type.color}-500 rounded`}></div>
+            <span>{type.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// Timeline View Component
+function TimelineView({ relationships }: { relationships: Relationship[] }) {
+  const relationshipsWithEvents = relationships.filter(r => 
+    r.attributes?.timeline_events && r.attributes.timeline_events.length > 0
+  )
+
+  if (relationshipsWithEvents.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <Activity className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+        <p className="text-gray-600 text-lg mb-2">No timeline events</p>
+        <p className="text-gray-500 text-sm">
+          Add timeline events to your relationships to see their development over time
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {relationshipsWithEvents.map(relationship => (
+        <Card key={relationship.id} className="p-4">
+          <h3 className="font-semibold mb-3 flex items-center gap-2">
+            <Heart className="w-4 h-4 text-rose-500" />
+            {relationship.name}
+          </h3>
+          <div className="space-y-2">
+            {relationship.attributes?.timeline_events?.map((event, index) => (
+              <div key={index} className="flex items-start gap-3 p-2 bg-gray-50 rounded">
+                <div className="text-xs text-gray-500 min-w-20">{event.date}</div>
+                <div className="flex-1">
+                  <div className="font-medium text-sm">{event.event}</div>
+                  {event.description && (
+                    <div className="text-sm text-gray-600">{event.description}</div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      ))}
+    </div>
+  )
+}
 
 export default function RelationshipsPanel({ 
   projectId, 
@@ -104,9 +803,27 @@ export default function RelationshipsPanel({
   const [selectedStatus, setSelectedStatus] = useState<string>('all')
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [editingRelationship, setEditingRelationship] = useState<Relationship | null>(null)
-  const [viewMode, setViewMode] = useState<'grid' | 'network'>('grid')
-
-  // Form state for creating/editing relationships
+  const [viewMode, setViewMode] = useState<'grid' | 'network' | 'matrix' | 'timeline' | 'flowchart'>('grid')
+  const [activeTab, setActiveTab] = useState<'overview' | 'dynamics' | 'timeline' | 'analysis'>('overview')
+  const [showFlowchartDialog, setShowFlowchartDialog] = useState(false)
+  const [selectedCharacters, setSelectedCharacters] = useState<string[]>([])
+  const [flowchartStep, setFlowchartStep] = useState<'select' | 'connect' | 'define'>('select')
+  
+  // Quick Connect Dialog state
+  const [showQuickConnect, setShowQuickConnect] = useState(false)
+  const [quickConnectChar1, setQuickConnectChar1] = useState<string>('')
+  const [quickConnectChar2, setQuickConnectChar2] = useState<string>('')
+  const [quickConnectType, setQuickConnectType] = useState<string>('friendship')
+  const [quickConnectIntensity, setQuickConnectIntensity] = useState<number>(5)
+  
+  // Canvas-based relationship creation state
+  const [showNameInput, setShowNameInput] = useState(false)
+  const [relationshipName, setRelationshipName] = useState('')
+  const [showCanvas, setShowCanvas] = useState(false) // New state for canvas creation interface
+  
+  const networkRef = useRef<HTMLDivElement>(null)
+  
+  // Enhanced form state for Campfire-style features
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -118,7 +835,18 @@ export default function RelationshipsPanel({
     dynamics: [] as string[],
     history: '',
     current_state: '',
-    notes: ''
+    notes: '',
+    // Enhanced fields
+    tension_level: 0,
+    intimacy_level: 5,
+    dependency_level: 0,
+    trust_level: 5,
+    respect_level: 5,
+    power_balance: 'equal' as 'equal' | 'character_1_dominant' | 'character_2_dominant' | 'shifting',
+    conflict_sources: [] as string[],
+    bonding_factors: [] as string[],
+    relationship_goals: '',
+    story_importance: 'secondary' as 'primary' | 'secondary' | 'background'
   })
 
   const supabase = createSupabaseClient()
@@ -209,6 +937,17 @@ export default function RelationshipsPanel({
           history: formData.history,
           current_state: formData.current_state,
           notes: formData.notes,
+          // Enhanced Campfire-style fields
+          tension_level: formData.tension_level,
+          intimacy_level: formData.intimacy_level,
+          dependency_level: formData.dependency_level,
+          trust_level: formData.trust_level,
+          respect_level: formData.respect_level,
+          power_balance: formData.power_balance,
+          conflict_sources: formData.conflict_sources,
+          bonding_factors: formData.bonding_factors,
+          relationship_goals: formData.relationship_goals,
+          story_importance: formData.story_importance,
           timeline_events: []
         },
         tags: []
@@ -272,6 +1011,181 @@ export default function RelationshipsPanel({
     }
   }
 
+  // Quick Connect handler for flowchart-style relationship creation
+  const handleQuickConnect = async (char1Id?: string, char2Id?: string) => {
+    const character1Id = char1Id || quickConnectChar1
+    const character2Id = char2Id || quickConnectChar2
+    
+    if (!character1Id || !character2Id) return
+    
+    const character1 = characters.find(c => c.id === character1Id)
+    const character2 = characters.find(c => c.id === character2Id)
+    
+    if (!character1 || !character2) return
+    
+    try {
+      const relationshipData = {
+        project_id: projectId,
+        category: 'relationships',
+        name: `${character1.name} & ${character2.name}`,
+        type: 'character',
+        attributes: {
+          name: `${character1.name} & ${character2.name}`,
+          type: char1Id ? 'friendship' : quickConnectType,
+          strength: char1Id ? 5 : quickConnectIntensity,
+          status: 'active',
+          character_1_id: character1Id,
+          character_2_id: character2Id,
+          description: `${char1Id ? 'friendship' : quickConnectType} relationship`,
+          dynamics: [],
+          history: '',
+          current_state: 'developing',
+          notes: '',
+          tension_level: (char1Id ? 'friendship' : quickConnectType) === 'conflict' ? 7 : (char1Id ? 'friendship' : quickConnectType) === 'rivalry' ? 5 : 2,
+          intimacy_level: (char1Id ? 'friendship' : quickConnectType) === 'romance' ? 8 : (char1Id ? 'friendship' : quickConnectType) === 'family' ? 7 : 5,
+          dependency_level: (char1Id ? 5 : quickConnectIntensity) >= 7 ? 6 : 3,
+          trust_level: (char1Id ? 'friendship' : quickConnectType) === 'conflict' ? 2 : (char1Id ? 'friendship' : quickConnectType) === 'rivalry' ? 4 : 7,
+          respect_level: (char1Id ? 5 : quickConnectIntensity) >= 6 ? 7 : 5,
+          power_balance: 'equal',
+          conflict_sources: [],
+          bonding_factors: [],
+          relationship_goals: [],
+          story_importance: 'moderate',
+          timeline_events: []
+        },
+        tags: []
+      }
+
+      const { data, error } = await supabase
+        .from('world_elements')
+        .insert(relationshipData)
+        .select()
+        .single()
+
+      if (error) throw error
+      const result = data as Relationship
+
+      setRelationships(prev => [result, ...prev])
+      
+      // Broadcast change
+      window.dispatchEvent(new CustomEvent('relationshipCreated', { 
+        detail: { relationship: result, projectId } 
+      }))
+
+      if (!char1Id) {
+        // Reset dialog if opened from Quick Connect
+        setShowQuickConnect(false)
+        setQuickConnectChar1('')
+        setQuickConnectChar2('')
+        setQuickConnectType('friendship')
+        setQuickConnectIntensity(5)
+      }
+      
+      onRelationshipsChange?.()
+    } catch (error) {
+      console.error('Error creating relationship:', error)
+    }
+  }
+
+  // Handle saving canvas-based relationship
+  const handleSaveCanvasRelationship = async (canvasData: { nodes: CanvasNode[], connections: CanvasConnection[] }) => {
+    try {
+      const supabase = createSupabaseClient()
+      
+      // Create the relationship web as a world element
+      const relationshipWeb = {
+        name: relationshipName,
+        description: `Visual relationship web showing connections between ${canvasData.nodes.length} elements`,
+        category: 'relationship',
+        project_id: projectId,
+        data: {
+          type: 'relationship_web',
+          canvas_data: canvasData,
+          created_at: new Date().toISOString(),
+          // Convert connections to traditional relationships for compatibility
+          relationships: canvasData.connections.map(conn => {
+            const fromNode = canvasData.nodes.find(n => n.id === conn.fromNodeId)
+            const toNode = canvasData.nodes.find(n => n.id === conn.toNodeId)
+            return {
+              id: conn.id,
+              from_element: fromNode?.name || 'Unknown',
+              to_element: toNode?.name || 'Unknown',
+              type: conn.type,
+              label: conn.label,
+              color: conn.color,
+              has_arrow: conn.hasArrow,
+              is_directional: conn.isDirectional
+            }
+          })
+        },
+        tags: ['relationship', 'visual', 'canvas']
+      }
+
+      const { data, error } = await supabase
+        .from('world_elements')
+        .insert([relationshipWeb])
+        .select()
+
+      if (error) {
+        console.error('Error saving relationship web:', error)
+        return
+      }
+
+      // Also create individual relationships for each connection
+      for (const connection of canvasData.connections) {
+        const fromNode = canvasData.nodes.find(n => n.id === connection.fromNodeId)
+        const toNode = canvasData.nodes.find(n => n.id === connection.toNodeId)
+        
+        if (fromNode && toNode && fromNode.type === 'character' && toNode.type === 'character') {
+          // Create a traditional relationship between characters
+          const relationshipData = {
+            name: connection.label || `${fromNode.name} - ${toNode.name}`,
+            description: `${connection.type} relationship between ${fromNode.name} and ${toNode.name}`,
+            category: 'relationship',
+            project_id: projectId,
+            data: {
+              type: connection.type,
+              character_1_id: fromNode.id,
+              character_2_id: toNode.id,
+              strength: 5, // Default strength
+              status: 'active',
+              dynamics: [connection.type],
+              tension_level: connection.type === 'conflict' ? 7 : connection.type === 'rivalry' ? 5 : 2,
+              intimacy_level: connection.type === 'romance' ? 8 : connection.type === 'family' ? 7 : 5,
+              canvas_connection_id: connection.id,
+              canvas_color: connection.color
+            },
+            tags: ['relationship', 'canvas-generated']
+          }
+
+          const { data: relationshipResult, error: relationshipError } = await supabase
+            .from('world_elements')
+            .insert([relationshipData])
+            .select()
+
+          if (!relationshipError && relationshipResult?.[0]) {
+            // Dispatch event for each individual relationship created
+            window.dispatchEvent(new CustomEvent('relationshipCreated', { 
+              detail: { relationship: relationshipResult[0], projectId } 
+            }))
+          }
+        }
+      }
+
+      // Refresh the relationships list
+      await loadRelationships()
+      
+      // Broadcast change for sidebar update - add main relationship web to sidebar
+      window.dispatchEvent(new CustomEvent('relationshipCreated', { 
+        detail: { relationship: data[0], projectId } 
+      }))
+
+      onRelationshipsChange?.()
+    } catch (error) {
+      console.error('Error saving canvas relationship:', error)
+    }
+  }
+
   const resetForm = () => {
     setFormData({
       name: '',
@@ -284,24 +1198,97 @@ export default function RelationshipsPanel({
       dynamics: [],
       history: '',
       current_state: '',
-      notes: ''
+      notes: '',
+      // Enhanced fields
+      tension_level: 0,
+      intimacy_level: 5,
+      dependency_level: 0,
+      trust_level: 5,
+      respect_level: 5,
+      power_balance: 'equal',
+      conflict_sources: [],
+      bonding_factors: [],
+      relationship_goals: '',
+      story_importance: 'secondary'
     })
   }
 
-  const getRelationshipTypeIcon = (type: string) => {
-    const relationshipType = RELATIONSHIP_TYPES.find(t => t.value === type)
-    return relationshipType ? relationshipType.icon : Heart
-  }
+  // Network view helpers
+  const generateNetworkData = useCallback(() => {
+    const nodes = characters.map(character => ({
+      id: character.id,
+      name: character.name,
+      type: 'character',
+      connections: relationships.filter(r => 
+        r.attributes?.character_1_id === character.id || 
+        r.attributes?.character_2_id === character.id
+      ).length
+    }))
 
-  const getRelationshipTypeColor = (type: string) => {
-    const relationshipType = RELATIONSHIP_TYPES.find(t => t.value === type)
-    return relationshipType ? relationshipType.color : 'gray'
-  }
+    const links = relationships.map(relationship => ({
+      source: relationship.attributes?.character_1_id,
+      target: relationship.attributes?.character_2_id,
+      type: relationship.attributes?.type,
+      strength: relationship.attributes?.strength || 5,
+      tension: relationship.attributes?.tension_level || 0,
+      status: relationship.attributes?.status,
+      relationship: relationship
+    })).filter(link => link.source && link.target)
 
-  const getStatusColor = (status: string) => {
-    const statusObj = RELATIONSHIP_STATUS.find(s => s.value === status)
-    return statusObj ? statusObj.color : 'gray'
-  }
+    return { nodes, links }
+  }, [characters, relationships])
+
+  // Character relationship matrix
+  const generateMatrix = useCallback(() => {
+    const matrix: Array<Array<Relationship | null>> = []
+    
+    characters.forEach((char1, i) => {
+      matrix[i] = []
+      characters.forEach((char2, j) => {
+        if (i === j) {
+          matrix[i][j] = null // Same character
+        } else {
+          const relationship = relationships.find(r => 
+            (r.attributes?.character_1_id === char1.id && r.attributes?.character_2_id === char2.id) ||
+            (r.attributes?.character_1_id === char2.id && r.attributes?.character_2_id === char1.id)
+          )
+          matrix[i][j] = relationship || null
+        }
+      })
+    })
+    
+    return matrix
+  }, [characters, relationships])
+
+  // Analytics calculations
+  const relationshipAnalytics = useCallback(() => {
+    const totalRelationships = relationships.length
+    const activeRelationships = relationships.filter(r => r.attributes?.status === 'active').length
+    const conflictRelationships = relationships.filter(r => 
+      r.attributes?.type === 'conflict' || r.attributes?.type === 'rivalry'
+    ).length
+    const romanticRelationships = relationships.filter(r => r.attributes?.type === 'romantic').length
+    
+    const avgTension = relationships.reduce((sum, r) => sum + (r.attributes?.tension_level || 0), 0) / totalRelationships || 0
+    const avgIntimacy = relationships.reduce((sum, r) => sum + (r.attributes?.intimacy_level || 0), 0) / totalRelationships || 0
+    
+    const mostConnectedCharacter = characters.reduce((max, char) => {
+      const connections = relationships.filter(r => 
+        r.attributes?.character_1_id === char.id || r.attributes?.character_2_id === char.id
+      ).length
+      return connections > max.connections ? { character: char, connections } : max
+    }, { character: null as Character | null, connections: 0 })
+
+    return {
+      totalRelationships,
+      activeRelationships,
+      conflictRelationships,
+      romanticRelationships,
+      avgTension: Math.round(avgTension * 10) / 10,
+      avgIntimacy: Math.round(avgIntimacy * 10) / 10,
+      mostConnectedCharacter
+    }
+  }, [relationships, characters])
 
   if (loading) {
     return (
@@ -320,6 +1307,27 @@ export default function RelationshipsPanel({
     )
   }
 
+  // Show canvas full-screen when creating a new relationship
+  if (showCanvas) {
+    return (
+      <div className="h-full bg-white">
+        <InlineRelationshipCanvas
+          relationshipName={relationshipName}
+          characters={characters}
+          onClose={() => {
+            setShowCanvas(false)
+            setRelationshipName('')
+          }}
+          onSave={async (canvasData: { nodes: CanvasNode[], connections: CanvasConnection[] }) => {
+            await handleSaveCanvasRelationship(canvasData)
+            setShowCanvas(false)
+            setRelationshipName('')
+          }}
+        />
+      </div>
+    )
+  }
+
   return (
     <div className="h-full bg-white p-6 overflow-y-auto">
       <div className="max-w-5xl mx-auto">
@@ -330,26 +1338,121 @@ export default function RelationshipsPanel({
               <Heart className="w-7 h-7 text-rose-500" />
               Relationships
             </h2>
-            <p className="text-sm text-gray-500">Map connections, conflicts, and bonds between characters</p>
+            <p className="text-sm text-gray-500">Map connections, dynamics, and story arcs between characters</p>
           </div>
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setViewMode(viewMode === 'grid' ? 'network' : 'grid')}
-            >
-              {viewMode === 'grid' ? 'Network View' : 'Grid View'}
-            </Button>
-            <Button
-              onClick={() => {
-                setEditingRelationship(null)
-                resetForm()
-                setShowCreateDialog(true)
-              }}
-              className="bg-rose-500 hover:bg-rose-600 text-white"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              New Relationship
-            </Button>
+            {/* View Mode Toggle */}
+            <div className="flex items-center bg-gray-100 rounded-lg p-1">
+              <Button
+                variant={viewMode === 'grid' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('grid')}
+                className="text-xs px-3"
+              >
+                <Grid className="w-4 h-4 mr-1" />
+                Grid
+              </Button>
+              <Button
+                variant={viewMode === 'flowchart' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('flowchart')}
+                className="text-xs px-3"
+              >
+                <GitBranch className="w-4 h-4 mr-1" />
+                Flow
+              </Button>
+              <Button
+                variant={viewMode === 'network' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('network')}
+                className="text-xs px-3"
+              >
+                <Network className="w-4 h-4 mr-1" />
+                Network
+              </Button>
+              <Button
+                variant={viewMode === 'matrix' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('matrix')}
+                className="text-xs px-3"
+              >
+                <BarChart3 className="w-4 h-4 mr-1" />
+                Matrix
+              </Button>
+              <Button
+                variant={viewMode === 'timeline' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('timeline')}
+                className="text-xs px-3"
+              >
+                <Activity className="w-4 h-4 mr-1" />
+                Timeline
+              </Button>
+            </div>
+            
+            {/* Create Buttons */}
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowQuickConnect(true)
+                }}
+                className="border-rose-200 text-rose-600 hover:bg-rose-50"
+              >
+                <Zap className="w-4 h-4 mr-2" />
+                Quick Connect
+              </Button>
+              {!showNameInput ? (
+                <Button
+                  onClick={() => setShowNameInput(true)}
+                  className="bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white shadow-lg"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  New Relationship
+                </Button>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <EnhancedInput
+                    placeholder="Enter relationship name..."
+                    value={relationshipName}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRelationshipName(e.target.value)}
+                    onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+                      if (e.key === 'Enter' && relationshipName.trim()) {
+                        setShowCanvas(true)
+                        setShowNameInput(false)
+                      } else if (e.key === 'Escape') {
+                        setShowNameInput(false)
+                        setRelationshipName('')
+                      }
+                    }}
+                    className="min-w-[300px]"
+                    autoFocus
+                  />
+                  <Button
+                    onClick={() => {
+                      if (relationshipName.trim()) {
+                        setShowCanvas(true)
+                        setShowNameInput(false)
+                      }
+                    }}
+                    disabled={!relationshipName.trim()}
+                    className="bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white shadow-lg"
+                  >
+                    <ArrowRight className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowNameInput(false)
+                      setRelationshipName('')
+                    }}
+                    className="border-gray-300 hover:border-gray-400"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -407,9 +1510,8 @@ export default function RelationshipsPanel({
             </p>
             <Button 
               onClick={() => {
-                setEditingRelationship(null)
-                resetForm()
-                setShowCreateDialog(true)
+                setRelationshipName("First Relationship")
+                setShowCanvas(true)
               }}
               className="bg-rose-500 hover:bg-rose-600 text-white"
             >
@@ -418,122 +1520,129 @@ export default function RelationshipsPanel({
             </Button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredRelationships.map(relationship => {
-              const TypeIcon = getRelationshipTypeIcon(relationship.attributes?.type || '')
-              const typeColor = getRelationshipTypeColor(relationship.attributes?.type || '')
-              const statusColor = getStatusColor(relationship.attributes?.status || 'active')
-              
-              return (
-                <Card key={relationship.id} className="hover:shadow-md transition-shadow border border-gray-200">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-2">
-                        <TypeIcon className={`w-5 h-5 text-${typeColor}-500`} />
-                        <div>
-                          <CardTitle className="text-lg font-semibold truncate">
-                            {relationship.name}
-                          </CardTitle>
-                          <div className="flex items-center gap-2 mt-1">
-                            <Badge 
-                              variant="secondary" 
-                              className={`bg-${statusColor}-100 text-${statusColor}-700`}
-                            >
-                              {RELATIONSHIP_STATUS.find(s => s.value === relationship.attributes?.status)?.label || 'Active'}
-                            </Badge>
-                            {relationship.attributes?.strength && (
-                              <Badge variant="outline">
-                                Strength: {relationship.attributes.strength}/10
-                              </Badge>
-                            )}
-                          </div>
+          <>
+            {/* Analytics Dashboard */}
+            {viewMode === 'grid' && (
+              <div className="mb-8 grid grid-cols-2 md:grid-cols-4 gap-4">
+                {(() => {
+                  const analytics = relationshipAnalytics()
+                  return (
+                    <>
+                      <Card className="p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Heart className="w-5 h-5 text-rose-500" />
+                          <span className="text-sm font-medium">Total</span>
                         </div>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteRelationship(relationship.id)}
-                      >
-                        <Trash2 className="w-4 h-4 text-red-500" />
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      {/* Characters */}
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-blue-600">
-                          {relationship.attributes?.character_1_name || 'Character 1'}
-                        </span>
-                        <ArrowRight className="w-4 h-4 text-gray-400" />
-                        <span className="text-sm font-medium text-blue-600">
-                          {relationship.attributes?.character_2_name || 'Character 2'}
-                        </span>
-                      </div>
-
-                      {/* Description */}
-                      {relationship.description && (
-                        <p className="text-sm text-gray-600 line-clamp-3">
-                          {relationship.description}
-                        </p>
-                      )}
-
-                      {/* Dynamics */}
-                      {relationship.attributes?.dynamics && relationship.attributes.dynamics.length > 0 && (
-                        <div className="flex flex-wrap gap-1">
-                          {relationship.attributes.dynamics.slice(0, 3).map((dynamic: string) => (
-                            <Badge key={dynamic} variant="outline" className="text-xs">
-                              {dynamic.replace('_', ' ')}
-                            </Badge>
-                          ))}
-                          {relationship.attributes.dynamics.length > 3 && (
-                            <Badge variant="outline" className="text-xs">
-                              +{relationship.attributes.dynamics.length - 3} more
-                            </Badge>
-                          )}
+                        <div className="text-2xl font-bold">{analytics.totalRelationships}</div>
+                        <div className="text-xs text-gray-500">{analytics.activeRelationships} active</div>
+                      </Card>
+                      
+                      <Card className="p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Flame className="w-5 h-5 text-red-500" />
+                          <span className="text-sm font-medium">Conflicts</span>
                         </div>
-                      )}
+                        <div className="text-2xl font-bold">{analytics.conflictRelationships}</div>
+                        <div className="text-xs text-gray-500">Tension avg: {analytics.avgTension}/10</div>
+                      </Card>
+                      
+                      <Card className="p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Heart className="w-5 h-5 text-pink-500" />
+                          <span className="text-sm font-medium">Romance</span>
+                        </div>
+                        <div className="text-2xl font-bold">{analytics.romanticRelationships}</div>
+                        <div className="text-xs text-gray-500">Intimacy avg: {analytics.avgIntimacy}/10</div>
+                      </Card>
+                      
+                      <Card className="p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Network className="w-5 h-5 text-blue-500" />
+                          <span className="text-sm font-medium">Hub</span>
+                        </div>
+                        <div className="text-lg font-bold truncate">
+                          {analytics.mostConnectedCharacter.character?.name || 'None'}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {analytics.mostConnectedCharacter.connections} connections
+                        </div>
+                      </Card>
+                    </>
+                  )
+                })()}
+              </div>
+            )}
 
-                      {/* Actions */}
-                      <div className="flex justify-between items-center pt-2 border-t">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setEditingRelationship(relationship)
-                            // Populate form with existing data
-                            setFormData({
-                              name: relationship.name,
-                              description: relationship.description,
-                              type: relationship.attributes?.type || '',
-                              strength: relationship.attributes?.strength || 5,
-                              status: relationship.attributes?.status || 'active',
-                              character_1_id: relationship.attributes?.character_1_id || '',
-                              character_2_id: relationship.attributes?.character_2_id || '',
-                              dynamics: relationship.attributes?.dynamics || [],
-                              history: relationship.attributes?.history || '',
-                              current_state: relationship.attributes?.current_state || '',
-                              notes: relationship.attributes?.notes || ''
-                            })
-                            setShowCreateDialog(true)
-                          }}
-                        >
-                          <Edit3 className="w-4 h-4 mr-1" />
-                          Edit
-                        </Button>
-                        <span className="text-xs text-gray-500">
-                          {new Date(relationship.updated_at).toLocaleDateString()}
-                        </span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              )
-            })}
-          </div>
+            {/* View Content */}
+            {viewMode === 'grid' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredRelationships.map(relationship => (
+                  <RelationshipCard
+                    key={relationship.id}
+                    relationship={relationship}
+                    onEdit={(rel) => {
+                      setEditingRelationship(rel)
+                      setFormData({
+                        name: rel.name,
+                        description: rel.description,
+                        type: rel.attributes?.type || '',
+                        strength: rel.attributes?.strength || 5,
+                        status: rel.attributes?.status || 'active',
+                        character_1_id: rel.attributes?.character_1_id || '',
+                        character_2_id: rel.attributes?.character_2_id || '',
+                        dynamics: rel.attributes?.dynamics || [],
+                        history: rel.attributes?.history || '',
+                        current_state: rel.attributes?.current_state || '',
+                        notes: rel.attributes?.notes || '',
+                        tension_level: rel.attributes?.tension_level || 0,
+                        intimacy_level: rel.attributes?.intimacy_level || 5,
+                        dependency_level: rel.attributes?.dependency_level || 0,
+                        trust_level: rel.attributes?.trust_level || 5,
+                        respect_level: rel.attributes?.respect_level || 5,
+                        power_balance: rel.attributes?.power_balance || 'equal',
+                        conflict_sources: rel.attributes?.conflict_sources || [],
+                        bonding_factors: rel.attributes?.bonding_factors || [],
+                        relationship_goals: rel.attributes?.relationship_goals || '',
+                        story_importance: rel.attributes?.story_importance || 'secondary'
+                      })
+                      setShowCreateDialog(true)
+                    }}
+                    onDelete={handleDeleteRelationship}
+                  />
+                ))}
+              </div>
+            )}
+
+            {viewMode === 'flowchart' && (
+              <FlowchartView 
+                relationships={filteredRelationships} 
+                characters={characters}
+                onCreateRelationship={handleQuickConnect}
+              />
+            )}
+
+            {viewMode === 'network' && (
+              <NetworkView 
+                relationships={filteredRelationships} 
+                characters={characters}
+                networkData={generateNetworkData()}
+              />
+            )}
+
+            {viewMode === 'matrix' && (
+              <MatrixView 
+                characters={characters} 
+                relationships={relationships}
+                matrix={generateMatrix()}
+              />
+            )}
+
+            {viewMode === 'timeline' && (
+              <TimelineView relationships={filteredRelationships} />
+            )}
+          </>
         )}
 
-        {/* Create/Edit Dialog */}
         <Dialog open={showCreateDialog} onOpenChange={(open) => {
           setShowCreateDialog(open)
           if (!open) {
@@ -542,203 +1651,483 @@ export default function RelationshipsPanel({
             onClearSelection?.()
           }
         }}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>
+          <DialogContent className="!max-w-none w-[90vw] max-h-[90vh] overflow-y-auto bg-white border-rose-200 shadow-2xl rounded-3xl">
+            <DialogHeader className="pb-6 border-b border-rose-100">
+              <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-rose-600 to-pink-600 bg-clip-text text-transparent flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-r from-rose-500 to-pink-500 flex items-center justify-center">
+                  <Heart className="w-4 h-4 text-white" />
+                </div>
                 {editingRelationship ? 'Edit Relationship' : 'Create New Relationship'}
               </DialogTitle>
-              <DialogDescription>
-                Define the connection between two characters in your story.
+              <DialogDescription className="text-gray-600 mt-2 text-base">
+                Define the connection, dynamics, and story arc between two characters to bring depth to your story.
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-6 py-4">
-              {/* Character Selection */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="character_1">First Character</Label>
-                  <Select value={formData.character_1_id} onValueChange={(value) => 
-                    setFormData(prev => ({ ...prev, character_1_id: value }))
-                  }>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select character" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {characters.map(character => (
-                        <SelectItem key={character.id} value={character.id}>
-                          {character.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="character_2">Second Character</Label>
-                  <Select value={formData.character_2_id} onValueChange={(value) => 
-                    setFormData(prev => ({ ...prev, character_2_id: value }))
-                  }>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select character" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {characters.map(character => (
-                        <SelectItem key={character.id} value={character.id}>
-                          {character.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
+            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)} className="w-full mt-6">
+              <TabsList className="grid w-full grid-cols-4 bg-rose-50 border border-rose-200 rounded-2xl p-1 h-14">
+                <TabsTrigger 
+                  value="overview" 
+                  className="rounded-xl data-[state=active]:bg-white data-[state=active]:text-rose-600 data-[state=active]:shadow-md font-medium transition-all duration-300"
+                >
+                  <User className="w-4 h-4 mr-2" />
+                  Overview
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="dynamics" 
+                  className="rounded-xl data-[state=active]:bg-white data-[state=active]:text-rose-600 data-[state=active]:shadow-md font-medium transition-all duration-300"
+                >
+                  <Activity className="w-4 h-4 mr-2" />
+                  Dynamics
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="timeline" 
+                  className="rounded-xl data-[state=active]:bg-white data-[state=active]:text-rose-600 data-[state=active]:shadow-md font-medium transition-all duration-300"
+                >
+                  <Calendar className="w-4 h-4 mr-2" />
+                  Timeline
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="analysis" 
+                  className="rounded-xl data-[state=active]:bg-white data-[state=active]:text-rose-600 data-[state=active]:shadow-md font-medium transition-all duration-300"
+                >
+                  <BarChart3 className="w-4 h-4 mr-2" />
+                  Analysis
+                </TabsTrigger>
+              </TabsList>
 
-              {/* Basic Info */}
-              <div>
-                <Label htmlFor="name">Relationship Name (Optional)</Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                  placeholder="Auto-generated if left blank"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
-                  value={formData.description}
-                  onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                  placeholder="Describe the nature of this relationship..."
-                  rows={3}
-                />
-              </div>
-
-              {/* Type and Status */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="type">Relationship Type</Label>
-                  <Select value={formData.type} onValueChange={(value) => 
-                    setFormData(prev => ({ ...prev, type: value }))
-                  }>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {RELATIONSHIP_TYPES.map(type => (
-                        <SelectItem key={type.value} value={type.value}>
-                          <div className="flex items-center gap-2">
-                            <type.icon className="w-4 h-4" />
-                            {type.label}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+              {/* Overview Tab */}
+              <TabsContent value="overview" className="space-y-8 py-6">
+                {/* Character Selection */}
+                <div className="bg-white rounded-2xl p-6 border border-rose-100 shadow-sm">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                    <Users className="w-5 h-5 text-rose-500" />
+                    Characters
+                  </h3>
+                  <div className="grid grid-cols-2 gap-6">
+                    <div>
+                      <Label htmlFor="character_1" className="text-sm font-medium text-gray-700 mb-2 block">First Character</Label>
+                      <EnhancedSelect value={formData.character_1_id} onValueChange={(value: string) => 
+                        setFormData(prev => ({ ...prev, character_1_id: value }))
+                      }>
+                          {characters.map(character => (
+                            <EnhancedSelectItem key={character.id} value={character.id}>
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 bg-rose-100 rounded-full flex items-center justify-center text-sm font-medium text-rose-700">
+                                  {character.name.charAt(0).toUpperCase()}
+                                </div>
+                                {character.name}
+                              </div>
+                            </EnhancedSelectItem>
+                          ))}
+                      </EnhancedSelect>
+                    </div>
+                    <div>
+                      <Label htmlFor="character_2" className="text-sm font-medium text-gray-700 mb-2 block">Second Character</Label>
+                      <EnhancedSelect value={formData.character_2_id} onValueChange={(value: string) => 
+                        setFormData(prev => ({ ...prev, character_2_id: value }))
+                      }>
+                          {characters.map(character => (
+                            <EnhancedSelectItem key={character.id} value={character.id}>
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 bg-rose-100 rounded-full flex items-center justify-center text-sm font-medium text-rose-700">
+                                  {character.name.charAt(0).toUpperCase()}
+                                </div>
+                                {character.name}
+                              </div>
+                            </EnhancedSelectItem>
+                          ))}
+                      </EnhancedSelect>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <Label htmlFor="status">Status</Label>
-                  <Select value={formData.status} onValueChange={(value) => 
-                    setFormData(prev => ({ ...prev, status: value }))
-                  }>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {RELATIONSHIP_STATUS.map(status => (
-                        <SelectItem key={status.value} value={status.value}>
-                          {status.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
 
-              {/* Strength */}
-              <div>
-                <Label htmlFor="strength">Relationship Strength (1-10)</Label>
-                <Input
-                  id="strength"
-                  type="range"
-                  min="1"
-                  max="10"
-                  value={formData.strength}
-                  onChange={(e) => setFormData(prev => ({ ...prev, strength: parseInt(e.target.value) }))}
-                  className="mt-2"
-                />
-                <div className="flex justify-between text-sm text-gray-500 mt-1">
-                  <span>Weak</span>
-                  <span className="font-medium">{formData.strength}/10</span>
-                  <span>Strong</span>
-                </div>
-              </div>
+                {/* Basic Info */}
+                <div className="bg-white rounded-2xl p-6 border border-rose-100 shadow-sm space-y-6">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                    <Heart className="w-5 h-5 text-rose-500" />
+                    Basic Information
+                  </h3>
+                  <div>
+                    <Label htmlFor="name" className="text-sm font-medium text-gray-700 mb-2 block">Relationship Name (Optional)</Label>
+                    <EnhancedInput
+                      id="name"
+                      value={formData.name}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                      placeholder="Auto-generated if left blank"
+                      className="h-12"
+                    />
+                  </div>
 
-              {/* Dynamics */}
-              <div>
-                <Label>Relationship Dynamics</Label>
-                <div className="grid grid-cols-3 gap-2 mt-2">
-                  {RELATIONSHIP_DYNAMICS.map(dynamic => (
-                    <label key={dynamic} className="flex items-center space-x-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={formData.dynamics.includes(dynamic)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setFormData(prev => ({ 
-                              ...prev, 
-                              dynamics: [...prev.dynamics, dynamic] 
-                            }))
-                          } else {
-                            setFormData(prev => ({ 
-                              ...prev, 
-                              dynamics: prev.dynamics.filter(d => d !== dynamic) 
-                            }))
-                          }
-                        }}
-                        className="rounded border-gray-300"
+                  <div>
+                    <Label htmlFor="description" className="text-sm font-medium text-gray-700 mb-2 block">Description</Label>
+                    <EnhancedTextarea
+                      id="description"
+                      value={formData.description}
+                      onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                      placeholder="Describe the nature of this relationship..."
+                      rows={3}
+                      className="resize-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Type and Status */}
+                <div className="bg-white rounded-2xl p-6 border border-rose-100 shadow-sm">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                    <Settings className="w-5 h-5 text-rose-500" />
+                    Settings & Status
+                  </h3>
+                  <div className="grid grid-cols-3 gap-6">
+                    <div>
+                      <Label htmlFor="type" className="text-sm font-medium text-gray-700 mb-2 block">Relationship Type</Label>
+                      <EnhancedSelect value={formData.type} onValueChange={(value: string) => 
+                        setFormData(prev => ({ ...prev, type: value }))
+                      }>
+                          {RELATIONSHIP_TYPES.map(type => (
+                            <EnhancedSelectItem key={type.value} value={type.value}>
+                              <div className="flex items-center gap-2">
+                                <type.icon className="w-4 h-4" />
+                                {type.label}
+                              </div>
+                            </EnhancedSelectItem>
+                          ))}
+                      </EnhancedSelect>
+                    </div>
+                    <div>
+                      <Label htmlFor="status" className="text-sm font-medium text-gray-700 mb-2 block">Status</Label>
+                      <EnhancedSelect value={formData.status} onValueChange={(value: string) => 
+                        setFormData(prev => ({ ...prev, status: value }))
+                      }>
+                          {RELATIONSHIP_STATUS.map(status => (
+                            <EnhancedSelectItem key={status.value} value={status.value}>
+                              {status.label}
+                            </EnhancedSelectItem>
+                          ))}
+                      </EnhancedSelect>
+                    </div>
+                    <div>
+                      <Label htmlFor="story_importance" className="text-sm font-medium text-gray-700 mb-2 block">Story Importance</Label>
+                      <EnhancedSelect value={formData.story_importance} onValueChange={(value: string) => 
+                        setFormData(prev => ({ ...prev, story_importance: value as any }))
+                      }>
+                          {STORY_IMPORTANCE.map(importance => (
+                            <EnhancedSelectItem key={importance.value} value={importance.value}>
+                              <div className="flex items-center gap-2">
+                                <div className={`w-2 h-2 rounded-full bg-${importance.color}-500`}></div>
+                                {importance.label}
+                              </div>
+                            </EnhancedSelectItem>
+                          ))}
+                      </EnhancedSelect>
+                    </div>
+                  </div>
+
+                  {/* Power Balance */}
+                  <div className="mt-6">
+                    <Label htmlFor="power_balance" className="text-sm font-medium text-gray-700 mb-2 block">Power Balance</Label>
+                    <EnhancedSelect value={formData.power_balance} onValueChange={(value: string) => 
+                      setFormData(prev => ({ ...prev, power_balance: value as any }))
+                    }>
+                        {POWER_BALANCE_OPTIONS.map(option => (
+                          <EnhancedSelectItem key={option.value} value={option.value}>
+                            <div>
+                              <div className="font-medium">{option.label}</div>
+                              <div className="text-sm text-gray-500">{option.description}</div>
+                            </div>
+                          </EnhancedSelectItem>
+                        ))}
+                    </EnhancedSelect>
+                  </div>
+                </div>
+              </TabsContent>
+
+              {/* Dynamics Tab */}
+              <TabsContent value="dynamics" className="space-y-6 py-4">
+                {/* Relationship Metrics */}
+                <div className="grid grid-cols-2 gap-6">
+                  {/* Left Column */}
+                  <div className="space-y-4">
+                    {/* Tension Level */}
+                    <div>
+                      <Label htmlFor="tension_level">Tension Level (0-10)</Label>
+                      <Input
+                        id="tension_level"
+                        type="range"
+                        min="0"
+                        max="10"
+                        value={formData.tension_level}
+                        onChange={(e) => setFormData(prev => ({ ...prev, tension_level: parseInt(e.target.value) }))}
+                        className="mt-2"
                       />
-                      <span>{dynamic.replace('_', ' ')}</span>
-                    </label>
-                  ))}
+                      <div className="flex justify-between text-sm text-gray-500 mt-1">
+                        <span>Peaceful</span>
+                        <span className="font-medium text-red-500">{formData.tension_level}/10</span>
+                        <span>Explosive</span>
+                      </div>
+                    </div>
+
+                    {/* Trust Level */}
+                    <div>
+                      <Label htmlFor="trust_level">Trust Level (0-10)</Label>
+                      <Input
+                        id="trust_level"
+                        type="range"
+                        min="0"
+                        max="10"
+                        value={formData.trust_level}
+                        onChange={(e) => setFormData(prev => ({ ...prev, trust_level: parseInt(e.target.value) }))}
+                        className="mt-2"
+                      />
+                      <div className="flex justify-between text-sm text-gray-500 mt-1">
+                        <span>None</span>
+                        <span className="font-medium text-blue-500">{formData.trust_level}/10</span>
+                        <span>Complete</span>
+                      </div>
+                    </div>
+
+                    {/* Respect Level */}
+                    <div>
+                      <Label htmlFor="respect_level">Respect Level (0-10)</Label>
+                      <Input
+                        id="respect_level"
+                        type="range"
+                        min="0"
+                        max="10"
+                        value={formData.respect_level}
+                        onChange={(e) => setFormData(prev => ({ ...prev, respect_level: parseInt(e.target.value) }))}
+                        className="mt-2"
+                      />
+                      <div className="flex justify-between text-sm text-gray-500 mt-1">
+                        <span>Disdain</span>
+                        <span className="font-medium text-green-500">{formData.respect_level}/10</span>
+                        <span>Admiration</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column */}
+                  <div className="space-y-4">
+                    {/* Intimacy Level */}
+                    <div>
+                      <Label htmlFor="intimacy_level">Intimacy Level (0-10)</Label>
+                      <Input
+                        id="intimacy_level"
+                        type="range"
+                        min="0"
+                        max="10"
+                        value={formData.intimacy_level}
+                        onChange={(e) => setFormData(prev => ({ ...prev, intimacy_level: parseInt(e.target.value) }))}
+                        className="mt-2"
+                      />
+                      <div className="flex justify-between text-sm text-gray-500 mt-1">
+                        <span>Strangers</span>
+                        <span className="font-medium text-purple-500">{formData.intimacy_level}/10</span>
+                        <span>Soul Mates</span>
+                      </div>
+                    </div>
+
+                    {/* Dependency Level */}
+                    <div>
+                      <Label htmlFor="dependency_level">Dependency Level (0-10)</Label>
+                      <Input
+                        id="dependency_level"
+                        type="range"
+                        min="0"
+                        max="10"
+                        value={formData.dependency_level}
+                        onChange={(e) => setFormData(prev => ({ ...prev, dependency_level: parseInt(e.target.value) }))}
+                        className="mt-2"
+                      />
+                      <div className="flex justify-between text-sm text-gray-500 mt-1">
+                        <span>Independent</span>
+                        <span className="font-medium text-orange-500">{formData.dependency_level}/10</span>
+                        <span>Codependent</span>
+                      </div>
+                    </div>
+
+                    {/* Strength (overall) */}
+                    <div>
+                      <Label htmlFor="strength">Relationship Strength (1-10)</Label>
+                      <Input
+                        id="strength"
+                        type="range"
+                        min="1"
+                        max="10"
+                        value={formData.strength}
+                        onChange={(e) => setFormData(prev => ({ ...prev, strength: parseInt(e.target.value) }))}
+                        className="mt-2"
+                      />
+                      <div className="flex justify-between text-sm text-gray-500 mt-1">
+                        <span>Weak</span>
+                        <span className="font-medium">{formData.strength}/10</span>
+                        <span>Unbreakable</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
 
-              {/* Additional Fields */}
-              <div>
-                <Label htmlFor="history">Relationship History</Label>
-                <Textarea
-                  id="history"
-                  value={formData.history}
-                  onChange={(e) => setFormData(prev => ({ ...prev, history: e.target.value }))}
-                  placeholder="How did this relationship develop over time?"
-                  rows={3}
-                />
-              </div>
+                <Separator />
 
-              <div>
-                <Label htmlFor="current_state">Current State</Label>
-                <Textarea
-                  id="current_state"
-                  value={formData.current_state}
-                  onChange={(e) => setFormData(prev => ({ ...prev, current_state: e.target.value }))}
-                  placeholder="What's the current state of this relationship?"
-                  rows={2}
-                />
-              </div>
+                {/* Dynamics */}
+                <div>
+                  <Label>Relationship Dynamics</Label>
+                  <div className="grid grid-cols-4 gap-2 mt-2">
+                    {RELATIONSHIP_DYNAMICS.map(dynamic => (
+                      <label key={dynamic} className="flex items-center space-x-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={formData.dynamics.includes(dynamic)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setFormData(prev => ({ 
+                                ...prev, 
+                                dynamics: [...prev.dynamics, dynamic] 
+                              }))
+                            } else {
+                              setFormData(prev => ({ 
+                                ...prev, 
+                                dynamics: prev.dynamics.filter(d => d !== dynamic) 
+                              }))
+                            }
+                          }}
+                          className="rounded border-gray-300"
+                        />
+                        <span>{dynamic.replace('_', ' ')}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
 
-              <div>
-                <Label htmlFor="notes">Additional Notes</Label>
-                <Textarea
-                  id="notes"
-                  value={formData.notes}
-                  onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-                  placeholder="Any other notes about this relationship..."
-                  rows={2}
-                />
-              </div>
-            </div>
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Conflict Sources */}
+                  <div>
+                    <Label>Sources of Conflict</Label>
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                      {CONFLICT_SOURCES.map(source => (
+                        <label key={source} className="flex items-center space-x-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={formData.conflict_sources.includes(source)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setFormData(prev => ({ 
+                                  ...prev, 
+                                  conflict_sources: [...prev.conflict_sources, source] 
+                                }))
+                              } else {
+                                setFormData(prev => ({ 
+                                  ...prev, 
+                                  conflict_sources: prev.conflict_sources.filter(s => s !== source) 
+                                }))
+                              }
+                            }}
+                            className="rounded border-gray-300"
+                          />
+                          <span>{source.replace('_', ' ')}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
 
-            <div className="flex justify-end gap-2 pt-4 border-t">
+                  {/* Bonding Factors */}
+                  <div>
+                    <Label>Bonding Factors</Label>
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                      {BONDING_FACTORS.map(factor => (
+                        <label key={factor} className="flex items-center space-x-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={formData.bonding_factors.includes(factor)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setFormData(prev => ({ 
+                                  ...prev, 
+                                  bonding_factors: [...prev.bonding_factors, factor] 
+                                }))
+                              } else {
+                                setFormData(prev => ({ 
+                                  ...prev, 
+                                  bonding_factors: prev.bonding_factors.filter(f => f !== factor) 
+                                }))
+                              }
+                            }}
+                            className="rounded border-gray-300"
+                          />
+                          <span>{factor.replace('_', ' ')}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
+
+              {/* Timeline Tab */}
+              <TabsContent value="timeline" className="space-y-6 py-4">
+                <div className="text-center py-12">
+                  <Calendar className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-600 text-lg mb-2">Timeline Events</p>
+                  <p className="text-gray-500 text-sm mb-6">
+                    Track how this relationship develops over time
+                  </p>
+                  <Button variant="outline">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Timeline Event
+                  </Button>
+                </div>
+              </TabsContent>
+
+              {/* Analysis Tab */}
+              <TabsContent value="analysis" className="space-y-6 py-4">
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="relationship_goals">Relationship Goals & Arc</Label>
+                    <Textarea
+                      id="relationship_goals"
+                      value={formData.relationship_goals}
+                      onChange={(e) => setFormData(prev => ({ ...prev, relationship_goals: e.target.value }))}
+                      placeholder="Where should this relationship go? What's the intended arc?"
+                      rows={3}
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="history">Relationship History</Label>
+                    <Textarea
+                      id="history"
+                      value={formData.history}
+                      onChange={(e) => setFormData(prev => ({ ...prev, history: e.target.value }))}
+                      placeholder="How did this relationship develop over time?"
+                      rows={3}
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="current_state">Current State</Label>
+                    <Textarea
+                      id="current_state"
+                      value={formData.current_state}
+                      onChange={(e) => setFormData(prev => ({ ...prev, current_state: e.target.value }))}
+                      placeholder="What's the current state of this relationship?"
+                      rows={2}
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="notes">Additional Notes</Label>
+                    <Textarea
+                      id="notes"
+                      value={formData.notes}
+                      onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+                      placeholder="Any other notes about this relationship..."
+                      rows={2}
+                    />
+                  </div>
+                </div>
+              </TabsContent>
+            </Tabs>
+
+            <div className="flex justify-end gap-3 pt-6 border-t border-rose-100 bg-gradient-to-r from-rose-50/50 to-pink-50/50 -mx-6 -mb-6 px-6 pb-6 mt-6 rounded-b-3xl">
               <Button 
                 variant="outline" 
                 onClick={() => {
@@ -747,12 +2136,14 @@ export default function RelationshipsPanel({
                   resetForm()
                   onClearSelection?.()
                 }}
+                className="border-gray-200 text-gray-600 hover:bg-gray-50 h-12 px-6 rounded-xl font-medium"
               >
+                <X className="w-4 h-4 mr-2" />
                 Cancel
               </Button>
               <Button 
                 onClick={handleCreateRelationship}
-                className="bg-rose-500 hover:bg-rose-600 text-white"
+                className="bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white shadow-lg hover:shadow-xl h-12 px-8 rounded-xl font-medium transition-all duration-300"
                 disabled={!formData.character_1_id || !formData.character_2_id}
               >
                 <Save className="w-4 h-4 mr-2" />
@@ -761,6 +2152,969 @@ export default function RelationshipsPanel({
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Quick Connect Dialog */}
+        <Dialog open={showQuickConnect} onOpenChange={setShowQuickConnect}>
+          <DialogContent className="max-w-lg bg-white border-rose-200 shadow-2xl rounded-3xl">
+            <DialogHeader className="pb-6 border-b border-rose-100">
+              <DialogTitle className="text-xl font-bold bg-gradient-to-r from-rose-600 to-pink-600 bg-clip-text text-transparent flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-r from-rose-500 to-pink-500 flex items-center justify-center">
+                  <Zap className="w-4 h-4 text-white" />
+                </div>
+                Quick Connect Characters
+              </DialogTitle>
+              <DialogDescription className="text-gray-600 mt-2">
+                Create a relationship between two characters instantly
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-6 py-4">
+              {/* Character Selection */}
+              <div className="bg-white rounded-2xl p-6 border border-rose-100 shadow-sm">
+                <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                  <Users className="w-5 h-5 text-rose-500" />
+                  Select Characters
+                </h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">First Character</label>
+                    <EnhancedSelect value={quickConnectChar1} onValueChange={setQuickConnectChar1}>
+                      {characters.map(character => (
+                        <EnhancedSelectItem key={character.id} value={character.id}>
+                          <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 bg-rose-100 rounded-full flex items-center justify-center text-xs font-medium text-rose-700">
+                              {character.name.charAt(0).toUpperCase()}
+                            </div>
+                            {character.name}
+                          </div>
+                        </EnhancedSelectItem>
+                      ))}
+                  </EnhancedSelect>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Second Character</label>
+                  <EnhancedSelect value={quickConnectChar2} onValueChange={setQuickConnectChar2}>
+                      {characters.filter(c => c.id !== quickConnectChar1).map(character => (
+                        <EnhancedSelectItem key={character.id} value={character.id}>
+                          <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 bg-rose-100 rounded-full flex items-center justify-center text-xs font-medium text-rose-700">
+                              {character.name.charAt(0).toUpperCase()}
+                            </div>
+                            {character.name}
+                          </div>
+                        </EnhancedSelectItem>
+                      ))}
+                  </EnhancedSelect>
+                </div>
+              </div>
+              </div>
+
+              {/* Relationship Type */}
+              <div className="bg-white rounded-2xl p-6 border border-rose-100 shadow-sm">
+                <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                  <Heart className="w-5 h-5 text-rose-500" />
+                  Relationship Details
+                </h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Relationship Type</label>
+                    <EnhancedSelect value={quickConnectType} onValueChange={setQuickConnectType}>
+                    <EnhancedSelectItem value="friendship">
+                      <div className="flex items-center gap-2">
+                        <Users className="w-4 h-4 text-green-500" />
+                        Friendship
+                      </div>
+                    </EnhancedSelectItem>
+                    <EnhancedSelectItem value="romance">
+                      <div className="flex items-center gap-2">
+                        <Heart className="w-4 h-4 text-rose-500" />
+                        Romance
+                      </div>
+                    </EnhancedSelectItem>
+                    <EnhancedSelectItem value="family">
+                      <div className="flex items-center gap-2">
+                        <Home className="w-4 h-4 text-blue-500" />
+                        Family
+                      </div>
+                    </EnhancedSelectItem>
+                    <EnhancedSelectItem value="rivalry">
+                      <div className="flex items-center gap-2">
+                        <Swords className="w-4 h-4 text-orange-500" />
+                        Rivalry
+                      </div>
+                    </EnhancedSelectItem>
+                    <EnhancedSelectItem value="conflict">
+                      <div className="flex items-center gap-2">
+                        <Shield className="w-4 h-4 text-red-500" />
+                        Conflict
+                      </div>
+                    </EnhancedSelectItem>
+                    <EnhancedSelectItem value="mentor">
+                      <div className="flex items-center gap-2">
+                        <BookOpen className="w-4 h-4 text-purple-500" />
+                        Mentor
+                      </div>
+                    </EnhancedSelectItem>
+                </EnhancedSelect>
+              </div>
+
+              {/* Intensity Slider */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Relationship Intensity: {quickConnectIntensity}/10
+                </label>
+                <EnhancedSlider 
+                  value={[quickConnectIntensity]} 
+                  onValueChange={(value: number[]) => setQuickConnectIntensity(value[0])}
+                  min={1}
+                  max={10}
+                  step={1}
+                  className="w-full"
+                />
+                <div className="flex justify-between text-xs text-gray-500 mt-1">
+                  <span>Weak</span>
+                  <span>Strong</span>
+                </div>
+              </div>
+              </div>
+            </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-6 border-t border-rose-100 bg-gradient-to-r from-rose-50/50 to-pink-50/50 -mx-6 -mb-6 px-6 pb-6 mt-6 rounded-b-3xl">
+              <Button 
+                variant="outline" 
+                onClick={() => setShowQuickConnect(false)}
+                className="border-gray-200 text-gray-600 hover:bg-gray-50 h-12 px-6 rounded-xl font-medium"
+              >
+                <X className="w-4 h-4 mr-2" />
+                Cancel
+              </Button>
+              <Button 
+                onClick={() => handleQuickConnect()}
+                className="bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white shadow-lg hover:shadow-xl h-12 px-8 rounded-xl font-medium transition-all duration-300"
+                disabled={!quickConnectChar1 || !quickConnectChar2}
+              >
+                <Zap className="w-4 h-4 mr-2" />
+                Quick Connect
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </div>
+  )
+}
+
+// Canvas-based Relationship Editor Component
+interface CanvasNode {
+  id: string
+  type: 'character' | 'location' | 'item' | 'concept'
+  name: string
+  x: number
+  y: number
+  width: number
+  height: number
+  color?: string
+  imageUrl?: string
+}
+
+interface CanvasConnection {
+  id: string
+  fromNodeId: string
+  toNodeId: string
+  label: string
+  type: string
+  color: string
+  hasArrow: boolean
+  isDirectional: boolean
+}
+
+interface RelationshipCanvasProps {
+  relationshipName: string
+  characters: Character[]
+  onClose: () => void
+  onSave: (data: { nodes: CanvasNode[], connections: CanvasConnection[] }) => void
+}
+
+const RelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
+  relationshipName,
+  characters,
+  onClose,
+  onSave
+}) => {
+  const canvasRef = useRef<HTMLDivElement>(null)
+  const [nodes, setNodes] = useState<CanvasNode[]>([])
+  const [connections, setConnections] = useState<CanvasConnection[]>([])
+  const [selectedNode, setSelectedNode] = useState<string | null>(null)
+  const [selectedConnection, setSelectedConnection] = useState<string | null>(null)
+  const [isConnecting, setIsConnecting] = useState(false)
+  const [connectionStart, setConnectionStart] = useState<string | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
+  const [canvasOffset, setCanvasOffset] = useState({ x: 0, y: 0 })
+  const [scale, setScale] = useState(1)
+  const [showElementsPanel, setShowElementsPanel] = useState(true)
+
+  // Add character to canvas
+  const addCharacterToCanvas = (character: Character) => {
+    const newNode: CanvasNode = {
+      id: character.id,
+      type: 'character',
+      name: character.name,
+      x: Math.random() * 400 + 100,
+      y: Math.random() * 300 + 100,
+      width: 150,
+      height: 80,
+      color: '#f43f5e',
+      imageUrl: undefined
+    }
+    setNodes(prev => [...prev, newNode])
+  }
+
+  // Handle node dragging
+  const handleNodeMouseDown = (nodeId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setSelectedNode(nodeId)
+    setIsDragging(true)
+    setDragStart({ x: e.clientX, y: e.clientY })
+  }
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (isDragging && selectedNode) {
+      const deltaX = e.clientX - dragStart.x
+      const deltaY = e.clientY - dragStart.y
+      
+      setNodes(prev => prev.map(node => 
+        node.id === selectedNode 
+          ? { ...node, x: node.x + deltaX / scale, y: node.y + deltaY / scale }
+          : node
+      ))
+      
+      setDragStart({ x: e.clientX, y: e.clientY })
+    }
+  }
+
+  const handleMouseUp = () => {
+    setIsDragging(false)
+    setSelectedNode(null)
+  }
+
+  // Connection creation
+  const startConnection = (nodeId: string) => {
+    setIsConnecting(true)
+    setConnectionStart(nodeId)
+  }
+
+  const completeConnection = (endNodeId: string) => {
+    if (connectionStart && connectionStart !== endNodeId) {
+      const newConnection: CanvasConnection = {
+        id: `${connectionStart}-${endNodeId}-${Date.now()}`,
+        fromNodeId: connectionStart,
+        toNodeId: endNodeId,
+        label: 'New Relationship',
+        type: 'friendship',
+        color: '#10b981',
+        hasArrow: true,
+        isDirectional: false
+      }
+      setConnections(prev => [...prev, newConnection])
+    }
+    setIsConnecting(false)
+    setConnectionStart(null)
+  }
+
+  // Canvas controls
+  const zoomIn = () => setScale(prev => Math.min(prev * 1.2, 3))
+  const zoomOut = () => setScale(prev => Math.max(prev / 1.2, 0.3))
+  const resetZoom = () => setScale(1)
+  const fitToScreen = () => {
+    // Implementation for fitting all nodes to screen
+    setScale(1)
+    setCanvasOffset({ x: 0, y: 0 })
+  }
+
+  // Get connection path
+  const getConnectionPath = (connection: CanvasConnection) => {
+    const fromNode = nodes.find(n => n.id === connection.fromNodeId)
+    const toNode = nodes.find(n => n.id === connection.toNodeId)
+    
+    if (!fromNode || !toNode) return ''
+    
+    const fromX = fromNode.x + fromNode.width / 2
+    const fromY = fromNode.y + fromNode.height / 2
+    const toX = toNode.x + toNode.width / 2
+    const toY = toNode.y + toNode.height / 2
+    
+    return `M ${fromX} ${fromY} L ${toX} ${toY}`
+  }
+
+  // Save canvas data
+  const handleSave = () => {
+    onSave({ nodes, connections })
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex">
+      {/* Elements Panel */}
+      {showElementsPanel && (
+        <div className="w-80 bg-white shadow-xl overflow-y-auto">
+          <div className="p-6 border-b">
+            <h3 className="text-lg font-semibold text-gray-900">Add Elements</h3>
+            <p className="text-sm text-gray-600 mt-1">Drag characters and elements to the canvas</p>
+          </div>
+          
+          <div className="p-4 space-y-4">
+            <div>
+              <h4 className="font-medium text-gray-900 mb-3">Characters</h4>
+              <div className="space-y-2">
+                {characters.map(character => (
+                  <div
+                    key={character.id}
+                    onClick={() => addCharacterToCanvas(character)}
+                    className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:border-rose-300 hover:bg-rose-50 cursor-pointer transition-colors"
+                  >
+                    <div className="w-10 h-10 bg-rose-100 rounded-full flex items-center justify-center text-sm font-medium text-rose-700">
+                      {character.name.charAt(0).toUpperCase()}
+                    </div>
+                    <span className="font-medium text-gray-900">{character.name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main Canvas Area */}
+      <div className="flex-1 flex flex-col">
+        {/* Header */}
+        <div className="bg-white border-b px-6 py-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900">{relationshipName}</h2>
+            <p className="text-sm text-gray-600">Visual Relationship Editor</p>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              onClick={() => setShowElementsPanel(!showElementsPanel)}
+              className="border-gray-300"
+            >
+              <Layers className="w-4 h-4 mr-2" />
+              {showElementsPanel ? 'Hide' : 'Show'} Elements
+            </Button>
+            
+            <div className="flex items-center gap-1 border rounded-lg">
+              <Button variant="ghost" size="sm" onClick={zoomOut}>
+                <span className="text-lg">-</span>
+              </Button>
+              <span className="px-3 text-sm font-medium">{Math.round(scale * 100)}%</span>
+              <Button variant="ghost" size="sm" onClick={zoomIn}>
+                <span className="text-lg">+</span>
+              </Button>
+            </div>
+            
+            <Button variant="outline" onClick={resetZoom}>
+              <RotateCcw className="w-4 h-4" />
+            </Button>
+            
+            <Button variant="outline" onClick={fitToScreen}>
+              <Grid className="w-4 h-4" />
+            </Button>
+            
+            <Button onClick={handleSave} className="bg-green-600 hover:bg-green-700 text-white">
+              <Save className="w-4 h-4 mr-2" />
+              Save
+            </Button>
+            
+            <Button variant="outline" onClick={onClose}>
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Canvas */}
+        <div className="flex-1 relative overflow-hidden bg-gray-50">
+          <div
+            ref={canvasRef}
+            className="w-full h-full relative cursor-move"
+            style={{
+              transform: `scale(${scale}) translate(${canvasOffset.x}px, ${canvasOffset.y}px)`
+            }}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+          >
+            {/* Grid Background */}
+            <div className="absolute inset-0 opacity-20">
+              <svg width="100%" height="100%">
+                <defs>
+                  <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                    <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#e5e7eb" strokeWidth="1"/>
+                  </pattern>
+                </defs>
+                <rect width="100%" height="100%" fill="url(#grid)" />
+              </svg>
+            </div>
+
+            {/* Connections */}
+            <svg className="absolute inset-0 w-full h-full pointer-events-none">
+              {connections.map(connection => (
+                <g key={connection.id}>
+                  <path
+                    d={getConnectionPath(connection)}
+                    stroke={connection.color}
+                    strokeWidth="3"
+                    fill="none"
+                    className="pointer-events-auto cursor-pointer hover:stroke-width-4"
+                    onClick={() => setSelectedConnection(connection.id)}
+                  />
+                  {connection.hasArrow && (
+                    <defs>
+                      <marker
+                        id={`arrowhead-${connection.id}`}
+                        markerWidth="10"
+                        markerHeight="7"
+                        refX="9"
+                        refY="3.5"
+                        orient="auto"
+                      >
+                        <polygon
+                          points="0 0, 10 3.5, 0 7"
+                          fill={connection.color}
+                        />
+                      </marker>
+                    </defs>
+                  )}
+                </g>
+              ))}
+            </svg>
+
+            {/* Nodes */}
+            {nodes.map(node => (
+              <div
+                key={node.id}
+                className={cn(
+                  "absolute bg-white rounded-xl shadow-lg border-2 cursor-move select-none",
+                  selectedNode === node.id ? "border-rose-500" : "border-gray-200",
+                  "hover:shadow-xl transition-shadow"
+                )}
+                style={{
+                  left: node.x,
+                  top: node.y,
+                  width: node.width,
+                  height: node.height
+                }}
+                onMouseDown={(e) => handleNodeMouseDown(node.id, e)}
+                onClick={() => {
+                  if (isConnecting) {
+                    completeConnection(node.id)
+                  } else {
+                    setSelectedNode(node.id)
+                  }
+                }}
+              >
+                <div className="p-4 h-full flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="w-8 h-8 bg-rose-100 rounded-full flex items-center justify-center text-sm font-medium text-rose-700 mx-auto mb-2">
+                      {node.name.charAt(0).toUpperCase()}
+                    </div>
+                    <span className="text-sm font-medium text-gray-900">{node.name}</span>
+                    <div className="text-xs text-gray-500 capitalize">{node.type}</div>
+                  </div>
+                </div>
+
+                {/* Node Actions */}
+                {selectedNode === node.id && (
+                  <div className="absolute -top-2 -right-2 flex gap-1">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-6 h-6 p-0 bg-blue-500 hover:bg-blue-600 text-white border-blue-500"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        startConnection(node.id)
+                      }}
+                    >
+                      <Link2 className="w-3 h-3" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-6 h-6 p-0 bg-red-500 hover:bg-red-600 text-white border-red-500"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setNodes(prev => prev.filter(n => n.id !== node.id))
+                        setConnections(prev => prev.filter(c => 
+                          c.fromNodeId !== node.id && c.toNodeId !== node.id
+                        ))
+                      }}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {/* Connection Guide */}
+            {isConnecting && (
+              <div className="absolute top-4 left-4 bg-blue-100 text-blue-800 px-4 py-2 rounded-lg shadow">
+                Click on another element to create a connection
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Connection Properties Panel */}
+        {selectedConnection && (
+          <div className="absolute bottom-4 right-4 w-80 bg-white rounded-xl shadow-xl border p-4">
+            <h4 className="font-medium text-gray-900 mb-3">Connection Properties</h4>
+            <div className="space-y-3">
+              <div>
+                <Label className="text-sm">Label</Label>
+                <Input
+                  value={connections.find(c => c.id === selectedConnection)?.label || ''}
+                  onChange={(e) => {
+                    setConnections(prev => prev.map(conn => 
+                      conn.id === selectedConnection 
+                        ? { ...conn, label: e.target.value }
+                        : conn
+                    ))
+                  }}
+                />
+              </div>
+              <div>
+                <Label className="text-sm">Color</Label>
+                <input
+                  type="color"
+                  value={connections.find(c => c.id === selectedConnection)?.color || '#10b981'}
+                  onChange={(e) => {
+                    setConnections(prev => prev.map(conn => 
+                      conn.id === selectedConnection 
+                        ? { ...conn, color: e.target.value }
+                        : conn
+                    ))
+                  }}
+                  className="w-full h-10 rounded border"
+                />
+              </div>
+              <div className="flex justify-between">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setConnections(prev => prev.filter(c => c.id !== selectedConnection))
+                    setSelectedConnection(null)
+                  }}
+                  className="text-red-600 border-red-200 hover:bg-red-50"
+                >
+                  Delete
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedConnection(null)}
+                >
+                  Done
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Inline Canvas Component for Main Content Area
+const InlineRelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
+  relationshipName,
+  characters,
+  onClose,
+  onSave
+}) => {
+  const canvasRef = useRef<HTMLDivElement>(null)
+  const [nodes, setNodes] = useState<CanvasNode[]>([])
+  const [connections, setConnections] = useState<CanvasConnection[]>([])
+  const [selectedNode, setSelectedNode] = useState<string | null>(null)
+  const [selectedConnection, setSelectedConnection] = useState<string | null>(null)
+  const [isConnecting, setIsConnecting] = useState(false)
+  const [connectionStart, setConnectionStart] = useState<string | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
+  const [scale, setScale] = useState(1)
+  const [showElementsPanel, setShowElementsPanel] = useState(true)
+
+  // Add character to canvas
+  const addCharacterToCanvas = (character: Character) => {
+    const newNode: CanvasNode = {
+      id: character.id,
+      type: 'character',
+      name: character.name,
+      x: Math.random() * 400 + 100,
+      y: Math.random() * 300 + 100,
+      width: 150,
+      height: 80,
+      color: '#f43f5e'
+    }
+    setNodes(prev => [...prev, newNode])
+  }
+
+  // Handle node dragging
+  const handleNodeMouseDown = (nodeId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setSelectedNode(nodeId)
+    setIsDragging(true)
+    setDragStart({ x: e.clientX, y: e.clientY })
+  }
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (isDragging && selectedNode) {
+      const deltaX = e.clientX - dragStart.x
+      const deltaY = e.clientY - dragStart.y
+      
+      setNodes(prev => prev.map(node => 
+        node.id === selectedNode 
+          ? { ...node, x: node.x + deltaX / scale, y: node.y + deltaY / scale }
+          : node
+      ))
+      
+      setDragStart({ x: e.clientX, y: e.clientY })
+    }
+  }
+
+  const handleMouseUp = () => {
+    setIsDragging(false)
+    setSelectedNode(null)
+  }
+
+  // Connection creation
+  const startConnection = (nodeId: string) => {
+    setIsConnecting(true)
+    setConnectionStart(nodeId)
+  }
+
+  const completeConnection = (endNodeId: string) => {
+    if (connectionStart && connectionStart !== endNodeId) {
+      const newConnection: CanvasConnection = {
+        id: `${connectionStart}-${endNodeId}-${Date.now()}`,
+        fromNodeId: connectionStart,
+        toNodeId: endNodeId,
+        label: 'New Relationship',
+        type: 'friendship',
+        color: '#10b981',
+        hasArrow: true,
+        isDirectional: false
+      }
+      setConnections(prev => [...prev, newConnection])
+    }
+    setIsConnecting(false)
+    setConnectionStart(null)
+  }
+
+  // Canvas controls
+  const zoomIn = () => setScale(prev => Math.min(prev * 1.2, 3))
+  const zoomOut = () => setScale(prev => Math.max(prev / 1.2, 0.3))
+  const resetZoom = () => setScale(1)
+
+  // Get connection path
+  const getConnectionPath = (connection: CanvasConnection) => {
+    const fromNode = nodes.find(n => n.id === connection.fromNodeId)
+    const toNode = nodes.find(n => n.id === connection.toNodeId)
+    
+    if (!fromNode || !toNode) return ''
+    
+    const fromX = fromNode.x + fromNode.width / 2
+    const fromY = fromNode.y + fromNode.height / 2
+    const toX = toNode.x + toNode.width / 2
+    const toY = toNode.y + toNode.height / 2
+    
+    return `M ${fromX} ${fromY} L ${toX} ${toY}`
+  }
+
+  // Save canvas data
+  const handleSave = () => {
+    onSave({ nodes, connections })
+  }
+
+  return (
+    <div className="flex h-full bg-white rounded-xl shadow-sm border">
+      {/* Elements Panel */}
+      {showElementsPanel && (
+        <div className="w-80 bg-gray-50 border-r overflow-y-auto">
+          <div className="p-4 border-b bg-white">
+            <h3 className="text-lg font-semibold text-gray-900">Add Elements</h3>
+            <p className="text-sm text-gray-600 mt-1">Click characters to add them to the canvas</p>
+          </div>
+          
+          <div className="p-4 space-y-4">
+            <div>
+              <h4 className="font-medium text-gray-900 mb-3">Characters</h4>
+              <div className="space-y-2">
+                {characters.map(character => (
+                  <div
+                    key={character.id}
+                    onClick={() => addCharacterToCanvas(character)}
+                    className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:border-rose-300 hover:bg-rose-50 cursor-pointer transition-colors"
+                  >
+                    <div className="w-10 h-10 bg-rose-100 rounded-full flex items-center justify-center text-sm font-medium text-rose-700">
+                      {character.name.charAt(0).toUpperCase()}
+                    </div>
+                    <span className="font-medium text-gray-900">{character.name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main Canvas Area */}
+      <div className="flex-1 flex flex-col">
+        {/* Header */}
+        <div className="bg-white border-b px-4 py-3 flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">{relationshipName}</h2>
+            <p className="text-sm text-gray-600">Visual Relationship Editor</p>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowElementsPanel(!showElementsPanel)}
+              className="border-gray-300"
+            >
+              <Layers className="w-4 h-4 mr-1" />
+              {showElementsPanel ? 'Hide' : 'Show'}
+            </Button>
+            
+            <div className="flex items-center gap-1 border rounded-lg">
+              <Button variant="ghost" size="sm" onClick={zoomOut} className="px-2">
+                <span className="text-sm">-</span>
+              </Button>
+              <span className="px-2 text-xs font-medium">{Math.round(scale * 100)}%</span>
+              <Button variant="ghost" size="sm" onClick={zoomIn} className="px-2">
+                <span className="text-sm">+</span>
+              </Button>
+            </div>
+            
+            <Button variant="outline" size="sm" onClick={resetZoom}>
+              <RotateCcw className="w-4 h-4" />
+            </Button>
+            
+            <Button onClick={handleSave} size="sm" className="bg-green-600 hover:bg-green-700 text-white">
+              <Save className="w-4 h-4 mr-1" />
+              Save
+            </Button>
+            
+            <Button variant="outline" size="sm" onClick={onClose}>
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Canvas */}
+        <div className="flex-1 relative overflow-hidden bg-gray-50">
+          <div
+            ref={canvasRef}
+            className="w-full h-full relative cursor-move"
+            style={{
+              transform: `scale(${scale})`
+            }}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+          >
+            {/* Grid Background */}
+            <div className="absolute inset-0 opacity-20">
+              <svg width="100%" height="100%">
+                <defs>
+                  <pattern id="inline-grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                    <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#e5e7eb" strokeWidth="1"/>
+                  </pattern>
+                </defs>
+                <rect width="100%" height="100%" fill="url(#inline-grid)" />
+              </svg>
+            </div>
+
+            {/* Connections */}
+            <svg className="absolute inset-0 w-full h-full pointer-events-none">
+              {connections.map(connection => (
+                <g key={connection.id}>
+                  <path
+                    d={getConnectionPath(connection)}
+                    stroke={connection.color}
+                    strokeWidth="3"
+                    fill="none"
+                    className="pointer-events-auto cursor-pointer hover:stroke-width-4"
+                    onClick={() => setSelectedConnection(connection.id)}
+                  />
+                  {connection.hasArrow && (
+                    <>
+                      <defs>
+                        <marker
+                          id={`inline-arrowhead-${connection.id}`}
+                          markerWidth="10"
+                          markerHeight="7"
+                          refX="9"
+                          refY="3.5"
+                          orient="auto"
+                        >
+                          <polygon
+                            points="0 0, 10 3.5, 0 7"
+                            fill={connection.color}
+                          />
+                        </marker>
+                      </defs>
+                      <path
+                        d={getConnectionPath(connection)}
+                        stroke={connection.color}
+                        strokeWidth="3"
+                        fill="none"
+                        markerEnd={`url(#inline-arrowhead-${connection.id})`}
+                        className="pointer-events-none"
+                      />
+                    </>
+                  )}
+                </g>
+              ))}
+            </svg>
+
+            {/* Nodes */}
+            {nodes.map(node => (
+              <div
+                key={node.id}
+                className={cn(
+                  "absolute bg-white rounded-xl shadow-lg border-2 cursor-move select-none",
+                  selectedNode === node.id ? "border-rose-500" : "border-gray-200",
+                  "hover:shadow-xl transition-shadow"
+                )}
+                style={{
+                  left: node.x,
+                  top: node.y,
+                  width: node.width,
+                  height: node.height
+                }}
+                onMouseDown={(e) => handleNodeMouseDown(node.id, e)}
+                onClick={() => {
+                  if (isConnecting) {
+                    completeConnection(node.id)
+                  } else {
+                    setSelectedNode(node.id)
+                  }
+                }}
+              >
+                <div className="p-4 h-full flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="w-8 h-8 bg-rose-100 rounded-full flex items-center justify-center text-sm font-medium text-rose-700 mx-auto mb-2">
+                      {node.name.charAt(0).toUpperCase()}
+                    </div>
+                    <span className="text-sm font-medium text-gray-900">{node.name}</span>
+                    <div className="text-xs text-gray-500 capitalize">{node.type}</div>
+                  </div>
+                </div>
+
+                {/* Node Actions */}
+                {selectedNode === node.id && (
+                  <div className="absolute -top-2 -right-2 flex gap-1">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-6 h-6 p-0 bg-blue-500 hover:bg-blue-600 text-white border-blue-500"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        startConnection(node.id)
+                      }}
+                    >
+                      <Link2 className="w-3 h-3" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-6 h-6 p-0 bg-red-500 hover:bg-red-600 text-white border-red-500"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setNodes(prev => prev.filter(n => n.id !== node.id))
+                        setConnections(prev => prev.filter(c => 
+                          c.fromNodeId !== node.id && c.toNodeId !== node.id
+                        ))
+                      }}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {/* Connection Guide */}
+            {isConnecting && (
+              <div className="absolute top-4 left-4 bg-blue-100 text-blue-800 px-3 py-2 rounded-lg shadow text-sm">
+                Click on another element to create a connection
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Connection Properties Panel */}
+        {selectedConnection && (
+          <div className="absolute bottom-4 right-4 w-64 bg-white rounded-xl shadow-xl border p-3">
+            <h4 className="font-medium text-gray-900 mb-3 text-sm">Connection Properties</h4>
+            <div className="space-y-3">
+              <div>
+                <Label className="text-xs">Label</Label>
+                <Input
+                  value={connections.find(c => c.id === selectedConnection)?.label || ''}
+                  onChange={(e) => {
+                    setConnections(prev => prev.map(conn => 
+                      conn.id === selectedConnection 
+                        ? { ...conn, label: e.target.value }
+                        : conn
+                    ))
+                  }}
+                  className="text-sm"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Color</Label>
+                <input
+                  type="color"
+                  value={connections.find(c => c.id === selectedConnection)?.color || '#10b981'}
+                  onChange={(e) => {
+                    setConnections(prev => prev.map(conn => 
+                      conn.id === selectedConnection 
+                        ? { ...conn, color: e.target.value }
+                        : conn
+                    ))
+                  }}
+                  className="w-full h-8 rounded border"
+                />
+              </div>
+              <div className="flex justify-between">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setConnections(prev => prev.filter(c => c.id !== selectedConnection))
+                    setSelectedConnection(null)
+                  }}
+                  className="text-red-600 border-red-200 hover:bg-red-50 text-xs px-2"
+                >
+                  Delete
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedConnection(null)}
+                  className="text-xs px-2"
+                >
+                  Done
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
