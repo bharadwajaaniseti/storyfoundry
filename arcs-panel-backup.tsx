@@ -788,8 +788,6 @@ export default function ArcsManager({ projectId, selectedElement, onArcsChange, 
       alert('Failed to repair character references')
     }
   }
-
-  const repairCharacterReferences = async () => {
     if (!viewingArc || !projectId) return
 
     const characterIds = viewingArc.attributes?.character_ids || []
@@ -927,20 +925,6 @@ export default function ArcsManager({ projectId, selectedElement, onArcsChange, 
     try {
       const supabase = createSupabaseClient()
       
-      // Sync character_ids with character_development
-      const characterIdsFromDevelopment = formData.character_development.map(dev => dev.character_id)
-      const allCharacterIds = [...new Set([...formData.character_ids, ...characterIdsFromDevelopment])]
-      
-      // Remove any invalid character IDs
-      const validCharacterIds = allCharacterIds.filter(id => characters.find(c => c.id === id))
-      
-      console.log('🔄 Syncing character data:', {
-        originalCharacterIds: formData.character_ids,
-        characterDevelopmentIds: characterIdsFromDevelopment,
-        mergedIds: allCharacterIds,
-        validIds: validCharacterIds
-      })
-      
       const arcData = {
         name: formData.name,
         description: formData.description,
@@ -952,7 +936,7 @@ export default function ArcsManager({ projectId, selectedElement, onArcsChange, 
           priority: formData.priority,
           progress: formData.progress,
           color: formData.color,
-          character_ids: validCharacterIds, // Use synced and validated character IDs
+          character_ids: formData.character_ids,
           location_ids: formData.location_ids,
           chapter_ids: formData.chapter_ids,
           tags: formData.tags,
@@ -998,37 +982,6 @@ export default function ArcsManager({ projectId, selectedElement, onArcsChange, 
 
   const handleEdit = (arc: Arc) => {
     setEditingArc(arc)
-    
-    // Sync character_development with character_ids when editing
-    const existingCharacterIds = arc.attributes.character_ids || []
-    const existingCharacterDev = arc.attributes.character_development || []
-    const existingDevIds = existingCharacterDev.map(dev => dev.character_id)
-    
-    // Create character_development entries for characters that are in character_ids but not in character_development
-    const missingCharacterDevs = existingCharacterIds
-      .filter(id => !existingDevIds.includes(id))
-      .map(id => {
-        const character = characters.find(c => c.id === id)
-        return {
-          character_id: id,
-          character_name: character?.name || 'Unknown Character',
-          growth_arc: '',
-          starting_state: '',
-          ending_state: '',
-          key_moments: [],
-          screen_time_percentage: 0
-        }
-      })
-    
-    const syncedCharacterDevelopment = [...existingCharacterDev, ...missingCharacterDevs]
-    
-    console.log('🔄 Syncing character development for edit:', {
-      characterIds: existingCharacterIds,
-      existingDev: existingCharacterDev.length,
-      missingDevs: missingCharacterDevs.length,
-      finalDev: syncedCharacterDevelopment.length
-    })
-    
     setFormData({
       name: arc.name,
       description: arc.description,
@@ -1037,14 +990,14 @@ export default function ArcsManager({ projectId, selectedElement, onArcsChange, 
       priority: arc.attributes.priority || 1,
       progress: arc.attributes.progress || 0,
       color: arc.attributes.color || ARC_COLORS[0],
-      character_ids: existingCharacterIds,
+      character_ids: arc.attributes.character_ids || [],
       location_ids: arc.attributes.location_ids || [],
       chapter_ids: arc.attributes.chapter_ids || [],
       tags: arc.attributes.tags || [],
       notes: arc.attributes.notes || '',
       template: arc.attributes.template || { type: 'three_act', structure_beats: [] },
       dependencies: arc.attributes.dependencies || [],
-      character_development: syncedCharacterDevelopment, // Use synced character development
+      character_development: arc.attributes.character_development || [],
       chapter_breakdown: arc.attributes.chapter_breakdown || [],
       pacing_profile: arc.attributes.pacing_profile || [],
       themes: arc.attributes.themes || [],
@@ -1130,6 +1083,35 @@ export default function ArcsManager({ projectId, selectedElement, onArcsChange, 
               </Button>
             </div>
           </div>
+
+          {/* View Mode Tabs */}
+          <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg w-fit">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="px-4 py-2 text-sm font-medium rounded-md text-gray-600 hover:text-gray-900"
+            >
+              <Calendar className="w-4 h-4 mr-2" />
+              Timeline View
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="px-4 py-2 text-sm font-medium rounded-md text-gray-600 hover:text-gray-900"
+            >
+              <BarChart3 className="w-4 h-4 mr-2" />
+              Graph View
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="px-4 py-2 text-sm font-medium rounded-md text-gray-600 hover:text-gray-900"
+            >
+              <Grid className="w-4 h-4 mr-2" />
+              Heatmap View
+            </Button>
+          </div>
+
           {/* Search and Filters */}
           <div className="flex flex-wrap gap-4 items-center">
             <div className="flex-1 min-w-64">
@@ -1194,7 +1176,14 @@ export default function ArcsManager({ projectId, selectedElement, onArcsChange, 
                 <EnhancedSelectItem value="name">Name</EnhancedSelectItem>
               </EnhancedSelect>
 
-              
+              <Button variant="outline" size="sm" className="px-3">
+                <SlidersHorizontal className="w-4 h-4" />
+              </Button>
+
+              <Button variant="outline" size="sm" className="px-3">
+                <Eye className="w-4 h-4" />
+                Entry
+              </Button>
             </div>
           </div>
 
@@ -1986,18 +1975,47 @@ ${viewingArc.attributes.notes || 'No notes available'}`;
               {/* Characters Card */}
               {viewingArc.attributes.character_ids && viewingArc.attributes.character_ids.length > 0 && (
                 <Card className="p-6 shadow-lg border-0 bg-gradient-to-br from-white to-gray-50">
-                  <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-                    <div className="p-1 bg-blue-100 rounded-lg">
-                      <Users className="w-5 h-5 text-blue-600" />
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                      <div className="p-1 bg-blue-100 rounded-lg">
+                        <Users className="w-5 h-5 text-blue-600" />
+                      </div>
+                      Characters ({viewingArc.attributes.character_ids.length})
+                    </h3>
+                    <Button 
+                      onClick={repairCharacterReferences}
+                      className="text-xs py-1 px-2 h-auto bg-orange-500 hover:bg-orange-600"
+                      title="Fix invalid character references"
+                    >
+                      🔧 Fix References
+                    </Button>
+                  </div>
+
+                  {/* Debug Information */}
+                  <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-xs">
+                    <div className="font-semibold text-yellow-800 mb-2">🐛 Character Reference Debug</div>
+                    <div className="space-y-1 text-yellow-700">
+                      <div><strong>Arc Character IDs:</strong> [{viewingArc.attributes.character_ids.join(', ')}]</div>
+                      <div><strong>Available Characters:</strong> {characters.length}</div>
+                      <div><strong>Available Character IDs:</strong> [{characters.map(c => c.id).join(', ')}]</div>
+                      <div><strong>Character Names:</strong> {characters.map(c => `${c.name} (${c.id.slice(0, 8)}...)`).join(', ')}</div>
                     </div>
-                    Characters ({viewingArc.attributes.character_ids.length})
-                  </h3>
+                  </div>
 
-
-                 <div className="space-y-3">
+                  <div className="space-y-3">
                     {viewingArc.attributes.character_ids.slice(0, 5).map((id) => {
                       const character = characters.find(c => c.id === id)
                       const attrs = character?.attributes as any
+                      
+                      // Debug logging
+                      console.log(`🔍 Character lookup for ID ${id}:`)
+                      console.log('  Found:', !!character)
+                      console.log('  Character:', character ? { id: character.id, name: character.name } : null)
+                      console.log('  Total Characters Available:', characters.length)
+                      console.log('  All Available Character IDs:', characters.map(c => c.id))
+                      console.log('  All Available Character Names:', characters.map(c => `${c.name} (${c.id})`))
+                      console.log('  Arc Character IDs:', viewingArc.attributes.character_ids)
+                      console.log('  Searched ID:', id)
                       
                       if (!character) {
                         return (
@@ -3001,22 +3019,6 @@ ${viewingArc.attributes.notes || 'No notes available'}`;
                   </h3>
                   
                   <div className="space-y-4">
-                    {/* Info Panel */}
-                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                      <div className="flex items-start gap-3">
-                        <div className="p-1 bg-blue-100 rounded-lg mt-0.5">
-                          <Users className="w-4 h-4 text-blue-600" />
-                        </div>
-                        <div>
-                          <h4 className="font-medium text-blue-900 mb-1">Character Assignment & Development</h4>
-                          <p className="text-sm text-blue-700 leading-relaxed">
-                            Characters added here will be automatically assigned to this arc and appear in the main character list. 
-                            This tab lets you plan their development journey throughout the story.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                    
                     <div className="flex gap-4">
                       <EnhancedSelect onValueChange={(characterId: string) => {
                         const character = characters.find(c => c.id === characterId)
