@@ -9,7 +9,7 @@ import {
   Network, BarChart3, TrendingUp, Activity, Grid,
   Layers, Move, RotateCcw, Share2, Download, Upload, Settings,
   Home, Swords, BookOpen, UserCircle, Palette, ZoomIn, ZoomOut,
-  Type
+  MapPin, Book, Globe, Brain, Package, Sparkles, Type
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -346,6 +346,76 @@ const STORY_IMPORTANCE = [
   { value: 'background', label: 'Background', color: 'gray', description: 'Adds depth and context' }
 ]
 
+// World Element Types Configuration
+const WORLD_ELEMENT_TYPES = {
+  characters: { 
+    label: 'Characters', 
+    icon: Users, 
+    color: 'rose', 
+    description: 'People and beings in your story' 
+  },
+  locations: { 
+    label: 'Locations', 
+    icon: MapPin, 
+    color: 'green', 
+    description: 'Places and environments' 
+  },
+  items: { 
+    label: 'Items', 
+    icon: Package, 
+    color: 'indigo', 
+    description: 'Objects, artifacts, and possessions' 
+  },
+  magic: { 
+    label: 'Magic', 
+    icon: Sparkles, 
+    color: 'yellow', 
+    description: 'Spells and magical systems' 
+  },
+  species: { 
+    label: 'Species', 
+    icon: Zap, 
+    color: 'amber', 
+    description: 'Races, creatures, and beings' 
+  },
+  cultures: { 
+    label: 'Cultures', 
+    icon: Crown, 
+    color: 'pink', 
+    description: 'Societies and civilizations' 
+  },
+  systems: { 
+    label: 'Systems', 
+    icon: Globe, 
+    color: 'teal', 
+    description: 'Political, economic, and social structures' 
+  },
+  languages: { 
+    label: 'Languages', 
+    icon: Type, 
+    color: 'red', 
+    description: 'Communication systems and dialects' 
+  },
+  religions: { 
+    label: 'Religions', 
+    icon: Heart, 
+    color: 'rose', 
+    description: 'Belief systems and spirituality' 
+  },
+  philosophies: { 
+    label: 'Philosophies', 
+    icon: Brain, 
+    color: 'violet', 
+    description: 'Worldviews and principles' 
+  },
+  encyclopedia: { 
+    label: 'Encyclopedia', 
+    icon: Book, 
+    color: 'emerald', 
+    description: 'Knowledge and documented facts' 
+  }
+}
+
 // Helper functions for relationship display
 function getRelationshipTypeIcon(type: string) {
   const relationshipType = RELATIONSHIP_TYPES.find(t => t.value === type)
@@ -517,14 +587,736 @@ const NetworkView = React.memo(({
   characters: Character[]
   networkData: { nodes: any[], links: any[] }
 }) => {
+  const networkRef = useRef<HTMLDivElement>(null)
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null)
+  const [networkScale, setNetworkScale] = useState(1)
+  const [networkOffset, setNetworkOffset] = useState({ x: 0, y: 0 })
+  const [isDraggingNetwork, setIsDraggingNetwork] = useState(false)
+  const [dragStartNetwork, setDragStartNetwork] = useState({ x: 0, y: 0 })
+  
+  // Node dragging state
+  const [isDraggingNode, setIsDraggingNode] = useState(false)
+  const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null)
+  const [dragStartNode, setDragStartNode] = useState({ x: 0, y: 0 })
+  const [nodeOffsets, setNodeOffsets] = useState<Record<string, { x: number; y: number }>>({})
+  const [hasDraggedNode, setHasDraggedNode] = useState(false)
+
+  // Generate network layout
+  const generateNetworkLayout = useCallback(() => {
+    if (!characters.length) return { nodes: [], connections: [] }
+
+    const centerX = 400
+    const centerY = 300
+    const radius = Math.min(150, Math.max(80, characters.length * 15))
+
+    // Create nodes in a circular layout
+    const nodes = characters.map((character, index) => {
+      const angle = (index * 2 * Math.PI) / characters.length
+      const nodeRadius = radius + Math.sin(index * 0.5) * 30 // Add some variation
+      
+      // Count connections for this character
+      const connectionCount = relationships.filter(r => 
+        r.attributes?.character_1_id === character.id || 
+        r.attributes?.character_2_id === character.id
+      ).length
+      
+      return {
+        id: character.id,
+        name: character.name,
+        x: centerX + Math.cos(angle) * nodeRadius,
+        y: centerY + Math.sin(angle) * nodeRadius,
+        connections: connectionCount,
+        type: 'character'
+      }
+    })
+
+    // Create connections - filter out invalid ones
+    const connections = []
+    
+    for (const relationship of relationships) {
+      if (!relationship.attributes) {
+        continue
+      }
+      
+      const attrs = relationship.attributes
+      
+      // Check if this is a relationship web with canvas data
+      if (attrs.type === 'relationship_web' && attrs.canvas_data) {
+        
+        const canvasData = attrs.canvas_data
+        if (canvasData.connections && Array.isArray(canvasData.connections)) {
+          
+          // Process each connection in the canvas data
+          for (const canvasConnection of canvasData.connections) {
+            // Try to extract character IDs from all possible fields
+            const char1Id = canvasConnection.from || canvasConnection.source || canvasConnection.fromId || 
+                           canvasConnection.sourceId || canvasConnection.startId || canvasConnection.start ||
+                           canvasConnection.fromNodeId || canvasConnection.sourceNodeId
+            const char2Id = canvasConnection.to || canvasConnection.target || canvasConnection.toId || 
+                           canvasConnection.targetId || canvasConnection.endId || canvasConnection.end ||
+                           canvasConnection.toNodeId || canvasConnection.targetNodeId
+            
+            if (char1Id && char2Id && char1Id !== char2Id) {
+              // Verify both characters exist
+              const char1 = characters.find(c => c.id === char1Id)
+              const char2 = characters.find(c => c.id === char2Id)
+              
+              if (char1 && char2) {
+                const connection = {
+                  id: `${relationship.id}_${char1Id}_${char2Id}`,
+                  fromId: char1Id,
+                  toId: char2Id,
+                  type: canvasConnection.type || relationship.name?.toLowerCase() || 'connection',
+                  strength: canvasConnection.strength || 5,
+                  label: canvasConnection.label || relationship.name || 'Connection',
+                  tension: canvasConnection.tension || 0,
+                  trust: canvasConnection.trust || 5
+                }
+                
+                connections.push(connection)
+              }
+            }
+          }
+        }
+      } else {
+        // Original logic for direct relationship attributes
+        
+        const char1Id = attrs.character_1_id || attrs.character1_id || attrs.from_character_id || 
+                       attrs.character_a_id || attrs.source_character_id
+        const char2Id = attrs.character_2_id || attrs.character2_id || attrs.to_character_id || 
+                       attrs.character_b_id || attrs.target_character_id
+        
+        let char1Name = attrs.character_1_name || attrs.character1_name || attrs.from_character || 
+                       attrs.character_a || attrs.source_character
+        let char2Name = attrs.character_2_name || attrs.character2_name || attrs.to_character || 
+                       attrs.character_b || attrs.target_character
+        
+        // If no IDs, try to find by name
+        let finalChar1Id = char1Id
+        let finalChar2Id = char2Id
+        
+        if (!finalChar1Id && char1Name) {
+          const char1 = characters.find(c => c.name === char1Name || (c as any).attributes?.name === char1Name)
+          finalChar1Id = char1?.id
+        }
+        
+        if (!finalChar2Id && char2Name) {
+          const char2 = characters.find(c => c.name === char2Name || (c as any).attributes?.name === char2Name)
+          finalChar2Id = char2?.id
+        }
+        
+        if (finalChar1Id && finalChar2Id && finalChar1Id !== finalChar2Id) {
+          // Verify both characters exist
+          const char1 = characters.find(c => c.id === finalChar1Id)
+          const char2 = characters.find(c => c.id === finalChar2Id)
+          
+          if (char1 && char2) {
+            const connection = {
+              id: relationship.id,
+              fromId: finalChar1Id,
+              toId: finalChar2Id,
+              type: attrs?.relationship_type || attrs?.type || 'friendship',
+              strength: attrs?.strength || 5,
+              label: relationship.name || attrs?.description || attrs?.relationship_type || 'Connection',
+              tension: attrs?.tension_level || 0,
+              trust: attrs?.trust_level || 5
+            }
+            
+            connections.push(connection)
+          }
+        }
+      }
+    }
+      
+    return { nodes, connections }
+  }, [characters, relationships])
+
+  const { nodes, connections } = generateNetworkLayout()
+
+  // Get connection path between two nodes
+  const getConnectionPath = (fromNode: any, toNode: any) => {
+    if (!fromNode || !toNode) {
+      return ''
+    }
+    
+    // Apply node offsets for dragging
+    const fromOffset = nodeOffsets[fromNode.id] || { x: 0, y: 0 }
+    const toOffset = nodeOffsets[toNode.id] || { x: 0, y: 0 }
+    
+    const fromX = fromNode.x + fromOffset.x
+    const fromY = fromNode.y + fromOffset.y
+    const toX = toNode.x + toOffset.x
+    const toY = toNode.y + toOffset.y
+    
+    const dx = toX - fromX
+    const dy = toY - fromY
+    const distance = Math.sqrt(dx * dx + dy * dy)
+    
+    // Create a slight curve for better visual appeal
+    const midX = (fromX + toX) / 2
+    const midY = (fromY + toY) / 2
+    const curvature = Math.min(distance * 0.2, 50)
+    const perpX = -dy / distance * curvature
+    const perpY = dx / distance * curvature
+    
+    const path = `M ${fromX} ${fromY} Q ${midX + perpX} ${midY + perpY} ${toX} ${toY}`
+    
+    return path
+  }
+
+  // Get color for relationship type
+  const getRelationshipColor = (type: string, tension: number = 0) => {
+    const colors = {
+      friendship: '#10b981',
+      romance: '#f43f5e',
+      family: '#3b82f6',
+      rivalry: '#f59e0b',
+      conflict: '#ef4444',
+      mentor: '#8b5cf6',
+      alliance: '#06b6d4',
+      professional: '#64748b',
+      enemy: '#dc2626'
+    }
+    
+    const baseColor = colors[type as keyof typeof colors] || '#6b7280'
+    
+    // Adjust opacity based on tension for conflicts
+    if (tension > 5) {
+      return `${baseColor}dd` // More opaque for high tension
+    }
+    
+    return baseColor
+  }
+
+  // Handle network panning
+  const handleNetworkMouseDown = (e: React.MouseEvent) => {
+    if (e.button === 0 && !isDraggingNode) { // Left click and not dragging a node
+      setIsDraggingNetwork(true)
+      setDragStartNetwork({ x: e.clientX, y: e.clientY })
+    }
+  }
+
+  const handleNetworkMouseMove = (e: React.MouseEvent) => {
+    if (isDraggingNetwork) {
+      const deltaX = e.clientX - dragStartNetwork.x
+      const deltaY = e.clientY - dragStartNetwork.y
+      
+      setNetworkOffset(prev => ({
+        x: prev.x + deltaX,
+        y: prev.y + deltaY
+      }))
+      
+      setDragStartNetwork({ x: e.clientX, y: e.clientY })
+    }
+  }
+
+  const handleNetworkMouseUp = () => {
+    setIsDraggingNetwork(false)
+  }
+
+  // Node dragging handlers
+  const handleNodeMouseDown = (nodeId: string, e: React.MouseEvent) => {
+    e.stopPropagation() // Prevent network dragging
+    setIsDraggingNode(true)
+    setDraggingNodeId(nodeId)
+    setDragStartNode({ x: e.clientX, y: e.clientY })
+    setHasDraggedNode(false)
+  }
+
+  const handleNodeMouseMove = (e: React.MouseEvent) => {
+    if (isDraggingNode && draggingNodeId) {
+      const deltaX = (e.clientX - dragStartNode.x) / networkScale
+      const deltaY = (e.clientY - dragStartNode.y) / networkScale
+      
+      // If we've moved more than a few pixels, consider it a drag
+      if (!hasDraggedNode && (Math.abs(deltaX) > 3 || Math.abs(deltaY) > 3)) {
+        setHasDraggedNode(true)
+      }
+      
+      setNodeOffsets(prev => ({
+        ...prev,
+        [draggingNodeId]: {
+          x: (prev[draggingNodeId]?.x || 0) + deltaX,
+          y: (prev[draggingNodeId]?.y || 0) + deltaY
+        }
+      }))
+      
+      setDragStartNode({ x: e.clientX, y: e.clientY })
+    }
+  }
+
+  const handleNodeMouseUp = () => {
+    setIsDraggingNode(false)
+    setDraggingNodeId(null)
+  }
+
+  // Network zoom
+  const handleNetworkWheel = (e: React.WheelEvent) => {
+    e.preventDefault()
+    const zoomFactor = 1.1
+    
+    if (e.deltaY < 0) {
+      setNetworkScale(prev => Math.min(prev * zoomFactor, 3))
+    } else {
+      setNetworkScale(prev => Math.max(prev / zoomFactor, 0.3))
+    }
+  }
+
+  // Reset network view
+  const resetNetworkView = () => {
+    setNetworkScale(1)
+    setNetworkOffset({ x: 0, y: 0 })
+  }
+
+  if (!characters.length) {
+    return (
+      <div className="h-96 border rounded-lg bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+          <p className="text-gray-600 text-lg mb-2">No Characters Available</p>
+          <p className="text-gray-500 text-sm">
+            Create characters first to see the relationship network
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="h-96 border rounded-lg bg-gray-50 flex items-center justify-center">
-      <div className="text-center">
-        <Network className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-        <p className="text-gray-600 text-lg mb-2">Network View</p>
-        <p className="text-gray-500 text-sm">
-          Interactive relationship network visualization coming soon
-        </p>
+    <div className="border rounded-lg bg-white overflow-hidden">
+      {/* Network Controls */}
+      <div className="bg-gray-50 border-b px-4 py-3 flex items-center justify-between">
+        <div>
+          <h3 className="font-semibold text-gray-900 flex items-center">
+            <Network className="w-5 h-5 mr-2 text-blue-600" />
+            Relationship Network
+          </h3>
+          <p className="text-sm text-gray-600">
+            {characters.length} characters, {connections.length} relationships
+          </p>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <div className="flex items-center bg-white rounded-lg border px-3 py-1">
+            <button
+              onClick={() => setNetworkScale(prev => Math.max(prev / 1.2, 0.3))}
+              className="p-1 hover:bg-gray-100 rounded"
+            >
+              <ZoomOut className="w-4 h-4" />
+            </button>
+            <span className="px-2 text-sm font-medium">
+              {Math.round(networkScale * 100)}%
+            </span>
+            <button
+              onClick={() => setNetworkScale(prev => Math.min(prev * 1.2, 3))}
+              className="p-1 hover:bg-gray-100 rounded"
+            >
+              <ZoomIn className="w-4 h-4" />
+            </button>
+          </div>
+          
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={resetNetworkView}
+            className="border-gray-300"
+          >
+            <RotateCcw className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Network Visualization */}
+      <div
+        ref={networkRef}
+        className={`relative h-96 bg-gradient-to-br from-gray-50 to-blue-50/20 overflow-hidden ${
+          isDraggingNetwork ? 'cursor-grabbing' : 'cursor-grab'
+        }`}
+        onMouseDown={handleNetworkMouseDown}
+        onMouseMove={(e) => {
+          handleNetworkMouseMove(e)
+          handleNodeMouseMove(e)
+        }}
+        onMouseUp={() => {
+          handleNetworkMouseUp()
+          handleNodeMouseUp()
+        }}
+        onMouseLeave={() => {
+          handleNetworkMouseUp()
+          handleNodeMouseUp()
+        }}
+        onWheel={handleNetworkWheel}
+      >
+        <div
+          className="absolute inset-0"
+          style={{
+            transform: `translate(${networkOffset.x}px, ${networkOffset.y}px) scale(${networkScale})`,
+            transformOrigin: 'center center'
+          }}
+        >
+          {/* Background Grid */}
+          <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-20">
+            <defs>
+              <pattern id="network-grid" width="30" height="30" patternUnits="userSpaceOnUse">
+                <path d="M 30 0 L 0 0 0 30" fill="none" stroke="#e5e7eb" strokeWidth="1"/>
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#network-grid)" />
+          </svg>
+
+          {/* Connections */}
+          <svg className="absolute inset-0 w-full h-full">
+            <defs>
+              <marker
+                id="network-arrow"
+                markerWidth="8"
+                markerHeight="8"
+                refX="7"
+                refY="4"
+                orient="auto"
+                markerUnits="strokeWidth"
+              >
+                <path d="M 0,0 L 0,8 L 8,4 z" fill="currentColor" />
+              </marker>
+              
+              {/* Glow filter for connections */}
+              <filter id="network-glow">
+                <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                <feMerge>
+                  <feMergeNode in="coloredBlur"/>
+                  <feMergeNode in="SourceGraphic"/>
+                </feMerge>
+              </filter>
+            </defs>
+            
+            {connections.map(connection => {
+              const fromNode = nodes.find(n => n.id === connection.fromId)
+              const toNode = nodes.find(n => n.id === connection.toId)
+              
+              if (!fromNode || !toNode) {
+                return null
+              }
+              
+              const pathData = getConnectionPath(fromNode, toNode)
+              const connectionColor = getRelationshipColor(connection.type, connection.tension)
+              const isHighlighted = selectedNodeId === connection.fromId || selectedNodeId === connection.toId ||
+                                   hoveredNodeId === connection.fromId || hoveredNodeId === connection.toId
+              
+              return (
+                <g key={connection.id}>
+                  {/* Connection Line - Make it more visible */}
+                  <path
+                    d={pathData}
+                    stroke={connectionColor}
+                    strokeWidth={Math.max(3, isHighlighted ? 5 : 3)} // Minimum 3px width
+                    fill="none"
+                    className={`transition-all duration-200`}
+                    opacity={isHighlighted ? 1 : 0.8} // Always visible
+                    filter={isHighlighted ? "url(#network-glow)" : undefined}
+                    strokeDasharray={connection.type === 'rivalry' || connection.type === 'conflict' ? '8,4' : undefined}
+                    markerEnd="url(#network-arrow)"
+                    style={{ color: connectionColor }}
+                    strokeLinecap="round"
+                  />
+                  
+                  {/* Connection Label */}
+                  {isHighlighted && (() => {
+                    const fromOffset = nodeOffsets[fromNode.id] || { x: 0, y: 0 }
+                    const toOffset = nodeOffsets[toNode.id] || { x: 0, y: 0 }
+                    const adjustedFromX = fromNode.x + fromOffset.x
+                    const adjustedFromY = fromNode.y + fromOffset.y
+                    const adjustedToX = toNode.x + toOffset.x
+                    const adjustedToY = toNode.y + toOffset.y
+                    
+                    return (
+                      <text
+                        x={(adjustedFromX + adjustedToX) / 2}
+                        y={(adjustedFromY + adjustedToY) / 2 - 5}
+                        textAnchor="middle"
+                        className="text-xs font-medium fill-gray-700 pointer-events-none"
+                        style={{ fontSize: '11px' }}
+                      >
+                        {connection.type}
+                      </text>
+                    )
+                  })()}
+                </g>
+              )
+            })}
+          </svg>
+
+          {/* World Element Nodes */}
+          {nodes.map(node => {
+            const isSelected = selectedNodeId === node.id
+            const isHovered = hoveredNodeId === node.id
+            const isHighlighted = isSelected || isHovered
+            const offset = nodeOffsets[node.id] || { x: 0, y: 0 }
+            const isDragging = draggingNodeId === node.id
+            
+            // Get element configuration
+            const elementConfig = WORLD_ELEMENT_TYPES[node.type as keyof typeof WORLD_ELEMENT_TYPES] || WORLD_ELEMENT_TYPES.characters
+            const ElementIcon = elementConfig.icon
+            
+            return (
+              <div
+                key={node.id}
+                className={`absolute transform -translate-x-1/2 -translate-y-1/2 transition-all duration-200 ${
+                  isHighlighted ? 'z-10 scale-110' : 'z-5'
+                } ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+                style={{
+                  left: node.x + offset.x,
+                  top: node.y + offset.y
+                }}
+                onMouseEnter={() => setHoveredNodeId(node.id)}
+                onMouseLeave={() => setHoveredNodeId(null)}
+                onMouseDown={(e) => handleNodeMouseDown(node.id, e)}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (!hasDraggedNode) { // Only select if not dragged
+                    setSelectedNodeId(selectedNodeId === node.id ? null : node.id)
+                  }
+                }}
+              >
+                {/* Node Circle */}
+                <div
+                  className={`w-16 h-16 rounded-full border-4 shadow-lg cursor-pointer transition-all duration-200 ${
+                    isHighlighted
+                      ? `border-${elementConfig.color}-400 shadow-${elementConfig.color}-200/50 bg-white`
+                      : `border-white shadow-gray-300/50 bg-gradient-to-br from-${elementConfig.color}-50 to-${elementConfig.color}-100 hover:border-${elementConfig.color}-300`
+                  }`}
+                >
+                  {/* Element Icon or Initial */}
+                  <div className={`w-full h-full rounded-full flex items-center justify-center text-lg font-bold bg-gradient-to-br from-${elementConfig.color}-500 to-${elementConfig.color}-600 text-white`}>
+                    {node.type === 'characters' ? (
+                      node.name.charAt(0).toUpperCase()
+                    ) : (
+                      <ElementIcon className="w-6 h-6" />
+                    )}
+                  </div>
+                  
+                  {/* Connection Count Badge - removed as requested */}
+                </div>
+                
+                {/* Node Label */}
+                <div className="mt-2 text-center">
+                  <div className={`text-sm font-medium transition-colors duration-200 ${
+                    isHighlighted ? 'text-blue-700' : 'text-gray-700'
+                  }`}>
+                    {node.name}
+                  </div>
+                </div>
+                
+                {/* Selection Ring */}
+                {isSelected && (
+                  <div className="absolute inset-0 w-16 h-16 rounded-full border-4 border-blue-400 animate-pulse -m-px"></div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Network Info Panel */}
+        {selectedNodeId && (
+          <div className="absolute top-4 right-4 bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200/60 p-4 max-w-xs">
+            {(() => {
+              const selectedNode = nodes.find(n => n.id === selectedNodeId)
+              
+              // Find relationships that involve the selected character
+              const nodeRelationships = relationships.filter(r => {
+                if (!r.attributes) {
+                  return false
+                }
+                
+                // Check traditional relationship fields
+                if ((r.attributes.character_1_id === selectedNodeId || 
+                     r.attributes.character_2_id === selectedNodeId) &&
+                    r.attributes.character_1_id && 
+                    r.attributes.character_2_id) {
+                  return true
+                }
+                
+                // Check canvas-based relationships
+                if (r.attributes.type === 'relationship_web' && r.attributes.canvas_data) {
+                  const canvasData = r.attributes.canvas_data
+                  if (canvasData.connections && Array.isArray(canvasData.connections)) {
+                    const hasMatch = canvasData.connections.some((conn: any) => {
+                      // Try multiple ways to get node IDs
+                      let fromId = conn.sourceNodeId || conn.from || conn.source
+                      let toId = conn.targetNodeId || conn.to || conn.target
+                      
+                      // If no direct properties, try parsing from connection ID
+                      if (!fromId && !toId && conn.id) {
+                        // Connection ID format: nodeId1-nodeId2-timestamp
+                        const parts = conn.id.split('-')
+                        if (parts.length >= 10) { // UUID has 5 parts, so 2 UUIDs = 10 parts minimum
+                          // Reconstruct the two UUIDs from the parts
+                          fromId = parts.slice(0, 5).join('-') // First UUID (5 parts)
+                          toId = parts.slice(5, 10).join('-')  // Second UUID (5 parts)
+                        }
+                      }
+                      
+                      return fromId === selectedNodeId || toId === selectedNodeId
+                    })
+                    return hasMatch
+                  }
+                }
+                
+                return false
+              })
+              
+              if (!selectedNode) return null
+              
+              return (
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-semibold text-gray-900 flex items-center">
+                      <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-xs font-bold mr-2">
+                        {selectedNode.name.charAt(0).toUpperCase()}
+                      </div>
+                      {selectedNode.name}
+                    </h4>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSelectedNodeId(null)}
+                      className="w-6 h-6 p-0"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    {nodeRelationships.length > 0 ? (
+                      <div>
+                        <div className="text-sm font-medium text-gray-700 mb-2">
+                          {nodeRelationships.length} Relationship{nodeRelationships.length !== 1 ? 's' : ''}
+                        </div>
+                        <div className="space-y-2 max-h-32 overflow-y-auto">
+                          {nodeRelationships.slice(0, 5).map(rel => {
+                            let otherCharacterId: string | undefined
+                            let relationshipName = rel.name || rel.attributes?.name || 'Unnamed Relationship'
+                            let relationshipType = 'friendship'
+                            
+                            // Handle traditional relationships
+                            if (rel.attributes?.character_1_id && rel.attributes?.character_2_id) {
+                              otherCharacterId = rel.attributes.character_1_id === selectedNodeId 
+                                ? rel.attributes.character_2_id 
+                                : rel.attributes.character_1_id
+                              relationshipType = rel.attributes.type || 'friendship'
+                            }
+                            // Handle canvas-based relationships
+                            else if (rel.attributes?.type === 'relationship_web' && rel.attributes.canvas_data) {
+                              const canvasData = rel.attributes.canvas_data
+                              if (canvasData.connections && Array.isArray(canvasData.connections)) {
+                                // Find the connection involving this character
+                                const connection = canvasData.connections.find((conn: any) => {
+                                  let fromId = conn.sourceNodeId || conn.from || conn.source
+                                  let toId = conn.targetNodeId || conn.to || conn.target
+                                  
+                                  // If no direct properties, parse from connection ID
+                                  if (!fromId && !toId && conn.id) {
+                                    const parts = conn.id.split('-')
+                                    if (parts.length >= 10) {
+                                      fromId = parts.slice(0, 5).join('-')
+                                      toId = parts.slice(5, 10).join('-')
+                                    }
+                                  }
+                                  
+                                  return fromId === selectedNodeId || toId === selectedNodeId
+                                })
+                                
+                                if (connection) {
+                                  let fromId = connection.sourceNodeId || connection.from || connection.source
+                                  let toId = connection.targetNodeId || connection.to || connection.target
+                                  
+                                  // If no direct properties, parse from connection ID
+                                  if (!fromId && !toId && connection.id) {
+                                    const parts = connection.id.split('-')
+                                    if (parts.length >= 10) {
+                                      fromId = parts.slice(0, 5).join('-')
+                                      toId = parts.slice(5, 10).join('-')
+                                    }
+                                  }
+                                  
+                                  otherCharacterId = fromId === selectedNodeId ? toId : fromId
+                                  relationshipType = connection.type || 'connection'
+                                  relationshipName = connection.label || rel.name || relationshipType
+                                }
+                              }
+                            }
+                            
+                            const otherCharacter = characters.find(c => c.id === otherCharacterId)
+                            
+                            return (
+                              <div key={rel.id} className="bg-gray-50 rounded-lg px-3 py-2">
+                                <div className="flex items-center text-sm">
+                                  <div 
+                                    className="w-3 h-3 rounded-full mr-2" 
+                                    style={{ backgroundColor: getRelationshipColor(relationshipType) }}
+                                  />
+                                  <span className="font-medium text-gray-900">
+                                    {relationshipName}
+                                  </span>
+                                </div>
+                                <div className="text-xs text-gray-600 mt-1 ml-5">
+                                  with <span className="font-medium">{otherCharacter?.name || 'Unknown'}</span>
+                                </div>
+                              </div>
+                            )
+                          })}
+                          {nodeRelationships.length > 5 && (
+                            <div className="text-xs text-gray-500 text-center py-1">
+                              +{nodeRelationships.length - 5} more
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-sm text-gray-500">
+                        No relationships
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })()}
+          </div>
+        )}
+
+        {/* Network Legend */}
+        <div className="absolute bottom-4 left-4 bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200/60 p-3">
+          <div className="text-sm font-medium text-gray-700 mb-2">Relationship Types</div>
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            {[
+              { type: 'friendship', color: '#10b981', label: 'Friendship' },
+              { type: 'romance', color: '#f43f5e', label: 'Romance' },
+              { type: 'family', color: '#3b82f6', label: 'Family' },
+              { type: 'rivalry', color: '#f59e0b', label: 'Rivalry' },
+              { type: 'conflict', color: '#ef4444', label: 'Conflict' },
+              { type: 'mentor', color: '#8b5cf6', label: 'Mentor' }
+            ].map(item => (
+              <div key={item.type} className="flex items-center">
+                <div 
+                  className="w-3 h-0.5 mr-2" 
+                  style={{ backgroundColor: item.color }}
+                />
+                <span className="text-gray-600">{item.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Instructions */}
+        {!selectedNodeId && (
+          <div className="absolute top-4 left-4 bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200/60 p-3">
+            <div className="text-sm text-gray-600">
+              <div className="font-medium text-gray-700 mb-1">Network Controls</div>
+              <div>• Click nodes to see details</div>
+              <div>• Drag to pan • Scroll to zoom</div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -674,6 +1466,7 @@ const RelationshipsPanel = ({
 }: RelationshipsPanelProps) => {
   const [relationships, setRelationships] = useState<Relationship[]>([])
   const [characters, setCharacters] = useState<Character[]>([])
+  const [worldElements, setWorldElements] = useState<any[]>([]) // All world-building elements
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedType, setSelectedType] = useState<string>('all')
@@ -728,11 +1521,11 @@ const RelationshipsPanel = ({
   useEffect(() => {
     loadRelationships()
     loadCharacters()
+    loadAllWorldElements()
   }, [projectId])
 
   useEffect(() => {
     if (selectedElement && selectedElement.category === 'relationships') {
-      console.log('🎯 SELECTED ELEMENT: Opening canvas for:', selectedElement.name)
       // Always open canvas for any relationship
       setRelationshipName(selectedElement.name)
       setEditingRelationship(selectedElement)
@@ -742,7 +1535,6 @@ const RelationshipsPanel = ({
     // Cleanup function to prevent memory leaks
     return () => {
       if (selectedElement && selectedElement.category === 'relationships') {
-        console.log('🧹 CLEANUP: Clearing relationship selection')
       }
     }
   }, [selectedElement])
@@ -750,12 +1542,10 @@ const RelationshipsPanel = ({
   // Listen for canvas relationship events from sidebar
   useEffect(() => {
     const handleOpenRelationshipCanvas = (event: any) => {
-      console.log('🎯 RECEIVED openRelationshipCanvas event:', event.detail?.relationship?.name)
       const relationship = event.detail.relationship
       
       // Always open canvas for any relationship
       if (relationship) {
-        console.log('🎯 OPENING CANVAS from event')
         setRelationshipName(relationship.name)
         setEditingRelationship(relationship)
         setShowCanvas(true)
@@ -799,6 +1589,23 @@ const RelationshipsPanel = ({
       setCharacters(data || [])
     } catch (error) {
       console.error('Error loading characters:', error)
+    }
+  }
+
+  const loadAllWorldElements = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('world_elements')
+        .select('id, name, description, category, attributes')
+        .eq('project_id', projectId)
+        .in('category', ['characters', 'locations', 'items', 'magic', 'species', 'cultures', 'systems', 'languages', 'religions', 'philosophies', 'encyclopedia'])
+        .order('category')
+        .order('name')
+
+      if (error) throw error
+      setWorldElements(data || [])
+    } catch (error) {
+      console.error('Error loading world elements:', error)
     }
   }
 
@@ -1006,16 +1813,6 @@ const RelationshipsPanel = ({
     try {
       const supabase = createSupabaseClient()
       
-      // Debug logging
-      console.log('Canvas save debug:', {
-        relationshipName,
-        projectId,
-        editingRelationship: editingRelationship?.id,
-        canvasDataNodes: canvasData?.nodes?.length || 0,
-        canvasDataConnections: canvasData?.connections?.length || 0,
-        canvasData
-      })
-      
       // Validate required data
       if (!projectId) {
         console.error('No projectId provided')
@@ -1044,8 +1841,6 @@ const RelationshipsPanel = ({
         },
         tags: ['relationship', 'visual', 'canvas']
       }
-
-      console.log('Relationship web object:', JSON.stringify(relationshipWebData, null, 2))
 
       let data: any, error: any
 
@@ -1247,6 +2042,7 @@ const RelationshipsPanel = ({
         <InlineRelationshipCanvas
           relationshipName={relationshipName}
           characters={characters}
+          worldElements={worldElements}
           existingRelationship={editingRelationship}
           onClose={() => {
             setShowCanvas(false)
@@ -1506,7 +2302,6 @@ const RelationshipsPanel = ({
                     key={relationship.id}
                     relationship={relationship}
                     onEdit={(rel) => {
-                      console.log('🎯 CARD CLICK: Opening canvas for:', rel.name)
                       // Always open canvas for any relationship
                       setRelationshipName(rel.name)
                       setEditingRelationship(rel)
@@ -2239,6 +3034,7 @@ interface CanvasConnection {
 interface RelationshipCanvasProps {
   relationshipName: string
   characters: Character[]
+  worldElements?: any[]
   existingRelationship?: Relationship | null
   onClose: () => void
   onSave: (data: { nodes: CanvasNode[], connections: CanvasConnection[] }) => void
@@ -2247,6 +3043,7 @@ interface RelationshipCanvasProps {
 const RelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
   relationshipName,
   characters,
+  worldElements = [],
   existingRelationship,
   onClose,
   onSave
@@ -2264,6 +3061,7 @@ const RelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
   const [canvasOffset, setCanvasOffset] = useState({ x: 0, y: 0 })
   const [scale, setScale] = useState(1)
   const [showElementsPanel, setShowElementsPanel] = useState(true)
+  const [activeElementTab, setActiveElementTab] = useState('characters') // Active tab state
   const [isPanning, setIsPanning] = useState(false)
   const [panStart, setPanStart] = useState({ x: 0, y: 0 })
   const [moveToolActive, setMoveToolActive] = useState(false)
@@ -2271,7 +3069,6 @@ const RelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
   // Initialize canvas with existing relationship data if available
   useEffect(() => {
     if (existingRelationship && existingRelationship.attributes?.canvas_data) {
-      console.log('🎯 INITIALIZING CANVAS with existing data:', existingRelationship.attributes.canvas_data)
       const canvasData = existingRelationship.attributes.canvas_data
       
       if (canvasData.nodes) {
@@ -2292,25 +3089,51 @@ const RelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
         }))
         setConnections(connectionsWithDefaults)
       }
-    } else {
-      console.log('🎯 CANVAS: No existing data, starting empty')
     }
   }, [existingRelationship])
 
-  // Add character to canvas
-  const addCharacterToCanvas = (character: Character) => {
+  // Set default active tab to first category with elements
+  useEffect(() => {
+    if (worldElements && worldElements.length > 0) {
+      const availableCategories = Object.keys(WORLD_ELEMENT_TYPES).filter(category =>
+        worldElements.some(element => element.category === category)
+      )
+      if (availableCategories.length > 0 && !availableCategories.includes(activeElementTab)) {
+        setActiveElementTab(availableCategories[0])
+      }
+    }
+  }, [worldElements, activeElementTab])
+
+  // Add any world element to canvas
+  const addElementToCanvas = (element: any) => {
+    const elementConfig = WORLD_ELEMENT_TYPES[element.category as keyof typeof WORLD_ELEMENT_TYPES]
     const newNode: CanvasNode = {
-      id: character.id,
-      type: 'character',
-      name: character.name,
+      id: element.id,
+      type: element.category,
+      name: element.name,
       x: Math.random() * 400 + 100,
       y: Math.random() * 300 + 100,
       width: 150,
       height: 80,
-      color: '#f43f5e',
+      color: elementConfig ? `#${getColorHex(elementConfig.color)}` : '#6b7280',
       imageUrl: undefined
     }
     setNodes(prev => [...prev, newNode])
+  }
+
+  // Helper function to convert Tailwind color names to hex
+  const getColorHex = (colorName: string): string => {
+    const colorMap: Record<string, string> = {
+      rose: 'f43f5e', green: '10b981', indigo: '6366f1', yellow: 'f59e0b',
+      amber: 'f59e0b', pink: 'ec4899', teal: '14b8a6', red: 'ef4444',
+      violet: '8b5cf6', emerald: '10b981', blue: '3b82f6', gray: '6b7280'
+    }
+    return colorMap[colorName] || '6b7280'
+  }
+
+  // Keep original function for backward compatibility
+  const addCharacterToCanvas = (character: Character) => {
+    addElementToCanvas(character)
   }
 
   // Handle node dragging
@@ -2565,27 +3388,92 @@ const RelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
         <div className="w-80 bg-white shadow-xl overflow-y-auto">
           <div className="p-6 border-b">
             <h3 className="text-lg font-semibold text-gray-900">Add Elements</h3>
-            <p className="text-sm text-gray-600 mt-1">Drag characters and elements to the canvas</p>
+            <p className="text-sm text-gray-600 mt-1">Browse and add world-building elements to the canvas</p>
           </div>
           
-          <div className="p-4 space-y-4">
-            <div>
-              <h4 className="font-medium text-gray-900 mb-3">Characters</h4>
-              <div className="space-y-2">
-                {characters.map(character => (
-                  <div
-                    key={character.id}
-                    onClick={() => addCharacterToCanvas(character)}
-                    className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:border-rose-300 hover:bg-rose-50 cursor-pointer transition-colors"
+          {/* Tab System */}
+          <div className="border-b">
+            <div className="flex overflow-x-auto">
+              {Object.entries(WORLD_ELEMENT_TYPES).map(([category, config]) => {
+                const elementsInCategory = worldElements.filter(element => element.category === category)
+                if (elementsInCategory.length === 0) return null
+                
+                const Icon = config.icon
+                const isActive = activeElementTab === category
+                
+                return (
+                  <button
+                    key={category}
+                    onClick={() => setActiveElementTab(category)}
+                    className={`flex-shrink-0 flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                      isActive 
+                        ? `border-${config.color}-500 text-${config.color}-600 bg-${config.color}-50` 
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                    }`}
                   >
-                    <div className="w-10 h-10 bg-rose-100 rounded-full flex items-center justify-center text-sm font-medium text-rose-700">
-                      {character.name.charAt(0).toUpperCase()}
-                    </div>
-                    <span className="font-medium text-gray-900">{character.name}</span>
-                  </div>
-                ))}
-              </div>
+                    <Icon className="w-4 h-4" />
+                    <span>{config.label}</span>
+                    <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full">
+                      {elementsInCategory.length}
+                    </span>
+                  </button>
+                )
+              })}
             </div>
+          </div>
+          
+          {/* Tab Content */}
+          <div className="p-4">
+            {Object.entries(WORLD_ELEMENT_TYPES).map(([category, config]) => {
+              if (activeElementTab !== category) return null
+              
+              const elementsInCategory = worldElements.filter(element => element.category === category)
+              const Icon = config.icon
+              
+              return (
+                <div key={category} className="space-y-2">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Icon className={`w-5 h-5 text-${config.color}-500`} />
+                    <h4 className="font-medium text-gray-900">{config.label}</h4>
+                    <span className="text-sm text-gray-500">({elementsInCategory.length} items)</span>
+                  </div>
+                  
+                  {elementsInCategory.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <Icon className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                      <p>No {config.label.toLowerCase()} yet</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {elementsInCategory.map(element => (
+                        <div
+                          key={element.id}
+                          onClick={() => addElementToCanvas(element)}
+                          className={`flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:border-${config.color}-300 hover:bg-${config.color}-50 cursor-pointer transition-colors group`}
+                        >
+                          <div className={`w-10 h-10 bg-${config.color}-100 group-hover:bg-${config.color}-200 rounded-full flex items-center justify-center text-sm font-medium text-${config.color}-700 transition-colors`}>
+                            {category === 'characters' ? (
+                              element.name.charAt(0).toUpperCase()
+                            ) : (
+                              <Icon className="w-5 h-5" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <span className="font-medium text-gray-900 truncate block">{element.name}</span>
+                            {element.description && (
+                              <span className="text-xs text-gray-500 truncate block mt-0.5">{element.description}</span>
+                            )}
+                          </div>
+                          <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Plus className="w-4 h-4 text-gray-400" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </div>
       )}
@@ -2875,6 +3763,7 @@ const RelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
 const InlineRelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
   relationshipName,
   characters,
+  worldElements = [],
   existingRelationship,
   onClose,
   onSave
@@ -2890,6 +3779,7 @@ const InlineRelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
   const [scale, setScale] = useState(1)
   const [showElementsPanel, setShowElementsPanel] = useState(true)
+  const [activeElementTab, setActiveElementTab] = useState('characters') // Active tab state
   const [animationSpeed, setAnimationSpeed] = useState(3) // Animation duration in seconds
   const [showAnimations, setShowAnimations] = useState(true) // Toggle for animations
   const [isNodeDragging, setIsNodeDragging] = useState(false) // Track if any node is being dragged
@@ -2903,7 +3793,6 @@ const InlineRelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
   // Initialize canvas with existing relationship data if available
   useEffect(() => {
     if (existingRelationship && existingRelationship.attributes?.canvas_data) {
-      console.log('🎯 INLINE CANVAS: Initializing with existing data:', existingRelationship.attributes.canvas_data)
       const canvasData = existingRelationship.attributes.canvas_data
       
       if (canvasData.nodes) {
@@ -2912,10 +3801,20 @@ const InlineRelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
       if (canvasData.connections) {
         setConnections(canvasData.connections)
       }
-    } else {
-      console.log('🎯 INLINE CANVAS: No existing data, starting empty')
     }
   }, [existingRelationship])
+
+  // Set default active tab to first category with elements
+  useEffect(() => {
+    if (worldElements && worldElements.length > 0) {
+      const availableCategories = Object.keys(WORLD_ELEMENT_TYPES).filter(category =>
+        worldElements.some(element => element.category === category)
+      )
+      if (availableCategories.length > 0 && !availableCategories.includes(activeElementTab)) {
+        setActiveElementTab(availableCategories[0])
+      }
+    }
+  }, [worldElements, activeElementTab])
 
   // Clean up duplicate nodes
   useEffect(() => {
@@ -2923,9 +3822,6 @@ const InlineRelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
       const uniqueNodes = prev.filter((node, index, self) => 
         index === self.findIndex(n => n.id === node.id)
       )
-      if (uniqueNodes.length !== prev.length) {
-        console.log('Removed duplicate nodes:', prev.length - uniqueNodes.length)
-      }
       return uniqueNodes
     })
   }, [])
@@ -2967,7 +3863,6 @@ const InlineRelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
   const addCharacterToCanvas = (character: Character) => {
     // Check if character is already on canvas
     if (nodes.some(node => node.id === character.id)) {
-      console.log('Character already on canvas:', character.name)
       return
     }
 
@@ -2981,8 +3876,39 @@ const InlineRelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
       height: 80,
       color: '#f43f5e'
     }
-    console.log('Adding character to canvas:', character.name)
     setNodes(prev => [...prev, newNode])
+  }
+
+  // Add any world element to canvas
+  const addElementToCanvas = (element: any) => {
+    // Check if element is already on canvas
+    if (nodes.some(node => node.id === element.id)) {
+      return
+    }
+
+    const elementConfig = WORLD_ELEMENT_TYPES[element.category as keyof typeof WORLD_ELEMENT_TYPES] || WORLD_ELEMENT_TYPES.characters
+    const newNode: CanvasNode = {
+      id: element.id,
+      type: element.category,
+      name: element.name,
+      x: Math.random() * 400 + 100,
+      y: Math.random() * 300 + 100,
+      width: 150,
+      height: 80,
+      color: elementConfig ? `#${getColorHex(elementConfig.color)}` : '#6b7280',
+      imageUrl: undefined
+    }
+    setNodes(prev => [...prev, newNode])
+  }
+
+  // Helper function to convert Tailwind color names to hex
+  const getColorHex = (colorName: string): string => {
+    const colorMap: Record<string, string> = {
+      rose: 'f43f5e', green: '10b981', indigo: '6366f1', yellow: 'f59e0b',
+      amber: 'f59e0b', pink: 'ec4899', teal: '14b8a6', red: 'ef4444',
+      violet: '8b5cf6', emerald: '10b981', blue: '3b82f6', gray: '6b7280'
+    }
+    return colorMap[colorName] || '6b7280'
   }
 
   // Handle node dragging
@@ -3252,56 +4178,105 @@ const InlineRelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
               <Users className="w-5 h-5 mr-2 text-blue-600" />
               Add Elements
             </h3>
-            <p className="text-sm text-gray-600 mt-1">Click characters to add them to the canvas</p>
+            <p className="text-sm text-gray-600 mt-1">Browse and add world-building elements to the canvas</p>
           </div>
           
-          <div className="p-4 space-y-4">
-            <div>
-              <h4 className="font-medium text-gray-900 mb-3 flex items-center">
-                <UserCircle className="w-4 h-4 mr-2 text-gray-500" />
-                Characters
-              </h4>
-              <div className="space-y-2">
-                {characters.map(character => {
-                  const isOnCanvas = nodes.some(node => node.id === character.id)
-                  return (
-                    <div
-                      key={character.id}
-                      onClick={() => addCharacterToCanvas(character)}
-                      className={cn(
-                        "group flex items-center gap-3 p-3 rounded-xl border transition-all duration-200",
-                        isOnCanvas 
-                          ? "border-green-300 bg-green-50/50 cursor-default" 
-                          : "border-gray-200/60 hover:border-blue-300 hover:bg-gradient-to-r hover:from-blue-50/50 hover:to-indigo-50/50 cursor-pointer hover:shadow-sm hover:scale-[1.02]"
-                      )}
-                    >
-                      <div className={cn(
-                        "w-12 h-12 rounded-xl flex items-center justify-center text-sm font-semibold shadow-sm transition-shadow",
-                        isOnCanvas
-                          ? "bg-gradient-to-br from-green-100 to-emerald-100 text-green-700 group-hover:shadow-md"
-                          : "bg-gradient-to-br from-blue-100 to-indigo-100 text-blue-700 group-hover:shadow-md"
-                      )}>
-                        {character.name.charAt(0).toUpperCase()}
-                      </div>
-                      <div className="flex-1">
-                        <span className="font-medium text-gray-900 block">{character.name}</span>
-                        <span className={cn(
-                          "text-xs",
-                          isOnCanvas ? "text-green-600" : "text-gray-500"
-                        )}>
-                          {isOnCanvas ? "On Canvas" : "Character"}
-                        </span>
-                      </div>
-                      {isOnCanvas ? (
-                        <CheckCircle className="w-4 h-4 text-green-500" />
-                      ) : (
-                        <Plus className="w-4 h-4 text-gray-400 group-hover:text-blue-500 transition-colors" />
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
+          {/* Tab System */}
+          <div className="border-b">
+            <div className="flex overflow-x-auto">
+              {Object.entries(WORLD_ELEMENT_TYPES).map(([category, config]) => {
+                const elementsInCategory = worldElements.filter((element: any) => element.category === category)
+                if (elementsInCategory.length === 0) return null
+                
+                const Icon = config.icon
+                const isActive = activeElementTab === category
+                
+                return (
+                  <button
+                    key={category}
+                    onClick={() => setActiveElementTab(category)}
+                    className={`flex-shrink-0 flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                      isActive 
+                        ? `border-${config.color}-500 text-${config.color}-600 bg-${config.color}-50` 
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    <Icon className="w-4 h-4" />
+                    <span>{config.label}</span>
+                    <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full">
+                      {elementsInCategory.length}
+                    </span>
+                  </button>
+                )
+              })}
             </div>
+          </div>
+          
+          {/* Tab Content */}
+          <div className="p-4">
+            {Object.entries(WORLD_ELEMENT_TYPES).map(([category, config]) => {
+              if (activeElementTab !== category) return null
+              
+              const elementsInCategory = worldElements.filter((element: any) => element.category === category)
+              const Icon = config.icon
+              
+              return (
+                <div key={category} className="space-y-2">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Icon className={`w-5 h-5 text-${config.color}-500`} />
+                    <h4 className="font-medium text-gray-900">{config.label}</h4>
+                    <span className="text-sm text-gray-500">({elementsInCategory.length} items)</span>
+                  </div>
+                  
+                  {elementsInCategory.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <Icon className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                      <p>No {config.label.toLowerCase()} yet</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {elementsInCategory.map((element: any) => {
+                        const isOnCanvas = nodes.some(node => node.id === element.id)
+                        return (
+                          <div
+                            key={element.id}
+                            onClick={() => addElementToCanvas(element)}
+                            className={`group flex items-center gap-3 p-3 rounded-xl border transition-all duration-200 ${
+                              isOnCanvas 
+                                ? "border-green-300 bg-green-50/50 cursor-default" 
+                                : `border-gray-200/60 hover:border-${config.color}-300 hover:bg-gradient-to-r hover:from-${config.color}-50/50 hover:to-${config.color}-50/50 cursor-pointer hover:shadow-sm hover:scale-[1.02]`
+                            }`}
+                          >
+                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-sm font-semibold shadow-sm transition-shadow ${
+                              isOnCanvas
+                                ? "bg-gradient-to-br from-green-100 to-emerald-100 text-green-700 group-hover:shadow-md"
+                                : `bg-gradient-to-br from-${config.color}-100 to-${config.color}-100 text-${config.color}-700 group-hover:shadow-md`
+                            }`}>
+                              {category === 'characters' ? (
+                                element.name.charAt(0).toUpperCase()
+                              ) : (
+                                <Icon className="w-5 h-5" />
+                              )}
+                            </div>
+                            <div className="flex-1">
+                              <span className="font-medium text-gray-900 block">{element.name}</span>
+                              <span className={`text-xs ${isOnCanvas ? "text-green-600" : "text-gray-500"}`}>
+                                {isOnCanvas ? "On Canvas" : config.label.slice(0, -1)}
+                              </span>
+                            </div>
+                            {isOnCanvas ? (
+                              <CheckCircle className="w-4 h-4 text-green-500" />
+                            ) : (
+                              <Plus className={`w-4 h-4 text-gray-400 group-hover:text-${config.color}-500 transition-colors`} />
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </div>
       )}
