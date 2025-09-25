@@ -8,7 +8,8 @@ import {
   Save, User, AlertTriangle, CheckCircle, Clock, Calendar,
   GitBranch, Network, BarChart3, TrendingUp, Activity, Grid,
   Layers, Move, RotateCcw, Share2, Download, Upload, Settings,
-  Home, Swords, BookOpen, UserCircle, Palette, ZoomIn, ZoomOut
+  Home, Swords, BookOpen, UserCircle, Palette, ZoomIn, ZoomOut,
+  Type
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -18,6 +19,8 @@ import { createSupabaseClient } from '@/lib/auth'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
+
+// Enhanced CSS styles will be included via Tailwind CSS classes
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Progress } from '@/components/ui/progress'
@@ -25,6 +28,19 @@ import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 
 // Enhanced Custom Components matching site design
+interface EnhancedSelectProps {
+  value?: string
+  onValueChange?: (value: string) => void
+  placeholder?: string
+  children: React.ReactNode
+  className?: string
+  triggerClassName?: string
+  contentClassName?: string
+  customDisplay?: string
+  onOpenChange?: (open: boolean) => void
+  [key: string]: any
+}
+
 const EnhancedSelect = ({ 
   value, 
   onValueChange, 
@@ -35,7 +51,7 @@ const EnhancedSelect = ({
   contentClassName,
   customDisplay,
   ...props 
-}: any) => {
+}: EnhancedSelectProps) => {
   const [isOpen, setIsOpen] = React.useState(false)
   
   return (
@@ -94,7 +110,14 @@ const EnhancedSelect = ({
   )
 }
 
-const EnhancedSelectItem = ({ children, className, ...props }: any) => {
+interface EnhancedSelectItemProps {
+  children: React.ReactNode
+  className?: string
+  value: string
+  [key: string]: any
+}
+
+const EnhancedSelectItem = ({ children, className, ...props }: EnhancedSelectItemProps) => {
   return (
     <SelectItem
       className={cn(
@@ -117,7 +140,11 @@ const EnhancedSelectItem = ({ children, className, ...props }: any) => {
   )
 }
 
-const EnhancedInput = React.forwardRef<HTMLInputElement, any>(({ className, ...props }, ref) => {
+interface EnhancedInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+  className?: string
+}
+
+const EnhancedInput = React.forwardRef<HTMLInputElement, EnhancedInputProps>(({ className, ...props }, ref) => {
   return (
     <Input
       ref={ref}
@@ -132,7 +159,13 @@ const EnhancedInput = React.forwardRef<HTMLInputElement, any>(({ className, ...p
   )
 })
 
-const EnhancedTextarea = React.forwardRef<HTMLTextAreaElement, any>(({ className, ...props }, ref) => {
+EnhancedInput.displayName = "EnhancedInput"
+
+interface EnhancedTextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
+  className?: string
+}
+
+const EnhancedTextarea = React.forwardRef<HTMLTextAreaElement, EnhancedTextareaProps>(({ className, ...props }, ref) => {
   return (
     <Textarea
       ref={ref}
@@ -147,7 +180,22 @@ const EnhancedTextarea = React.forwardRef<HTMLTextAreaElement, any>(({ className
   )
 })
 
-const EnhancedSlider = ({ value, onChange, min = 0, max = 10, label, color = "rose", className, ...props }: any) => {
+EnhancedTextarea.displayName = "EnhancedTextarea"
+
+interface EnhancedSliderProps {
+  value: number
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+  min?: number
+  max?: number
+  label?: string
+  color?: string
+  className?: string
+  leftLabel?: string
+  rightLabel?: string
+  [key: string]: any
+}
+
+const EnhancedSlider = ({ value, onChange, min = 0, max = 10, label, color = "rose", className, ...props }: EnhancedSliderProps) => {
   return (
     <div className="space-y-3">
       <Input
@@ -315,7 +363,7 @@ function getStatusColor(status: string) {
 }
 
 // Component for individual relationship card
-function RelationshipCard({ 
+const RelationshipCard = React.memo(({ 
   relationship, 
   onEdit, 
   onDelete 
@@ -323,7 +371,7 @@ function RelationshipCard({
   relationship: Relationship
   onEdit: (rel: Relationship) => void
   onDelete: (id: string) => void 
-}) {
+}) => {
   const TypeIcon = getRelationshipTypeIcon(relationship.attributes?.type || '')
   const typeColor = getRelationshipTypeColor(relationship.attributes?.type || '')
   const statusColor = getStatusColor(relationship.attributes?.status || 'active')
@@ -455,10 +503,12 @@ function RelationshipCard({
       </CardContent>
     </Card>
   )
-}
+})
+
+RelationshipCard.displayName = "RelationshipCard"
 
 // Flowchart View Component - Campfire-style visual relationship creation
-function FlowchartView({ 
+const FlowchartView = React.memo(({ 
   relationships, 
   characters, 
   onCreateRelationship 
@@ -466,7 +516,7 @@ function FlowchartView({
   relationships: Relationship[]
   characters: Character[]
   onCreateRelationship: (char1Id: string, char2Id: string) => void
-}) {
+}) => {
   const [selectedCharacter, setSelectedCharacter] = useState<string | null>(null)
   const [hoveredCharacter, setHoveredCharacter] = useState<string | null>(null)
   
@@ -644,10 +694,12 @@ function FlowchartView({
       )}
     </div>
   )
-}
+})
+
+FlowchartView.displayName = "FlowchartView"
 
 // Network View Component
-function NetworkView({ 
+const NetworkView = React.memo(({ 
   relationships, 
   characters, 
   networkData 
@@ -655,7 +707,7 @@ function NetworkView({
   relationships: Relationship[]
   characters: Character[]
   networkData: { nodes: any[], links: any[] }
-}) {
+}) => {
   return (
     <div className="h-96 border rounded-lg bg-gray-50 flex items-center justify-center">
       <div className="text-center">
@@ -667,10 +719,12 @@ function NetworkView({
       </div>
     </div>
   )
-}
+})
+
+NetworkView.displayName = "NetworkView"
 
 // Matrix View Component
-function MatrixView({ 
+const MatrixView = React.memo(({ 
   characters, 
   relationships, 
   matrix 
@@ -678,7 +732,7 @@ function MatrixView({
   characters: Character[]
   relationships: Relationship[]
   matrix: Array<Array<Relationship | null>>
-}) {
+}) => {
   if (characters.length === 0) {
     return (
       <div className="text-center py-12">
@@ -752,10 +806,12 @@ function MatrixView({
       </div>
     </div>
   )
-}
+})
+
+MatrixView.displayName = "MatrixView"
 
 // Timeline View Component
-function TimelineView({ relationships }: { relationships: Relationship[] }) {
+const TimelineView = React.memo(({ relationships }: { relationships: Relationship[] }) => {
   const relationshipsWithEvents = relationships.filter(r => 
     r.attributes?.timeline_events && r.attributes.timeline_events.length > 0
   )
@@ -797,14 +853,16 @@ function TimelineView({ relationships }: { relationships: Relationship[] }) {
       ))}
     </div>
   )
-}
+})
 
-export default function RelationshipsPanel({ 
+TimelineView.displayName = "TimelineView"
+
+const RelationshipsPanel = ({ 
   projectId, 
   selectedElement, 
   onRelationshipsChange,
   onClearSelection 
-}: RelationshipsPanelProps) {
+}: RelationshipsPanelProps) => {
   const [relationships, setRelationships] = useState<Relationship[]>([])
   const [characters, setCharacters] = useState<Character[]>([])
   const [loading, setLoading] = useState(true)
@@ -873,6 +931,13 @@ export default function RelationshipsPanel({
       setRelationshipName(selectedElement.name)
       setEditingRelationship(selectedElement)
       setShowCanvas(true)
+    }
+    
+    // Cleanup function to prevent memory leaks
+    return () => {
+      if (selectedElement && selectedElement.category === 'relationships') {
+        console.log('🧹 CLEANUP: Clearing relationship selection')
+      }
     }
   }, [selectedElement])
 
@@ -950,6 +1015,7 @@ export default function RelationshipsPanel({
       const character2 = characters.find(c => c.id === formData.character_2_id)
 
       if (!character1 || !character2) {
+        console.error('Missing character selection:', { character1: !!character1, character2: !!character2 })
         alert('Please select both characters for the relationship')
         return
       }
@@ -996,7 +1062,10 @@ export default function RelationshipsPanel({
           .select()
           .single()
 
-        if (error) throw error
+        if (error) {
+          console.error('Update error:', error)
+          throw new Error(`Failed to update relationship: ${error.message}`)
+        }
         result = data as Relationship
 
         setRelationships(prev => prev.map(r => r.id === editingRelationship.id ? result : r))
@@ -1007,7 +1076,10 @@ export default function RelationshipsPanel({
           .select()
           .single()
 
-        if (error) throw error
+        if (error) {
+          console.error('Insert error:', error)
+          throw new Error(`Failed to create relationship: ${error.message}`)
+        }
         result = data as Relationship
 
         setRelationships(prev => [result, ...prev])
@@ -1024,6 +1096,8 @@ export default function RelationshipsPanel({
       onRelationshipsChange?.()
     } catch (error) {
       console.error('Error creating/updating relationship:', error)
+      // Show user-friendly error message
+      alert(error instanceof Error ? error.message : 'An unexpected error occurred while saving the relationship')
     }
   }
 
@@ -1160,22 +1234,7 @@ export default function RelationshipsPanel({
           type: 'relationship_web',
           canvas_data: canvasData,
           created_at: editingRelationship?.attributes?.created_at || new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          // Convert connections to traditional relationships for compatibility
-          relationships: canvasData.connections.map(conn => {
-            const fromNode = canvasData.nodes.find(n => n.id === conn.fromNodeId)
-            const toNode = canvasData.nodes.find(n => n.id === conn.toNodeId)
-            return {
-              id: conn.id,
-              from_element: fromNode?.name || 'Unknown',
-              to_element: toNode?.name || 'Unknown',
-              type: conn.type,
-              label: conn.label,
-              color: conn.color,
-              has_arrow: conn.hasArrow,
-              is_directional: conn.isDirectional
-            }
-          })
+          updated_at: new Date().toISOString()
         },
         tags: ['relationship', 'visual', 'canvas']
       }
@@ -1230,48 +1289,6 @@ export default function RelationshipsPanel({
       }
 
       const savedRelationshipWeb = data
-
-      // Also create individual relationships for each connection
-      for (const connection of canvasData.connections) {
-        const fromNode = canvasData.nodes.find(n => n.id === connection.fromNodeId)
-        const toNode = canvasData.nodes.find(n => n.id === connection.toNodeId)
-        
-        if (fromNode && toNode && fromNode.type === 'character' && toNode.type === 'character') {
-          // Create a traditional relationship between characters
-          const relationshipData = {
-            name: connection.label || `${fromNode.name} - ${toNode.name}`,
-            description: `${connection.type} relationship between ${fromNode.name} and ${toNode.name}`,
-            category: 'relationships',
-            project_id: projectId,
-            attributes: {
-              type: connection.type,
-              character_1_id: fromNode.id,
-              character_2_id: toNode.id,
-              strength: 5, // Default strength
-              status: 'active',
-              dynamics: [connection.type],
-              tension_level: connection.type === 'conflict' ? 7 : connection.type === 'rivalry' ? 5 : 2,
-              intimacy_level: connection.type === 'romance' ? 8 : connection.type === 'family' ? 7 : 5,
-              canvas_connection_id: connection.id,
-              canvas_color: connection.color
-            },
-            tags: ['relationship', 'canvas-generated']
-          }
-
-          const { data: relationshipResult, error: relationshipError } = await supabase
-            .from('world_elements')
-            .insert(relationshipData)
-            .select()
-            .single()
-
-          if (!relationshipError && relationshipResult) {
-            // Dispatch event for each individual relationship created
-            window.dispatchEvent(new CustomEvent('relationshipCreated', { 
-              detail: { relationship: relationshipResult, projectId } 
-            }))
-          }
-        }
-      }
 
       // Refresh the relationships list
       await loadRelationships()
@@ -2355,12 +2372,13 @@ export default function RelationshipsPanel({
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Relationship Intensity: {quickConnectIntensity}/10
                 </label>
-                <EnhancedSlider 
-                  value={[quickConnectIntensity]} 
-                  onValueChange={(value: number[]) => setQuickConnectIntensity(value[0])}
+                <Input
+                  type="range"
                   min={1}
                   max={10}
                   step={1}
+                  value={quickConnectIntensity}
+                  onChange={(e) => setQuickConnectIntensity(parseInt(e.target.value))}
                   className="w-full"
                 />
                 <div className="flex justify-between text-xs text-gray-500 mt-1">
@@ -2417,8 +2435,16 @@ interface CanvasConnection {
   label: string
   type: string
   color: string
+  textColor?: string
   hasArrow: boolean
+  hasReverseArrow?: boolean
+  arrowSize?: number
+  reverseArrowSize?: number
+  arrowColor?: string
+  reverseArrowColor?: string
   isDirectional: boolean
+  strokeWidth?: number
+  strokeDasharray?: string | null
 }
 
 interface RelationshipCanvasProps {
@@ -2441,6 +2467,7 @@ const RelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
   const [connections, setConnections] = useState<CanvasConnection[]>([])
   const [selectedNode, setSelectedNode] = useState<string | null>(null)
   const [selectedConnection, setSelectedConnection] = useState<string | null>(null)
+  const [editingConnection, setEditingConnection] = useState<string | null>(null)
   const [isConnecting, setIsConnecting] = useState(false)
   const [connectionStart, setConnectionStart] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -2459,7 +2486,19 @@ const RelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
         setNodes(canvasData.nodes)
       }
       if (canvasData.connections) {
-        setConnections(canvasData.connections)
+        // Add backward compatibility for existing connections
+        const connectionsWithDefaults = canvasData.connections.map((conn: any) => ({
+          ...conn,
+          hasReverseArrow: conn.hasReverseArrow ?? false,
+          arrowSize: conn.arrowSize ?? 12,
+          reverseArrowSize: conn.reverseArrowSize ?? 12,
+          arrowColor: conn.arrowColor ?? conn.color,
+          reverseArrowColor: conn.reverseArrowColor ?? conn.color,
+          strokeWidth: conn.strokeWidth ?? 2,
+          // Set label from type if it's a predefined relationship and label is generic
+          label: (conn.type !== 'custom' && (!conn.label || conn.label === 'New Relationship')) ? conn.type : conn.label
+        }))
+        setConnections(connectionsWithDefaults)
       }
     } else {
       console.log('🎯 CANVAS: No existing data, starting empty')
@@ -2544,19 +2583,145 @@ const RelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
     setCanvasOffset({ x: 0, y: 0 })
   }
 
-  // Get connection path
+  // Get connection path with draw.io-like smart routing
   const getConnectionPath = (connection: CanvasConnection) => {
     const fromNode = nodes.find(n => n.id === connection.fromNodeId)
     const toNode = nodes.find(n => n.id === connection.toNodeId)
     
     if (!fromNode || !toNode) return ''
     
-    const fromX = fromNode.x + fromNode.width / 2
-    const fromY = fromNode.y + fromNode.height / 2
-    const toX = toNode.x + toNode.width / 2
-    const toY = toNode.y + toNode.height / 2
+    // Get the optimal connection points (like draw.io)
+    const { fromPoint, toPoint } = getOptimalConnectionPoints(fromNode, toNode)
     
-    return `M ${fromX} ${fromY} L ${toX} ${toY}`
+    // Create smart curved path based on relative positions
+    return createSmartConnectionPath(fromPoint, toPoint, fromNode, toNode)
+  }
+
+  // Get optimal connection points on node edges (draw.io style)
+  const getOptimalConnectionPoints = (fromNode: CanvasNode, toNode: CanvasNode) => {
+    const fromCenter = {
+      x: fromNode.x + fromNode.width / 2,
+      y: fromNode.y + fromNode.height / 2
+    }
+    const toCenter = {
+      x: toNode.x + toNode.width / 2,
+      y: toNode.y + toNode.height / 2
+    }
+    
+    // Calculate relative position to determine best connection points
+    const dx = toCenter.x - fromCenter.x
+    const dy = toCenter.y - fromCenter.y
+    
+    // Determine which sides to connect (like draw.io logic)
+    let fromPoint: { x: number, y: number, direction: string }
+    let toPoint: { x: number, y: number, direction: string }
+    
+    const absX = Math.abs(dx)
+    const absY = Math.abs(dy)
+    
+    // Smart connection point selection
+    if (absX > absY) {
+      // Horizontal connection preferred
+      if (dx > 0) {
+        // From left to right
+        fromPoint = {
+          x: fromNode.x + fromNode.width,
+          y: fromNode.y + fromNode.height / 2,
+          direction: 'right'
+        }
+        toPoint = {
+          x: toNode.x,
+          y: toNode.y + toNode.height / 2,
+          direction: 'left'
+        }
+      } else {
+        // From right to left
+        fromPoint = {
+          x: fromNode.x,
+          y: fromNode.y + fromNode.height / 2,
+          direction: 'left'
+        }
+        toPoint = {
+          x: toNode.x + toNode.width,
+          y: toNode.y + toNode.height / 2,
+          direction: 'right'
+        }
+      }
+    } else {
+      // Vertical connection preferred
+      if (dy > 0) {
+        // From top to bottom
+        fromPoint = {
+          x: fromNode.x + fromNode.width / 2,
+          y: fromNode.y + fromNode.height,
+          direction: 'bottom'
+        }
+        toPoint = {
+          x: toNode.x + toNode.width / 2,
+          y: toNode.y,
+          direction: 'top'
+        }
+      } else {
+        // From bottom to top
+        fromPoint = {
+          x: fromNode.x + fromNode.width / 2,
+          y: fromNode.y,
+          direction: 'top'
+        }
+        toPoint = {
+          x: toNode.x + toNode.width / 2,
+          y: toNode.y + toNode.height,
+          direction: 'bottom'
+        }
+      }
+    }
+    
+    return { fromPoint, toPoint }
+  }
+
+  // Create smart curved path (draw.io style)
+  const createSmartConnectionPath = (
+    fromPoint: { x: number, y: number, direction: string }, 
+    toPoint: { x: number, y: number, direction: string },
+    fromNode: CanvasNode,
+    toNode: CanvasNode
+  ) => {
+    const distance = Math.sqrt(
+      Math.pow(toPoint.x - fromPoint.x, 2) + 
+      Math.pow(toPoint.y - fromPoint.y, 2)
+    )
+    
+    // Control point distance (adaptive based on distance and direction)
+    const controlDistance = Math.min(distance * 0.4, 100)
+    
+    // Calculate control points based on connection directions
+    const controlPoint1 = getControlPoint(fromPoint, controlDistance)
+    const controlPoint2 = getControlPoint(toPoint, controlDistance, true)
+    
+    // Create cubic bezier curve
+    return `M ${fromPoint.x} ${fromPoint.y} C ${controlPoint1.x} ${controlPoint1.y}, ${controlPoint2.x} ${controlPoint2.y}, ${toPoint.x} ${toPoint.y}`
+  }
+
+  // Get control point for smooth curves
+  const getControlPoint = (
+    point: { x: number, y: number, direction: string }, 
+    distance: number, 
+    reverse = false
+  ) => {
+    const multiplier = reverse ? -1 : 1
+    
+    switch (point.direction) {
+      case 'right':
+        return { x: point.x + distance * multiplier, y: point.y }
+      case 'left':
+        return { x: point.x - distance * multiplier, y: point.y }
+      case 'bottom':
+        return { x: point.x, y: point.y + distance * multiplier }
+      case 'top':
+        return { x: point.x, y: point.y - distance * multiplier }
+      default:
+        return { x: point.x + distance * multiplier, y: point.y }
+    }
   }
 
   // Save canvas data
@@ -2668,34 +2833,55 @@ const RelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
             </div>
 
             {/* Connections */}
-            <svg className="absolute inset-0 w-full h-full pointer-events-none">
+            <svg 
+              key={`connections-${connections.length}-${connections.map(c => `${c.id}-${c.hasArrow}-${c.hasReverseArrow}`).join('-')}`}
+              className="absolute inset-0 w-full h-full pointer-events-none"
+            >
+              <defs>
+                {/* Single arrow marker that we'll reuse */}
+                <marker
+                  id="arrowhead"
+                  markerWidth="10"
+                  markerHeight="10" 
+                  refX="9"
+                  refY="5"
+                  orient="auto"
+                  markerUnits="strokeWidth"
+                >
+                  <path
+                    d="M 0,0 L 0,10 L 10,5 z"
+                    fill="currentColor"
+                  />
+                </marker>
+                {/* Reverse arrow marker */}
+                <marker
+                  id="arrowhead-reverse"
+                  markerWidth="10"
+                  markerHeight="10"
+                  refX="1"
+                  refY="5"
+                  orient="auto"
+                  markerUnits="strokeWidth"
+                >
+                  <path
+                    d="M 10,0 L 10,10 L 0,5 z"
+                    fill="currentColor"
+                  />
+                </marker>
+              </defs>
               {connections.map(connection => (
                 <g key={connection.id}>
                   <path
                     d={getConnectionPath(connection)}
                     stroke={connection.color}
-                    strokeWidth="3"
+                    strokeWidth={connection.strokeWidth || 3}
+                    strokeDasharray={connection.strokeDasharray || undefined}
                     fill="none"
                     className="pointer-events-auto cursor-pointer hover:stroke-width-4"
+                    markerEnd={connection.hasArrow ? "url(#arrowhead)" : undefined}
+                    markerStart={connection.hasReverseArrow ? "url(#arrowhead-reverse)" : undefined}
                     onClick={() => setSelectedConnection(connection.id)}
                   />
-                  {connection.hasArrow && (
-                    <defs>
-                      <marker
-                        id={`arrowhead-${connection.id}`}
-                        markerWidth="10"
-                        markerHeight="7"
-                        refX="9"
-                        refY="3.5"
-                        orient="auto"
-                      >
-                        <polygon
-                          points="0 0, 10 3.5, 0 7"
-                          fill={connection.color}
-                        />
-                      </marker>
-                    </defs>
-                  )}
                 </g>
               ))}
             </svg>
@@ -2856,6 +3042,9 @@ const InlineRelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
   const [scale, setScale] = useState(1)
   const [showElementsPanel, setShowElementsPanel] = useState(true)
+  const [animationSpeed, setAnimationSpeed] = useState(3) // Animation duration in seconds
+  const [showAnimations, setShowAnimations] = useState(true) // Toggle for animations
+  const [isNodeDragging, setIsNodeDragging] = useState(false) // Track if any node is being dragged
 
   // Initialize canvas with existing relationship data if available
   useEffect(() => {
@@ -2885,6 +3074,39 @@ const InlineRelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
       }
       return uniqueNodes
     })
+  }, [])
+
+  // Keyboard shortcuts for animation control
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Toggle animations with 'A' key
+      if (event.key.toLowerCase() === 'a' && !event.ctrlKey && !event.altKey) {
+        const activeElement = document.activeElement
+        // Only trigger if not typing in an input/textarea
+        if (activeElement?.tagName !== 'INPUT' && activeElement?.tagName !== 'TEXTAREA') {
+          event.preventDefault()
+          setShowAnimations(prev => !prev)
+        }
+      }
+      // Speed controls with + and - keys
+      else if (event.key === '+' && !event.ctrlKey && !event.altKey) {
+        const activeElement = document.activeElement
+        if (activeElement?.tagName !== 'INPUT' && activeElement?.tagName !== 'TEXTAREA') {
+          event.preventDefault()
+          setAnimationSpeed(prev => Math.min(10, prev + 0.5))
+        }
+      }
+      else if (event.key === '-' && !event.ctrlKey && !event.altKey) {
+        const activeElement = document.activeElement
+        if (activeElement?.tagName !== 'INPUT' && activeElement?.tagName !== 'TEXTAREA') {
+          event.preventDefault()
+          setAnimationSpeed(prev => Math.max(0.5, prev - 0.5))
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
   // Add character to canvas
@@ -2966,19 +3188,162 @@ const InlineRelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
   const zoomOut = () => setScale(prev => Math.max(prev / 1.2, 0.3))
   const resetZoom = () => setScale(1)
 
-  // Get connection path
+  // Mouse wheel zoom handler
+  const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    
+    // Check if Ctrl key is held (for more precise zoom)
+    const zoomFactor = e.ctrlKey ? 1.1 : 1.2
+    
+    if (e.deltaY < 0) {
+      // Zoom in
+      setScale(prev => Math.min(prev * zoomFactor, 3))
+    } else {
+      // Zoom out
+      setScale(prev => Math.max(prev / zoomFactor, 0.3))
+    }
+  }
+
+  // Get connection path with draw.io-like smart routing
   const getConnectionPath = (connection: CanvasConnection) => {
     const fromNode = nodes.find(n => n.id === connection.fromNodeId)
     const toNode = nodes.find(n => n.id === connection.toNodeId)
     
     if (!fromNode || !toNode) return ''
     
-    const fromX = fromNode.x + fromNode.width / 2
-    const fromY = fromNode.y + fromNode.height / 2
-    const toX = toNode.x + toNode.width / 2
-    const toY = toNode.y + toNode.height / 2
+    // Get the optimal connection points (like draw.io)
+    const { fromPoint, toPoint } = getOptimalConnectionPoints(fromNode, toNode)
     
-    return `M ${fromX} ${fromY} L ${toX} ${toY}`
+    // Create smart curved path based on relative positions
+    return createSmartConnectionPath(fromPoint, toPoint, fromNode, toNode)
+  }
+
+  // Get optimal connection points on node edges (draw.io style)
+  const getOptimalConnectionPoints = (fromNode: CanvasNode, toNode: CanvasNode) => {
+    const fromCenter = {
+      x: fromNode.x + fromNode.width / 2,
+      y: fromNode.y + fromNode.height / 2
+    }
+    const toCenter = {
+      x: toNode.x + toNode.width / 2,
+      y: toNode.y + toNode.height / 2
+    }
+    
+    // Calculate relative position to determine best connection points
+    const dx = toCenter.x - fromCenter.x
+    const dy = toCenter.y - fromCenter.y
+    
+    // Determine which sides to connect (like draw.io logic)
+    let fromPoint: { x: number, y: number, direction: string }
+    let toPoint: { x: number, y: number, direction: string }
+    
+    const absX = Math.abs(dx)
+    const absY = Math.abs(dy)
+    
+    // Smart connection point selection
+    if (absX > absY) {
+      // Horizontal connection preferred
+      if (dx > 0) {
+        // From left to right
+        fromPoint = {
+          x: fromNode.x + fromNode.width,
+          y: fromNode.y + fromNode.height / 2,
+          direction: 'right'
+        }
+        toPoint = {
+          x: toNode.x,
+          y: toNode.y + toNode.height / 2,
+          direction: 'left'
+        }
+      } else {
+        // From right to left
+        fromPoint = {
+          x: fromNode.x,
+          y: fromNode.y + fromNode.height / 2,
+          direction: 'left'
+        }
+        toPoint = {
+          x: toNode.x + toNode.width,
+          y: toNode.y + toNode.height / 2,
+          direction: 'right'
+        }
+      }
+    } else {
+      // Vertical connection preferred
+      if (dy > 0) {
+        // From top to bottom
+        fromPoint = {
+          x: fromNode.x + fromNode.width / 2,
+          y: fromNode.y + fromNode.height,
+          direction: 'bottom'
+        }
+        toPoint = {
+          x: toNode.x + toNode.width / 2,
+          y: toNode.y,
+          direction: 'top'
+        }
+      } else {
+        // From bottom to top
+        fromPoint = {
+          x: fromNode.x + fromNode.width / 2,
+          y: fromNode.y,
+          direction: 'top'
+        }
+        toPoint = {
+          x: toNode.x + toNode.width / 2,
+          y: toNode.y + toNode.height,
+          direction: 'bottom'
+        }
+      }
+    }
+    
+    return { fromPoint, toPoint }
+  }
+
+  // Create smart curved path (draw.io style)
+  const createSmartConnectionPath = (
+    fromPoint: { x: number, y: number, direction: string }, 
+    toPoint: { x: number, y: number, direction: string },
+    fromNode: CanvasNode,
+    toNode: CanvasNode
+  ) => {
+    const distance = Math.sqrt(
+      Math.pow(toPoint.x - fromPoint.x, 2) + 
+      Math.pow(toPoint.y - fromPoint.y, 2)
+    )
+    
+    // Control point distance (adaptive based on distance and direction)
+    const controlDistance = Math.min(distance * 0.4, 100)
+    
+    // Calculate control points based on connection directions
+    const controlPoint1 = getControlPoint(fromPoint, controlDistance)
+    const controlPoint2 = getControlPoint(toPoint, controlDistance, true)
+    
+    // Create cubic bezier curve
+    return `M ${fromPoint.x} ${fromPoint.y} C ${controlPoint1.x} ${controlPoint1.y}, ${controlPoint2.x} ${controlPoint2.y}, ${toPoint.x} ${toPoint.y}`
+  }
+
+  // Get control point for smooth curves
+  const getControlPoint = (
+    point: { x: number, y: number, direction: string }, 
+    distance: number, 
+    reverse = false
+  ) => {
+    const multiplier = reverse ? -1 : 1
+    
+    switch (point.direction) {
+      case 'right':
+        return { x: point.x + distance * multiplier, y: point.y }
+      case 'left':
+        return { x: point.x - distance * multiplier, y: point.y }
+      case 'bottom':
+        return { x: point.x, y: point.y + distance * multiplier }
+      case 'top':
+        return { x: point.x, y: point.y - distance * multiplier }
+      default:
+        return { x: point.x + distance * multiplier, y: point.y }
+    }
   }
 
   // Save canvas data
@@ -3083,10 +3448,14 @@ const InlineRelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
                 onClick={zoomOut} 
                 className="px-3 rounded-l-xl hover:bg-gray-50"
                 disabled={scale <= 0.3}
+                title="Zoom Out (Mouse wheel up)"
               >
                 <ZoomOut className="w-4 h-4" />
               </Button>
-              <div className="px-4 py-1.5 text-xs font-medium text-gray-700 border-x border-gray-200 bg-gray-50">
+              <div 
+                className="px-4 py-1.5 text-xs font-medium text-gray-700 border-x border-gray-200 bg-gray-50 cursor-help"
+                title="Use mouse wheel to zoom • Hold Ctrl for precise zoom"
+              >
                 {Math.round(scale * 100)}%
               </div>
               <Button 
@@ -3095,6 +3464,7 @@ const InlineRelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
                 onClick={zoomIn} 
                 className="px-3 rounded-r-xl hover:bg-gray-50"
                 disabled={scale >= 3}
+                title="Zoom In (Mouse wheel down)"
               >
                 <ZoomIn className="w-4 h-4" />
               </Button>
@@ -3108,7 +3478,51 @@ const InlineRelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
             >
               <RotateCcw className="w-4 h-4" />
             </Button>
-            
+
+            {/* Animation Controls */}
+            <div className="flex items-center gap-0 border border-gray-200 rounded-xl bg-white shadow-sm">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowAnimations(!showAnimations)}
+                className={`px-3 rounded-l-xl transition-colors ${
+                  showAnimations 
+                    ? 'bg-green-50 text-green-700 hover:bg-green-100' 
+                    : 'text-gray-500 hover:bg-gray-50'
+                }`}
+                title="Toggle Animations"
+              >
+                <Activity className="w-4 h-4" />
+              </Button>
+              
+              <div className="px-2 py-1.5 text-xs font-medium text-gray-700 border-x border-gray-200 bg-gray-50 min-w-[60px] text-center">
+                {animationSpeed}s
+              </div>
+              
+              <div className="flex">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setAnimationSpeed(prev => Math.max(0.5, prev - 0.5))}
+                  className="px-2 hover:bg-gray-50"
+                  disabled={animationSpeed <= 0.5}
+                  title="Slower"
+                >
+                  <span className="text-xs">-</span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setAnimationSpeed(prev => Math.min(10, prev + 0.5))}
+                  className="px-2 rounded-r-xl hover:bg-gray-50"
+                  disabled={animationSpeed >= 10}
+                  title="Faster"
+                >
+                  <span className="text-xs">+</span>
+                </Button>
+              </div>
+            </div>
+
             <Button 
               onClick={handleSave} 
               size="sm" 
@@ -3140,6 +3554,7 @@ const InlineRelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
             }}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
+            onWheel={handleWheel}
             onClick={(e) => {
               // Clear selection if clicking on canvas background (not on nodes or buttons)
               const target = e.target as HTMLElement
@@ -3169,104 +3584,295 @@ const InlineRelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
               </svg>
             </div>
 
-            {/* Enhanced Connections */}
-            <svg className="absolute inset-0 w-full h-full pointer-events-none">
+            {/* Draw.io Style Enhanced Connections */}
+            <svg 
+              className="absolute inset-0 w-full h-full pointer-events-none"
+              style={{
+                shapeRendering: 'geometricPrecision',
+                textRendering: 'geometricPrecision'
+              }}
+            >
               <defs>
+                {/* Enhanced connection styling */}
                 <filter id="connection-glow" x="-50%" y="-50%" width="200%" height="200%">
-                  <feMorphology operator="dilate" radius="2"/>
+                  <feMorphology operator="dilate" radius="1"/>
                   <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
                   <feMerge> 
                     <feMergeNode in="coloredBlur"/>
                     <feMergeNode in="SourceGraphic"/> 
                   </feMerge>
                 </filter>
+                
+                {/* Professional gradient */}
                 <linearGradient id="connection-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="currentColor" stopOpacity="0.6"/>
+                  <stop offset="0%" stopColor="currentColor" stopOpacity="0.8"/>
                   <stop offset="50%" stopColor="currentColor" stopOpacity="1"/>
-                  <stop offset="100%" stopColor="currentColor" stopOpacity="0.6"/>
+                  <stop offset="100%" stopColor="currentColor" stopOpacity="0.8"/>
                 </linearGradient>
+                
+                {/* Connection point dots */}
+                <marker id="connection-dot" markerWidth="6" markerHeight="6" 
+                  refX="3" refY="3" orient="auto">
+                  <circle cx="3" cy="3" r="2" fill="currentColor" stroke="white" strokeWidth="1" />
+                </marker>
               </defs>
+              
               {connections.map(connection => {
+                // Use our smart path calculation
+                const pathData = getConnectionPath(connection)
+                if (!pathData) return null
+                
                 const fromNode = nodes.find(n => n.id === connection.fromNodeId)
                 const toNode = nodes.find(n => n.id === connection.toNodeId)
                 if (!fromNode || !toNode) return null
                 
-                const fromX = fromNode.x + fromNode.width / 2
-                const fromY = fromNode.y + fromNode.height / 2
-                const toX = toNode.x + toNode.width / 2
-                const toY = toNode.y + toNode.height / 2
+                // Get connection points for label positioning
+                const { fromPoint, toPoint } = getOptimalConnectionPoints(fromNode, toNode)
+                const midX = (fromPoint.x + toPoint.x) / 2
+                const midY = (fromPoint.y + toPoint.y) / 2
                 
-                // Calculate label position (midpoint)
-                const labelX = (fromX + toX) / 2
-                const labelY = (fromY + toY) / 2
+                // Get stroke width for rendering
+                const strokeWidth = connection.strokeWidth || 3
+                
+                const isSelected = selectedConnection === connection.id
                 
                 return (
-                  <g key={connection.id}>
-                    {/* Connection Line with Glow Effect */}
+                  <g key={connection.id} className={isSelected ? 'connection-selected' : ''}>
+                    {/* Connection shadow/outline for better visibility */}
                     <path
-                      d={`M ${fromX} ${fromY} L ${toX} ${toY}`}
-                      stroke={connection.color}
-                      strokeWidth="4"
+                      d={pathData}
+                      stroke="rgba(255, 255, 255, 0.8)"
+                      strokeWidth={strokeWidth + 4}
+                      fill="none"
+                      className="opacity-90"
+                      strokeDasharray={connection.strokeDasharray || undefined}
+                      style={{ vectorEffect: 'non-scaling-stroke' }}
+                    />
+                    
+                    {/* Main Connection Line */}
+                    <path
+                      d={pathData}
+                      stroke={connection.color || '#3b82f6'}
+                      strokeWidth={strokeWidth}
                       fill="none"
                       filter="url(#connection-glow)"
-                      className="pointer-events-auto cursor-pointer hover:stroke-width-6 transition-all duration-200"
-                      onClick={() => setSelectedConnection(connection.id)}
-                      style={{ color: connection.color }}
+                      className={`pointer-events-auto cursor-pointer ${
+                        isSelected 
+                          ? 'opacity-100 drop-shadow-lg' 
+                          : 'opacity-80 hover:opacity-100 hover:drop-shadow-md'
+                      }`}
+                      onClick={() => setSelectedConnection && setSelectedConnection(connection.id)}
+                      style={{ 
+                        color: connection.color || '#3b82f6',
+                        vectorEffect: 'non-scaling-stroke'
+                      }}
+                      strokeDasharray={connection.strokeDasharray || undefined}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
                     />
-                    {/* Connection Label */}
+
+                    {/* Animated Arrow Traveling Along Path */}
+                    {showAnimations && (
+                      <>
+                        {/* Main traveling dot */}
+                        <circle
+                          r="4"
+                          fill={connection.color || '#3b82f6'}
+                          stroke="white"
+                          strokeWidth="2"
+                          className="opacity-90"
+                          filter="drop-shadow(0 2px 4px rgba(0,0,0,0.3))"
+                        >
+                          <animateMotion
+                            dur={`${animationSpeed}s`}
+                            repeatCount="indefinite"
+                            path={pathData}
+                            rotate="auto"
+                            calcMode="linear"
+                            keyTimes="0;1"
+                            keySplines="0.4 0 0.6 1"
+                          >
+                            <mpath href={`#connection-path-${connection.id}`} />
+                          </animateMotion>
+                          
+                          {/* Pulsing effect for extra visual appeal */}
+                          <animate
+                            attributeName="r"
+                            values="3;5;3"
+                            dur="2s"
+                            repeatCount="indefinite"
+                          />
+                          <animate
+                            attributeName="opacity"
+                            values="0.7;1;0.7"
+                            dur="2s"
+                            repeatCount="indefinite"
+                          />
+                        </circle>
+
+                        {/* Trail effect - multiple smaller dots following */}
+                        {[0.2, 0.4, 0.6].map((delay, index) => (
+                          <circle
+                            key={`trail-${index}`}
+                            r={3 - index * 0.5}
+                            fill={connection.color || '#3b82f6'}
+                            className={`opacity-${60 - index * 15}`}
+                            filter="drop-shadow(0 1px 2px rgba(0,0,0,0.2))"
+                          >
+                            <animateMotion
+                              dur={`${animationSpeed}s`}
+                              repeatCount="indefinite"
+                              path={pathData}
+                              calcMode="linear"
+                              begin={`${delay * animationSpeed}s`}
+                            >
+                              <mpath href={`#connection-path-${connection.id}`} />
+                            </animateMotion>
+                          </circle>
+                        ))}
+                        
+                        {/* Special effects for different relationship types */}
+                        {connection.type === 'romance' && (
+                          <text
+                            fontSize="12"
+                            fill={connection.color || '#3b82f6'}
+                            textAnchor="middle"
+                            className="opacity-80"
+                          >
+                            💖
+                            <animateMotion
+                              dur={`${animationSpeed * 1.5}s`}
+                              repeatCount="indefinite"
+                              path={pathData}
+                              calcMode="linear"
+                              begin="0.3s"
+                            >
+                              <mpath href={`#connection-path-${connection.id}`} />
+                            </animateMotion>
+                          </text>
+                        )}
+                        
+                        {connection.type === 'rivalry' && (
+                          <text
+                            fontSize="12"
+                            fill={connection.color || '#3b82f6'}
+                            textAnchor="middle"
+                            className="opacity-80"
+                          >
+                            ⚡
+                            <animateMotion
+                              dur={`${animationSpeed * 0.8}s`}
+                              repeatCount="indefinite"
+                              path={pathData}
+                              calcMode="linear"
+                              begin="0.5s"
+                            >
+                              <mpath href={`#connection-path-${connection.id}`} />
+                            </animateMotion>
+                          </text>
+                        )}
+                        
+                        {connection.type === 'friendship' && (
+                          <text
+                            fontSize="10"
+                            fill={connection.color || '#3b82f6'}
+                            textAnchor="middle"
+                            className="opacity-70"
+                          >
+                            ✨
+                            <animateMotion
+                              dur={`${animationSpeed * 1.2}s`}
+                              repeatCount="indefinite"
+                              path={pathData}
+                              calcMode="linear"
+                              begin="0.7s"
+                            >
+                              <mpath href={`#connection-path-${connection.id}`} />
+                            </animateMotion>
+                          </text>
+                        )}
+                      </>
+                    )}
+
+                    {/* Hidden path for animation reference */}
+                    <path
+                      id={`connection-path-${connection.id}`}
+                      d={pathData}
+                      stroke="none"
+                      fill="none"
+                      className="pointer-events-none"
+                    />
+
+                    {/* Connection points (draw.io style) */}
+                    <circle
+                      cx={fromPoint.x}
+                      cy={fromPoint.y}
+                      r="3"
+                      fill={connection.color || '#3b82f6'}
+                      stroke="white"
+                      strokeWidth="2"
+                      className={`transition-all duration-200 ${
+                        isSelected ? 'opacity-100 scale-125' : 'opacity-60'
+                      }`}
+                    />
+                    <circle
+                      cx={toPoint.x}
+                      cy={toPoint.y}
+                      r="3"
+                      fill={connection.color || '#3b82f6'}
+                      stroke="white"
+                      strokeWidth="2"
+                      className={`transition-all duration-200 ${
+                        isSelected ? 'opacity-100 scale-125' : 'opacity-60'
+                      }`}
+                    />
+                    
+                    {/* Enhanced Connection Label */}
                     {connection.label && (
-                      <g>
+                      <g className="connection-label">
+                        {/* Label background with better styling */}
                         <rect
-                          x={labelX - (connection.label.length * 3)}
-                          y={labelY - 12}
-                          width={connection.label.length * 6}
-                          height="20"
+                          x={midX - (connection.label.length * 4.5)}
+                          y={midY - 14}
+                          width={connection.label.length * 9}
+                          height={28}
+                          rx="14"
                           fill="white"
-                          stroke={connection.color}
-                          strokeWidth="1"
-                          rx="10"
-                          className="pointer-events-none"
-                          filter="url(#connection-glow)"
+                          stroke={connection.color || '#3b82f6'}
+                          strokeWidth="2"
+                          filter="drop-shadow(0 2px 4px rgba(0,0,0,0.1))"
+                          className={`transition-all duration-200 ${
+                            isSelected ? 'opacity-100 scale-105' : 'opacity-95'
+                          }`}
                         />
                         <text
-                          x={labelX}
-                          y={labelY - 2}
+                          x={midX}
+                          y={midY + 4}
                           textAnchor="middle"
-                          className="text-xs font-medium pointer-events-none"
-                          fill={connection.color}
+                          className="text-xs font-semibold select-none pointer-events-none"
+                          style={{ 
+                            fontSize: '12px',
+                            fill: connection.textColor || connection.color || '#374151'
+                          }}
                         >
                           {connection.label}
                         </text>
                       </g>
                     )}
-                    {/* Enhanced Arrow */}
-                    {connection.hasArrow && (
-                      <>
-                        <defs>
-                          <marker
-                            id={`enhanced-arrowhead-${connection.id}`}
-                            markerWidth="12"
-                            markerHeight="12"
-                            refX="10"
-                            refY="6"
-                            orient="auto"
-                          >
-                            <path
-                              d="M 0 0 L 12 6 L 0 12 L 3 6 Z"
-                              fill={connection.color}
-                              filter="url(#connection-glow)"
-                            />
-                          </marker>
-                        </defs>
-                        <path
-                          d={`M ${fromX} ${fromY} L ${toX} ${toY}`}
-                          stroke={connection.color}
-                          strokeWidth="4"
-                          fill="none"
-                          markerEnd={`url(#enhanced-arrowhead-${connection.id})`}
-                          className="pointer-events-none"
-                        />
-                      </>
+                    
+                    {/* Selection highlight */}
+                    {isSelected && (
+                      <path
+                        d={pathData}
+                        stroke="rgba(59, 130, 246, 0.3)"
+                        strokeWidth={strokeWidth + 8}
+                        fill="none"
+                        className="animate-pulse pointer-events-none"
+                        strokeDasharray={connection.strokeDasharray || undefined}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        style={{ vectorEffect: 'non-scaling-stroke' }}
+                      />
                     )}
                   </g>
                 )
@@ -3377,6 +3983,87 @@ const InlineRelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
                   </div>
                 )}
 
+                {/* Draw.io Style Connection Ports */}
+                {(selectedNode === node.id || isConnecting) && (
+                  <>
+                    {/* Top Connection Port */}
+                    <div
+                      className={cn(
+                        "absolute w-3 h-3 bg-blue-500 border-2 border-white rounded-full shadow-md cursor-crosshair z-40 transition-all duration-200",
+                        "left-1/2 -translate-x-1/2 -top-1.5",
+                        isConnecting ? "scale-125 animate-pulse" : "hover:scale-110"
+                      )}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        e.preventDefault()
+                        if (isConnecting && connectionStart !== node.id) {
+                          completeConnection(node.id)
+                        } else if (!isConnecting) {
+                          startConnection(node.id)
+                        }
+                      }}
+                      title="Connect from top"
+                    />
+                    
+                    {/* Right Connection Port */}
+                    <div
+                      className={cn(
+                        "absolute w-3 h-3 bg-blue-500 border-2 border-white rounded-full shadow-md cursor-crosshair z-40 transition-all duration-200",
+                        "top-1/2 -translate-y-1/2 -right-1.5",
+                        isConnecting ? "scale-125 animate-pulse" : "hover:scale-110"
+                      )}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        e.preventDefault()
+                        if (isConnecting && connectionStart !== node.id) {
+                          completeConnection(node.id)
+                        } else if (!isConnecting) {
+                          startConnection(node.id)
+                        }
+                      }}
+                      title="Connect from right"
+                    />
+                    
+                    {/* Bottom Connection Port */}
+                    <div
+                      className={cn(
+                        "absolute w-3 h-3 bg-blue-500 border-2 border-white rounded-full shadow-md cursor-crosshair z-40 transition-all duration-200",
+                        "left-1/2 -translate-x-1/2 -bottom-1.5",
+                        isConnecting ? "scale-125 animate-pulse" : "hover:scale-110"
+                      )}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        e.preventDefault()
+                        if (isConnecting && connectionStart !== node.id) {
+                          completeConnection(node.id)
+                        } else if (!isConnecting) {
+                          startConnection(node.id)
+                        }
+                      }}
+                      title="Connect from bottom"
+                    />
+                    
+                    {/* Left Connection Port */}
+                    <div
+                      className={cn(
+                        "absolute w-3 h-3 bg-blue-500 border-2 border-white rounded-full shadow-md cursor-crosshair z-40 transition-all duration-200",
+                        "top-1/2 -translate-y-1/2 -left-1.5",
+                        isConnecting ? "scale-125 animate-pulse" : "hover:scale-110"
+                      )}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        e.preventDefault()
+                        if (isConnecting && connectionStart !== node.id) {
+                          completeConnection(node.id)
+                        } else if (!isConnecting) {
+                          startConnection(node.id)
+                        }
+                      }}
+                      title="Connect from left"
+                    />
+                  </>
+                )}
+
                 {/* Connection Indicator */}
                 {isConnecting && connectionStart && (
                   <div className="absolute inset-0 rounded-2xl border-2 border-dashed border-blue-400 bg-blue-50/50 animate-pulse" />
@@ -3393,79 +4080,257 @@ const InlineRelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
                 </div>
               </div>
             )}
+
+            {/* Zoom Hint for Empty Canvas */}
+            {!isConnecting && nodes.length === 0 && (
+              <div className="absolute top-6 left-1/2 transform -translate-x-1/2 bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200/60 px-4 py-2">
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <ZoomIn className="w-4 h-4 text-gray-500" />
+                  <span>Use mouse wheel to zoom • Add characters to get started</span>
+                </div>
+              </div>
+            )}
+
+            {/* Animation Status Indicator */}
+            {connections.length > 0 && (
+              <div 
+                className="absolute top-6 right-6 bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200/60 px-4 py-2 cursor-help"
+                title="Press 'A' to toggle animations, '+/-' to adjust speed"
+              >
+                <div className="flex items-center gap-3 text-sm">
+                  <div className="flex items-center gap-2">
+                    <Activity className={`w-4 h-4 ${showAnimations ? 'text-green-600 animate-pulse' : 'text-gray-400'}`} />
+                    <span className={`font-medium ${showAnimations ? 'text-green-700' : 'text-gray-500'}`}>
+                      {showAnimations ? 'Animations On' : 'Animations Off'}
+                    </span>
+                  </div>
+                  {showAnimations && (
+                    <div className="text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded">
+                      {animationSpeed}s speed
+                    </div>
+                  )}
+                  <div className="text-xs text-gray-400 bg-gray-50 px-2 py-1 rounded border">
+                    Press A
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
         {/* Enhanced Connection Properties Panel */}
         {selectedConnection && (
-          <div className="absolute bottom-6 right-6 w-72 bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl border border-gray-200/60 p-4 animate-in slide-in-from-bottom-2">
-            <div className="flex items-center justify-between mb-4">
-              <h4 className="font-semibold text-gray-900 flex items-center">
-                <Settings className="w-4 h-4 mr-2 text-gray-600" />
-                Connection Properties
+          <div className="absolute bottom-6 right-6 w-80 bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl border border-gray-200/60 p-5 animate-in slide-in-from-bottom-2 max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-5">
+              <h4 className="font-bold text-gray-900 flex items-center text-lg">
+                <Settings className="w-5 h-5 mr-2 text-indigo-600" />
+                Connection Editor
               </h4>
               <Button
                 size="sm"
                 variant="ghost"
                 onClick={() => setSelectedConnection(null)}
-                className="w-6 h-6 p-0 text-gray-400 hover:text-gray-600"
+                className="w-8 h-8 p-0 text-gray-400 hover:text-gray-600 hover:bg-gray-100"
               >
-                <X className="w-3 h-3" />
+                <X className="w-4 h-4" />
               </Button>
             </div>
             
-            <div className="space-y-4">
+            <div className="space-y-5">
+              {/* Relationship Type - Single unified field */}
               <div>
-                <Label className="text-xs font-medium text-gray-700 mb-2 block">Connection Label</Label>
-                <Input
-                  value={connections.find(c => c.id === selectedConnection)?.label || ''}
-                  onChange={(e) => {
+                <Label className="text-sm font-semibold text-gray-800 mb-3 block flex items-center">
+                  <Network className="w-4 h-4 mr-2 text-gray-600" />
+                  Relationship Type
+                </Label>
+                <Select
+                  value={connections.find(c => c.id === selectedConnection)?.type || 'friendship'}
+                  onValueChange={(value) => {
                     setConnections(prev => prev.map(conn => 
                       conn.id === selectedConnection 
-                        ? { ...conn, label: e.target.value }
+                        ? { ...conn, type: value, label: value === 'custom' ? conn.label || '' : value }
                         : conn
                     ))
                   }}
-                  className="text-sm bg-white border-gray-200/80"
-                  placeholder="Enter relationship type"
-                />
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select relationship type" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-2 border-gray-200 shadow-lg rounded-lg backdrop-blur-sm z-50">
+                    <SelectItem value="friendship" className="hover:bg-gray-50 focus:bg-gray-50 cursor-pointer">🤝 Friendship</SelectItem>
+                    <SelectItem value="romance" className="hover:bg-gray-50 focus:bg-gray-50 cursor-pointer">💕 Romance</SelectItem>
+                    <SelectItem value="family" className="hover:bg-gray-50 focus:bg-gray-50 cursor-pointer">👨‍👩‍👧‍👦 Family</SelectItem>
+                    <SelectItem value="rivalry" className="hover:bg-gray-50 focus:bg-gray-50 cursor-pointer">⚔️ Rivalry</SelectItem>
+                    <SelectItem value="mentor" className="hover:bg-gray-50 focus:bg-gray-50 cursor-pointer">🧑‍🏫 Mentor</SelectItem>
+                    <SelectItem value="alliance" className="hover:bg-gray-50 focus:bg-gray-50 cursor-pointer">🤝 Alliance</SelectItem>
+                    <SelectItem value="enemy" className="hover:bg-gray-50 focus:bg-gray-50 cursor-pointer">😡 Enemy</SelectItem>
+                    <SelectItem value="professional" className="hover:bg-gray-50 focus:bg-gray-50 cursor-pointer">💼 Professional</SelectItem>
+                    <SelectItem value="neutral" className="hover:bg-gray-50 focus:bg-gray-50 cursor-pointer">😐 Neutral</SelectItem>
+                    <SelectItem value="custom" className="hover:bg-gray-50 focus:bg-gray-50 cursor-pointer">✏️ Custom</SelectItem>
+                  </SelectContent>
+                </Select>
+                
+                {/* Custom relationship input */}
+                {connections.find(c => c.id === selectedConnection)?.type === 'custom' && (
+                  <div className="mt-3">
+                    <Label className="text-xs font-medium text-gray-700 mb-2 block">Custom Relationship</Label>
+                    <Input
+                      value={connections.find(c => c.id === selectedConnection)?.label || ''}
+                      onChange={(e) => {
+                        setConnections(prev => prev.map(conn => 
+                          conn.id === selectedConnection 
+                            ? { ...conn, label: e.target.value }
+                            : conn
+                        ))
+                      }}
+                      className="text-sm bg-white border-gray-300 focus:border-indigo-500 focus:ring-indigo-500"
+                      placeholder="Enter custom relationship (e.g. 'Business Partner', 'Childhood Friend')"
+                    />
+                  </div>
+                )}
               </div>
-              
+
+              {/* Connection Colors */}
               <div>
-                <Label className="text-xs font-medium text-gray-700 mb-2 block">Color Theme</Label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={connections.find(c => c.id === selectedConnection)?.color || '#10b981'}
-                    onChange={(e) => {
-                      setConnections(prev => prev.map(conn => 
-                        conn.id === selectedConnection 
-                          ? { ...conn, color: e.target.value }
-                          : conn
-                      ))
-                    }}
-                    className="w-10 h-10 rounded-xl border-2 border-gray-200 cursor-pointer"
-                  />
-                  <div className="flex gap-1">
-                    {['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899'].map(color => (
-                      <button
-                        key={color}
-                        onClick={() => {
+                <Label className="text-sm font-semibold text-gray-800 mb-3 block flex items-center">
+                  <Palette className="w-4 h-4 mr-2 text-gray-600" />
+                  Colors & Style
+                </Label>
+                <div className="space-y-4">
+                  {/* Line Color */}
+                  <div>
+                    <Label className="text-xs font-medium text-gray-700 mb-2 block">Line Color</Label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="color"
+                        value={connections.find(c => c.id === selectedConnection)?.color || '#3b82f6'}
+                        onChange={(e) => {
                           setConnections(prev => prev.map(conn => 
                             conn.id === selectedConnection 
-                              ? { ...conn, color }
+                              ? { ...conn, color: e.target.value }
                               : conn
                           ))
                         }}
-                        className="w-6 h-6 rounded-lg border-2 border-white shadow-sm hover:scale-110 transition-transform"
-                        style={{ backgroundColor: color }}
+                        className="w-12 h-12 rounded-xl border-2 border-gray-200 cursor-pointer"
                       />
-                    ))}
+                      <div className="flex flex-wrap gap-1">
+                        {[
+                          '#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899',
+                          '#64748b', '#dc2626', '#ea580c', '#65a30d', '#0891b2', '#7c3aed'
+                        ].map(color => (
+                          <button
+                            key={color}
+                            onClick={() => {
+                              setConnections(prev => prev.map(conn => 
+                                conn.id === selectedConnection 
+                                  ? { ...conn, color }
+                                  : conn
+                              ))
+                            }}
+                            className="w-7 h-7 rounded-lg border-2 border-white shadow-sm hover:scale-110 transition-transform"
+                            style={{ backgroundColor: color }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Text Color */}
+                  <div>
+                    <Label className="text-xs font-medium text-gray-700 mb-2 block">Text Color</Label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="color"
+                        value={connections.find(c => c.id === selectedConnection)?.textColor || '#374151'}
+                        onChange={(e) => {
+                          setConnections(prev => prev.map(conn => 
+                            conn.id === selectedConnection 
+                              ? { ...conn, textColor: e.target.value }
+                              : conn
+                          ))
+                        }}
+                        className="w-12 h-12 rounded-xl border-2 border-gray-200 cursor-pointer"
+                      />
+                      <div className="flex flex-wrap gap-1">
+                        {[
+                          '#374151', '#111827', '#ffffff', '#ef4444', '#f59e0b', '#10b981',
+                          '#3b82f6', '#8b5cf6', '#ec4899', '#64748b', '#dc2626', '#7c3aed'
+                        ].map(color => (
+                          <button
+                            key={color}
+                            onClick={() => {
+                              setConnections(prev => prev.map(conn => 
+                                conn.id === selectedConnection 
+                                  ? { ...conn, textColor: color }
+                                  : conn
+                              ))
+                            }}
+                            className="w-7 h-7 rounded-lg border-2 border-white shadow-sm hover:scale-110 transition-transform"
+                            style={{ backgroundColor: color }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Line Thickness */}
+                  <div>
+                    <Label className="text-xs font-medium text-gray-700 mb-2 block">Line Thickness</Label>
+                    <input
+                      type="range"
+                      min="1"
+                      max="8"
+                      value={connections.find(c => c.id === selectedConnection)?.strokeWidth || 3}
+                      onChange={(e) => {
+                        setConnections(prev => prev.map(conn => 
+                          conn.id === selectedConnection 
+                            ? { ...conn, strokeWidth: parseInt(e.target.value) }
+                            : conn
+                        ))
+                      }}
+                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                    />
+                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                      <span>Thin</span>
+                      <span>Thick</span>
+                    </div>
+                  </div>
+
+                  {/* Line Style */}
+                  <div>
+                    <Label className="text-xs font-medium text-gray-700 mb-2 block">Line Style</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { value: 'solid', label: 'Solid', pattern: null },
+                        { value: 'dashed', label: 'Dashed', pattern: '8,4' },
+                        { value: 'dotted', label: 'Dotted', pattern: '2,2' },
+                        { value: 'dashdot', label: 'Dash-Dot', pattern: '8,2,2,2' }
+                      ].map(style => (
+                        <button
+                          key={style.value}
+                          onClick={() => {
+                            setConnections(prev => prev.map(conn => 
+                              conn.id === selectedConnection 
+                                ? { ...conn, strokeDasharray: style.pattern }
+                                : conn
+                            ))
+                          }}
+                          className={`p-2 rounded-lg border text-xs font-medium transition-colors ${
+                            connections.find(c => c.id === selectedConnection)?.strokeDasharray === style.pattern
+                              ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                              : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                          }`}
+                        >
+                          {style.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
               
-              <div className="flex justify-between pt-2 border-t border-gray-100">
+              {/* Action Buttons */}
+              <div className="flex justify-between pt-4 border-t border-gray-200">
                 <Button
                   variant="outline"
                   size="sm"
@@ -3473,17 +4338,17 @@ const InlineRelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
                     setConnections(prev => prev.filter(c => c.id !== selectedConnection))
                     setSelectedConnection(null)
                   }}
-                  className="text-red-600 border-red-200 hover:bg-red-50 text-xs px-3 py-1.5"
+                  className="text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300 text-sm px-4 py-2"
                 >
-                  <Trash2 className="w-3 h-3 mr-1" />
+                  <Trash2 className="w-4 h-4 mr-2" />
                   Delete
                 </Button>
                 <Button
                   size="sm"
                   onClick={() => setSelectedConnection(null)}
-                  className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white text-xs px-3 py-1.5"
+                  className="bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 text-white text-sm px-4 py-2"
                 >
-                  <CheckCircle className="w-3 h-3 mr-1" />
+                  <CheckCircle className="w-4 h-4 mr-2" />
                   Done
                 </Button>
               </div>
@@ -3494,3 +4359,4 @@ const InlineRelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
     </div>
   )
 }
+export default RelationshipsPanel
