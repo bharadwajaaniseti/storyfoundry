@@ -4,12 +4,311 @@ import React, { useState, useEffect } from 'react'
 import { 
   Plus, Search, Edit3, Trash2, BookOpen, Tag, 
   FileText, User, MapPin, Package, Calendar,
-  Zap, Globe, Cog, Save, X
+  Zap, Globe, Cog, Save, X, Download, Copy,
+  Clock, Layout, Link, ExternalLink, History,
+  Image as ImageIcon, Table, Play, Volume2, Code, Bold, Italic, Underline, BarChart3,
+  ChevronUp, ChevronDown
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { createSupabaseClient } from '@/lib/auth'
+import { 
+  uploadEncyclopediaMedia, 
+  formatFileSize, 
+  isSupabaseStorageUrl 
+} from '@/lib/encyclopedia-storage'
+
+// Rich Text Toolbar Component
+function RichTextToolbar({ 
+  onAddImage, 
+  onAddTable, 
+  onAddStats, 
+  onAddMedia,
+  onFormatText,
+  activeField = null 
+}: {
+  onAddImage: () => void
+  onAddTable: () => void
+  onAddStats: () => void
+  onAddMedia: () => void
+  onFormatText: (format: string) => void
+  activeField?: string | null
+}) {
+  return (
+    <div className="flex items-center gap-1 p-2 bg-gray-50 border border-gray-200 rounded-lg mb-2 flex-wrap">
+      <div className="flex items-center gap-1">
+        <span className="text-xs font-medium text-gray-600 mr-2">Format:</span>
+        <button
+          type="button"
+          onClick={() => onFormatText('bold')}
+          className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded transition-colors"
+          title="Bold"
+        >
+          <Bold className="w-3 h-3" />
+        </button>
+        <button
+          type="button"
+          onClick={() => onFormatText('italic')}
+          className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded transition-colors"
+          title="Italic"
+        >
+          <Italic className="w-3 h-3" />
+        </button>
+        <button
+          type="button"
+          onClick={() => onFormatText('underline')}
+          className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded transition-colors"
+          title="Underline"
+        >
+          <Underline className="w-3 h-3" />
+        </button>
+        <div className="w-px h-4 bg-gray-300 mx-1"></div>
+      </div>
+      
+      <div className="flex items-center gap-1">
+        <span className="text-xs font-medium text-gray-600 mr-2">Insert:</span>
+        <button
+          type="button"
+          onClick={onAddImage}
+          className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-100 text-blue-700 hover:bg-blue-200 rounded transition-colors"
+        >
+          <ImageIcon className="w-3 h-3" />
+          Image
+        </button>
+        <button
+          type="button"
+          onClick={onAddTable}
+          className="flex items-center gap-1 px-2 py-1 text-xs bg-green-100 text-green-700 hover:bg-green-200 rounded transition-colors"
+        >
+          <Table className="w-3 h-3" />
+          Table
+        </button>
+        <button
+          type="button"
+          onClick={onAddStats}
+          className="flex items-center gap-1 px-2 py-1 text-xs bg-purple-100 text-purple-700 hover:bg-purple-200 rounded transition-colors"
+        >
+          <Cog className="w-3 h-3" />
+          Stats
+        </button>
+        <button
+          type="button"
+          onClick={onAddMedia}
+          className="flex items-center gap-1 px-2 py-1 text-xs bg-red-100 text-red-700 hover:bg-red-200 rounded transition-colors"
+        >
+          <Play className="w-3 h-3" />
+          Media
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// Utility function to render markdown-like content with inline images and tables
+const renderRichText = (text: string) => {
+  if (!text) return null
+  
+  // Split text by markdown elements while preserving them
+  const parts = text.split(/(\!\[.*?\]\(.*?\)|(?:\n\*\*.*?\*\*\n)?\n(?:\|.*?\|\n)+)/g)
+  
+  return (
+    <>
+      {parts.map((part, index) => {
+    // Handle images: ![alt](url "caption")
+    const imageMatch = part.match(/!\[([^\]]*)\]\(([^)]+)(?:\s+"([^"]*)")?\)/)
+    if (imageMatch) {
+      const [, alt, url, caption] = imageMatch
+      return (
+        <div key={index} className="my-6">
+          <div className="relative rounded-lg overflow-hidden shadow-md">
+            <img
+              src={url}
+              alt={alt}
+              className="w-full h-auto"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjI0IiBoZWlnaHQ9IjI0IiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0xMiAxNkM5Ljc5IDEzLjc5IDcuMTcgMTIuNDUgNS44OCAxMS43OUM1LjY5IDExLjY5IDUuNDYgMTEuNjMgNS4yMyAxMS42M0M0Ljg2IDExLjYzIDQuNSAxMS43NyA0LjI1IDEyLjAyTDIuMjkgMTRDMi4xIDEzLjY0IDIgMTMuMjIgMiAxMi43N0wyIDEwVjhDMiA3LjQ1IDIuMjIgNi45NSAyLjU5IDYuNTlDMi45NSA2LjIyIDMuNDUgNiA0IDZIMjBDMjAuNTUgNiAyMS4wNSA2LjIyIDIxLjQxIDYuNTlDMjEuNzggNi45NSAyMiA3LjQ1IDIyIDhWMTBWMTIuNzdDMjIgMTMuMjIgMjEuOSAxMy42NCAyMS43MSAxNEwxOS43NSAxMi4wMkMxOS41IDExLjc3IDE5LjE0IDExLjYzIDE4Ljc3IDExLjYzQzE4LjU0IDExLjYzIDE4LjMxIDExLjY5IDE4LjEyIDExLjc5QzE2LjgzIDEyLjQ1IDE0LjIxIDEzLjc5IDEyIDE2WiIgZmlsbD0iIzlDQTNBRiIvPgo8L3N2Zz4K'
+              }}
+            />
+          </div>
+          {caption && (
+            <p className="text-sm text-gray-600 text-center mt-2 italic">
+              {caption}
+            </p>
+          )}
+        </div>
+      )
+    }
+    
+    // Handle tables
+    const tableMatch = part.match(/(?:\n\*\*(.+?)\*\*\n)?\n(\|.+\|\n(?:\|.+\|\n)+)/g)
+    if (tableMatch) {
+      const lines = part.trim().split('\n')
+      let title = ''
+      let tableStart = 0
+      
+      // Check if first line is a title
+      if (lines[0]?.match(/\*\*(.+?)\*\*/)) {
+        title = lines[0].replace(/\*\*(.+?)\*\*/, '$1')
+        tableStart = 1
+        // Skip empty line after title
+        if (lines[1] === '') tableStart = 2
+      }
+      
+      const tableLines = lines.slice(tableStart).filter(line => line.startsWith('|'))
+      if (tableLines.length >= 2) {
+        const headers = tableLines[0].split('|').slice(1, -1).map(h => h.trim())
+        const rows = tableLines.slice(2).map(line => 
+          line.split('|').slice(1, -1).map(cell => cell.trim())
+        )
+        
+        return (
+          <div key={index} className="my-6 border border-gray-200 rounded-lg overflow-hidden shadow-sm">
+            {title && (
+              <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+                <h4 className="font-semibold text-gray-900">{title}</h4>
+              </div>
+            )}
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    {headers.map((header, i) => (
+                      <th key={i} className="px-4 py-2 text-left text-sm font-semibold text-gray-900 border-b border-gray-200">
+                        {header}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row, i) => (
+                    <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                      {row.map((cell, j) => (
+                        <td key={j} className="px-4 py-2 text-sm text-gray-700 border-b border-gray-100">
+                          {cell}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
+      }
+    }
+    
+    // Handle regular text
+    if (part.trim()) {
+      return (
+        <span key={index} className="whitespace-pre-wrap">
+          {part}
+        </span>
+      )
+    }
+    
+    return null
+  }).filter(Boolean)}
+    </>
+  )
+}
+
+// Rich Text Editor Component with Preview Mode
+function RichTextEditor({
+  fieldName,
+  value,
+  onChange,
+  onFocus,
+  onBlur,
+  placeholder,
+  className,
+  textAreaRef,
+  previewMode,
+  onTogglePreview
+}: {
+  fieldName: string
+  value: string
+  onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void
+  onFocus: () => void
+  onBlur: () => void
+  placeholder: string
+  className: string
+  textAreaRef: React.RefObject<HTMLTextAreaElement | null>
+  previewMode: boolean
+  onTogglePreview: () => void
+}) {
+  const [isEditing, setIsEditing] = useState(false)
+
+  return (
+    <div className="relative">
+      {/* Toggle buttons */}
+      <div className="absolute top-2 right-2 z-10 flex bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <button
+          type="button"
+          onClick={() => {
+            setIsEditing(true)
+            onTogglePreview()
+          }}
+          className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+            !previewMode 
+              ? 'bg-blue-500 text-white' 
+              : 'text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          Edit
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setIsEditing(false)
+            onTogglePreview()
+          }}
+          className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+            previewMode 
+              ? 'bg-blue-500 text-white' 
+              : 'text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          Preview
+        </button>
+      </div>
+
+      {previewMode ? (
+        /* Preview Mode */
+        <div 
+          className={`${className} cursor-text min-h-48 p-4 overflow-y-auto`}
+          onClick={() => {
+            setIsEditing(true)
+            onTogglePreview()
+            setTimeout(() => textAreaRef.current?.focus(), 0)
+          }}
+        >
+          <div className="prose prose-sm max-w-none">
+            {renderRichText(value) || (
+              <span className="text-gray-400 italic">
+                {placeholder}
+              </span>
+            )}
+          </div>
+        </div>
+      ) : (
+        /* Edit Mode */
+        <Textarea
+          ref={textAreaRef}
+          value={value}
+          onChange={onChange}
+          onFocus={() => {
+            onFocus()
+            setIsEditing(true)
+          }}
+          onBlur={onBlur}
+          placeholder={placeholder}
+          className={className}
+        />
+      )}
+    </div>
+  )
+}
 
 interface EncyclopediaEntry {
   id: string
@@ -25,11 +324,49 @@ interface EncyclopediaEntry {
     origin?: string
     related_terms?: string
     examples?: string
+    cross_references?: string[]
+    images?: Array<{
+      url: string
+      caption?: string
+      alt?: string
+    }>
+    tables?: Array<{
+      title: string
+      headers: string[]
+      rows: string[][]
+    }>
+    stats?: Array<{
+      label: string
+      value: string
+      category?: string
+    }>
+    rich_content?: {
+      formatted_description?: string
+      embedded_media?: Array<{
+        type: 'video' | 'audio' | 'iframe'
+        url: string
+        title?: string
+      }>
+    }
   }
   tags: string[]
   image_url?: string
   created_at: string
   updated_at: string
+}
+
+interface EncyclopediaTemplate {
+  id: string
+  name: string
+  type: string
+  attributes: {
+    definition: string
+    etymology?: string
+    origin?: string
+    related_terms?: string
+    examples?: string
+  }
+  tags: string[]
 }
 
 interface EncyclopediaPanelProps {
@@ -45,6 +382,27 @@ export default function EncyclopediaPanel({ projectId, selectedElement, onEncycl
   const [selectedEntry, setSelectedEntry] = useState<EncyclopediaEntry | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [selectedType, setSelectedType] = useState<string>('all')
+  const [recentEntries, setRecentEntries] = useState<string[]>([])
+  const [showExportDialog, setShowExportDialog] = useState(false)
+  const [showTemplateSelector, setShowTemplateSelector] = useState(false)
+  const [showSingleExportDialog, setShowSingleExportDialog] = useState(false)
+  const [showImageUpload, setShowImageUpload] = useState(false)
+  const [showTableEditor, setShowTableEditor] = useState(false)
+  const [showStatsEditor, setShowStatsEditor] = useState(false)
+  const [showMediaEmbed, setShowMediaEmbed] = useState(false)
+  const [crossReferences, setCrossReferences] = useState<{[key: string]: EncyclopediaEntry[]}>({})
+  
+  // Modal form states
+  const [imageForm, setImageForm] = useState({ 
+    url: '', 
+    caption: '', 
+    alt: '', 
+    uploadMethod: 'url' as 'url' | 'upload',
+    file: null as File | null 
+  })
+  const [tableForm, setTableForm] = useState({ title: '', headers: '', data: '' })
+  const [statsForm, setStatsForm] = useState({ stats: '', category: '' })
+  const [mediaForm, setMediaForm] = useState({ type: 'video' as 'video' | 'audio' | 'iframe', url: '', title: '' })
 
   const supabase = createSupabaseClient()
 
@@ -60,9 +418,247 @@ export default function EncyclopediaPanel({ projectId, selectedElement, onEncycl
     { id: 'technology', label: 'Technology', icon: Cog, color: 'text-gray-600' }
   ]
 
+  // Predefined templates for quick entry creation
+  const templates: EncyclopediaTemplate[] = [
+    {
+      id: 'character-template',
+      name: 'Character Profile',
+      type: 'person',
+      attributes: {
+        definition: 'A [role/occupation] known for [key trait/achievement]',
+        origin: 'Born in [location] during [time period]',
+        related_terms: 'Family members, allies, enemies',
+        examples: 'Notable actions, quotes, or appearances'
+      },
+      tags: ['character', 'person']
+    },
+    {
+      id: 'location-template',
+      name: 'Location Guide',
+      type: 'place',
+      attributes: {
+        definition: 'A [type of place] located in [region/area]',
+        origin: 'Established/discovered in [time period] by [founder/discoverer]',
+        etymology: 'The name comes from [language/meaning]',
+        examples: 'Important events, landmarks, or features'
+      },
+      tags: ['location', 'place']
+    },
+    {
+      id: 'concept-template',
+      name: 'Concept Explanation',
+      type: 'concept',
+      attributes: {
+        definition: 'A [type of concept] that involves [key aspects]',
+        origin: 'First developed/discovered by [person/culture] in [time period]',
+        related_terms: 'Similar concepts, opposing ideas, prerequisites',
+        examples: 'Real-world applications, historical instances'
+      },
+      tags: ['concept', 'theory']
+    },
+    {
+      id: 'object-template',
+      name: 'Artifact/Object',
+      type: 'object',
+      attributes: {
+        definition: 'A [type of object] that [primary function/purpose]',
+        origin: 'Created by [maker/culture] in [time period] for [purpose]',
+        etymology: 'Named after [origin of name]',
+        examples: 'Notable uses, appearances, or significance'
+      },
+      tags: ['artifact', 'item']
+    }
+  ]
+
   useEffect(() => {
     fetchEntries()
   }, [projectId])
+
+  // Detect cross-references in text
+  const detectCrossReferences = (text: string, currentEntryId: string) => {
+    const references: EncyclopediaEntry[] = []
+    entries.forEach(entry => {
+      if (entry.id !== currentEntryId && text.toLowerCase().includes(entry.name.toLowerCase())) {
+        references.push(entry)
+      }
+    })
+    return references
+  }
+
+  // Add to recent entries
+  const addToRecent = (entryId: string) => {
+    setRecentEntries(prev => {
+      const filtered = prev.filter(id => id !== entryId)
+      return [entryId, ...filtered].slice(0, 5) // Keep last 5
+    })
+  }
+
+  // Export functionality
+  const exportEncyclopedia = async (format: 'json' | 'markdown') => {
+    try {
+      if (format === 'json') {
+        const dataStr = JSON.stringify(entries, null, 2)
+        const dataBlob = new Blob([dataStr], { type: 'application/json' })
+        const url = URL.createObjectURL(dataBlob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = `encyclopedia-${new Date().toISOString().split('T')[0]}.json`
+        link.click()
+        URL.revokeObjectURL(url)
+      } else if (format === 'markdown') {
+        let markdown = '# Encyclopedia Export\n\n'
+        entries.forEach(entry => {
+          markdown += `## ${entry.name}\n\n`
+          if (entry.attributes?.definition) {
+            markdown += `**Definition:** ${entry.attributes.definition}\n\n`
+          }
+          if (entry.description) {
+            markdown += `${entry.description}\n\n`
+          }
+          if (entry.attributes?.origin) {
+            markdown += `**Origin:** ${entry.attributes.origin}\n\n`
+          }
+          if (entry.attributes?.etymology) {
+            markdown += `**Etymology:** ${entry.attributes.etymology}\n\n`
+          }
+          if (entry.tags.length > 0) {
+            markdown += `**Tags:** ${entry.tags.join(', ')}\n\n`
+          }
+          markdown += '---\n\n'
+        })
+        const dataBlob = new Blob([markdown], { type: 'text/markdown' })
+        const url = URL.createObjectURL(dataBlob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = `encyclopedia-${new Date().toISOString().split('T')[0]}.md`
+        link.click()
+        URL.revokeObjectURL(url)
+      }
+    } catch (error) {
+      console.error('Export failed:', error)
+    }
+  }
+
+  // Export individual entry
+  const exportSingleEntry = async (entry: EncyclopediaEntry, format: 'json' | 'markdown') => {
+    try {
+      if (format === 'json') {
+        const dataStr = JSON.stringify(entry, null, 2)
+        const dataBlob = new Blob([dataStr], { type: 'application/json' })
+        const url = URL.createObjectURL(dataBlob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = `${entry.name.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}.json`
+        link.click()
+        URL.revokeObjectURL(url)
+      } else if (format === 'markdown') {
+        let markdown = `# ${entry.name}\n\n`
+        
+        if (entry.attributes?.definition) {
+          markdown += `**Definition:** ${entry.attributes.definition}\n\n`
+        }
+        
+        if (entry.description) {
+          markdown += `## Description\n\n${entry.description}\n\n`
+        }
+        
+        if (entry.attributes?.origin) {
+          markdown += `## Origin\n\n${entry.attributes.origin}\n\n`
+        }
+        
+        if (entry.attributes?.etymology) {
+          markdown += `## Etymology\n\n${entry.attributes.etymology}\n\n`
+        }
+        
+        if (entry.attributes?.related_terms) {
+          markdown += `## Related Terms\n\n${entry.attributes.related_terms}\n\n`
+        }
+        
+        if (entry.attributes?.examples) {
+          markdown += `## Examples & Usage\n\n${entry.attributes.examples}\n\n`
+        }
+        
+        if (entry.tags.length > 0) {
+          markdown += `## Tags\n\n${entry.tags.map(tag => `- ${tag}`).join('\n')}\n\n`
+        }
+        
+        markdown += `---\n\n*Entry Type: ${entry.attributes?.type || 'Unknown'}*\n`
+        markdown += `*Created: ${new Date(entry.created_at).toLocaleDateString()}*\n`
+        markdown += `*Last Modified: ${new Date(entry.updated_at).toLocaleDateString()}*\n`
+        
+        const dataBlob = new Blob([markdown], { type: 'text/markdown' })
+        const url = URL.createObjectURL(dataBlob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = `${entry.name.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}.md`
+        link.click()
+        URL.revokeObjectURL(url)
+      }
+    } catch (error) {
+      console.error('Single entry export failed:', error)
+    }
+  }
+
+  // Duplicate entry function
+  const duplicateEntry = (entry: EncyclopediaEntry) => {
+    const duplicated: EncyclopediaEntry = {
+      ...entry,
+      id: `temp-${Date.now()}`,
+      name: `${entry.name} (Copy)`,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }
+    setSelectedEntry(duplicated)
+    setIsEditing(true)
+  }
+
+  // Advanced content management functions
+  const addImage = (entry: EncyclopediaEntry, imageData: { url: string; caption?: string; alt?: string }) => {
+    const updatedEntry = {
+      ...entry,
+      attributes: {
+        ...entry.attributes,
+        images: [...(entry.attributes.images || []), imageData]
+      }
+    }
+    return updatedEntry
+  }
+
+  const addTable = (entry: EncyclopediaEntry, tableData: { title: string; headers: string[]; rows: string[][] }) => {
+    const updatedEntry = {
+      ...entry,
+      attributes: {
+        ...entry.attributes,
+        tables: [...(entry.attributes.tables || []), tableData]
+      }
+    }
+    return updatedEntry
+  }
+
+  const addStats = (entry: EncyclopediaEntry, statsData: Array<{ label: string; value: string; category?: string }>) => {
+    const updatedEntry = {
+      ...entry,
+      attributes: {
+        ...entry.attributes,
+        stats: [...(entry.attributes.stats || []), ...statsData]
+      }
+    }
+    return updatedEntry
+  }
+
+  const addEmbeddedMedia = (entry: EncyclopediaEntry, mediaData: { type: 'video' | 'audio' | 'iframe'; url: string; title?: string }) => {
+    const updatedEntry = {
+      ...entry,
+      attributes: {
+        ...entry.attributes,
+        rich_content: {
+          ...entry.attributes.rich_content,
+          embedded_media: [...(entry.attributes.rich_content?.embedded_media || []), mediaData]
+        }
+      }
+    }
+    return updatedEntry
+  }
 
   // Handle selectedElement from sidebar
   useEffect(() => {
@@ -110,24 +706,25 @@ export default function EncyclopediaPanel({ projectId, selectedElement, onEncycl
     }
   }
 
-  const createNewEntry = () => {
+  const createNewEntry = (template?: EncyclopediaTemplate) => {
     // Create a temporary entry that hasn't been saved to database yet
     const tempEntry: EncyclopediaEntry = {
       id: `temp-${Date.now()}`, // Temporary ID
       project_id: projectId,
       category: 'encyclopedia',
-      name: 'New Encyclopedia',
+      name: template ? `New ${template.name}` : 'New Encyclopedia',
       description: '',
       attributes: {
-        type: 'concept',
-        definition: '',
+        type: template?.type || 'concept',
+        definition: template?.attributes.definition || '',
         pronunciation: '',
-        etymology: '',
-        origin: '',
-        related_terms: '',
-        examples: ''
+        etymology: template?.attributes.etymology || '',
+        origin: template?.attributes.origin || '',
+        related_terms: template?.attributes.related_terms || '',
+        examples: template?.attributes.examples || '',
+        cross_references: []
       },
-      tags: [],
+      tags: template?.tags || [],
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     }
@@ -135,6 +732,9 @@ export default function EncyclopediaPanel({ projectId, selectedElement, onEncycl
     setSelectedEntry(tempEntry)
     setIsEditing(true)
   }
+
+  const createBasicEntry = () => createNewEntry()
+  const createFromTemplate = (template: EncyclopediaTemplate) => createNewEntry(template)
 
   const saveEntry = async (entryToSave: EncyclopediaEntry) => {
     try {
@@ -245,6 +845,7 @@ export default function EncyclopediaPanel({ projectId, selectedElement, onEncycl
             <h3 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
               <BookOpen className="w-7 h-7 text-orange-600" />
               Encyclopedia
+              <span className="text-base font-normal text-gray-500">({entries.length} entries)</span>
             </h3>
             <div className="flex items-center gap-4">
               {/* Search and Filters */}
@@ -273,13 +874,126 @@ export default function EncyclopediaPanel({ projectId, selectedElement, onEncycl
                 </select>
               </div>
               
-              <Button 
-                onClick={createNewEntry}
-                className="bg-orange-500 hover:bg-orange-600 text-white"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                New Encyclopedia
-              </Button>
+              {/* Quick Actions */}
+              <div className="flex items-center gap-2">
+                {/* Recent Entries */}
+                {recentEntries.length > 0 && (
+                  <div className="relative group">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-gray-600 hover:text-gray-800"
+                    >
+                      <Clock className="w-4 h-4 mr-2" />
+                      Recent
+                    </Button>
+                    <div className="absolute right-0 top-full mt-2 w-64 bg-white border border-gray-200 rounded-lg shadow-lg z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
+                      <div className="p-3 border-b border-gray-100">
+                        <h4 className="font-medium text-gray-900">Recently Viewed</h4>
+                      </div>
+                      {recentEntries.map(entryId => {
+                        const entry = entries.find(e => e.id === entryId)
+                        if (!entry) return null
+                        const typeInfo = entryTypes.find(t => t.id === entry.attributes?.type) || entryTypes[0]
+                        const IconComponent = typeInfo.icon
+                        return (
+                          <button
+                            key={entry.id}
+                            onClick={() => {
+                              setSelectedEntry(entry)
+                              addToRecent(entry.id)
+                            }}
+                            className="w-full p-3 text-left hover:bg-gray-50 flex items-center gap-3 transition-colors"
+                          >
+                            <IconComponent className={`w-4 h-4 ${typeInfo.color}`} />
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-gray-900 truncate">{entry.name}</div>
+                              <div className="text-xs text-gray-500">{typeInfo.label}</div>
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Export */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowExportDialog(true)}
+                  className="text-gray-600 hover:text-gray-800"
+                  disabled={entries.length === 0}
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Export
+                </Button>
+                
+                {/* Template Selector */}
+                <div className="relative">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowTemplateSelector(!showTemplateSelector)}
+                    className="text-gray-600 hover:text-gray-800"
+                  >
+                    <Layout className="w-4 h-4 mr-2" />
+                    Templates
+                  </Button>
+                  
+                  {showTemplateSelector && (
+                    <div className="absolute right-0 top-full mt-2 w-72 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+                      <div className="p-3 border-b border-gray-100">
+                        <h4 className="font-medium text-gray-900">Quick Start Templates</h4>
+                        <p className="text-xs text-gray-500 mt-1">Pre-filled templates to get you started</p>
+                      </div>
+                      {templates.map(template => {
+                        const typeInfo = entryTypes.find(t => t.id === template.type) || entryTypes[0]
+                        const IconComponent = typeInfo.icon
+                        return (
+                          <button
+                            key={template.id}
+                            onClick={() => {
+                              createFromTemplate(template)
+                              setShowTemplateSelector(false)
+                            }}
+                            className="w-full p-3 text-left hover:bg-gray-50 flex items-start gap-3 transition-colors"
+                          >
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${typeInfo.color === 'text-blue-600' ? 'bg-blue-100' : typeInfo.color === 'text-green-600' ? 'bg-green-100' : typeInfo.color === 'text-purple-600' ? 'bg-purple-100' : 'bg-gray-100'}`}>
+                              <IconComponent className={`w-4 h-4 ${typeInfo.color}`} />
+                            </div>
+                            <div className="flex-1">
+                              <div className="font-medium text-gray-900">{template.name}</div>
+                              <div className="text-sm text-gray-600 mt-1">{template.attributes.definition.substring(0, 50)}...</div>
+                              <div className="text-xs text-gray-500 mt-1">For {typeInfo.label} entries</div>
+                            </div>
+                          </button>
+                        )
+                      })}
+                      <div className="p-3 border-t border-gray-100">
+                        <button
+                          onClick={() => {
+                            createBasicEntry()
+                            setShowTemplateSelector(false)
+                          }}
+                          className="w-full p-2 text-left hover:bg-gray-50 text-gray-700 text-sm rounded transition-colors flex items-center gap-2"
+                        >
+                          <Plus className="w-4 h-4" />
+                          Start from scratch
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                <Button 
+                  onClick={createBasicEntry}
+                  className="bg-orange-500 hover:bg-orange-600 text-white"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  New Entry
+                </Button>
+              </div>
             </div>
           </div>
         </div>
@@ -358,6 +1072,24 @@ export default function EncyclopediaPanel({ projectId, selectedElement, onEncycl
                       <Button
                         variant="outline"
                         size="sm"
+                        onClick={() => setShowSingleExportDialog(true)}
+                        className="text-gray-600 hover:text-gray-700"
+                      >
+                        <Download className="w-4 h-4 mr-1" />
+                        Export
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => duplicateEntry(selectedEntry)}
+                        className="text-gray-600 hover:text-gray-700"
+                      >
+                        <Copy className="w-4 h-4 mr-1" />
+                        Duplicate
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={() => setIsEditing(true)}
                       >
                         <Edit3 className="w-4 h-4 mr-1" />
@@ -393,7 +1125,14 @@ export default function EncyclopediaPanel({ projectId, selectedElement, onEncycl
                   }}
                 />
               ) : (
-                <EncyclopediaEntryViewer entry={selectedEntry} />
+                <EncyclopediaEntryViewer 
+                  entry={selectedEntry} 
+                  entries={entries}
+                  onEntryClick={(entry) => {
+                    setSelectedEntry(entry)
+                    addToRecent(entry.id)
+                  }}
+                />
               )}
             </div>
           </>
@@ -417,7 +1156,7 @@ export default function EncyclopediaPanel({ projectId, selectedElement, onEncycl
                     }
                   </p>
                   <Button 
-                    onClick={createNewEntry}
+                    onClick={createBasicEntry}
                     className="bg-orange-500 hover:bg-orange-600 text-white"
                   >
                     <Plus className="w-4 h-4 mr-2" />
@@ -450,6 +1189,106 @@ export default function EncyclopediaPanel({ projectId, selectedElement, onEncycl
           </div>
         )}
       </div>
+
+      {/* Export Dialog */}
+      {showExportDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4">
+            <div className="p-6 border-b border-gray-200">
+              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <Download className="w-5 h-5" />
+                Export All Encyclopedia Entries
+              </h3>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-gray-600 text-sm">Export all {entries.length} encyclopedia entries:</p>
+              <div className="space-y-3">
+                <button
+                  onClick={() => {
+                    exportEncyclopedia('json')
+                    setShowExportDialog(false)
+                  }}
+                  className="w-full p-4 text-left border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  <div className="font-medium text-gray-900">JSON Format</div>
+                  <div className="text-sm text-gray-500">Complete data export for backup or migration</div>
+                </button>
+                <button
+                  onClick={() => {
+                    exportEncyclopedia('markdown')
+                    setShowExportDialog(false)
+                  }}
+                  className="w-full p-4 text-left border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  <div className="font-medium text-gray-900">Markdown Format</div>
+                  <div className="text-sm text-gray-500">Human-readable documentation format</div>
+                </button>
+              </div>
+            </div>
+            <div className="p-4 border-t border-gray-200 bg-gray-50 rounded-b-xl">
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowExportDialog(false)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Single Entry Export Dialog */}
+      {showSingleExportDialog && selectedEntry && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4">
+            <div className="p-6 border-b border-gray-200">
+              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <Download className="w-5 h-5" />
+                Export "{selectedEntry.name}"
+              </h3>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-gray-600 text-sm">Export this encyclopedia entry:</p>
+              <div className="space-y-3">
+                <button
+                  onClick={() => {
+                    exportSingleEntry(selectedEntry, 'json')
+                    setShowSingleExportDialog(false)
+                  }}
+                  className="w-full p-4 text-left border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  <div className="font-medium text-gray-900">JSON Format</div>
+                  <div className="text-sm text-gray-500">Complete entry data for backup or sharing</div>
+                </button>
+                <button
+                  onClick={() => {
+                    exportSingleEntry(selectedEntry, 'markdown')
+                    setShowSingleExportDialog(false)
+                  }}
+                  className="w-full p-4 text-left border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  <div className="font-medium text-gray-900">Markdown Format</div>
+                  <div className="text-sm text-gray-500">Formatted document with sections and metadata</div>
+                </button>
+              </div>
+            </div>
+            <div className="p-4 border-t border-gray-200 bg-gray-50 rounded-b-xl">
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowSingleExportDialog(false)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -560,6 +1399,235 @@ function EncyclopediaEntryEditor({
 }) {
   const [editedEntry, setEditedEntry] = useState<EncyclopediaEntry>(entry)
   const [currentStep, setCurrentStep] = useState(1)
+  
+  // Advanced editor state
+  const [showImageUpload, setShowImageUpload] = useState(false)
+  const [showTableEditor, setShowTableEditor] = useState(false)
+  const [editingTableIndex, setEditingTableIndex] = useState<number | null>(null)
+  const [showStatsEditor, setShowStatsEditor] = useState(false)
+  const [showMediaEmbed, setShowMediaEmbed] = useState(false)
+  const [showRichContentPreview, setShowRichContentPreview] = useState(true)
+  
+  // Inline content state
+  const [activeTextArea, setActiveTextArea] = useState<string | null>(null)
+  const [insertionContext, setInsertionContext] = useState<string | null>(null)
+  const [pastingImages, setPastingImages] = useState<{[key: string]: boolean}>({})
+  
+  // Clipboard paste handling
+  const handlePaste = async (e: React.ClipboardEvent, fieldName: string) => {
+    const items = e.clipboardData?.items
+    if (!items) return
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]
+      if (item.type.startsWith('image/')) {
+        e.preventDefault()
+        
+        const file = item.getAsFile()
+        if (!file || !editedEntry.project_id) continue
+
+        try {
+          // Show loading state
+          setPastingImages(prev => ({ ...prev, [fieldName]: true }))
+          
+          // Upload the pasted image
+          const result = await uploadEncyclopediaMedia({
+            projectId: editedEntry.project_id,
+            entryId: editedEntry.id || 'temp',
+            mediaType: 'images',
+            file: file
+          })
+          
+          if (result.success && result.url) {
+            // Create image markdown with a more descriptive name
+            const fileName = file.name || `pasted-image-${Date.now()}`
+            const imageMarkdown = `![${fileName}](${result.url})`
+            
+            // Insert the image markdown at cursor position
+            insertContentAtCursor(fieldName, imageMarkdown)
+            
+            console.log('Image pasted and uploaded successfully')
+          }
+        } catch (error) {
+          console.error('Failed to upload pasted image:', error)
+        } finally {
+          // Hide loading state
+          setPastingImages(prev => ({ ...prev, [fieldName]: false }))
+        }
+        break
+      }
+    }
+  }
+  
+  const handleDrop = async (e: React.DragEvent, fieldName: string) => {
+    e.preventDefault()
+    const files = Array.from(e.dataTransfer.files)
+    const imageFiles = files.filter(file => file.type.startsWith('image/'))
+    
+    if (imageFiles.length === 0 || !editedEntry.project_id) return
+    
+    for (const file of imageFiles) {
+      try {
+        // Show loading state
+        setPastingImages(prev => ({ ...prev, [fieldName]: true }))
+        
+        // Upload the dropped image
+        const result = await uploadEncyclopediaMedia({
+          projectId: editedEntry.project_id,
+          entryId: editedEntry.id || 'temp',
+          mediaType: 'images',
+          file: file
+        })
+        
+        if (result.success && result.url) {
+          // Create image markdown
+          const fileName = file.name || `dropped-image-${Date.now()}`
+          const imageMarkdown = `![${fileName}](${result.url})`
+          
+          // Insert the image markdown at cursor position
+          insertContentAtCursor(fieldName, imageMarkdown)
+          
+          console.log('Image dropped and uploaded successfully')
+        }
+      } catch (error) {
+        console.error('Failed to upload dropped image:', error)
+      } finally {
+        // Hide loading state
+        setPastingImages(prev => ({ ...prev, [fieldName]: false }))
+      }
+    }
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+  }
+
+  const insertContentAtCursor = (fieldName: string, content: string) => {
+    const currentValue = (editedEntry.attributes as any)?.[fieldName] || ''
+    const textArea = textAreaRefs[fieldName as keyof typeof textAreaRefs]?.current
+    
+    if (textArea) {
+      const start = textArea.selectionStart
+      const end = textArea.selectionEnd
+      const newValue = currentValue.substring(0, start) + content + currentValue.substring(end)
+      updateAttribute(fieldName, newValue)
+      
+      // Set cursor position after inserted content
+      setTimeout(() => {
+        textArea.selectionStart = textArea.selectionEnd = start + content.length
+        textArea.focus()
+      }, 0)
+    } else {
+      // Fallback: append to end
+      const newValue = currentValue + (currentValue ? '\n' : '') + content
+      updateAttribute(fieldName, newValue)
+    }
+  }
+  
+  // RichTextEditor component with paste support
+  const RichTextEditor = ({ 
+    fieldName, 
+    value, 
+    onChange, 
+    onFocus, 
+    onBlur, 
+    placeholder, 
+    className, 
+    textAreaRef, 
+    previewMode, 
+    onTogglePreview 
+  }: {
+    fieldName: string
+    value: string
+    onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void
+    onFocus: () => void
+    onBlur: () => void
+    placeholder: string
+    className: string
+    textAreaRef: React.RefObject<HTMLTextAreaElement | null>
+    previewMode: boolean
+    onTogglePreview: () => void
+  }) => {
+    return (
+      <div className="relative">
+        <div className="flex justify-between items-center mb-2">
+          <span className="text-xs text-gray-500">
+            {pastingImages[fieldName] ? (
+              <span className="flex items-center gap-2 text-blue-600">
+                <div className="animate-spin w-3 h-3 border border-blue-600 border-t-transparent rounded-full"></div>
+                Uploading pasted image...
+              </span>
+            ) : (
+              'Paste or drag images directly (Ctrl+V)'
+            )}
+          </span>
+          <div className="flex gap-1">
+            <button
+              type="button"
+              onClick={onTogglePreview}
+              className={`px-2 py-1 text-xs rounded transition-colors ${
+                previewMode 
+                  ? 'bg-blue-100 text-blue-700 border border-blue-200' 
+                  : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'
+              }`}
+              title={previewMode ? 'Switch to edit mode' : 'Preview rendered content'}
+            >
+              {previewMode ? 'Edit' : 'Preview'}
+            </button>
+          </div>
+        </div>
+        {previewMode ? (
+          <div className={`${className} p-4 bg-gray-50 prose prose-sm max-w-none`}>
+            {renderRichText(value)}
+          </div>
+        ) : (
+          <Textarea
+            ref={textAreaRef}
+            value={value}
+            onChange={onChange}
+            onFocus={onFocus}
+            onBlur={onBlur}
+            onPaste={(e) => handlePaste(e, fieldName)}
+            onDrop={(e) => handleDrop(e, fieldName)}
+            onDragOver={handleDragOver}
+            placeholder={placeholder}
+            className={`${className} p-4`}
+          />
+        )}
+      </div>
+    )
+  }
+  
+  const [previewMode, setPreviewMode] = useState<{[key: string]: boolean}>({})
+  const [textAreaRefs] = useState<{[key: string]: React.RefObject<HTMLTextAreaElement | null>}>({
+    description: React.createRef(),
+    definition: React.createRef(),
+    origin: React.createRef(),
+    etymology: React.createRef(),
+    related_terms: React.createRef(),
+    examples: React.createRef()
+  })
+  
+  // Modal form states
+  const [imageForm, setImageForm] = useState({ 
+    url: '', 
+    caption: '', 
+    alt: '', 
+    uploadMethod: 'url' as 'url' | 'upload',
+    file: null as File | null,
+    uploading: false,
+    uploadProgress: 0
+  })
+  const [tableForm, setTableForm] = useState({ title: '', headers: '', data: '' })
+  const [statsForm, setStatsForm] = useState({ stats: '', category: '' })
+  const [mediaForm, setMediaForm] = useState({ 
+    type: 'video' as 'video' | 'audio' | 'iframe', 
+    url: '', 
+    title: '',
+    file: null as File | null,
+    uploading: false,
+    uploadProgress: 0
+  })
 
   const entryTypes = [
     { id: 'concept', label: 'Concept', icon: FileText, color: 'text-blue-600', bgColor: 'bg-blue-50', borderColor: 'border-blue-200' },
@@ -590,6 +1658,264 @@ function EncyclopediaEntryEditor({
         [key]: value
       }
     }))
+  }
+  
+  // Advanced content utility functions
+  const addImage = async (url: string, caption?: string, alt?: string, file?: File) => {
+    let finalUrl = url
+    
+    // If it's a file upload, upload to Supabase storage
+    if (file && editedEntry.project_id) {
+      setImageForm(prev => ({ ...prev, uploading: true, uploadProgress: 0 }))
+      
+      try {
+        const uploadResult = await uploadEncyclopediaMedia({
+          projectId: editedEntry.project_id,
+          entryId: editedEntry.id || 'temp',
+          mediaType: 'images',
+          file: file
+        })
+        
+        if (uploadResult.success && uploadResult.url) {
+          finalUrl = uploadResult.url
+        } else {
+          console.error('Upload failed:', uploadResult.error)
+          alert(`Upload failed: ${uploadResult.error}`)
+          return
+        }
+      } catch (error) {
+        console.error('Upload error:', error)
+        alert('Upload failed. Please try again.')
+        return
+      } finally {
+        setImageForm(prev => ({ ...prev, uploading: false, uploadProgress: 0 }))
+      }
+    }
+    
+    const newImage = { url: finalUrl, caption: caption || '', alt: alt || '' }
+    
+    // If we have an insertion context or active text area, insert inline
+    const targetField = insertionContext || activeTextArea
+    if (targetField) {
+      const imageMarkdown = `![${alt || caption || 'Image'}](${finalUrl}${caption ? ` "${caption}"` : ''})`
+      insertInlineContent(imageMarkdown)
+      setInsertionContext(null) // Clear context after use
+    } else {
+      // Otherwise, add to images array as before
+      setEditedEntry(prev => ({
+        ...prev,
+        attributes: {
+          ...prev.attributes,
+          images: [...(prev.attributes?.images || []), newImage]
+        }
+      }))
+    }
+  }
+
+  const removeImage = (index: number) => {
+    setEditedEntry(prev => ({
+      ...prev,
+      attributes: {
+        ...prev.attributes,
+        images: (prev.attributes?.images || []).filter((_, i) => i !== index)
+      }
+    }))
+  }
+
+  const addTable = (title: string, headers: string[], rows: string[][]) => {
+    const newTable = { title, headers, rows }
+    
+    // If we have an insertion context or active text area, insert inline
+    const targetField = insertionContext || activeTextArea
+    if (targetField) {
+      // Create markdown table
+      let tableMarkdown = title ? `\n**${title}**\n\n` : '\n'
+      tableMarkdown += '| ' + headers.join(' | ') + ' |\n'
+      tableMarkdown += '| ' + headers.map(() => '---').join(' | ') + ' |\n'
+      rows.forEach(row => {
+        tableMarkdown += '| ' + row.join(' | ') + ' |\n'
+      })
+      tableMarkdown += '\n'
+      insertInlineContent(tableMarkdown)
+      setInsertionContext(null) // Clear context after use
+    } else {
+      // Otherwise, add to tables array as before
+      setEditedEntry(prev => ({
+        ...prev,
+        attributes: {
+          ...prev.attributes,
+          tables: [...(prev.attributes?.tables || []), newTable]
+        }
+      }))
+    }
+  }
+
+  const removeTable = (index: number) => {
+    setEditedEntry(prev => ({
+      ...prev,
+      attributes: {
+        ...prev.attributes,
+        tables: (prev.attributes?.tables || []).filter((_, i) => i !== index)
+      }
+    }))
+  }
+
+  const editTable = (index: number) => {
+    const table = editedEntry.attributes?.tables?.[index]
+    if (table) {
+      setTableForm({
+        title: table.title,
+        headers: table.headers.join(', '),
+        data: table.rows.map(row => row.join(', ')).join('\n')
+      })
+      setEditingTableIndex(index)
+      setShowTableEditor(true)
+    }
+  }
+
+  const updateTable = (title: string, headers: string[], rows: string[][]) => {
+    if (editingTableIndex !== null) {
+      const updatedTable = { title, headers, rows }
+      setEditedEntry(prev => ({
+        ...prev,
+        attributes: {
+          ...prev.attributes,
+          tables: (prev.attributes?.tables || []).map((table, i) => 
+            i === editingTableIndex ? updatedTable : table
+          )
+        }
+      }))
+      setEditingTableIndex(null)
+    }
+  }
+
+  const addStats = (stats: Array<{label: string, value: string, category?: string}>) => {
+    setEditedEntry(prev => ({
+      ...prev,
+      attributes: {
+        ...prev.attributes,
+        stats: [...(prev.attributes?.stats || []), ...stats]
+      }
+    }))
+  }
+
+  const removeAllStats = () => {
+    setEditedEntry(prev => ({
+      ...prev,
+      attributes: {
+        ...prev.attributes,
+        stats: []
+      }
+    }))
+  }
+
+  const addEmbeddedMedia = (type: 'video' | 'audio' | 'iframe', url: string, title?: string) => {
+    const newMedia = { type, url, title: title || '' }
+    setEditedEntry(prev => ({
+      ...prev,
+      attributes: {
+        ...prev.attributes,
+        rich_content: {
+          ...prev.attributes?.rich_content,
+          embedded_media: [...(prev.attributes?.rich_content?.embedded_media || []), newMedia]
+        }
+      }
+    }))
+  }
+
+  // Inline content insertion functions
+  const insertInlineContent = (content: string) => {
+    const fieldToUse = insertionContext || activeTextArea
+    if (!fieldToUse || !textAreaRefs[fieldToUse]) return
+    
+    const textArea = textAreaRefs[fieldToUse].current
+    if (!textArea) return
+
+    const start = textArea.selectionStart
+    const end = textArea.selectionEnd
+    const currentValue = textArea.value
+    const newValue = currentValue.substring(0, start) + content + currentValue.substring(end)
+    
+    // Update the appropriate field
+    if (fieldToUse === 'description') {
+      setEditedEntry(prev => ({ ...prev, description: newValue }))
+    } else if (fieldToUse === 'definition') {
+      setEditedEntry(prev => ({ 
+        ...prev, 
+        attributes: { ...prev.attributes, definition: newValue }
+      }))
+    } else if (fieldToUse === 'origin') {
+      setEditedEntry(prev => ({ 
+        ...prev, 
+        attributes: { ...prev.attributes, origin: newValue }
+      }))
+    } else if (fieldToUse === 'etymology') {
+      setEditedEntry(prev => ({ 
+        ...prev, 
+        attributes: { ...prev.attributes, etymology: newValue }
+      }))
+    } else if (fieldToUse === 'related_terms') {
+      setEditedEntry(prev => ({ 
+        ...prev, 
+        attributes: { ...prev.attributes, related_terms: newValue }
+      }))
+    } else if (fieldToUse === 'examples') {
+      setEditedEntry(prev => ({ 
+        ...prev, 
+        attributes: { ...prev.attributes, examples: newValue }
+      }))
+    }
+    
+    // Set cursor position after inserted content
+    setTimeout(() => {
+      textArea.focus()
+      textArea.setSelectionRange(start + content.length, start + content.length)
+    }, 0)
+  }
+
+  const insertInlineImage = (fieldContext?: string) => {
+    if (fieldContext) {
+      setInsertionContext(fieldContext)
+    } else if (!activeTextArea) {
+      // Fallback to regular image addition
+      setInsertionContext(null)
+    }
+    
+    // Insert placeholder and show image modal
+    setShowImageUpload(true)
+  }
+
+  const insertInlineTable = (fieldContext?: string) => {
+    if (fieldContext) {
+      setInsertionContext(fieldContext)
+    } else if (!activeTextArea) {
+      setInsertionContext(null)
+    }
+    
+    setEditingTableIndex(null)
+    setTableForm({ title: '', headers: '', data: '' })
+    setShowTableEditor(true)
+  }
+
+  const insertInlineStats = () => {
+    if (!activeTextArea) {
+      setShowStatsEditor(true)
+      return
+    }
+    
+    setShowStatsEditor(true)
+  }
+
+  // Preview mode helpers
+  const togglePreviewMode = (fieldName: string) => {
+    setPreviewMode(prev => ({
+      ...prev,
+      [fieldName]: !prev[fieldName]
+    }))
+  }
+
+  const isPreviewMode = (fieldName: string) => {
+    return previewMode[fieldName] || false
   }
 
   const selectedType = entryTypes.find(t => t.id === (editedEntry.attributes?.type || 'concept'))
@@ -708,17 +2034,78 @@ function EncyclopediaEntryEditor({
                 </h3>
                 <p className="text-blue-100 text-sm">Explain what it is and bring it to life</p>
               </div>
-              <div className="p-8 flex-1 overflow-y-auto">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-full">
-                  <div className="space-y-4 flex flex-col">
+              
+              {/* Advanced Content Toolbar */}
+              <div className="px-6 py-3 bg-blue-50 border-b border-blue-100">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm font-medium text-blue-900 mr-2">Rich Content:</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowImageUpload(true)}
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs bg-white border border-blue-200 rounded-md hover:bg-blue-50 transition-colors"
+                  >
+                    <ImageIcon className="w-3 h-3" />
+                    Add Image
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingTableIndex(null)
+                      setTableForm({ title: '', headers: '', data: '' })
+                      setShowTableEditor(true)
+                    }}
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs bg-white border border-blue-200 rounded-md hover:bg-blue-50 transition-colors"
+                  >
+                    <Table className="w-3 h-3" />
+                    Add Table
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowStatsEditor(true)}
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs bg-white border border-blue-200 rounded-md hover:bg-blue-50 transition-colors"
+                  >
+                    <Cog className="w-3 h-3" />
+                    Add Stats
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowMediaEmbed(true)}
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs bg-white border border-blue-200 rounded-md hover:bg-blue-50 transition-colors"
+                  >
+                    <Play className="w-3 h-3" />
+                    Embed Media
+                  </button>
+                </div>
+              </div>
+              
+              <div className="p-6 flex-1 overflow-y-auto">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
+                  <div className="space-y-3 flex flex-col">
                     <label className="block text-lg font-bold text-gray-900">
                       Core Definition *
                     </label>
-                    <Textarea
+                    <RichTextToolbar 
+                      onAddImage={() => insertInlineImage('definition')}
+                      onAddTable={() => insertInlineTable('definition')}
+                      onAddStats={insertInlineStats}
+                      onAddMedia={() => setShowMediaEmbed(true)}
+                      onFormatText={(format) => {
+                        // TODO: Implement text formatting
+                        console.log('Format text:', format)
+                      }}
+                      activeField={activeTextArea}
+                    />
+                    <RichTextEditor
+                      fieldName="definition"
                       value={editedEntry.attributes?.definition || ''}
                       onChange={(e) => updateAttribute('definition', e.target.value)}
+                      onFocus={() => setActiveTextArea('definition')}
+                      onBlur={() => setActiveTextArea(null)}
                       placeholder="Provide a clear, concise definition that captures the essence..."
-                      className="flex-1 min-h-48 border-2 border-gray-200 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 resize-none rounded-xl p-4 text-base"
+                      className="flex-1 min-h-48 border-2 border-gray-200 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 resize-none rounded-xl text-base"
+                      textAreaRef={textAreaRefs.definition}
+                      previewMode={isPreviewMode('definition')}
+                      onTogglePreview={() => togglePreviewMode('definition')}
                     />
                     <p className="text-sm text-gray-500">A brief, dictionary-style definition</p>
                   </div>
@@ -727,15 +2114,106 @@ function EncyclopediaEntryEditor({
                     <label className="block text-lg font-bold text-gray-900">
                       Rich Description
                     </label>
-                    <Textarea
+                    <RichTextToolbar 
+                      onAddImage={() => insertInlineImage('description')}
+                      onAddTable={() => insertInlineTable('description')}
+                      onAddStats={insertInlineStats}
+                      onAddMedia={() => setShowMediaEmbed(true)}
+                      onFormatText={(format) => {
+                        console.log('Format text:', format)
+                      }}
+                      activeField={activeTextArea}
+                    />
+                    <RichTextEditor
+                      fieldName="description"
                       value={editedEntry.description}
                       onChange={(e) => setEditedEntry({...editedEntry, description: e.target.value})}
+                      onFocus={() => setActiveTextArea('description')}
+                      onBlur={() => setActiveTextArea(null)}
                       placeholder="Paint a vivid picture with rich details, context, and world-building depth..."
-                      className="flex-1 min-h-48 border-2 border-gray-200 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 resize-none rounded-xl p-4 text-base"
+                      className="flex-1 min-h-48 border-2 border-gray-200 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 resize-none rounded-xl text-base"
+                      textAreaRef={textAreaRefs.description}
+                      previewMode={isPreviewMode('description')}
+                      onTogglePreview={() => togglePreviewMode('description')}
                     />
                     <p className="text-sm text-gray-500">Elaborate with storytelling details</p>
                   </div>
                 </div>
+                
+                {/* Display added rich content preview - Dynamic and Collapsible */}
+                {(editedEntry.attributes?.images?.length || editedEntry.attributes?.tables?.length || editedEntry.attributes?.stats?.length) && (
+                  <div className="mt-6">
+                    <button
+                      onClick={() => setShowRichContentPreview(!showRichContentPreview)}
+                      className="flex items-center justify-between w-full p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors border border-gray-200"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-900">Rich Content</span>
+                        <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full">
+                          {(editedEntry.attributes?.images?.length || 0) + (editedEntry.attributes?.tables?.length || 0) + (editedEntry.attributes?.stats?.length ? 1 : 0)} items
+                        </span>
+                      </div>
+                      {showRichContentPreview ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    </button>
+                    
+                    {showRichContentPreview && (
+                      <div className="mt-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {editedEntry.attributes.images?.map((img, idx) => (
+                          <div key={`img-${idx}`} className="flex items-center gap-2 p-2 bg-white border border-gray-200 rounded-lg">
+                            <ImageIcon className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                            <span className="flex-1 text-xs truncate" title={img.caption || img.url}>
+                              {img.caption || 'Image'}
+                            </span>
+                            <button 
+                              className="text-red-500 hover:text-red-700 text-xs px-1 py-1 hover:bg-red-50 rounded transition-colors flex-shrink-0"
+                              onClick={() => removeImage(idx)}
+                              title="Remove image"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                        {editedEntry.attributes.tables?.map((table, idx) => (
+                          <div key={`table-${idx}`} className="flex items-center gap-2 p-2 bg-white border border-gray-200 rounded-lg">
+                            <Table className="w-4 h-4 text-green-600 flex-shrink-0" />
+                            <span className="flex-1 text-xs truncate" title={table.title}>
+                              {table.title || 'Table'}
+                            </span>
+                            <button 
+                              className="text-blue-500 hover:text-blue-700 text-xs px-1 py-1 hover:bg-blue-50 rounded transition-colors flex-shrink-0"
+                              onClick={() => editTable(idx)}
+                              title="Edit table"
+                            >
+                              ✎
+                            </button>
+                            <button 
+                              className="text-red-500 hover:text-red-700 text-xs px-1 py-1 hover:bg-red-50 rounded transition-colors flex-shrink-0"
+                              onClick={() => removeTable(idx)}
+                              title="Remove table"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                        {editedEntry.attributes.stats?.length && (
+                          <div className="flex items-center gap-2 p-2 bg-white border border-gray-200 rounded-lg">
+                            <Cog className="w-4 h-4 text-purple-600 flex-shrink-0" />
+                            <span className="flex-1 text-xs">
+                              {editedEntry.attributes.stats.length} stats
+                            </span>
+                            <button 
+                              className="text-red-500 hover:text-red-700 text-xs px-1 py-1 hover:bg-red-50 rounded transition-colors flex-shrink-0"
+                              onClick={removeAllStats}
+                              title="Remove all stats"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -749,18 +2227,34 @@ function EncyclopediaEntryEditor({
                 </h3>
                 <p className="text-emerald-100 text-sm">Origins, etymology, and world connections</p>
               </div>
-              <div className="p-8 flex-1 overflow-y-auto">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-full">
-                  <div className="space-y-6 flex flex-col">
-                    <div className="space-y-3 flex-1">
+              <div className="p-6 flex-1 overflow-y-auto">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
+                  <div className="space-y-4 flex flex-col">
+                    <div className="space-y-2 flex-1">
                       <label className="block text-lg font-bold text-gray-900">
                         Origin Story
                       </label>
-                      <Textarea
+                      <RichTextToolbar 
+                        onAddImage={() => insertInlineImage('origin')}
+                        onAddTable={() => insertInlineTable('origin')}
+                        onAddStats={insertInlineStats}
+                        onAddMedia={() => setShowMediaEmbed(true)}
+                        onFormatText={(format) => {
+                          console.log('Format text:', format)
+                        }}
+                        activeField={activeTextArea}
+                      />
+                      <RichTextEditor
+                        fieldName="origin"
                         value={editedEntry.attributes?.origin || ''}
                         onChange={(e) => updateAttribute('origin', e.target.value)}
+                        onFocus={() => setActiveTextArea('origin')}
+                        onBlur={() => setActiveTextArea(null)}
                         placeholder="Where and how did this come to be?"
-                        className="h-32 border-2 border-gray-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100 resize-none rounded-xl p-4"
+                        className="h-24 border-2 border-gray-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100 resize-none rounded-xl"
+                        textAreaRef={textAreaRefs.origin}
+                        previewMode={isPreviewMode('origin')}
+                        onTogglePreview={() => togglePreviewMode('origin')}
                       />
                     </div>
                     
@@ -768,37 +2262,85 @@ function EncyclopediaEntryEditor({
                       <label className="block text-lg font-bold text-gray-900">
                         Etymology
                       </label>
-                      <Textarea
+                      <RichTextToolbar 
+                        onAddImage={() => insertInlineImage('etymology')}
+                        onAddTable={() => insertInlineTable('etymology')}
+                        onAddStats={insertInlineStats}
+                        onAddMedia={() => setShowMediaEmbed(true)}
+                        onFormatText={(format) => {
+                          console.log('Format text:', format)
+                        }}
+                        activeField={activeTextArea}
+                      />
+                      <RichTextEditor
+                        fieldName="etymology"
                         value={editedEntry.attributes?.etymology || ''}
                         onChange={(e) => updateAttribute('etymology', e.target.value)}
+                        onFocus={() => setActiveTextArea('etymology')}
+                        onBlur={() => setActiveTextArea(null)}
                         placeholder="How did the name evolve?"
-                        className="h-32 border-2 border-gray-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100 resize-none rounded-xl p-4"
+                        className="h-24 border-2 border-gray-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100 resize-none rounded-xl"
+                        textAreaRef={textAreaRefs.etymology}
+                        previewMode={isPreviewMode('etymology')}
+                        onTogglePreview={() => togglePreviewMode('etymology')}
                       />
                     </div>
                   </div>
 
-                  <div className="space-y-6 flex flex-col">
-                    <div className="space-y-3 flex-1">
+                  <div className="space-y-4 flex flex-col">
+                    <div className="space-y-2 flex-1">
                       <label className="block text-lg font-bold text-gray-900">
                         Related Terms
                       </label>
-                      <Textarea
+                      <RichTextToolbar 
+                        onAddImage={() => insertInlineImage('related_terms')}
+                        onAddTable={() => insertInlineTable('related_terms')}
+                        onAddStats={insertInlineStats}
+                        onAddMedia={() => setShowMediaEmbed(true)}
+                        onFormatText={(format) => {
+                          console.log('Format text:', format)
+                        }}
+                        activeField={activeTextArea}
+                      />
+                      <RichTextEditor
+                        fieldName="related_terms"
                         value={editedEntry.attributes?.related_terms || ''}
                         onChange={(e) => updateAttribute('related_terms', e.target.value)}
+                        onFocus={() => setActiveTextArea('related_terms')}
+                        onBlur={() => setActiveTextArea(null)}
                         placeholder="Connected concepts, synonyms, contrasts..."
-                        className="h-32 border-2 border-gray-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100 resize-none rounded-xl p-4"
+                        className="h-24 border-2 border-gray-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100 resize-none rounded-xl"
+                        textAreaRef={textAreaRefs.related_terms}
+                        previewMode={isPreviewMode('related_terms')}
+                        onTogglePreview={() => togglePreviewMode('related_terms')}
                       />
                     </div>
 
-                    <div className="space-y-3 flex-1">
+                    <div className="space-y-2 flex-1">
                       <label className="block text-lg font-bold text-gray-900">
                         Examples & Usage
                       </label>
-                      <Textarea
+                      <RichTextToolbar 
+                        onAddImage={() => insertInlineImage('examples')}
+                        onAddTable={() => insertInlineTable('examples')}
+                        onAddStats={insertInlineStats}
+                        onAddMedia={() => setShowMediaEmbed(true)}
+                        onFormatText={(format) => {
+                          console.log('Format text:', format)
+                        }}
+                        activeField={activeTextArea}
+                      />
+                      <RichTextEditor
+                        fieldName="examples"
                         value={editedEntry.attributes?.examples || ''}
                         onChange={(e) => updateAttribute('examples', e.target.value)}
+                        onFocus={() => setActiveTextArea('examples')}
+                        onBlur={() => setActiveTextArea(null)}
                         placeholder="Show this element in action..."
-                        className="h-32 border-2 border-gray-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100 resize-none rounded-xl p-4"
+                        className="h-24 border-2 border-gray-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100 resize-none rounded-xl"
+                        textAreaRef={textAreaRefs.examples}
+                        previewMode={isPreviewMode('examples')}
+                        onTogglePreview={() => togglePreviewMode('examples')}
                       />
                     </div>
                   </div>
@@ -850,12 +2392,428 @@ function EncyclopediaEntryEditor({
           </div>
         </div>
       </div>
+      
+      {/* Modal Dialogs */}
+      {/* Image Upload Modal */}
+      {showImageUpload && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200">
+              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <ImageIcon className="w-5 h-5" />
+                Add Image
+              </h3>
+            </div>
+            <div className="p-6 space-y-6">
+              {/* Upload Method Tabs */}
+              <div className="flex border-b border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => setImageForm({...imageForm, uploadMethod: 'url'})}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${ 
+                    (imageForm.uploadMethod || 'url') === 'url' 
+                      ? 'border-blue-500 text-blue-600' 
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  📎 Paste URL
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setImageForm({...imageForm, uploadMethod: 'upload'})}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    imageForm.uploadMethod === 'upload' 
+                      ? 'border-blue-500 text-blue-600' 
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  📁 Upload File
+                </button>
+              </div>
+
+              {/* URL Method */}
+              {(imageForm.uploadMethod || 'url') === 'url' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Image URL *</label>
+                    <Input 
+                      placeholder="https://example.com/image.jpg or paste any image URL" 
+                      className="w-full"
+                      value={imageForm.url}
+                      onChange={(e) => setImageForm({...imageForm, url: e.target.value})}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Supports JPG, PNG, GIF, WebP formats</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Upload Method */}
+              {imageForm.uploadMethod === 'upload' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Upload Image *</label>
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (file) {
+                            // Validate file size (10MB limit)
+                            if (file.size > 10 * 1024 * 1024) {
+                              alert('File size must be less than 10MB')
+                              return
+                            }
+                            
+                            // Create object URL for preview
+                            const url = URL.createObjectURL(file)
+                            setImageForm({...imageForm, url, file})
+                          }
+                        }}
+                        className="hidden"
+                        id="image-upload"
+                      />
+                      <label htmlFor="image-upload" className="cursor-pointer">
+                        <div className="space-y-2">
+                          <ImageIcon className="w-8 h-8 mx-auto text-gray-400" />
+                          <p className="text-sm text-gray-600">
+                            <span className="font-medium text-blue-600 hover:text-blue-500">Click to upload</span>
+                            {' '}or drag and drop
+                          </p>
+                          <p className="text-xs text-gray-500">PNG, JPG, GIF up to 10MB</p>
+                          {imageForm.file && (
+                            <div className="mt-2 text-sm text-gray-600">
+                              Selected: {imageForm.file.name} ({formatFileSize(imageForm.file.size)})
+                            </div>
+                          )}
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Preview */}
+              {imageForm.url && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Preview</label>
+                  <img 
+                    src={imageForm.url} 
+                    alt="Preview" 
+                    className="w-full max-h-48 object-contain rounded-lg border border-gray-200"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement
+                      target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtc2l6ZT0iMTgiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIiBmaWxsPSIjOTk5Ij5JbWFnZSBub3QgZm91bmQ8L3RleHQ+PC9zdmc+'
+                    }}
+                  />
+                </div>
+              )}
+
+              {/* Caption and Alt Text */}
+              <div className="grid grid-cols-1 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Caption (Optional)</label>
+                  <Input 
+                    placeholder="Describe this image for readers..." 
+                    className="w-full"
+                    value={imageForm.caption}
+                    onChange={(e) => setImageForm({...imageForm, caption: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Alt Text (Optional)</label>
+                  <Input 
+                    placeholder="Alternative text for accessibility" 
+                    className="w-full"
+                    value={imageForm.alt}
+                    onChange={(e) => setImageForm({...imageForm, alt: e.target.value})}
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="p-4 border-t border-gray-200 bg-gray-50 rounded-b-xl">
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" size="sm" onClick={() => {
+                  setShowImageUpload(false)
+                  setImageForm({ url: '', caption: '', alt: '', uploadMethod: 'url', file: null, uploading: false, uploadProgress: 0 })
+                  setInsertionContext(null)
+                }}>Cancel</Button>
+                <Button 
+                  size="sm" 
+                  className="bg-blue-500 hover:bg-blue-600"
+                  onClick={async () => {
+                    if (imageForm.url) {
+                      await addImage(imageForm.url, imageForm.caption, imageForm.alt, imageForm.file || undefined)
+                      setShowImageUpload(false)
+                      setImageForm({ url: '', caption: '', alt: '', uploadMethod: 'url', file: null, uploading: false, uploadProgress: 0 })
+                      setInsertionContext(null)
+                    }
+                  }}
+                  disabled={!imageForm.url || imageForm.uploading}
+                >
+                  {imageForm.uploading ? 'Uploading...' : 'Add Image'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Table Editor Modal */}
+      {showTableEditor && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200">
+              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <Table className="w-5 h-5" />
+                {editingTableIndex !== null ? 'Edit Table' : 'Create Table'}
+              </h3>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Table Title</label>
+                <Input 
+                  placeholder="Character Stats, Timeline, etc." 
+                  className="w-full"
+                  value={tableForm.title}
+                  onChange={(e) => setTableForm({...tableForm, title: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Headers (comma-separated)</label>
+                <Input 
+                  placeholder="Name, Level, Class, HP" 
+                  className="w-full"
+                  value={tableForm.headers}
+                  onChange={(e) => setTableForm({...tableForm, headers: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Table Data</label>
+                <Textarea 
+                  placeholder="Enter data rows, one per line, comma-separated:
+John Doe, 15, Warrior, 150
+Jane Smith, 12, Mage, 80"
+                  className="w-full h-32 resize-none"
+                  value={tableForm.data}
+                  onChange={(e) => setTableForm({...tableForm, data: e.target.value})}
+                />
+              </div>
+            </div>
+            <div className="p-4 border-t border-gray-200 bg-gray-50 rounded-b-xl">
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" size="sm" onClick={() => {
+                  setShowTableEditor(false)
+                  setTableForm({ title: '', headers: '', data: '' })
+                  setEditingTableIndex(null)
+                  setInsertionContext(null)
+                }}>Cancel</Button>
+                <Button 
+                  size="sm" 
+                  className="bg-green-500 hover:bg-green-600"
+                  onClick={() => {
+                    if (tableForm.title && tableForm.headers && tableForm.data) {
+                      const headers = tableForm.headers.split(',').map(h => h.trim())
+                      const rows = tableForm.data.split('\n').map(row => 
+                        row.split(',').map(cell => cell.trim())
+                      ).filter(row => row.some(cell => cell.length > 0))
+                      
+                      if (editingTableIndex !== null) {
+                        updateTable(tableForm.title, headers, rows)
+                      } else {
+                        addTable(tableForm.title, headers, rows)
+                      }
+                      
+                      setShowTableEditor(false)
+                      setTableForm({ title: '', headers: '', data: '' })
+                      setEditingTableIndex(null)
+                      setInsertionContext(null)
+                    }
+                  }}
+                  disabled={!tableForm.title || !tableForm.headers || !tableForm.data}
+                >
+                  {editingTableIndex !== null ? 'Update Table' : 'Create Table'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Stats Editor Modal */}
+      {showStatsEditor && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4">
+            <div className="p-6 border-b border-gray-200">
+              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <Cog className="w-5 h-5" />
+                Add Statistics
+              </h3>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Statistics (one per line)</label>
+                <Textarea 
+                  placeholder="Population: 50,000
+Area: 500 sq km
+Founded: 1247 AD
+Elevation: 800m"
+                  className="w-full h-32 resize-none"
+                  value={statsForm.stats}
+                  onChange={(e) => setStatsForm({...statsForm, stats: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Category (Optional)</label>
+                <Input 
+                  placeholder="Demographics, Geography, etc." 
+                  className="w-full"
+                  value={statsForm.category}
+                  onChange={(e) => setStatsForm({...statsForm, category: e.target.value})}
+                />
+              </div>
+            </div>
+            <div className="p-4 border-t border-gray-200 bg-gray-50 rounded-b-xl">
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" size="sm" onClick={() => {
+                  setShowStatsEditor(false)
+                  setStatsForm({ stats: '', category: '' })
+                }}>Cancel</Button>
+                <Button 
+                  size="sm" 
+                  className="bg-purple-500 hover:bg-purple-600"
+                  onClick={() => {
+                    if (statsForm.stats) {
+                      const statsArray = statsForm.stats.split('\n')
+                        .map(line => line.trim())
+                        .filter(line => line.includes(':'))
+                        .map(line => {
+                          const [label, value] = line.split(':').map(s => s.trim())
+                          return { label, value, category: statsForm.category || undefined }
+                        })
+                      
+                      addStats(statsArray)
+                      setShowStatsEditor(false)
+                      setStatsForm({ stats: '', category: '' })
+                    }
+                  }}
+                  disabled={!statsForm.stats}
+                >
+                  Add Stats
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Media Embed Modal */}
+      {showMediaEmbed && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4">
+            <div className="p-6 border-b border-gray-200">
+              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <Play className="w-5 h-5" />
+                Embed Media
+              </h3>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Media Type</label>
+                <select 
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={mediaForm.type}
+                  onChange={(e) => setMediaForm({...mediaForm, type: e.target.value as 'video' | 'audio' | 'iframe'})}
+                >
+                  <option value="video">Video (YouTube, Vimeo)</option>
+                  <option value="audio">Audio File</option>
+                  <option value="iframe">General Embed</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Media URL</label>
+                <Input 
+                  placeholder="https://youtube.com/watch?v=..." 
+                  className="w-full"
+                  value={mediaForm.url}
+                  onChange={(e) => setMediaForm({...mediaForm, url: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Title (Optional)</label>
+                <Input 
+                  placeholder="Title for this media" 
+                  className="w-full"
+                  value={mediaForm.title}
+                  onChange={(e) => setMediaForm({...mediaForm, title: e.target.value})}
+                />
+              </div>
+            </div>
+            <div className="p-4 border-t border-gray-200 bg-gray-50 rounded-b-xl">
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" size="sm" onClick={() => {
+                  setShowMediaEmbed(false)
+                  setMediaForm({ type: 'video', url: '', title: '', file: null, uploading: false, uploadProgress: 0 })
+                }}>Cancel</Button>
+                <Button 
+                  size="sm" 
+                  className="bg-red-500 hover:bg-red-600"
+                  onClick={() => {
+                    if (mediaForm.url) {
+                      addEmbeddedMedia(mediaForm.type, mediaForm.url, mediaForm.title)
+                      setShowMediaEmbed(false)
+                      setMediaForm({ type: 'video', url: '', title: '', file: null, uploading: false, uploadProgress: 0 })
+                    }
+                  }}
+                  disabled={!mediaForm.url}
+                >
+                  Embed Media
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
 // Entry Viewer Component  
-function EncyclopediaEntryViewer({ entry }: { entry: EncyclopediaEntry }) {
+function EncyclopediaEntryViewer({ 
+  entry, 
+  entries = [], 
+  onEntryClick 
+}: { 
+  entry: EncyclopediaEntry
+  entries?: EncyclopediaEntry[]
+  onEntryClick?: (entry: EncyclopediaEntry) => void 
+}) {
+  // Entry types for cross-reference display
+  const entryTypes = [
+    { id: 'concept', label: 'Concept', icon: FileText, color: 'text-blue-600' },
+    { id: 'person', label: 'Person', icon: User, color: 'text-green-600' },
+    { id: 'place', label: 'Place', icon: MapPin, color: 'text-purple-600' },
+    { id: 'object', label: 'Object', icon: Package, color: 'text-orange-600' },
+    { id: 'event', label: 'Event', icon: Calendar, color: 'text-red-600' },
+    { id: 'language', label: 'Language', icon: Globe, color: 'text-indigo-600' },
+    { id: 'culture', label: 'Culture', icon: Zap, color: 'text-pink-600' },
+    { id: 'technology', label: 'Technology', icon: Cog, color: 'text-gray-600' }
+  ]
+  
+  // Detect cross-references in the entry content
+  const detectedReferences = React.useMemo(() => {
+    const references: EncyclopediaEntry[] = []
+    const searchText = `${entry.description} ${entry.attributes?.definition || ''} ${entry.attributes?.origin || ''} ${entry.attributes?.etymology || ''} ${entry.attributes?.related_terms || ''}`
+    
+    entries.forEach(otherEntry => {
+      if (otherEntry.id !== entry.id && 
+          searchText.toLowerCase().includes(otherEntry.name.toLowerCase())) {
+        references.push(otherEntry)
+      }
+    })
+    
+    return references.slice(0, 6) // Limit to 6 references
+  }, [entry, entries])
   return (
     <div className="max-w-7xl mx-auto px-6 py-6">
       {/* Bento Grid Layout */}
@@ -870,9 +2828,11 @@ function EncyclopediaEntryViewer({ entry }: { entry: EncyclopediaEntry }) {
               </div>
               <div className="flex-1">
                 <h2 className="text-2xl font-bold mb-4">Definition</h2>
-                <p className="text-xl leading-relaxed font-medium text-blue-50">
-                  {entry.attributes.definition}
-                </p>
+                <div className="text-xl leading-relaxed font-medium text-blue-50">
+                  <span className="whitespace-pre-wrap">
+                    {renderRichText(entry.attributes.definition) || entry.attributes.definition}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -888,9 +2848,9 @@ function EncyclopediaEntryViewer({ entry }: { entry: EncyclopediaEntry }) {
               <h3 className="text-xl font-bold text-gray-900">Detailed Description</h3>
             </div>
             <div className="prose prose-lg max-w-none">
-              <p className="text-gray-700 leading-relaxed whitespace-pre-wrap text-base">
-                {entry.description}
-              </p>
+              <div className="text-gray-700 leading-relaxed text-base">
+                {renderRichText(entry.description)}
+              </div>
             </div>
           </div>
         )}
@@ -926,9 +2886,13 @@ function EncyclopediaEntryViewer({ entry }: { entry: EncyclopediaEntry }) {
               </div>
               <h3 className="text-lg font-bold text-purple-900">Origin Story</h3>
             </div>
-            <p className="text-purple-800 leading-relaxed whitespace-pre-wrap">
-              {entry.attributes.origin}
-            </p>
+            <div className="text-purple-800 leading-relaxed">
+              {renderRichText(entry.attributes.origin) || (
+                <span className="whitespace-pre-wrap">
+                  {entry.attributes.origin}
+                </span>
+              )}
+            </div>
           </div>
         )}
 
@@ -941,9 +2905,13 @@ function EncyclopediaEntryViewer({ entry }: { entry: EncyclopediaEntry }) {
               </div>
               <h3 className="text-lg font-bold text-indigo-900">Etymology</h3>
             </div>
-            <p className="text-indigo-800 leading-relaxed whitespace-pre-wrap">
-              {entry.attributes.etymology}
-            </p>
+            <div className="text-indigo-800 leading-relaxed">
+              {renderRichText(entry.attributes.etymology) || (
+                <span className="whitespace-pre-wrap">
+                  {entry.attributes.etymology}
+                </span>
+              )}
+            </div>
           </div>
         )}
 
@@ -956,9 +2924,13 @@ function EncyclopediaEntryViewer({ entry }: { entry: EncyclopediaEntry }) {
               </div>
               <h3 className="text-lg font-bold text-emerald-900">Related Terms & Concepts</h3>
             </div>
-            <p className="text-emerald-800 leading-relaxed whitespace-pre-wrap">
-              {entry.attributes.related_terms}
-            </p>
+            <div className="text-emerald-800 leading-relaxed">
+              {renderRichText(entry.attributes.related_terms) || (
+                <span className="whitespace-pre-wrap">
+                  {entry.attributes.related_terms}
+                </span>
+              )}
+            </div>
           </div>
         )}
 
@@ -971,9 +2943,225 @@ function EncyclopediaEntryViewer({ entry }: { entry: EncyclopediaEntry }) {
               </div>
               <h3 className="text-lg font-bold text-amber-900">Examples & Usage</h3>
             </div>
-            <p className="text-amber-800 leading-relaxed whitespace-pre-wrap">
-              {entry.attributes.examples}
-            </p>
+            <div className="text-amber-800 leading-relaxed">
+              {renderRichText(entry.attributes.examples) || (
+                <span className="whitespace-pre-wrap">
+                  {entry.attributes.examples}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Images Block - Gallery Layout */}
+        {entry.attributes?.images && entry.attributes.images.length > 0 && (
+          <div className="col-span-12 bg-white rounded-3xl p-6 shadow-lg border border-gray-100">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 bg-blue-100 rounded-2xl flex items-center justify-center">
+                <ImageIcon className="w-5 h-5 text-blue-600" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900">Images</h3>
+              <span className="text-sm text-gray-500">({entry.attributes.images.length} images)</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {entry.attributes.images.map((image, index) => (
+                <div key={index} className="group relative">
+                  <div className="aspect-video bg-gray-100 rounded-2xl overflow-hidden shadow-md">
+                    <img
+                      src={image.url}
+                      alt={image.caption || `Encyclopedia image ${index + 1}`}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjI0IiBoZWlnaHQ9IjI0IiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0xMiAxNkM5Ljc5IDEzLjc5IDcuMTcgMTIuNDUgNS44OCAxMS43OUM1LjY5IDExLjY5IDUuNDYgMTEuNjMgNS4yMyAxMS42M0M0Ljg2IDExLjYzIDQuNSAxMS43NyA0LjI1IDEyLjAyTDIuMjkgMTRDMi4xIDEzLjY0IDIgMTMuMjIgMiAxMi43N0wyIDEwVjhDMiA3LjQ1IDIuMjIgNi45NSAyLjU5IDYuNTlDMi45NSA2LjIyIDMuNDUgNiA0IDZIMjBDMjAuNTUgNiAyMS4wNSA2LjIyIDIxLjQxIDYuNTlDMjEuNzggNi45NSAyMiA3LjQ1IDIyIDhWMTBWMTIuNzdDMjIgMTMuMjIgMjEuOSAxMy42NCAyMS43MSAxNEwxOS43NSAxMi4wMkMxOS41IDExLjc3IDE5LjE0IDExLjYzIDE4Ljc3IDExLjYzQzE4LjU0IDExLjYzIDE4LjMxIDExLjY5IDE4LjEyIDExLjc5QzE2LjgzIDEyLjQ1IDE0LjIxIDEzLjc5IDEyIDE2WiIgZmlsbD0iIzlDQTNBRiIvPgo8L3N2Zz4K'
+                      }}
+                    />
+                  </div>
+                  {image.caption && (
+                    <div className="mt-3">
+                      <p className="text-sm text-gray-700 leading-relaxed">
+                        {image.caption}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Tables Block - Structured Data */}
+        {entry.attributes?.tables && entry.attributes.tables.length > 0 && (
+          <div className="col-span-12 bg-white rounded-3xl p-6 shadow-lg border border-gray-100">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 bg-green-100 rounded-2xl flex items-center justify-center">
+                <Table className="w-5 h-5 text-green-600" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900">Data Tables</h3>
+              <span className="text-sm text-gray-500">({entry.attributes.tables.length} tables)</span>
+            </div>
+            <div className="space-y-8">
+              {entry.attributes.tables.map((table, index) => (
+                <div key={index} className="border border-gray-200 rounded-2xl overflow-hidden">
+                  {table.title && (
+                    <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                      <h4 className="font-semibold text-gray-900">{table.title}</h4>
+                    </div>
+                  )}
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          {table.headers.map((header, headerIndex) => (
+                            <th key={headerIndex} className="px-6 py-3 text-left text-sm font-semibold text-gray-900 border-b border-gray-200">
+                              {header}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {table.rows.map((row, rowIndex) => (
+                          <tr key={rowIndex} className={rowIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                            {row.map((cell, cellIndex) => (
+                              <td key={cellIndex} className="px-6 py-4 text-sm text-gray-700 border-b border-gray-100">
+                                {cell}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Statistics Block - Key Metrics */}
+        {entry.attributes?.stats && entry.attributes.stats.length > 0 && (
+          <div className="col-span-12 lg:col-span-6 bg-gradient-to-br from-violet-50 to-purple-100 rounded-3xl p-6 shadow-lg border border-violet-100">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 bg-violet-200 rounded-2xl flex items-center justify-center">
+                <BarChart3 className="w-5 h-5 text-violet-700" />
+              </div>
+              <h3 className="text-lg font-bold text-violet-900">Statistics & Metrics</h3>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {entry.attributes.stats.map((stat, index) => (
+                <div key={index} className="bg-white bg-opacity-70 rounded-2xl p-4 shadow-sm">
+                  <div className="text-2xl font-bold text-violet-800 mb-1">
+                    {stat.value}
+                  </div>
+                  <div className="text-sm font-medium text-violet-700">
+                    {stat.label}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Rich Content Block - Embedded Media */}
+        {entry.attributes?.rich_content && (entry.attributes.rich_content.formatted_description || entry.attributes.rich_content.embedded_media) && (
+          <div className="col-span-12 lg:col-span-6 bg-gradient-to-br from-rose-50 to-pink-100 rounded-3xl p-6 shadow-lg border border-rose-100">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 bg-rose-200 rounded-2xl flex items-center justify-center">
+                <Play className="w-5 h-5 text-rose-700" />
+              </div>
+              <h3 className="text-lg font-bold text-rose-900">Rich Content</h3>
+            </div>
+            <div className="space-y-4">
+              {/* Formatted description */}
+              {entry.attributes.rich_content.formatted_description && (
+                <div className="bg-white bg-opacity-70 rounded-2xl p-4 shadow-sm">
+                  <div className="prose max-w-none">
+                    <div 
+                      className="text-rose-800 leading-relaxed"
+                      dangerouslySetInnerHTML={{ __html: entry.attributes.rich_content.formatted_description }}
+                    />
+                  </div>
+                </div>
+              )}
+              
+              {/* Embedded media */}
+              {entry.attributes.rich_content.embedded_media && entry.attributes.rich_content.embedded_media.length > 0 && (
+                <div className="space-y-3">
+                  {entry.attributes.rich_content.embedded_media.map((media, index) => (
+                    <div key={index} className="bg-white bg-opacity-70 rounded-2xl p-4 shadow-sm">
+                      {media.title && (
+                        <h4 className="font-semibold text-rose-900 mb-3">{media.title}</h4>
+                      )}
+                      {media.type === 'video' && (
+                        <div className="aspect-video rounded-lg overflow-hidden">
+                          <iframe
+                            src={media.url}
+                            title={media.title || 'Embedded video'}
+                            className="w-full h-full"
+                            allowFullScreen
+                          />
+                        </div>
+                      )}
+                      {media.type === 'audio' && (
+                        <audio controls className="w-full">
+                          <source src={media.url} />
+                          Your browser does not support the audio element.
+                        </audio>
+                      )}
+                      {media.type === 'iframe' && (
+                        <div className="aspect-video rounded-lg overflow-hidden">
+                          <iframe
+                            src={media.url}
+                            title={media.title || 'Embedded content'}
+                            className="w-full h-full"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Cross-References Block - Full Width */}
+        {detectedReferences.length > 0 && (
+          <div className="col-span-12 bg-gradient-to-br from-slate-50 to-gray-100 rounded-3xl p-6 shadow-lg border border-slate-200">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-slate-200 rounded-2xl flex items-center justify-center">
+                <Link className="w-5 h-5 text-slate-700" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-900">Cross-References</h3>
+              <span className="text-sm text-slate-500">({detectedReferences.length} related entries found)</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {detectedReferences.map(ref => {
+                const typeInfo = entryTypes.find((t: any) => t.id === ref.attributes?.type) || entryTypes[0]
+                const IconComponent = typeInfo.icon
+                return (
+                  <button
+                    key={ref.id}
+                    onClick={() => onEntryClick?.(ref)}
+                    className="p-3 bg-white rounded-xl border border-slate-200 hover:border-slate-300 hover:shadow-md transition-all duration-200 text-left group"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center group-hover:bg-slate-200 transition-colors">
+                        <IconComponent className={`w-4 h-4 ${typeInfo.color}`} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-slate-900 truncate group-hover:text-orange-600 transition-colors">
+                          {ref.name}
+                        </div>
+                        <div className="text-xs text-slate-500 mt-1">
+                          {typeInfo.label}
+                        </div>
+                      </div>
+                      <ExternalLink className="w-4 h-4 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
           </div>
         )}
 
