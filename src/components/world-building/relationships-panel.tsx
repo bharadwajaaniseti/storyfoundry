@@ -6,7 +6,7 @@ import {
   ArrowRight, Eye, EyeOff, Filter, X, ChevronDown, ChevronRight,
   Link2, Target, Zap, Crown, Shield, MessageCircle, Flame,
   Save, User, AlertTriangle, CheckCircle, Clock, Calendar,
-  Network, BarChart3, TrendingUp, Activity, Grid,
+  Network, BarChart3, TrendingUp, Grid,
   Layers, Move, RotateCcw, Share2, Download, Upload, Settings,
   Home, Swords, BookOpen, UserCircle, Palette, ZoomIn, ZoomOut,
   MapPin, Book, Globe, Brain, Package, Sparkles, Type, Map, Star
@@ -242,13 +242,6 @@ interface Relationship {
     character_2_name?: string
     notes?: string
     // Enhanced Campfire-style features
-    timeline_events?: Array<{
-      date: string
-      event: string
-      description: string
-      impact_level: 'low' | 'medium' | 'high'
-      relationship_change: number // -5 to +5
-    }>
     tension_level?: number // 0-10 scale for conflict/tension
     intimacy_level?: number // 0-10 scale for emotional closeness
     dependency_level?: number // 0-10 scale for how much they need each other
@@ -487,39 +480,37 @@ const RelationshipCard = React.memo(({
   const TypeIcon = getRelationshipTypeIcon(relationship.attributes?.type || '')
   const typeColor = getRelationshipTypeColor(relationship.attributes?.type || '')
   const statusColor = getStatusColor(relationship.attributes?.status || 'active')
+  const relationshipType = RELATIONSHIP_TYPES.find(t => t.value === relationship.attributes?.type)
   
   return (
     <Card 
-      className="hover:shadow-md transition-shadow border border-gray-200 cursor-pointer" 
+      className="group relative overflow-hidden border border-gray-200/60 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-500 ease-out cursor-pointer bg-white/80 backdrop-blur-sm hover:bg-white hover:border-rose-200 hover:scale-[1.02] hover:-translate-y-1" 
       onClick={() => onEdit(relationship)}
     >
-      <CardHeader className="pb-3">
+      {/* Gradient overlay on hover */}
+      <div className="absolute inset-0 bg-gradient-to-br from-rose-50/0 via-pink-50/0 to-purple-50/0 group-hover:from-rose-50/30 group-hover:via-pink-50/20 group-hover:to-purple-50/10 transition-all duration-500 rounded-2xl" />
+      
+      <CardHeader className="pb-3 relative z-10">
         <div className="flex items-start justify-between">
-          <div className="flex items-center gap-2">
-            <TypeIcon className={`w-5 h-5 text-${typeColor}-500`} />
-            <div>
-              <CardTitle className="text-lg font-semibold truncate">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <div className={`w-12 h-12 rounded-xl bg-gradient-to-br from-${typeColor}-100 to-${typeColor}-200 flex items-center justify-center flex-shrink-0 group-hover:from-${typeColor}-200 group-hover:to-${typeColor}-300 transition-all duration-300 group-hover:scale-110 shadow-sm group-hover:shadow-md`}>
+              <TypeIcon className={`w-6 h-6 text-${typeColor}-600 group-hover:text-${typeColor}-700 transition-colors duration-300`} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <CardTitle className="text-lg font-bold text-gray-900 group-hover:text-gray-800 truncate mb-2 transition-colors duration-300">
                 {relationship.name}
               </CardTitle>
-              <div className="flex items-center gap-2 mt-1">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Badge 
                   variant="secondary" 
-                  className={`bg-${statusColor}-100 text-${statusColor}-700`}
+                  className={`bg-${statusColor}-100 text-${statusColor}-700 text-xs font-medium px-3 py-1 rounded-full shadow-sm group-hover:bg-${statusColor}-200 group-hover:shadow-md transition-all duration-300`}
                 >
                   {RELATIONSHIP_STATUS.find(s => s.value === relationship.attributes?.status)?.label || 'Active'}
                 </Badge>
-                {relationship.attributes?.strength && (
-                  <Badge variant="outline">
-                    Strength: {relationship.attributes.strength}/10
-                  </Badge>
-                )}
-                {relationship.attributes?.story_importance && (
-                  <Badge 
-                    variant="outline"
-                    className={`bg-${STORY_IMPORTANCE.find(s => s.value === relationship.attributes?.story_importance)?.color}-100`}
-                  >
-                    {STORY_IMPORTANCE.find(s => s.value === relationship.attributes?.story_importance)?.label}
-                  </Badge>
+                {relationshipType && (
+                  <span className={`text-sm text-${typeColor}-600 font-semibold group-hover:text-${typeColor}-700 transition-colors duration-300`}>
+                    {relationshipType.label}
+                  </span>
                 )}
               </div>
             </div>
@@ -531,88 +522,69 @@ const RelationshipCard = React.memo(({
               e.stopPropagation()
               onDelete(relationship.id)
             }}
+            className="h-10 w-10 p-0 flex-shrink-0 rounded-xl hover:bg-red-50 hover:border-red-200 border border-transparent transition-all duration-300 opacity-0 group-hover:opacity-100 hover:scale-110"
           >
-            <Trash2 className="w-4 h-4 text-red-500" />
+            <Trash2 className="w-4 h-4 text-red-500 hover:text-red-600 transition-colors duration-300" />
           </Button>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="pt-0 relative z-10">
         <div className="space-y-3">
-          {/* Characters */}
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-blue-600">
-              {relationship.attributes?.character_1_name || 'Character 1'}
-            </span>
-            <ArrowRight className="w-4 h-4 text-gray-400" />
-            <span className="text-sm font-medium text-blue-600">
-              {relationship.attributes?.character_2_name || 'Character 2'}
-            </span>
-          </div>
-
-          {/* Enhanced Metrics */}
-          <div className="grid grid-cols-3 gap-2 text-xs">
-            {relationship.attributes?.tension_level !== undefined && (
-              <div className="text-center">
-                <div className="text-red-500 font-medium">Tension</div>
-                <div>{relationship.attributes.tension_level}/10</div>
-              </div>
-            )}
-            {relationship.attributes?.trust_level !== undefined && (
-              <div className="text-center">
-                <div className="text-blue-500 font-medium">Trust</div>
-                <div>{relationship.attributes.trust_level}/10</div>
-              </div>
-            )}
-            {relationship.attributes?.intimacy_level !== undefined && (
-              <div className="text-center">
-                <div className="text-purple-500 font-medium">Intimacy</div>
-                <div>{relationship.attributes.intimacy_level}/10</div>
-              </div>
-            )}
-          </div>
-
-          {/* Description */}
-          {relationship.description && (
-            <p className="text-sm text-gray-600 line-clamp-3">
-              {relationship.description}
-            </p>
-          )}
-
-          {/* Dynamics */}
-          {relationship.attributes?.dynamics && relationship.attributes.dynamics.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              {relationship.attributes.dynamics.slice(0, 3).map((dynamic: string) => (
-                <Badge key={dynamic} variant="outline" className="text-xs">
-                  {dynamic.replace('_', ' ')}
-                </Badge>
-              ))}
-              {relationship.attributes.dynamics.length > 3 && (
-                <Badge variant="outline" className="text-xs">
-                  +{relationship.attributes.dynamics.length - 3} more
-                </Badge>
+          {/* Key Metrics */}
+          {(relationship.attributes?.strength || relationship.attributes?.tension_level !== undefined || relationship.attributes?.trust_level !== undefined) && (
+            <div className="flex gap-4 text-sm">
+              {relationship.attributes?.strength && (
+                <div className="flex items-center gap-2 bg-white/60 rounded-lg px-3 py-1.5 group-hover:bg-white/80 transition-all duration-300 shadow-sm group-hover:shadow-md">
+                  <div className={`w-3 h-3 rounded-full bg-gradient-to-r from-${typeColor}-500 to-${typeColor}-600 shadow-sm group-hover:scale-110 transition-transform duration-300`}></div>
+                  <span className="text-gray-700 font-medium group-hover:text-gray-800 transition-colors duration-300">
+                    Strength {relationship.attributes.strength}/10
+                  </span>
+                </div>
+              )}
+              {relationship.attributes?.tension_level !== undefined && relationship.attributes.tension_level > 0 && (
+                <div className="flex items-center gap-2 bg-white/60 rounded-lg px-3 py-1.5 group-hover:bg-white/80 transition-all duration-300 shadow-sm group-hover:shadow-md">
+                  <div className="w-3 h-3 rounded-full bg-gradient-to-r from-red-500 to-red-600 shadow-sm group-hover:scale-110 transition-transform duration-300"></div>
+                  <span className="text-gray-700 font-medium group-hover:text-gray-800 transition-colors duration-300">
+                    Tension {relationship.attributes.tension_level}/10
+                  </span>
+                </div>
+              )}
+              {relationship.attributes?.trust_level !== undefined && (
+                <div className="flex items-center gap-2 bg-white/60 rounded-lg px-3 py-1.5 group-hover:bg-white/80 transition-all duration-300 shadow-sm group-hover:shadow-md">
+                  <div className="w-3 h-3 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 shadow-sm group-hover:scale-110 transition-transform duration-300"></div>
+                  <span className="text-gray-700 font-medium group-hover:text-gray-800 transition-colors duration-300">
+                    Trust {relationship.attributes.trust_level}/10
+                  </span>
+                </div>
               )}
             </div>
           )}
-
-          {/* Actions */}
-          <div className="flex justify-between items-center pt-2 border-t">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation()
-                onEdit(relationship)
-              }}
-            >
-              <Edit3 className="w-4 h-4 mr-1" />
-              Edit
-            </Button>
-            <span className="text-xs text-gray-500">
-              {new Date(relationship.updated_at).toLocaleDateString()}
-            </span>
-          </div>
+          
+          {/* Description preview */}
+          {relationship.description && (
+            <div className="bg-gray-50/70 rounded-xl p-3 group-hover:bg-white/70 transition-all duration-300 border border-gray-100 group-hover:border-gray-200">
+              <p className="text-sm text-gray-600 group-hover:text-gray-700 transition-colors duration-300 line-clamp-2 leading-relaxed">
+                {relationship.description}
+              </p>
+            </div>
+          )}
+          
+          {/* Story importance */}
+          {relationship.attributes?.story_importance && relationship.attributes.story_importance !== 'background' && (
+            <div className="flex justify-end">
+              <Badge 
+                variant="outline"
+                className={`text-xs font-semibold bg-gradient-to-r from-${STORY_IMPORTANCE.find(s => s.value === relationship.attributes?.story_importance)?.color}-50 to-${STORY_IMPORTANCE.find(s => s.value === relationship.attributes?.story_importance)?.color}-100 border-${STORY_IMPORTANCE.find(s => s.value === relationship.attributes?.story_importance)?.color}-200 text-${STORY_IMPORTANCE.find(s => s.value === relationship.attributes?.story_importance)?.color}-700 px-3 py-1 rounded-full shadow-sm group-hover:shadow-md group-hover:scale-105 transition-all duration-300`}
+              >
+                {STORY_IMPORTANCE.find(s => s.value === relationship.attributes?.story_importance)?.label}
+              </Badge>
+            </div>
+          )}
         </div>
       </CardContent>
+      
+      {/* Bottom gradient line */}
+      <div className={`absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-${typeColor}-400 via-${typeColor}-500 to-${typeColor}-600 opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
     </Card>
   )
 })
@@ -633,7 +605,7 @@ const NetworkView = React.memo(({
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null)
   const [networkScale, setNetworkScale] = useState(1)
-  const [networkOffset, setNetworkOffset] = useState({ x: 0, y: 0 })
+  const [networkOffset, setNetworkOffset] = useState({ x: 1200 * 1.5, y: 600 * 1.5 })
   const [isDraggingNetwork, setIsDraggingNetwork] = useState(false)
   const [dragStartNetwork, setDragStartNetwork] = useState({ x: 0, y: 0 })
   
@@ -644,13 +616,29 @@ const NetworkView = React.memo(({
   const [nodeOffsets, setNodeOffsets] = useState<Record<string, { x: number; y: number }>>({})
   const [hasDraggedNode, setHasDraggedNode] = useState(false)
 
+  // Force re-layout when canvas is available
+  useEffect(() => {
+    if (networkRef.current) {
+      // Small delay to ensure canvas dimensions are properly set
+      const timer = setTimeout(() => {
+        setNetworkOffset({ x: 0, y: 0 })
+        setNetworkScale(1)
+      }, 100)
+      return () => clearTimeout(timer)
+    }
+  }, [characters, relationships])
+
   // Generate network layout
   const generateNetworkLayout = useCallback(() => {
     if (!characters.length) return { nodes: [], connections: [] }
 
-    const centerX = 400
-    const centerY = 300
-    const radius = Math.min(150, Math.max(80, characters.length * 15))
+    // Use virtual canvas center coordinates to match our offset system
+    const baseWidth = networkRef.current ? networkRef.current.offsetWidth : 1200
+    const baseHeight = networkRef.current ? networkRef.current.offsetHeight : 600
+    const centerX = baseWidth * 2 // Center of our 400% virtual canvas
+    const centerY = baseHeight * 2
+    const maxRadius = Math.min(baseWidth * 0.2, baseHeight * 0.2) // Use 20% of base space
+    const radius = Math.min(maxRadius, Math.max(80, characters.length * 15))
 
     // Create nodes in a circular layout
     const nodes = characters.map((character, index) => {
@@ -908,16 +896,26 @@ const NetworkView = React.memo(({
   // Reset network view
   const resetNetworkView = () => {
     setNetworkScale(1)
-    setNetworkOffset({ x: 0, y: 0 })
+    // Reset to center of the virtual canvas area to show nodes properly
+    const canvasWidth = networkRef.current?.offsetWidth || 1200
+    const canvasHeight = networkRef.current?.offsetHeight || 600
+    setNetworkOffset({ x: canvasWidth * 1.5, y: canvasHeight * 1.5 })
   }
 
   if (!characters.length) {
     return (
-      <div className="h-96 border rounded-lg bg-gray-50 flex items-center justify-center">
+      <div className="h-[600px] border-2 border-gray-200/60 rounded-2xl bg-gradient-to-br from-white via-gray-50/30 to-rose-50/20 flex items-center justify-center shadow-lg">
         <div className="text-center">
-          <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-600 text-lg mb-2">No Characters Available</p>
-          <p className="text-gray-500 text-sm">
+          <div className="relative mb-6">
+            <div className="absolute inset-0 bg-gradient-to-r from-rose-100 via-pink-100 to-purple-100 rounded-full w-20 h-20 mx-auto animate-pulse opacity-20" />
+            <div className="relative w-20 h-20 mx-auto bg-gradient-to-br from-rose-500 to-pink-600 rounded-full flex items-center justify-center shadow-xl">
+              <Users className="w-10 h-10 text-white" />
+            </div>
+          </div>
+          <h3 className="text-2xl font-bold bg-gradient-to-r from-rose-600 to-pink-600 bg-clip-text text-transparent mb-3">
+            No Characters Available
+          </h3>
+          <p className="text-gray-600 font-medium">
             Create characters first to see the relationship network
           </p>
         </div>
@@ -926,35 +924,37 @@ const NetworkView = React.memo(({
   }
 
   return (
-    <div className="border rounded-lg bg-white overflow-hidden">
+    <div className="border-2 border-gray-200/60 rounded-2xl bg-white/90 backdrop-blur-sm overflow-hidden shadow-lg w-full">
       {/* Network Controls */}
-      <div className="bg-gray-50 border-b px-4 py-3 flex items-center justify-between">
+      <div className="bg-gradient-to-r from-white via-rose-50/20 to-pink-50/20 border-b border-gray-200/60 px-6 py-4 flex items-center justify-between backdrop-blur-sm">
         <div>
-          <h3 className="font-semibold text-gray-900 flex items-center">
-            <Network className="w-5 h-5 mr-2 text-blue-600" />
+          <h3 className="text-xl font-bold text-gray-900 flex items-center mb-1">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center mr-3 shadow-md">
+              <Network className="w-5 h-5 text-white" />
+            </div>
             Relationship Network
           </h3>
-          <p className="text-sm text-gray-600">
-            {characters.length} characters, {connections.length} relationships
+          <p className="text-sm text-gray-600 font-medium">
+            {characters.length} characters • {connections.length} relationships
           </p>
         </div>
         
-        <div className="flex items-center gap-2">
-          <div className="flex items-center bg-white rounded-lg border px-3 py-1">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-200/60 px-4 py-2 shadow-md">
             <button
               onClick={() => setNetworkScale(prev => Math.max(prev / 1.2, 0.3))}
-              className="p-1 hover:bg-gray-100 rounded"
+              className="p-2 hover:bg-gray-100 rounded-xl transition-colors duration-200"
             >
-              <ZoomOut className="w-4 h-4" />
+              <ZoomOut className="w-4 h-4 text-gray-600" />
             </button>
-            <span className="px-2 text-sm font-medium">
+            <span className="px-3 text-sm font-bold text-gray-700 min-w-[50px] text-center">
               {Math.round(networkScale * 100)}%
             </span>
             <button
               onClick={() => setNetworkScale(prev => Math.min(prev * 1.2, 3))}
-              className="p-1 hover:bg-gray-100 rounded"
+              className="p-2 hover:bg-gray-100 rounded-xl transition-colors duration-200"
             >
-              <ZoomIn className="w-4 h-4" />
+              <ZoomIn className="w-4 h-4 text-gray-600" />
             </button>
           </div>
           
@@ -962,9 +962,10 @@ const NetworkView = React.memo(({
             variant="outline"
             size="sm"
             onClick={resetNetworkView}
-            className="border-gray-300"
+            className="border-2 border-gray-200/60 hover:border-gray-300 bg-white/80 backdrop-blur-sm rounded-2xl px-4 py-2 font-medium shadow-md hover:shadow-lg transition-all duration-300"
           >
-            <RotateCcw className="w-4 h-4" />
+            <RotateCcw className="w-4 h-4 mr-2" />
+            Reset
           </Button>
         </div>
       </div>
@@ -972,7 +973,7 @@ const NetworkView = React.memo(({
       {/* Network Visualization */}
       <div
         ref={networkRef}
-        className={`relative h-96 bg-gradient-to-br from-gray-50 to-blue-50/20 overflow-hidden ${
+        className={`relative h-[600px] w-full bg-gradient-to-br from-gray-50/50 via-blue-50/30 to-purple-50/20 overflow-hidden ${
           isDraggingNetwork ? 'cursor-grabbing' : 'cursor-grab'
         }`}
         onMouseDown={handleNetworkMouseDown}
@@ -991,44 +992,59 @@ const NetworkView = React.memo(({
         onWheel={handleNetworkWheel}
       >
         <div
-          className="absolute inset-0"
+          className="absolute"
           style={{
+            width: '400%',
+            height: '400%',
+            left: '-150%',
+            top: '-150%',
             transform: `translate(${networkOffset.x}px, ${networkOffset.y}px) scale(${networkScale})`,
             transformOrigin: 'center center'
           }}
         >
-          {/* Background Grid */}
-          <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-20">
+          {/* Enhanced Background Grid */}
+          <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-10">
             <defs>
-              <pattern id="network-grid" width="30" height="30" patternUnits="userSpaceOnUse">
-                <path d="M 30 0 L 0 0 0 30" fill="none" stroke="#e5e7eb" strokeWidth="1"/>
+              <pattern id="network-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#e5e7eb" strokeWidth="1"/>
+                <circle cx="0" cy="0" r="1" fill="#e5e7eb" />
               </pattern>
+              <radialGradient id="gridGradient" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stopColor="#f8fafc" stopOpacity="1"/>
+                <stop offset="100%" stopColor="#e2e8f0" stopOpacity="0.3"/>
+              </radialGradient>
             </defs>
+            <rect width="100%" height="100%" fill="url(#gridGradient)" />
             <rect width="100%" height="100%" fill="url(#network-grid)" />
           </svg>
 
-          {/* Connections */}
+          {/* Enhanced Connections */}
           <svg className="absolute inset-0 w-full h-full">
             <defs>
               <marker
                 id="network-arrow"
-                markerWidth="8"
-                markerHeight="8"
-                refX="7"
-                refY="4"
+                markerWidth="10"
+                markerHeight="10"
+                refX="8"
+                refY="5"
                 orient="auto"
                 markerUnits="strokeWidth"
               >
-                <path d="M 0,0 L 0,8 L 8,4 z" fill="currentColor" />
+                <path d="M 0,0 L 0,10 L 10,5 z" fill="currentColor" />
               </marker>
               
-              {/* Glow filter for connections */}
-              <filter id="network-glow">
-                <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+              {/* Enhanced Glow filter for connections */}
+              <filter id="network-glow" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
                 <feMerge>
                   <feMergeNode in="coloredBlur"/>
                   <feMergeNode in="SourceGraphic"/>
                 </feMerge>
+              </filter>
+
+              {/* Shadow filter */}
+              <filter id="network-shadow" x="-50%" y="-50%" width="200%" height="200%">
+                <feDropShadow dx="2" dy="2" stdDeviation="3" floodOpacity="0.3"/>
               </filter>
             </defs>
             
@@ -1047,22 +1063,22 @@ const NetworkView = React.memo(({
               
               return (
                 <g key={connection.id}>
-                  {/* Connection Line - Make it more visible */}
+                  {/* Connection Line - Enhanced with gradients */}
                   <path
                     d={pathData}
                     stroke={connectionColor}
-                    strokeWidth={Math.max(3, isHighlighted ? 5 : 3)} // Minimum 3px width
+                    strokeWidth={isHighlighted ? 6 : 4}
                     fill="none"
-                    className={`transition-all duration-200`}
-                    opacity={isHighlighted ? 1 : 0.8} // Always visible
-                    filter={isHighlighted ? "url(#network-glow)" : undefined}
-                    strokeDasharray={connection.type === 'rivalry' || connection.type === 'conflict' ? '8,4' : undefined}
+                    className="transition-all duration-300 hover:cursor-pointer"
+                    opacity={isHighlighted ? 1 : 0.7}
+                    filter={isHighlighted ? "url(#network-glow)" : "url(#network-shadow)"}
+                    strokeDasharray={connection.type === 'rivalry' || connection.type === 'conflict' ? '12,6' : undefined}
                     markerEnd="url(#network-arrow)"
                     style={{ color: connectionColor }}
                     strokeLinecap="round"
                   />
                   
-                  {/* Connection Label */}
+                  {/* Connection Label with background */}
                   {isHighlighted && (() => {
                     const fromOffset = nodeOffsets[fromNode.id] || { x: 0, y: 0 }
                     const toOffset = nodeOffsets[toNode.id] || { x: 0, y: 0 }
@@ -1070,17 +1086,33 @@ const NetworkView = React.memo(({
                     const adjustedFromY = fromNode.y + fromOffset.y
                     const adjustedToX = toNode.x + toOffset.x
                     const adjustedToY = toNode.y + toOffset.y
+                    const midX = (adjustedFromX + adjustedToX) / 2
+                    const midY = (adjustedFromY + adjustedToY) / 2
                     
                     return (
-                      <text
-                        x={(adjustedFromX + adjustedToX) / 2}
-                        y={(adjustedFromY + adjustedToY) / 2 - 5}
-                        textAnchor="middle"
-                        className="text-xs font-medium fill-gray-700 pointer-events-none"
-                        style={{ fontSize: '11px' }}
-                      >
-                        {connection.type}
-                      </text>
+                      <g>
+                        <rect
+                          x={midX - 25}
+                          y={midY - 15}
+                          width="50"
+                          height="20"
+                          rx="10"
+                          fill="white"
+                          fillOpacity="0.95"
+                          stroke={connectionColor}
+                          strokeWidth="2"
+                          filter="url(#network-shadow)"
+                        />
+                        <text
+                          x={midX}
+                          y={midY - 2}
+                          textAnchor="middle"
+                          className="text-xs font-bold pointer-events-none"
+                          style={{ fontSize: '11px', fill: connectionColor }}
+                        >
+                          {connection.type}
+                        </text>
+                      </g>
                     )
                   })()}
                 </g>
@@ -1088,7 +1120,7 @@ const NetworkView = React.memo(({
             })}
           </svg>
 
-          {/* World Element Nodes */}
+          {/* Enhanced World Element Nodes */}
           {nodes.map(node => {
             const isSelected = selectedNodeId === node.id
             const isHovered = hoveredNodeId === node.id
@@ -1103,9 +1135,9 @@ const NetworkView = React.memo(({
             return (
               <div
                 key={node.id}
-                className={`absolute transform -translate-x-1/2 -translate-y-1/2 transition-all duration-200 ${
-                  isHighlighted ? 'z-10 scale-110' : 'z-5'
-                } ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+                className={`absolute transform -translate-x-1/2 -translate-y-1/2 transition-all duration-300 ${
+                  isHighlighted ? 'z-20 scale-125' : 'z-10'
+                } ${isDragging ? 'cursor-grabbing scale-110' : 'cursor-grab hover:scale-110'}`}
                 style={{
                   left: node.x + offset.x,
                   top: node.y + offset.y
@@ -1120,47 +1152,73 @@ const NetworkView = React.memo(({
                   }
                 }}
               >
-                {/* Node Circle */}
-                <div
-                  className={`w-16 h-16 rounded-full border-4 shadow-lg cursor-pointer transition-all duration-200 ${
-                    isHighlighted
-                      ? `border-${elementConfig.color}-400 shadow-${elementConfig.color}-200/50 bg-white`
-                      : `border-white shadow-gray-300/50 bg-gradient-to-br from-${elementConfig.color}-50 to-${elementConfig.color}-100 hover:border-${elementConfig.color}-300`
-                  }`}
-                >
-                  {/* Element Icon or Initial */}
-                  <div className={`w-full h-full rounded-full flex items-center justify-center text-lg font-bold bg-gradient-to-br from-${elementConfig.color}-500 to-${elementConfig.color}-600 text-white`}>
-                    {node.type === 'characters' ? (
-                      node.name.charAt(0).toUpperCase()
-                    ) : (
-                      <ElementIcon className="w-6 h-6" />
+                {/* Enhanced Node Circle with multiple rings */}
+                <div className="relative">
+                  {/* Outer glow ring for hover */}
+                  {isHighlighted && (
+                    <div className={`absolute inset-0 w-20 h-20 rounded-full bg-gradient-to-r from-${elementConfig.color}-400/30 to-${elementConfig.color}-600/30 animate-ping`} />
+                  )}
+                  
+                  {/* Main node container */}
+                  <div
+                    className={`relative w-20 h-20 rounded-full border-4 shadow-xl cursor-pointer transition-all duration-300 ${
+                      isHighlighted
+                        ? `border-${elementConfig.color}-400 shadow-${elementConfig.color}-300/50 bg-white`
+                        : `border-white shadow-gray-400/30 bg-gradient-to-br from-white via-${elementConfig.color}-50/50 to-${elementConfig.color}-100/80 hover:border-${elementConfig.color}-300`
+                    } ${isDragging ? 'shadow-2xl' : ''}`}
+                  >
+                    {/* Inner gradient circle */}
+                    <div className={`w-full h-full rounded-full flex items-center justify-center text-lg font-bold bg-gradient-to-br from-${elementConfig.color}-500 to-${elementConfig.color}-700 text-white shadow-inner transition-all duration-300 ${
+                      isHighlighted ? 'from-' + elementConfig.color + '-600 to-' + elementConfig.color + '-800' : ''
+                    }`}>
+                      {node.type === 'characters' ? (
+                        <span className="text-xl font-black">
+                          {node.name.charAt(0).toUpperCase()}
+                        </span>
+                      ) : (
+                        <ElementIcon className={`w-8 h-8 transition-transform duration-300 ${isHighlighted ? 'scale-110' : ''}`} />
+                      )}
+                    </div>
+                    
+                    {/* Connection indicator dots */}
+                    {node.connections > 0 && (
+                      <div className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-gradient-to-r from-orange-400 to-red-500 border-2 border-white flex items-center justify-center shadow-lg">
+                        <span className="text-xs font-bold text-white">
+                          {node.connections > 9 ? '9+' : node.connections}
+                        </span>
+                      </div>
                     )}
                   </div>
                   
-                  {/* Connection Count Badge - removed as requested */}
-                </div>
-                
-                {/* Node Label */}
-                <div className="mt-2 text-center">
-                  <div className={`text-sm font-medium transition-colors duration-200 ${
-                    isHighlighted ? 'text-blue-700' : 'text-gray-700'
-                  }`}>
-                    {node.name}
+                  {/* Enhanced Node Label */}
+                  <div className="mt-3 text-center">
+                    <div className={`text-sm font-bold transition-all duration-300 px-3 py-1 rounded-full ${
+                      isHighlighted 
+                        ? `text-${elementConfig.color}-700 bg-${elementConfig.color}-100/80 shadow-md` 
+                        : 'text-gray-700 bg-white/80 hover:bg-white/90 shadow-sm'
+                    } backdrop-blur-sm border border-gray-200/60 max-w-[120px] truncate`}>
+                      {node.name}
+                    </div>
                   </div>
+                  
+                  {/* Selection Ring */}
+                  {isSelected && (
+                    <div className={`absolute inset-0 w-20 h-20 rounded-full border-4 border-${elementConfig.color}-400 animate-pulse -m-px shadow-lg`} />
+                  )}
+                  
+                  {/* Pulse effect for dragging */}
+                  {isDragging && (
+                    <div className={`absolute inset-0 w-20 h-20 rounded-full border-2 border-${elementConfig.color}-500 animate-ping opacity-75`} />
+                  )}
                 </div>
-                
-                {/* Selection Ring */}
-                {isSelected && (
-                  <div className="absolute inset-0 w-16 h-16 rounded-full border-4 border-blue-400 animate-pulse -m-px"></div>
-                )}
               </div>
             )
           })}
         </div>
 
-        {/* Network Info Panel */}
+        {/* Enhanced Network Info Panel */}
         {selectedNodeId && (
-          <div className="absolute top-4 right-4 bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200/60 p-4 max-w-xs">
+          <div className="absolute top-6 right-6 bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-gray-200/60 p-6 max-w-sm min-w-[280px] transition-all duration-300">
             {(() => {
               const selectedNode = nodes.find(n => n.id === selectedNodeId)
               
@@ -1209,33 +1267,60 @@ const NetworkView = React.memo(({
               
               if (!selectedNode) return null
               
+              const elementConfig = WORLD_ELEMENT_TYPES[selectedNode.type as keyof typeof WORLD_ELEMENT_TYPES] || WORLD_ELEMENT_TYPES.characters
+              const ElementIcon = elementConfig.icon
+              
               return (
                 <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-semibold text-gray-900 flex items-center">
-                      <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-xs font-bold mr-2">
-                        {selectedNode.name.charAt(0).toUpperCase()}
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-12 h-12 bg-gradient-to-br from-${elementConfig.color}-500 to-${elementConfig.color}-700 rounded-2xl flex items-center justify-center shadow-lg`}>
+                        {selectedNode.type === 'characters' ? (
+                          <span className="text-white font-black text-lg">
+                            {selectedNode.name.charAt(0).toUpperCase()}
+                          </span>
+                        ) : (
+                          <ElementIcon className="w-6 h-6 text-white" />
+                        )}
                       </div>
-                      {selectedNode.name}
-                    </h4>
+                      <div>
+                        <h4 className="font-bold text-gray-900 text-lg">{selectedNode.name}</h4>
+                        <p className={`text-sm font-medium text-${elementConfig.color}-600 capitalize`}>
+                          {selectedNode.type}
+                        </p>
+                      </div>
+                    </div>
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => setSelectedNodeId(null)}
-                      className="w-6 h-6 p-0"
+                      className="w-8 h-8 p-0 rounded-xl hover:bg-gray-100"
                     >
                       <X className="w-4 h-4" />
                     </Button>
                   </div>
                   
-                  <div className="space-y-3">
+                  <div className="space-y-4">
+                    {/* Connection count with visual indicator */}
+                    <div className="flex items-center justify-between p-3 bg-gray-50/80 rounded-xl">
+                      <span className="text-sm font-medium text-gray-700">Connections</span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 bg-gradient-to-r from-orange-400 to-red-500 rounded-full flex items-center justify-center shadow-md">
+                          <span className="text-xs font-bold text-white">
+                            {selectedNode.connections}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    
                     {nodeRelationships.length > 0 ? (
                       <div>
-                        <div className="text-sm font-medium text-gray-700 mb-2">
+                        <div className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+                          <Network className="w-4 h-4" />
                           {nodeRelationships.length} Relationship{nodeRelationships.length !== 1 ? 's' : ''}
                         </div>
-                        <div className="space-y-2 max-h-32 overflow-y-auto">
-                          {nodeRelationships.slice(0, 5).map(rel => {
+                        <div className="space-y-2 max-h-40 overflow-y-auto">
+                          {nodeRelationships.slice(0, 6).map(rel => {
                             let otherCharacterId: string | undefined
                             let relationshipName = rel.name || rel.attributes?.name || 'Unnamed Relationship'
                             let relationshipType = 'friendship'
@@ -1289,34 +1374,42 @@ const NetworkView = React.memo(({
                             }
                             
                             const otherCharacter = characters.find(c => c.id === otherCharacterId)
+                            const relationshipColor = getRelationshipColor(relationshipType)
                             
                             return (
-                              <div key={rel.id} className="bg-gray-50 rounded-lg px-3 py-2">
-                                <div className="flex items-center text-sm">
+                              <div key={rel.id} className="bg-white/80 rounded-xl px-4 py-3 border border-gray-200/60 shadow-sm">
+                                <div className="flex items-center gap-3 text-sm">
                                   <div 
-                                    className="w-3 h-3 rounded-full mr-2" 
-                                    style={{ backgroundColor: getRelationshipColor(relationshipType) }}
+                                    className="w-4 h-4 rounded-full shadow-sm flex-shrink-0" 
+                                    style={{ backgroundColor: relationshipColor }}
                                   />
-                                  <span className="font-medium text-gray-900">
-                                    {relationshipName}
-                                  </span>
-                                </div>
-                                <div className="text-xs text-gray-600 mt-1 ml-5">
-                                  with <span className="font-medium">{otherCharacter?.name || 'Unknown'}</span>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="font-bold text-gray-900 truncate">
+                                      {relationshipName}
+                                    </div>
+                                    <div className="text-xs text-gray-600 truncate">
+                                      with <span className="font-medium">{otherCharacter?.name || 'Unknown'}</span>
+                                    </div>
+                                  </div>
                                 </div>
                               </div>
                             )
                           })}
-                          {nodeRelationships.length > 5 && (
-                            <div className="text-xs text-gray-500 text-center py-1">
-                              +{nodeRelationships.length - 5} more
+                          {nodeRelationships.length > 6 && (
+                            <div className="text-xs text-gray-500 text-center py-2 font-medium">
+                              +{nodeRelationships.length - 6} more relationships
                             </div>
                           )}
                         </div>
                       </div>
                     ) : (
-                      <div className="text-sm text-gray-500">
-                        No relationships
+                      <div className="text-center py-4">
+                        <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                          <Network className="w-6 h-6 text-gray-400" />
+                        </div>
+                        <div className="text-sm text-gray-500 font-medium">
+                          No relationships
+                        </div>
                       </div>
                     )}
                   </div>
@@ -1326,10 +1419,13 @@ const NetworkView = React.memo(({
           </div>
         )}
 
-        {/* Network Legend */}
-        <div className="absolute bottom-4 left-4 bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200/60 p-3">
-          <div className="text-sm font-medium text-gray-700 mb-2">Relationship Types</div>
-          <div className="grid grid-cols-2 gap-2 text-xs">
+        {/* Enhanced Network Legend */}
+        <div className="absolute bottom-6 left-6 bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-gray-200/60 p-4 min-w-[300px]">
+          <div className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+            <Palette className="w-4 h-4" />
+            Relationship Types
+          </div>
+          <div className="grid grid-cols-2 gap-3 text-xs">
             {[
               { type: 'friendship', color: '#10b981', label: 'Friendship' },
               { type: 'romance', color: '#f43f5e', label: 'Romance' },
@@ -1338,24 +1434,51 @@ const NetworkView = React.memo(({
               { type: 'conflict', color: '#ef4444', label: 'Conflict' },
               { type: 'mentor', color: '#8b5cf6', label: 'Mentor' }
             ].map(item => (
-              <div key={item.type} className="flex items-center">
+              <div key={item.type} className="flex items-center gap-2 p-2 rounded-lg bg-white/60 border border-gray-200/40">
                 <div 
-                  className="w-3 h-0.5 mr-2" 
+                  className="w-4 h-1 rounded-full shadow-sm flex-shrink-0" 
                   style={{ backgroundColor: item.color }}
                 />
-                <span className="text-gray-600">{item.label}</span>
+                <span className="text-gray-700 font-medium">{item.label}</span>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Instructions */}
+        {/* Enhanced Instructions */}
         {!selectedNodeId && (
-          <div className="absolute top-4 left-4 bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200/60 p-3">
-            <div className="text-sm text-gray-600">
-              <div className="font-medium text-gray-700 mb-1">Network Controls</div>
-              <div>• Click nodes to see details</div>
-              <div>• Drag to pan • Scroll to zoom</div>
+          <div className="absolute top-6 left-6 bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-gray-200/60 p-4 max-w-xs">
+            <div className="text-sm text-gray-700 space-y-2">
+              <div className="font-bold text-gray-800 mb-3 flex items-center gap-2">
+                <Settings className="w-4 h-4" />
+                Network Controls
+              </div>
+              <div className="space-y-1.5 text-xs">
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 bg-blue-100 rounded flex items-center justify-center">
+                    <span className="text-blue-600 font-bold">●</span>
+                  </div>
+                  <span>Click nodes to see details</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 bg-green-100 rounded flex items-center justify-center">
+                    <Move className="w-2.5 h-2.5 text-green-600" />
+                  </div>
+                  <span>Drag nodes to reposition</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 bg-purple-100 rounded flex items-center justify-center">
+                    <span className="text-purple-600 font-bold">⚲</span>
+                  </div>
+                  <span>Drag canvas to pan</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 bg-orange-100 rounded flex items-center justify-center">
+                    <ZoomIn className="w-2.5 h-2.5 text-orange-600" />
+                  </div>
+                  <span>Scroll to zoom</span>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -1385,120 +1508,113 @@ const MatrixView = React.memo(({
     )
   }
 
+  // Get relationship color with reliable Tailwind classes
+  const getRelationshipColor = (type: string) => {
+    const colorMap: Record<string, string> = {
+      'romantic': 'bg-rose-500',
+      'family': 'bg-blue-500', 
+      'friendship': 'bg-green-500',
+      'rivalry': 'bg-orange-500',
+      'conflict': 'bg-red-500',
+      'mentor': 'bg-purple-500',
+      'professional': 'bg-indigo-500',
+      'alliance': 'bg-teal-500',
+    }
+    return colorMap[type] || 'bg-gray-400'
+  }
+
   return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full border border-gray-200">
-        <thead>
-          <tr className="bg-gray-50">
-            <th className="border border-gray-200 p-2 text-left font-medium">Character</th>
-            {characters.map(char => (
-              <th key={char.id} className="border border-gray-200 p-2 text-center font-medium min-w-24">
-                <div className="truncate" title={char.name}>
-                  {char.name.slice(0, 8)}...
-                </div>
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {characters.map((char1, i) => (
-            <tr key={char1.id}>
-              <td className="border border-gray-200 p-2 font-medium bg-gray-50">
-                {char1.name}
-              </td>
-              {characters.map((char2, j) => {
-                const relationship = matrix[i][j]
-                const isSelf = i === j
-                
-                return (
-                  <td key={char2.id} className="border border-gray-200 p-1 text-center">
-                    {isSelf ? (
-                      <div className="w-6 h-6 bg-gray-200 rounded mx-auto"></div>
-                    ) : relationship ? (
-                      <div 
-                        className={`w-6 h-6 rounded mx-auto bg-${getRelationshipTypeColor(relationship.attributes?.type || '')}-500`}
-                        title={`${relationship.name} (${relationship.attributes?.type})`}
-                      ></div>
-                    ) : (
-                      <div className="w-6 h-6 border border-gray-300 rounded mx-auto bg-white"></div>
-                    )}
-                  </td>
-                )
-              })}
+    <div className="space-y-6">
+      <div className="overflow-x-auto bg-white rounded-xl shadow-sm border border-gray-100">
+        <table className="min-w-full">
+          <thead>
+            <tr className="bg-gradient-to-r from-gray-50 to-gray-100">
+              <th className="border-r border-gray-200 p-3 text-left font-semibold text-gray-700">Character</th>
+              {characters.map(char => (
+                <th key={char.id} className="border-r border-gray-200 p-3 text-center font-semibold text-gray-700 min-w-20">
+                  <div className="truncate" title={char.name}>
+                    {char.name.length > 8 ? char.name.slice(0, 8) + '...' : char.name}
+                  </div>
+                </th>
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {characters.map((char1, i) => (
+              <tr key={char1.id} className="hover:bg-gray-50/50 transition-colors">
+                <td className="border-r border-b border-gray-200 p-3 font-medium bg-gradient-to-r from-gray-50 to-white text-gray-700">
+                  {char1.name}
+                </td>
+                {characters.map((char2, j) => {
+                  const relationship = matrix[i][j]
+                  const isSelf = i === j
+                  
+                  return (
+                    <td key={char2.id} className="border-r border-b border-gray-200 p-2 text-center">
+                      {isSelf ? (
+                        <div className="w-7 h-7 bg-gradient-to-br from-gray-200 to-gray-300 rounded-full mx-auto shadow-sm border border-gray-300"></div>
+                      ) : relationship ? (
+                        <div 
+                          className={`w-7 h-7 rounded-full mx-auto shadow-md border-2 border-white cursor-help transition-transform hover:scale-110 ${getRelationshipColor((relationship as any).type || relationship.attributes?.type || '')}`}
+                          title={`${relationship.name || (relationship as any).label || (relationship as any).type}
+Type: ${(relationship as any).type || relationship.attributes?.type || 'Unknown'}
+${relationship.description || relationship.attributes?.description || ''}`}
+                        ></div>
+                      ) : (
+                        <div className="w-7 h-7 border-2 border-dashed border-gray-300 rounded-full mx-auto bg-white hover:bg-gray-50 transition-colors cursor-pointer opacity-30"
+                             title="No relationship"></div>
+                      )}
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
       
-      {/* Legend */}
-      <div className="mt-4 flex flex-wrap gap-4 text-sm">
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-gray-200 rounded"></div>
-          <span>Self</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 border border-gray-300 rounded bg-white"></div>
-          <span>No relationship</span>
-        </div>
-        {RELATIONSHIP_TYPES.slice(0, 5).map(type => (
-          <div key={type.value} className="flex items-center gap-2">
-            <div className={`w-4 h-4 bg-${type.color}-500 rounded`}></div>
-            <span>{type.label}</span>
+      {/* Enhanced Legend */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
+        <h4 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
+          <BarChart3 className="w-4 h-4" />
+          Matrix Legend
+        </h4>
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 text-sm">
+          <div className="flex items-center gap-2">
+            <div className="w-5 h-5 bg-gradient-to-br from-gray-200 to-gray-300 rounded-full shadow-sm border border-gray-300"></div>
+            <span className="text-gray-600">Self</span>
           </div>
-        ))}
+          <div className="flex items-center gap-2">
+            <div className="w-5 h-5 border-2 border-dashed border-gray-300 rounded-full bg-white"></div>
+            <span className="text-gray-600">No relationship</span>
+          </div>
+          {/* Dynamic relationship types from actual data */}
+          {(() => {
+            const uniqueTypes = new Set<string>()
+            relationships.forEach(r => {
+              if (r.attributes?.type === 'relationship_web' && r.attributes?.canvas_data?.connections) {
+                r.attributes.canvas_data.connections.forEach((conn: any) => {
+                  if (conn.type) uniqueTypes.add(conn.type)
+                })
+              }
+            })
+            return Array.from(uniqueTypes).map(type => (
+              <div key={type} className="flex items-center gap-2">
+                <div className={`w-5 h-5 rounded-full shadow-md border-2 border-white ${getRelationshipColor(type)}`}></div>
+                <span className="text-gray-600 capitalize">{type}</span>
+              </div>
+            ))
+          })()}
+        </div>
+        <div className="mt-3 text-xs text-gray-500">
+          💡 Tip: Hover over circles for detailed information about each relationship.
+        </div>
       </div>
     </div>
   )
 })
 
 MatrixView.displayName = "MatrixView"
-
-// Timeline View Component
-const TimelineView = React.memo(({ relationships }: { relationships: Relationship[] }) => {
-  const relationshipsWithEvents = relationships.filter(r => 
-    r.attributes?.timeline_events && r.attributes.timeline_events.length > 0
-  )
-
-  if (relationshipsWithEvents.length === 0) {
-    return (
-      <div className="text-center py-12">
-        <Activity className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-        <p className="text-gray-600 text-lg mb-2">No timeline events</p>
-        <p className="text-gray-500 text-sm">
-          Add timeline events to your relationships to see their development over time
-        </p>
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-6">
-      {relationshipsWithEvents.map(relationship => (
-        <Card key={relationship.id} className="p-4">
-          <h3 className="font-semibold mb-3 flex items-center gap-2">
-            <Heart className="w-4 h-4 text-rose-500" />
-            {relationship.name}
-          </h3>
-          <div className="space-y-2">
-            {relationship.attributes?.timeline_events?.map((event, index) => (
-              <div key={index} className="flex items-start gap-3 p-2 bg-gray-50 rounded">
-                <div className="text-xs text-gray-500 min-w-20">{event.date}</div>
-                <div className="flex-1">
-                  <div className="font-medium text-sm">{event.event}</div>
-                  {event.description && (
-                    <div className="text-sm text-gray-600">{event.description}</div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-      ))}
-    </div>
-  )
-})
-
-TimelineView.displayName = "TimelineView"
 
 const RelationshipsPanel = ({ 
   projectId, 
@@ -1515,8 +1631,8 @@ const RelationshipsPanel = ({
   const [selectedStatus, setSelectedStatus] = useState<string>('all')
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [editingRelationship, setEditingRelationship] = useState<Relationship | null>(null)
-  const [viewMode, setViewMode] = useState<'grid' | 'network' | 'matrix' | 'timeline'>('grid')
-  const [activeTab, setActiveTab] = useState<'overview' | 'dynamics' | 'timeline' | 'analysis'>('overview')
+  const [viewMode, setViewMode] = useState<'grid' | 'network' | 'matrix'>('grid')
+  const [activeTab, setActiveTab] = useState<'overview' | 'dynamics' | 'analysis'>('overview')
   
   // Quick Connect Dialog state
   const [showQuickConnect, setShowQuickConnect] = useState(false)
@@ -1708,8 +1824,7 @@ const RelationshipsPanel = ({
           conflict_sources: formData.conflict_sources,
           bonding_factors: formData.bonding_factors,
           relationship_goals: formData.relationship_goals,
-          story_importance: formData.story_importance,
-          timeline_events: []
+          story_importance: formData.story_importance
         },
         tags: []
       }
@@ -1819,8 +1934,7 @@ const RelationshipsPanel = ({
           conflict_sources: [],
           bonding_factors: [],
           relationship_goals: [],
-          story_importance: 'moderate',
-          timeline_events: []
+          story_importance: 'moderate'
         },
         tags: []
       }
@@ -1995,13 +2109,13 @@ const RelationshipsPanel = ({
       id: character.id,
       name: character.name,
       type: 'character',
-      connections: relationships.filter(r => 
+      connections: filteredRelationships.filter(r => 
         r.attributes?.character_1_id === character.id || 
         r.attributes?.character_2_id === character.id
       ).length
     }))
 
-    const links = relationships.map(relationship => ({
+    const links = filteredRelationships.map(relationship => ({
       source: relationship.attributes?.character_1_id,
       target: relationship.attributes?.character_2_id,
       type: relationship.attributes?.type,
@@ -2012,11 +2126,21 @@ const RelationshipsPanel = ({
     })).filter(link => link.source && link.target)
 
     return { nodes, links }
-  }, [characters, relationships])
+  }, [characters, filteredRelationships])
 
   // Character relationship matrix
-  const generateMatrix = useCallback(() => {
+  const generateMatrix = useCallback((relationshipData: Relationship[]) => {
     const matrix: Array<Array<Relationship | null>> = []
+    
+    // Extract individual relationships from relationship webs
+    const individualRelationships: any[] = []
+    relationshipData.forEach(r => {
+      if (r.attributes?.type === 'relationship_web' && r.attributes?.canvas_data?.connections) {
+        r.attributes.canvas_data.connections.forEach((connection: any) => {
+          individualRelationships.push(connection)
+        })
+      }
+    })
     
     characters.forEach((char1, i) => {
       matrix[i] = []
@@ -2024,17 +2148,30 @@ const RelationshipsPanel = ({
         if (i === j) {
           matrix[i][j] = null // Same character
         } else {
-          const relationship = relationships.find(r => 
-            (r.attributes?.character_1_id === char1.id && r.attributes?.character_2_id === char2.id) ||
-            (r.attributes?.character_1_id === char2.id && r.attributes?.character_2_id === char1.id)
-          )
+          // Look for connections by parsing the connection ID
+          const relationship = individualRelationships.find(r => {
+            // Parse the connection ID format: "char1_id-char2_id-timestamp"
+            if (r.id && typeof r.id === 'string') {
+              const parts = r.id.split('-')
+              if (parts.length >= 10) { // UUID has 5 parts each, so minimum 10 parts total
+                // Reconstruct the two UUIDs from the parts
+                const char1_id = parts.slice(0, 5).join('-')
+                const char2_id = parts.slice(5, 10).join('-')
+                
+                return (char1_id === char1.id && char2_id === char2.id) ||
+                       (char1_id === char2.id && char2_id === char1.id)
+              }
+            }
+            return false
+          })
+          
           matrix[i][j] = relationship || null
         }
       })
     })
     
     return matrix
-  }, [characters, relationships])
+  }, [characters])
 
   // Analytics calculations
   const relationshipAnalytics = useCallback(() => {
@@ -2107,80 +2244,85 @@ const RelationshipsPanel = ({
   }
 
   return (
-    <div className="h-full bg-white p-6 overflow-y-auto">
-      <div className="max-w-5xl mx-auto">
+    <div className="h-full bg-gradient-to-br from-gray-50 via-white to-rose-50/30 overflow-y-auto">
+      <div className="w-full p-8">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-              <Heart className="w-7 h-7 text-rose-500" />
+        <div className="flex items-center justify-between mb-8">
+          <div className="space-y-2">
+            <h2 className="text-3xl font-bold bg-gradient-to-r from-rose-600 via-pink-600 to-purple-600 bg-clip-text text-transparent flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-rose-500 to-pink-600 flex items-center justify-center shadow-lg">
+                <Heart className="w-6 h-6 text-white" />
+              </div>
               Relationships
             </h2>
-            <p className="text-sm text-gray-500">Map connections, dynamics, and story arcs between characters</p>
+            <p className="text-base text-gray-600 font-medium">Map connections, dynamics, and story arcs between characters</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             {/* View Mode Toggle */}
-            <div className="flex items-center bg-gray-100 rounded-lg p-1">
+            <div className="flex items-center bg-white/80 backdrop-blur-sm rounded-2xl p-1.5 border border-gray-200/60 shadow-lg">
               <Button
                 variant={viewMode === 'grid' ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => setViewMode('grid')}
-                className="text-xs px-3"
+                className={`text-sm px-4 py-2 rounded-xl transition-all duration-300 ${
+                  viewMode === 'grid' 
+                    ? 'bg-gradient-to-r from-rose-500 to-pink-600 text-white shadow-md hover:shadow-lg' 
+                    : 'hover:bg-gray-100 text-gray-600 hover:text-gray-800'
+                }`}
               >
-                <Grid className="w-4 h-4 mr-1" />
+                <Grid className="w-4 h-4 mr-2" />
                 Grid
               </Button>
               <Button
                 variant={viewMode === 'network' ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => setViewMode('network')}
-                className="text-xs px-3"
+                className={`text-sm px-4 py-2 rounded-xl transition-all duration-300 ${
+                  viewMode === 'network' 
+                    ? 'bg-gradient-to-r from-rose-500 to-pink-600 text-white shadow-md hover:shadow-lg' 
+                    : 'hover:bg-gray-100 text-gray-600 hover:text-gray-800'
+                }`}
               >
-                <Network className="w-4 h-4 mr-1" />
+                <Network className="w-4 h-4 mr-2" />
                 Network
               </Button>
               <Button
                 variant={viewMode === 'matrix' ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => setViewMode('matrix')}
-                className="text-xs px-3"
+                className={`text-sm px-4 py-2 rounded-xl transition-all duration-300 ${
+                  viewMode === 'matrix' 
+                    ? 'bg-gradient-to-r from-rose-500 to-pink-600 text-white shadow-md hover:shadow-lg' 
+                    : 'hover:bg-gray-100 text-gray-600 hover:text-gray-800'
+                }`}
               >
-                <BarChart3 className="w-4 h-4 mr-1" />
+                <BarChart3 className="w-4 h-4 mr-2" />
                 Matrix
-              </Button>
-              <Button
-                variant={viewMode === 'timeline' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setViewMode('timeline')}
-                className="text-xs px-3"
-              >
-                <Activity className="w-4 h-4 mr-1" />
-                Timeline
               </Button>
             </div>
             
             {/* Create Buttons */}
-            <div className="flex gap-2">
+            <div className="flex gap-3">
               <Button
                 variant="outline"
                 onClick={() => {
                   setShowQuickConnect(true)
                 }}
-                className="border-rose-200 text-rose-600 hover:bg-rose-50"
+                className="border-2 border-rose-200 text-rose-600 hover:bg-rose-50 hover:border-rose-300 hover:scale-105 transition-all duration-300 rounded-2xl px-6 py-3 font-medium shadow-sm hover:shadow-lg bg-white/80 backdrop-blur-sm"
               >
-                <Zap className="w-4 h-4 mr-2" />
+                <Zap className="w-5 h-5 mr-2" />
                 Quick Connect
               </Button>
               {!showNameInput ? (
                 <Button
                   onClick={() => setShowNameInput(true)}
-                  className="bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white shadow-lg"
+                  className="bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 rounded-2xl px-6 py-3 font-medium"
                 >
-                  <Plus className="w-4 h-4 mr-2" />
+                  <Plus className="w-5 h-5 mr-2" />
                   New Relationship
                 </Button>
               ) : (
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 bg-white/90 backdrop-blur-sm rounded-2xl p-2 border border-gray-200/60 shadow-lg">
                   <EnhancedInput
                     placeholder="Enter relationship name..."
                     value={relationshipName}
@@ -2194,7 +2336,7 @@ const RelationshipsPanel = ({
                         setRelationshipName('')
                       }
                     }}
-                    className="min-w-[300px]"
+                    className="min-w-[300px] border-none shadow-none bg-transparent focus:ring-0"
                     autoFocus
                   />
                   <Button
@@ -2205,7 +2347,7 @@ const RelationshipsPanel = ({
                       }
                     }}
                     disabled={!relationshipName.trim()}
-                    className="bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white shadow-lg"
+                    className="bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white shadow-lg hover:shadow-xl rounded-xl px-4 py-2 transition-all duration-300"
                   >
                     <ArrowRight className="w-4 h-4" />
                   </Button>
@@ -2215,7 +2357,7 @@ const RelationshipsPanel = ({
                       setShowNameInput(false)
                       setRelationshipName('')
                     }}
-                    className="border-gray-300 hover:border-gray-400"
+                    className="border-gray-300 hover:border-gray-400 rounded-xl px-3 py-2 transition-all duration-300"
                   >
                     <X className="w-4 h-4" />
                   </Button>
@@ -2226,20 +2368,20 @@ const RelationshipsPanel = ({
         </div>
 
         {/* Filters */}
-        <div className="flex flex-wrap items-center gap-4 mb-6 p-4 bg-gray-50 rounded-lg">
+        <div className="flex flex-wrap items-center gap-4 mb-8 p-6 bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-200/60 shadow-lg">
           <div className="flex-1 min-w-64">
             <Input
               placeholder="Search relationships..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="bg-white"
+              className="bg-white/90 border-2 border-gray-200 rounded-2xl shadow-sm hover:border-rose-300 focus:border-rose-500 focus:ring-2 focus:ring-rose-100 transition-all duration-300 px-5 py-3 text-base"
             />
           </div>
           <Select value={selectedType} onValueChange={setSelectedType}>
-            <SelectTrigger className="w-48 bg-white">
+            <SelectTrigger className="w-64 bg-white/90 border-2 border-gray-200 rounded-2xl shadow-sm hover:border-rose-300 focus:border-rose-500 focus:ring-2 focus:ring-rose-100 transition-all duration-300 px-5 py-3">
               <SelectValue placeholder="Filter by type" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="bg-white border-2 border-gray-200 rounded-2xl shadow-xl backdrop-blur-sm">
               <SelectItem value="all">All Types</SelectItem>
               {RELATIONSHIP_TYPES.map(type => (
                 <SelectItem key={type.value} value={type.value}>
@@ -2252,10 +2394,10 @@ const RelationshipsPanel = ({
             </SelectContent>
           </Select>
           <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-            <SelectTrigger className="w-48 bg-white">
+            <SelectTrigger className="w-64 bg-white/90 border-2 border-gray-200 rounded-2xl shadow-sm hover:border-rose-300 focus:border-rose-500 focus:ring-2 focus:ring-rose-100 transition-all duration-300 px-5 py-3">
               <SelectValue placeholder="Filter by status" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="bg-white border-2 border-gray-200 rounded-2xl shadow-xl backdrop-blur-sm">
               <SelectItem value="all">All Statuses</SelectItem>
               {RELATIONSHIP_STATUS.map(status => (
                 <SelectItem key={status.value} value={status.value}>
@@ -2271,10 +2413,17 @@ const RelationshipsPanel = ({
 
         {/* Content */}
         {filteredRelationships.length === 0 ? (
-          <div className="text-center py-12">
-            <Heart className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-600 text-lg mb-2">No relationships yet</p>
-            <p className="text-gray-500 mb-6">
+          <div className="text-center py-20">
+            <div className="relative mb-8">
+              <div className="absolute inset-0 bg-gradient-to-r from-rose-100 via-pink-100 to-purple-100 rounded-full w-32 h-32 mx-auto animate-pulse opacity-20" />
+              <div className="relative w-32 h-32 mx-auto bg-gradient-to-br from-rose-500 to-pink-600 rounded-full flex items-center justify-center shadow-2xl">
+                <Heart className="w-16 h-16 text-white" />
+              </div>
+            </div>
+            <h3 className="text-3xl font-bold bg-gradient-to-r from-rose-600 to-pink-600 bg-clip-text text-transparent mb-4">
+              No relationships yet
+            </h3>
+            <p className="text-xl text-gray-600 mb-8 max-w-md mx-auto leading-relaxed">
               Start mapping the connections between your characters to bring depth to your story.
             </p>
             <Button 
@@ -2282,9 +2431,9 @@ const RelationshipsPanel = ({
                 setRelationshipName("First Relationship")
                 setShowCanvas(true)
               }}
-              className="bg-rose-500 hover:bg-rose-600 text-white"
+              className="bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 rounded-2xl px-8 py-4 text-lg font-medium"
             >
-              <Plus className="w-4 h-4 mr-2" />
+              <Plus className="w-6 h-6 mr-3" />
               Create First Relationship
             </Button>
           </div>
@@ -2292,49 +2441,85 @@ const RelationshipsPanel = ({
           <>
             {/* Analytics Dashboard */}
             {viewMode === 'grid' && (
-              <div className="mb-8 grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="mb-8 grid grid-cols-2 md:grid-cols-4 gap-6">
                 {(() => {
                   const analytics = relationshipAnalytics()
                   return (
                     <>
-                      <Card className="p-4">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Heart className="w-5 h-5 text-rose-500" />
-                          <span className="text-sm font-medium">Total</span>
+                      <Card className="group relative overflow-hidden bg-gradient-to-br from-white via-rose-50/30 to-pink-50/50 border border-rose-200/60 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-500 hover:scale-105 hover:-translate-y-1 p-6">
+                        <div className="absolute inset-0 bg-gradient-to-br from-rose-100/0 to-pink-100/0 group-hover:from-rose-100/40 group-hover:to-pink-100/20 transition-all duration-500 rounded-2xl" />
+                        <div className="relative z-10">
+                          <div className="flex items-center gap-3 mb-4">
+                            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-rose-500 to-pink-600 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
+                              <Heart className="w-6 h-6 text-white" />
+                            </div>
+                            <span className="text-lg font-bold text-gray-800 group-hover:text-gray-900 transition-colors duration-300">Total</span>
+                          </div>
+                          <div className="text-4xl font-black bg-gradient-to-r from-rose-600 to-pink-600 bg-clip-text text-transparent mb-2">
+                            {analytics.totalRelationships}
+                          </div>
+                          <div className="text-sm text-gray-600 group-hover:text-gray-700 font-medium transition-colors duration-300">
+                            {analytics.activeRelationships} active
+                          </div>
                         </div>
-                        <div className="text-2xl font-bold">{analytics.totalRelationships}</div>
-                        <div className="text-xs text-gray-500">{analytics.activeRelationships} active</div>
+                        <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-rose-400 to-pink-500 opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-b-2xl" />
                       </Card>
                       
-                      <Card className="p-4">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Flame className="w-5 h-5 text-red-500" />
-                          <span className="text-sm font-medium">Conflicts</span>
+                      <Card className="group relative overflow-hidden bg-gradient-to-br from-white via-red-50/30 to-orange-50/50 border border-red-200/60 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-500 hover:scale-105 hover:-translate-y-1 p-6">
+                        <div className="absolute inset-0 bg-gradient-to-br from-red-100/0 to-orange-100/0 group-hover:from-red-100/40 group-hover:to-orange-100/20 transition-all duration-500 rounded-2xl" />
+                        <div className="relative z-10">
+                          <div className="flex items-center gap-3 mb-4">
+                            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-red-500 to-orange-600 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
+                              <Flame className="w-6 h-6 text-white" />
+                            </div>
+                            <span className="text-lg font-bold text-gray-800 group-hover:text-gray-900 transition-colors duration-300">Conflicts</span>
+                          </div>
+                          <div className="text-4xl font-black bg-gradient-to-r from-red-600 to-orange-600 bg-clip-text text-transparent mb-2">
+                            {analytics.conflictRelationships}
+                          </div>
+                          <div className="text-sm text-gray-600 group-hover:text-gray-700 font-medium transition-colors duration-300">
+                            Tension avg: {analytics.avgTension}/10
+                          </div>
                         </div>
-                        <div className="text-2xl font-bold">{analytics.conflictRelationships}</div>
-                        <div className="text-xs text-gray-500">Tension avg: {analytics.avgTension}/10</div>
+                        <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-red-400 to-orange-500 opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-b-2xl" />
                       </Card>
                       
-                      <Card className="p-4">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Heart className="w-5 h-5 text-pink-500" />
-                          <span className="text-sm font-medium">Romance</span>
+                      <Card className="group relative overflow-hidden bg-gradient-to-br from-white via-pink-50/30 to-purple-50/50 border border-pink-200/60 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-500 hover:scale-105 hover:-translate-y-1 p-6">
+                        <div className="absolute inset-0 bg-gradient-to-br from-pink-100/0 to-purple-100/0 group-hover:from-pink-100/40 group-hover:to-purple-100/20 transition-all duration-500 rounded-2xl" />
+                        <div className="relative z-10">
+                          <div className="flex items-center gap-3 mb-4">
+                            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-pink-500 to-purple-600 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
+                              <Heart className="w-6 h-6 text-white" />
+                            </div>
+                            <span className="text-lg font-bold text-gray-800 group-hover:text-gray-900 transition-colors duration-300">Romance</span>
+                          </div>
+                          <div className="text-4xl font-black bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent mb-2">
+                            {analytics.romanticRelationships}
+                          </div>
+                          <div className="text-sm text-gray-600 group-hover:text-gray-700 font-medium transition-colors duration-300">
+                            Intimacy avg: {analytics.avgIntimacy}/10
+                          </div>
                         </div>
-                        <div className="text-2xl font-bold">{analytics.romanticRelationships}</div>
-                        <div className="text-xs text-gray-500">Intimacy avg: {analytics.avgIntimacy}/10</div>
+                        <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-pink-400 to-purple-500 opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-b-2xl" />
                       </Card>
                       
-                      <Card className="p-4">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Network className="w-5 h-5 text-blue-500" />
-                          <span className="text-sm font-medium">Hub</span>
+                      <Card className="group relative overflow-hidden bg-gradient-to-br from-white via-blue-50/30 to-indigo-50/50 border border-blue-200/60 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-500 hover:scale-105 hover:-translate-y-1 p-6">
+                        <div className="absolute inset-0 bg-gradient-to-br from-blue-100/0 to-indigo-100/0 group-hover:from-blue-100/40 group-hover:to-indigo-100/20 transition-all duration-500 rounded-2xl" />
+                        <div className="relative z-10">
+                          <div className="flex items-center gap-3 mb-4">
+                            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
+                              <Network className="w-6 h-6 text-white" />
+                            </div>
+                            <span className="text-lg font-bold text-gray-800 group-hover:text-gray-900 transition-colors duration-300">Hub</span>
+                          </div>
+                          <div className="text-2xl font-black bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent mb-2 truncate">
+                            {analytics.mostConnectedCharacter.character?.name || 'None'}
+                          </div>
+                          <div className="text-sm text-gray-600 group-hover:text-gray-700 font-medium transition-colors duration-300">
+                            {analytics.mostConnectedCharacter.connections} connections
+                          </div>
                         </div>
-                        <div className="text-lg font-bold truncate">
-                          {analytics.mostConnectedCharacter.character?.name || 'None'}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          {analytics.mostConnectedCharacter.connections} connections
-                        </div>
+                        <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-400 to-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-b-2xl" />
                       </Card>
                     </>
                   )
@@ -2344,7 +2529,7 @@ const RelationshipsPanel = ({
 
             {/* View Content */}
             {viewMode === 'grid' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
                 {filteredRelationships.map(relationship => (
                   <RelationshipCard
                     key={relationship.id}
@@ -2372,13 +2557,9 @@ const RelationshipsPanel = ({
             {viewMode === 'matrix' && (
               <MatrixView 
                 characters={characters} 
-                relationships={relationships}
-                matrix={generateMatrix()}
+                relationships={filteredRelationships}
+                matrix={generateMatrix(filteredRelationships)}
               />
-            )}
-
-            {viewMode === 'timeline' && (
-              <TimelineView relationships={filteredRelationships} />
             )}
           </>
         )}
@@ -2417,15 +2598,8 @@ const RelationshipsPanel = ({
                   value="dynamics" 
                   className="rounded-xl data-[state=active]:bg-white data-[state=active]:text-rose-600 data-[state=active]:shadow-md font-medium transition-all duration-300"
                 >
-                  <Activity className="w-4 h-4 mr-2" />
+                  <TrendingUp className="w-4 h-4 mr-2" />
                   Dynamics
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="timeline" 
-                  className="rounded-xl data-[state=active]:bg-white data-[state=active]:text-rose-600 data-[state=active]:shadow-md font-medium transition-all duration-300"
-                >
-                  <Calendar className="w-4 h-4 mr-2" />
-                  Timeline
                 </TabsTrigger>
                 <TabsTrigger 
                   value="analysis" 
@@ -2803,20 +2977,6 @@ const RelationshipsPanel = ({
               </TabsContent>
 
               {/* Timeline Tab */}
-              <TabsContent value="timeline" className="space-y-6 py-4">
-                <div className="text-center py-12">
-                  <Calendar className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <p className="text-gray-600 text-lg mb-2">Timeline Events</p>
-                  <p className="text-gray-500 text-sm mb-6">
-                    Track how this relationship develops over time
-                  </p>
-                  <Button variant="outline">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Timeline Event
-                  </Button>
-                </div>
-              </TabsContent>
-
               {/* Analysis Tab */}
               <TabsContent value="analysis" className="space-y-6 py-4">
                 <div className="space-y-4">
@@ -3808,33 +3968,39 @@ const RelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
 
                 {/* Node Actions */}
                 {selectedNode === node.id && (
-                  <div className="absolute -top-2 -right-2 flex gap-1">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="w-6 h-6 p-0 bg-blue-500 hover:bg-blue-600 text-white border-blue-500"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        startConnection(node.id)
-                      }}
-                    >
-                      <Link2 className="w-3 h-3" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="w-6 h-6 p-0 bg-red-500 hover:bg-red-600 text-white border-red-500"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setNodes(prev => prev.filter(n => n.id !== node.id))
-                        setConnections(prev => prev.filter(c => 
-                          c.fromNodeId !== node.id && c.toNodeId !== node.id
-                        ))
-                      }}
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                  </div>
+                  <>
+                    {/* Delete button - top-right corner */}
+                    <div className="absolute -top-2 -right-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-6 h-6 p-0 bg-red-500 hover:bg-red-600 text-white border-red-500"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setNodes(prev => prev.filter(n => n.id !== node.id))
+                          setConnections(prev => prev.filter(c => 
+                            c.fromNodeId !== node.id && c.toNodeId !== node.id
+                          ))
+                        }}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
+                    {/* Connection button - top-left corner */}
+                    <div className="absolute -top-2 -left-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-6 h-6 p-0 bg-blue-500 hover:bg-blue-600 text-white border-blue-500"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          startConnection(node.id)
+                        }}
+                      >
+                        <Link2 className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  </>
                 )}
               </div>
             ))}
@@ -4618,7 +4784,7 @@ const InlineRelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
                 }`}
                 title="Toggle Animations"
               >
-                <Activity className="w-4 h-4" />
+                <Zap className="w-4 h-4" />
               </Button>
               
               <div className="px-2 py-1.5 text-xs font-medium text-gray-700 border-x border-gray-200 bg-gray-50 min-w-[60px] text-center">
@@ -5072,46 +5238,52 @@ const InlineRelationshipCanvas: React.FC<RelationshipCanvasProps> = ({
 
                 {/* Enhanced Node Actions */}
                 {selectedNode === node.id && (
-                  <div className="absolute -top-4 -right-4 flex gap-1 z-50">
-                    <Button
-                      size="sm"
-                      className="w-10 h-10 p-0 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white border-2 border-white shadow-lg hover:shadow-xl transition-all duration-200 rounded-full"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        e.preventDefault()
-                        startConnection(node.id)
-                      }}
-                      title="Create Connection"
-                    >
-                      <Link2 className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      className="w-10 h-10 p-0 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white border-2 border-white shadow-lg hover:shadow-xl transition-all duration-200 rounded-full"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        e.preventDefault()
-                        
-                        // Remove the node from the nodes array
-                        setNodes(prev => {
-                          const filtered = prev.filter(n => n.id !== node.id)
-                          return filtered
-                        })
-                        
-                        // Remove all connections involving this node
-                        setConnections(prev => {
-                          const filtered = prev.filter(c => c.fromNodeId !== node.id && c.toNodeId !== node.id)
-                          return filtered
-                        })
-                        
-                        // Clear selection
-                        // setSelectedNode(null) // Commented out to preserve node selection
-                      }}
-                      title="Delete Node"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
+                  <>
+                    {/* Delete button - top-right corner */}
+                    <div className="absolute -top-4 -right-4 z-50">
+                      <Button
+                        size="sm"
+                        className="w-10 h-10 p-0 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white border-2 border-white shadow-lg hover:shadow-xl transition-all duration-200 rounded-full"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          e.preventDefault()
+                          
+                          // Remove the node from the nodes array
+                          setNodes(prev => {
+                            const filtered = prev.filter(n => n.id !== node.id)
+                            return filtered
+                          })
+                          
+                          // Remove all connections involving this node
+                          setConnections(prev => {
+                            const filtered = prev.filter(c => c.fromNodeId !== node.id && c.toNodeId !== node.id)
+                            return filtered
+                          })
+                          
+                          // Clear selection
+                          // setSelectedNode(null) // Commented out to preserve node selection
+                        }}
+                        title="Delete Node"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    {/* Connection button - top-left corner */}
+                    <div className="absolute -top-4 -left-4 z-50">
+                      <Button
+                        size="sm"
+                        className="w-10 h-10 p-0 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white border-2 border-white shadow-lg hover:shadow-xl transition-all duration-200 rounded-full"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          e.preventDefault()
+                          startConnection(node.id)
+                        }}
+                        title="Create Connection"
+                      >
+                        <Link2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </>
                 )}
 
                 {/* Draw.io Style Connection Ports */}
