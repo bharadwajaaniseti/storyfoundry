@@ -64,6 +64,7 @@ const CATEGORIES = [
   { key: 'locations', label: 'Locations', icon: MapPin, color: 'green' },
   { key: 'timeline', label: 'Timeline', icon: Clock, color: 'purple' },
   { key: 'calendar', label: 'Calendar', icon: Calendar, color: 'orange' },
+  { key: 'encyclopedia', label: 'Encyclopedia', icon: BookOpen, color: 'orange' },
   { key: 'research', label: 'Research', icon: BookOpen, color: 'amber' },
   { key: 'maps', label: 'Maps', icon: Map, color: 'cyan' },
   { key: 'species', label: 'Species', icon: Zap, color: 'yellow' },
@@ -149,11 +150,16 @@ export default function WorldBuildingSidebar({
           console.log('Real-time world element update in sidebar:', payload);
           
           if (payload.eventType === 'INSERT') {
+            console.log('🚨 REALTIME INSERT:', payload.new.name, 'Category:', payload.new.category)
             // Add new element to the list
             setElements((prev) => {
               // Check if element already exists to avoid duplicates
               const exists = prev.some(el => el.id === payload.new.id);
-              if (exists) return prev;
+              if (exists) {
+                console.log('🚨 REALTIME: Element already exists, skipping')
+                return prev;
+              }
+              console.log('🚨 REALTIME: Adding new element to sidebar')
               return [...prev, payload.new as WorldElement];
             });
           } else if (payload.eventType === 'UPDATE') {
@@ -342,6 +348,51 @@ export default function WorldBuildingSidebar({
     window.addEventListener('relationshipUpdated', handleRelationshipUpdated as EventListener);
     window.addEventListener('relationshipDeleted', handleRelationshipDeleted as EventListener);
     
+    // Handle encyclopedia events
+    const handleEncyclopediaCreated = (event: CustomEvent) => {
+      console.log('🔥 SIDEBAR: Received encyclopediaCreated event:', event.detail)
+      if (event.detail.projectId !== projectId) {
+        console.log('🔥 SIDEBAR: Project ID mismatch, ignoring event')
+        return;
+      }
+      const encyclopedia = event.detail.encyclopedia;
+      console.log('🔥 SIDEBAR: Adding encyclopedia to elements:', encyclopedia.name, encyclopedia.id)
+      setElements((prev) => {
+        const exists = prev.some(el => el.id === encyclopedia.id);
+        if (exists) {
+          console.log('🔥 SIDEBAR: Encyclopedia already exists, skipping')
+          return prev;
+        }
+        console.log('🔥 SIDEBAR: Adding new encyclopedia, current count:', prev.length)
+        const newElements = [...prev, encyclopedia];
+        console.log('🔥 SIDEBAR: New elements count:', newElements.length)
+        return newElements;
+      });
+    };
+
+    const handleEncyclopediaUpdated = (event: CustomEvent) => {
+      if (event.detail.projectId !== projectId) return;
+      const encyclopedia = event.detail.encyclopedia;
+      setElements((prev) => 
+        prev.map(el => 
+          el.id === encyclopedia.id ? encyclopedia : el
+        )
+      );
+    };
+
+    const handleEncyclopediaDeleted = (event: CustomEvent) => {
+      if (event.detail.projectId !== projectId) return;
+      const encyclopediaId = event.detail.encyclopediaId;
+      setElements((prev) => prev.filter(el => el.id !== encyclopediaId));
+      if (selectedElement?.id === encyclopediaId) {
+        setSelectedElement(null);
+      }
+    };
+
+    window.addEventListener('encyclopediaCreated', handleEncyclopediaCreated as EventListener);
+    window.addEventListener('encyclopediaUpdated', handleEncyclopediaUpdated as EventListener);
+    window.addEventListener('encyclopediaDeleted', handleEncyclopediaDeleted as EventListener);
+    
     console.log('Sidebar event listeners registered for project:', projectId)
 
     return () => {
@@ -359,6 +410,9 @@ export default function WorldBuildingSidebar({
       window.removeEventListener('relationshipCreated', handleRelationshipCreated as EventListener);
       window.removeEventListener('relationshipUpdated', handleRelationshipUpdated as EventListener);
       window.removeEventListener('relationshipDeleted', handleRelationshipDeleted as EventListener);
+      window.removeEventListener('encyclopediaCreated', handleEncyclopediaCreated as EventListener);
+      window.removeEventListener('encyclopediaUpdated', handleEncyclopediaUpdated as EventListener);
+      window.removeEventListener('encyclopediaDeleted', handleEncyclopediaDeleted as EventListener);
     };
   }, [projectId, selectedElement?.id]);
 
@@ -387,6 +441,11 @@ export default function WorldBuildingSidebar({
       if (error) throw error
       
       setElements(data || [])
+      
+      // Debug encyclopedia specifically  
+      const encyclopediaElements = data?.filter(el => el.category === 'encyclopedia') || []
+      console.log('🔍 SIDEBAR LOAD: Encyclopedia entries found:', encyclopediaElements.length)
+      console.log('🔍 Encyclopedia entries data:', encyclopediaElements.map(e => ({ id: e.id, name: e.name, category: e.category })))
       
       // Debug calendar systems specifically
       const calendarSystems = data?.filter(el => el.category === 'calendar_system') || []

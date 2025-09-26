@@ -306,7 +306,6 @@ function NovelPageInner() {
         }
 
         const isOwner = projectData.owner_id === user.id
-        console.log('User role check:', { isOwner, userId: user.id, projectOwnerId: projectData.owner_id })
         setIsProjectOwner(isOwner)
         if (isOwner) {
           setProject(projectData)
@@ -2902,6 +2901,8 @@ function NovelPageInner() {
         return (
           <EncyclopediaPanel 
             projectId={project.id}
+            selectedElement={selectedElement}
+            onEncyclopediaChange={handleLocationsChange}
           />
         )
 
