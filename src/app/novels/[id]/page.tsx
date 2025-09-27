@@ -2903,6 +2903,7 @@ function NovelPageInner() {
             projectId={project.id}
             selectedElement={selectedElement}
             onEncyclopediaChange={handleLocationsChange}
+            onNavigateToElement={navigateToWorldElement}
           />
         )
 

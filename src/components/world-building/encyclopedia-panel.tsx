@@ -1,13 +1,13 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { 
   Plus, Search, Edit3, Trash2, BookOpen, Tag, 
   FileText, User, MapPin, Package, Calendar,
   Zap, Globe, Cog, Save, X, Download, Copy,
-  Clock, Layout, Link, ExternalLink, History,
+  Clock, Layout, Link, Link2, ExternalLink, History,
   Image as ImageIcon, Table, Play, Volume2, Code, Bold, Italic, Underline, BarChart3,
-  ChevronUp, ChevronDown
+  ChevronUp, ChevronDown, Crown, Shield, Heart, Users, Map, Palette, Brain, Sparkles, Star
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -19,12 +19,35 @@ import {
   isSupabaseStorageUrl 
 } from '@/lib/encyclopedia-storage'
 
+// World Element Types Configuration
+const WORLD_ELEMENT_TYPES = {
+  characters: { label: 'Characters', icon: Users, emoji: '👤' },
+  relationships: { label: 'Relationships', icon: Heart, emoji: '💕' },
+  locations: { label: 'Locations', icon: MapPin, emoji: '📍' },
+  timeline: { label: 'Timeline', icon: Clock, emoji: '📅' },
+  calendar: { label: 'Calendar', icon: Calendar, emoji: '📅' },
+  calendar_system: { label: 'Calendar', icon: Calendar, emoji: '📅' },
+  research: { label: 'Research', icon: BookOpen, emoji: '📄' },
+  maps: { label: 'Maps', icon: Map, emoji: '🗺️' },
+  species: { label: 'Species', icon: Zap, emoji: '🧬' },
+  cultures: { label: 'Cultures', icon: Crown, emoji: '👑' },
+  items: { label: 'Items', icon: Package, emoji: '⚔️' },
+  systems: { label: 'Systems', icon: Globe, emoji: '🌍' },
+  languages: { label: 'Languages', icon: Shield, emoji: '🗣️' },
+  religions: { label: 'Religions', icon: Heart, emoji: '⛪' },
+  philosophies: { label: 'Philosophies', icon: Brain, emoji: '🧠' },
+  encyclopedia: { label: 'Encyclopedia', icon: BookOpen, emoji: '📚' },
+  magic: { label: 'Magic', icon: Sparkles, emoji: '✨' },
+  arcs: { label: 'Arcs', icon: Star, emoji: '⭐' }
+}
+
 // Rich Text Toolbar Component
 function RichTextToolbar({ 
   onAddImage, 
   onAddTable, 
   onAddStats, 
   onAddMedia,
+  onAddLink,
   onFormatText,
   activeField = null 
 }: {
@@ -32,6 +55,7 @@ function RichTextToolbar({
   onAddTable: () => void
   onAddStats: () => void
   onAddMedia: () => void
+  onAddLink: () => void
   onFormatText: (format: string) => void
   activeField?: string | null
 }) {
@@ -100,213 +124,543 @@ function RichTextToolbar({
           <Play className="w-3 h-3" />
           Media
         </button>
+        <button
+          type="button"
+          onClick={onAddLink}
+          className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-100 text-blue-700 hover:bg-blue-200 rounded transition-colors"
+          title="Link Element"
+        >
+          <Link2 className="w-3 h-3" />
+          Link
+        </button>
       </div>
     </div>
   )
 }
 
-// Utility function to render markdown-like content with inline images and tables
-const renderRichText = (text: string) => {
-  if (!text) return null
-  
-  // Split text by markdown elements while preserving them
-  const parts = text.split(/(\!\[.*?\]\(.*?\)|(?:\n\*\*.*?\*\*\n)?\n(?:\|.*?\|\n)+)/g)
-  
-  return (
-    <>
-      {parts.map((part, index) => {
-    // Handle images: ![alt](url "caption")
-    const imageMatch = part.match(/!\[([^\]]*)\]\(([^)]+)(?:\s+"([^"]*)")?\)/)
-    if (imageMatch) {
-      const [, alt, url, caption] = imageMatch
-      return (
-        <div key={index} className="my-6">
-          <div className="relative rounded-lg overflow-hidden shadow-md">
-            <img
-              src={url}
-              alt={alt}
-              className="w-full h-auto"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjI0IiBoZWlnaHQ9IjI0IiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0xMiAxNkM5Ljc5IDEzLjc5IDcuMTcgMTIuNDUgNS44OCAxMS43OUM1LjY5IDExLjY5IDUuNDYgMTEuNjMgNS4yMyAxMS42M0M0Ljg2IDExLjYzIDQuNSAxMS43NyA0LjI1IDEyLjAyTDIuMjkgMTRDMi4xIDEzLjY0IDIgMTMuMjIgMiAxMi43N0wyIDEwVjhDMiA3LjQ1IDIuMjIgNi45NSAyLjU5IDYuNTlDMi45NSA2LjIyIDMuNDUgNiA0IDZIMjBDMjAuNTUgNiAyMS4wNSA2LjIyIDIxLjQxIDYuNTlDMjEuNzggNi45NSAyMiA3LjQ1IDIyIDhWMTBWMTIuNzdDMjIgMTMuMjIgMjEuOSAxMy42NCAyMS43MSAxNEwxOS43NSAxMi4wMkMxOS41IDExLjc3IDE5LjE0IDExLjYzIDE4Ljc3IDExLjYzQzE4LjU0IDExLjYzIDE4LjMxIDExLjY5IDE4LjEyIDExLjc5QzE2LjgzIDEyLjQ1IDE0LjIxIDEzLjc5IDEyIDE2WiIgZmlsbD0iIzlDQTNBRiIvPgo8L3N2Zz4K'
-              }}
-            />
-          </div>
-          {caption && (
-            <p className="text-sm text-gray-600 text-center mt-2 italic">
-              {caption}
-            </p>
-          )}
-        </div>
-      )
+// Resizable Image Component
+const ResizableImage = ({ 
+  src, 
+  alt, 
+  caption, 
+  initialWidth, 
+  initialHeight,
+  isEditing = false,
+  onResize,
+  imageIndex
+}: {
+  src: string
+  alt: string
+  caption?: string
+  initialWidth?: number
+  initialHeight?: number
+  isEditing?: boolean
+  onResize?: (width: number, height: number, index: number) => void
+  imageIndex?: number
+}) => {
+  const [size, setSize] = useState({
+    width: initialWidth || 0,
+    height: initialHeight || 0
+  })
+  const [isResizing, setIsResizing] = useState(false)
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
+  const [originalSize, setOriginalSize] = useState({ width: 0, height: 0 })
+  const [aspectRatio, setAspectRatio] = useState(1)
+  const imageRef = useRef<HTMLImageElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const animationFrameRef = useRef<number | null>(null)
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!isResizing) return
+    
+    e.preventDefault()
+    e.stopPropagation()
+    
+    // Cancel any pending animation frame
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current)
     }
     
-    // Handle tables
-    const tableMatch = part.match(/(?:\n\*\*(.+?)\*\*\n)?\n(\|.+\|\n(?:\|.+\|\n)+)/g)
-    if (tableMatch) {
-      const lines = part.trim().split('\n')
-      let title = ''
-      let tableStart = 0
+    // Use requestAnimationFrame for smooth updates
+    animationFrameRef.current = requestAnimationFrame(() => {
+      // Calculate mouse movement from start position
+      const deltaX = e.clientX - dragStart.x
+      const deltaY = e.clientY - dragStart.y
       
-      // Check if first line is a title
-      if (lines[0]?.match(/\*\*(.+?)\*\*/)) {
-        title = lines[0].replace(/\*\*(.+?)\*\*/, '$1')
-        tableStart = 1
-        // Skip empty line after title
-        if (lines[1] === '') tableStart = 2
+      // Use the average of both deltas for more natural resizing
+      const avgDelta = (deltaX + deltaY) / 2
+      
+      // Calculate new width with constraints
+      const newWidth = Math.max(80, Math.min(1000, originalSize.width + avgDelta))
+      const newHeight = newWidth / aspectRatio
+      
+      const newSize = { 
+        width: Math.round(newWidth), 
+        height: Math.round(newHeight) 
       }
       
-      const tableLines = lines.slice(tableStart).filter(line => line.startsWith('|'))
-      if (tableLines.length >= 2) {
-        const headers = tableLines[0].split('|').slice(1, -1).map(h => h.trim())
-        const rows = tableLines.slice(2).map(line => 
-          line.split('|').slice(1, -1).map(cell => cell.trim())
-        )
+      setSize(newSize)
+      
+      // Callback to parent immediately for markdown update
+      if (onResize && typeof imageIndex === 'number') {
+        onResize(newSize.width, newSize.height, imageIndex)
+      }
+    })
+  }, [isResizing, dragStart, originalSize, aspectRatio, onResize, imageIndex])
+
+  const handleMouseUp = useCallback((e: MouseEvent) => {
+    if (!isResizing) return
+    
+    e.preventDefault()
+    e.stopPropagation()
+    
+    setIsResizing(false)
+    
+    // Cancel any pending animation frame
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current)
+    }
+    
+    // Reset cursor and user selection
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
+    document.body.style.webkitUserSelect = ''
+  }, [isResizing])
+
+  // Prevent default for various events during resize
+  const preventDefault = useCallback((e: Event) => {
+    e.preventDefault()
+  }, [])
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    
+    if (!containerRef.current || size.width === 0 || size.height === 0) return
+    
+    console.log('Mouse down - starting resize', { currentSize: size })
+    
+    // Capture initial values immediately (not using state)
+    const startX = e.clientX
+    const startY = e.clientY
+    const startWidth = size.width
+    const startHeight = size.height
+    const ratio = startWidth / startHeight
+    
+    // Create local handlers that don't depend on React state
+    const localMouseMove = (moveEvent: MouseEvent) => {
+      moveEvent.preventDefault()
+      moveEvent.stopPropagation()
+      
+      const deltaX = moveEvent.clientX - startX
+      const deltaY = moveEvent.clientY - startY
+      const avgDelta = (deltaX + deltaY) / 2
+      
+      const newWidth = Math.max(80, Math.min(1000, startWidth + avgDelta))
+      const newHeight = newWidth / ratio
+      
+      const newSize = { 
+        width: Math.round(newWidth), 
+        height: Math.round(newHeight) 
+      }
+      
+      setSize(newSize)
+      
+      if (onResize && typeof imageIndex === 'number') {
+        onResize(newSize.width, newSize.height, imageIndex)
+      }
+    }
+    
+    const localMouseUp = (upEvent: MouseEvent) => {
+      upEvent.preventDefault()
+      upEvent.stopPropagation()
+      
+      console.log('Mouse up - ending resize')
+      setIsResizing(false)
+      
+      // Remove all listeners
+      document.removeEventListener('mousemove', localMouseMove, true)
+      document.removeEventListener('mouseup', localMouseUp, true)
+      window.removeEventListener('mousemove', localMouseMove, true)
+      window.removeEventListener('mouseup', localMouseUp, true)
+      
+      // Reset styles
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      document.body.style.webkitUserSelect = ''
+    }
+    
+    // Set state and styles
+    setIsResizing(true)
+    setDragStart({ x: startX, y: startY })
+    setOriginalSize({ width: startWidth, height: startHeight })
+    setAspectRatio(ratio)
+    
+    document.body.style.cursor = 'se-resize'
+    document.body.style.userSelect = 'none'
+    document.body.style.webkitUserSelect = 'none'
+    
+    // Add listeners immediately with capture=true
+    document.addEventListener('mousemove', localMouseMove, { passive: false, capture: true })
+    document.addEventListener('mouseup', localMouseUp, { passive: false, capture: true })
+    window.addEventListener('mousemove', localMouseMove, { passive: false, capture: true })
+    window.addEventListener('mouseup', localMouseUp, { passive: false, capture: true })
+    
+    console.log('Event listeners added for resize')
+    
+  }, [size, onResize, imageIndex])
+
+  // Cleanup on unmount only
+  useEffect(() => {
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current)
+      }
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      document.body.style.webkitUserSelect = ''
+    }
+  }, [])
+
+  // Auto-set initial dimensions when image loads
+  const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget
+    if ((!initialWidth && !initialHeight) || (size.width === 0 && size.height === 0)) {
+      // Set initial size to a reasonable default while maintaining aspect ratio
+      const maxWidth = 400
+      const naturalAspectRatio = img.naturalHeight / img.naturalWidth
+      const newWidth = Math.min(img.naturalWidth, maxWidth)
+      const newHeight = Math.round(newWidth * naturalAspectRatio)
+      const newSize = { width: newWidth, height: newHeight }
+      setSize(newSize)
+      
+      // Also notify the parent component about the initial size
+      if (onResize && typeof imageIndex === 'number') {
+        onResize(newWidth, newHeight, imageIndex)
+      }
+    } else if (initialWidth && initialHeight) {
+      // Use provided dimensions
+      setSize({ width: initialWidth, height: initialHeight })
+    }
+  }
+
+  return (
+    <div ref={containerRef} className="relative inline-block my-4">
+      <div 
+        className={`relative rounded-lg overflow-hidden shadow-md transition-all duration-200 select-none ${
+          isEditing && !isResizing ? 'hover:shadow-xl hover:scale-[1.02]' : ''
+        } ${isResizing ? 'shadow-2xl ring-4 ring-blue-400 ring-opacity-30 scale-[1.01]' : ''}`}
+        style={{ 
+          width: size.width > 0 ? `${size.width}px` : 'auto', 
+          height: size.height > 0 ? `${size.height}px` : 'auto',
+          minWidth: isEditing ? '80px' : 'auto',
+          maxWidth: '1000px',
+          transition: isResizing ? 'none' : 'all 0.2s ease-out',
+          position: 'relative',
+          isolation: 'isolate'
+        }}
+        onMouseDown={(e) => {
+          // Prevent any interference with resize handle
+          if (isEditing && !isResizing) {
+            e.stopPropagation()
+          }
+        }}
+      >
+        <img
+          ref={imageRef}
+          src={src}
+          alt={alt}
+          className={`w-full h-full transition-all duration-200 select-none ${
+            size.width > 0 ? 'object-cover' : 'object-contain'
+          } ${isResizing ? 'pointer-events-none opacity-95' : 'opacity-100'}`}
+          style={{ 
+            width: size.width > 0 ? `${size.width}px` : 'auto', 
+            height: size.height > 0 ? `${size.height}px` : 'auto',
+            transition: isResizing ? 'none' : 'all 0.2s ease-out'
+          }}
+          onLoad={handleImageLoad}
+          onError={(e) => {
+            (e.target as HTMLImageElement).src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjI0IiBoZWlnaHQ9IjI0IiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0xMiAxNkM5Ljc5IDEzLjc5IDcuMTcgMTIuNDUgNS44OCAxMS43OUM1LjY5IDExLjY5IDUuNDYgMTEuNjMgNS4yMyAxMS42M0M0Ljg2IDExLjYzIDQuNSAxMS43NyA0LjI1IDEyLjAyTDIuMjkgMTRDMi4xIDEzLjY0IDIgMTMuMjIgMiAxMi43N0wyIDEwVjhDMiA3LjQ1IDIuMjIgNi45NSAyLjU5IDYuNTlDMi45NSA2LjIyIDMuNDUgNiA0IDZIMjBDMjAuNTUgNiAyMS4wNSA2.MjIgMjEuNDEgNi41OUMyMS43OCA2Ljk1IDIyIDcuNDUgMjIgOFYxMFYxMi43N0MyMiAxMy4yMiAyMS45IDEzLjY0IDIxLjcxIDE0TDE5Ljc1IDEyLjAyQzE5LjUgMTEuNzcgMTkuMTQgMTEuNjMgMTguNzcgMTEuNjNDMTguNTQgMTEuNjMgMTguMzEgMTEuNjkgMTguMTIgMTEuNzlDMTYuODMgMTIuNDUgMTQuMjEgMTMuNzkgMTIgMTZaIiBmaWxsPSIjOUNBM0FGIi8+PC9zdmc+'
+          }}
+          onDragStart={(e) => e.preventDefault()}
+        />
         
-        return (
-          <div key={index} className="my-6 border border-gray-200 rounded-lg overflow-hidden shadow-sm">
-            {title && (
-              <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
-                <h4 className="font-semibold text-gray-900">{title}</h4>
-              </div>
-            )}
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    {headers.map((header, i) => (
-                      <th key={i} className="px-4 py-2 text-left text-sm font-semibold text-gray-900 border-b border-gray-200">
-                        {header}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row, i) => (
-                    <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                      {row.map((cell, j) => (
-                        <td key={j} className="px-4 py-2 text-sm text-gray-700 border-b border-gray-100">
-                          {cell}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        {/* Resize handle - only show in editing mode */}
+        {isEditing && (
+          <>
+            <div
+              className="absolute bottom-0 right-0 w-12 h-12 bg-blue-500 cursor-se-resize opacity-90 hover:opacity-100 transition-all duration-200 border-l-4 border-t-4 border-white shadow-xl hover:scale-110 z-50"
+              onMouseDown={handleMouseDown}
+              onDragStart={(e) => e.preventDefault()}
+              style={{
+                clipPath: 'polygon(100% 0%, 0% 100%, 100% 100%)',
+                touchAction: 'none'
+              }}
+              title="Drag to resize image"
+            />
+            
+            {/* Corner grip lines for better visibility */}
+            <div className="absolute bottom-2 right-2 pointer-events-none z-40">
+              <div className="w-4 h-0.5 bg-white opacity-90 mb-0.5 transform rotate-45 origin-left"></div>
+              <div className="w-3 h-0.5 bg-white opacity-90 mb-0.5 transform rotate-45 origin-left"></div>
+              <div className="w-2 h-0.5 bg-white opacity-90 transform rotate-45 origin-left"></div>
+            </div>
+          </>
+        )}
+        
+        {/* Size display tooltip in editing mode */}
+        {isEditing && (isResizing || size.width > 0) && (
+          <div className="absolute top-3 left-3 bg-gray-900 bg-opacity-95 text-white text-sm px-3 py-2 rounded-lg shadow-2xl z-30 border border-gray-600 backdrop-blur-sm">
+            <div className="font-mono font-medium">
+              {Math.round(size.width)} × {Math.round(size.height)}px
             </div>
           </div>
-        )
-      }
+        )}
+        
+        {/* Resize indicator when hovering in edit mode */}
+        {isEditing && !isResizing && (
+          <div className="absolute inset-0 opacity-0 hover:opacity-100 transition-all duration-300 bg-blue-500 bg-opacity-5 border-2 border-blue-400 border-dashed rounded-lg pointer-events-none">
+            <div className="absolute bottom-12 right-3 text-blue-700 text-xs font-semibold bg-blue-50 bg-opacity-90 px-3 py-1.5 rounded-full shadow-md border border-blue-200">
+              Drag corner to resize
+            </div>
+          </div>
+        )}
+      </div>
+      
+      {caption && (
+        <p className="text-sm text-gray-600 text-center mt-2 italic">
+          {caption}
+        </p>
+      )}
+    </div>
+  )
+}
+
+// Element Link Component - Modern clickable button for linked worldbuilding elements
+const ElementLink = ({ elementName, category, elementId, onElementClick }: {
+  elementName: string
+  category: string
+  elementId: string
+  onElementClick?: (elementId: string, category: string) => void
+}) => {
+  const getIcon = (category: string) => {
+    switch (category.toLowerCase()) {
+      case 'characters': return <User className="w-3 h-3" />
+      case 'locations': return <MapPin className="w-3 h-3" />
+      case 'organizations': return <Shield className="w-3 h-3" />
+      case 'items': return <Crown className="w-3 h-3" />
+      case 'lore': return <Heart className="w-3 h-3" />
+      case 'encyclopedia': return <BookOpen className="w-3 h-3" />
+      case 'events': return <Calendar className="w-3 h-3" />
+      case 'maps': return <Globe className="w-3 h-3" />
+      case 'research': return <Zap className="w-3 h-3" />
+      default: return <BookOpen className="w-3 h-3" />
+    }
+  }
+
+  const getCategoryColor = (category: string) => {
+    switch (category.toLowerCase()) {
+      case 'characters': return 'bg-blue-100 text-blue-800 hover:bg-blue-200 border-blue-200'
+      case 'locations': return 'bg-green-100 text-green-800 hover:bg-green-200 border-green-200'
+      case 'organizations': return 'bg-purple-100 text-purple-800 hover:bg-purple-200 border-purple-200'
+      case 'items': return 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200 border-yellow-200'
+      case 'lore': return 'bg-red-100 text-red-800 hover:bg-red-200 border-red-200'
+      case 'encyclopedia': return 'bg-indigo-100 text-indigo-800 hover:bg-indigo-200 border-indigo-200'
+      case 'events': return 'bg-orange-100 text-orange-800 hover:bg-orange-200 border-orange-200'
+      case 'maps': return 'bg-teal-100 text-teal-800 hover:bg-teal-200 border-teal-200'
+      case 'research': return 'bg-pink-100 text-pink-800 hover:bg-pink-200 border-pink-200'
+      default: return 'bg-gray-100 text-gray-800 hover:bg-gray-200 border-gray-200'
+    }
+  }
+
+  return (
+    <button
+      onClick={() => onElementClick?.(elementId, category)}
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors cursor-pointer element-link ${getCategoryColor(category)}`}
+      title={`${category}: ${elementName}`}
+    >
+      {getIcon(category)}
+      <span className="truncate max-w-32 element-name">{elementName}</span>
+    </button>
+  )
+}
+
+// Utility function to render markdown-like content with inline images, tables, and element links
+const renderRichText = (text: string, isEditing: boolean = false, onImageResize?: (width: number, height: number, index: number) => void, onElementClick?: (elementId: string, category: string) => void) => {
+  if (!text) return null
+  
+  // First, let's split by images and tables, but preserve everything else
+  const parts = text.split(/(\!\[.*?\]\([^)]*\)|(?:\n\*\*.*?\*\*\n)?\n(?:\|.*?\|\n)+)/g)
+  let imageIndex = 0
+  
+  const processTextForElementLinks = (textPart: string) => {
+    if (!textPart) return null
+    
+    // More robust approach: find all element links and their positions
+    const elementLinkPattern = /@\{([^|]+)\|([^|]+)\|([^}]+)\}/g
+    const matches = []
+    let match
+    
+    // Find all matches and their positions
+    while ((match = elementLinkPattern.exec(textPart)) !== null) {
+      matches.push({
+        match: match[0],
+        elementName: match[1],
+        category: match[2],
+        elementId: match[3],
+        start: match.index,
+        end: match.index + match[0].length
+      })
     }
     
-    // Handle regular text
-    if (part.trim()) {
+    if (matches.length === 0) {
+      // No element links, return as text
       return (
-        <span key={index} className="whitespace-pre-wrap">
-          {part}
+        <span className="whitespace-pre-wrap">
+          {textPart}
         </span>
       )
     }
     
-    return null
-  }).filter(Boolean)}
-    </>
-  )
-}
-
-// Rich Text Editor Component with Preview Mode
-function RichTextEditor({
-  fieldName,
-  value,
-  onChange,
-  onFocus,
-  onBlur,
-  placeholder,
-  className,
-  textAreaRef,
-  previewMode,
-  onTogglePreview
-}: {
-  fieldName: string
-  value: string
-  onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void
-  onFocus: () => void
-  onBlur: () => void
-  placeholder: string
-  className: string
-  textAreaRef: React.RefObject<HTMLTextAreaElement | null>
-  previewMode: boolean
-  onTogglePreview: () => void
-}) {
-  const [isEditing, setIsEditing] = useState(false)
-
-  return (
-    <div className="relative">
-      {/* Toggle buttons */}
-      <div className="absolute top-2 right-2 z-10 flex bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <button
-          type="button"
-          onClick={() => {
-            setIsEditing(true)
-            onTogglePreview()
-          }}
-          className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-            !previewMode 
-              ? 'bg-blue-500 text-white' 
-              : 'text-gray-600 hover:bg-gray-50'
-          }`}
-        >
-          Edit
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setIsEditing(false)
-            onTogglePreview()
-          }}
-          className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-            previewMode 
-              ? 'bg-blue-500 text-white' 
-              : 'text-gray-600 hover:bg-gray-50'
-          }`}
-        >
-          Preview
-        </button>
-      </div>
-
-      {previewMode ? (
-        /* Preview Mode */
-        <div 
-          className={`${className} cursor-text min-h-48 p-4 overflow-y-auto`}
-          onClick={() => {
-            setIsEditing(true)
-            onTogglePreview()
-            setTimeout(() => textAreaRef.current?.focus(), 0)
-          }}
-        >
-          <div className="prose prose-sm max-w-none">
-            {renderRichText(value) || (
-              <span className="text-gray-400 italic">
-                {placeholder}
-              </span>
-            )}
-          </div>
-        </div>
-      ) : (
-        /* Edit Mode */
-        <Textarea
-          ref={textAreaRef}
-          value={value}
-          onChange={onChange}
-          onFocus={() => {
-            onFocus()
-            setIsEditing(true)
-          }}
-          onBlur={onBlur}
-          placeholder={placeholder}
-          className={className}
+    // Build components with text and links
+    const components = []
+    let lastEnd = 0
+    
+    matches.forEach((matchData, index) => {
+      // Add text before this match
+      if (matchData.start > lastEnd) {
+        const beforeText = textPart.slice(lastEnd, matchData.start)
+        if (beforeText) {
+          components.push(
+            <span key={`text-before-${index}`} className="whitespace-pre-wrap">
+              {beforeText}
+            </span>
+          )
+        }
+      }
+      
+      // Add the element link
+      components.push(
+        <ElementLink 
+          key={`link-${index}`}
+          elementName={matchData.elementName}
+          category={matchData.category}
+          elementId={matchData.elementId}
+          onElementClick={onElementClick}
         />
-      )}
-    </div>
+      )
+      
+      lastEnd = matchData.end
+    })
+    
+    // Add any remaining text after the last match
+    if (lastEnd < textPart.length) {
+      const afterText = textPart.slice(lastEnd)
+      if (afterText) {
+        components.push(
+          <span key="text-after" className="whitespace-pre-wrap">
+            {afterText}
+          </span>
+        )
+      }
+    }
+    
+    return components
+  }
+  
+  return (
+    <>
+      {parts.map((part, index) => {
+        // Handle images: ![alt](url "caption") or ![alt](url width=200 height=150 "caption")
+        const imageMatch = part.match(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+width=(\d+))?\s*(?:\s+height=(\d+))?\s*(?:\s+"([^"]*)")?\)/)
+        if (imageMatch) {
+          const [, alt, url, width, height, caption] = imageMatch
+          const currentImageIndex = imageIndex++
+          return (
+            <ResizableImage
+              key={`img-${index}`}
+              src={url}
+              alt={alt}
+              caption={caption}
+              initialWidth={width ? parseInt(width) : undefined}
+              initialHeight={height ? parseInt(height) : undefined}
+              isEditing={isEditing}
+              onResize={onImageResize}
+              imageIndex={currentImageIndex}
+            />
+          )
+        }
+        
+        // Handle tables
+        const tableMatch = part.match(/(?:\n\*\*(.+?)\*\*\n)?\n(\|.+\|\n(?:\|.+\|\n)+)/g)
+        if (tableMatch) {
+          const lines = part.trim().split('\n')
+          let title = ''
+          let tableStart = 0
+          
+          // Check if first line is a title
+          if (lines[0]?.match(/\*\*(.+?)\*\*/)) {
+            title = lines[0].replace(/\*\*(.+?)\*\*/, '$1')
+            tableStart = 1
+            // Skip empty line after title
+            if (lines[1] === '') tableStart = 2
+          }
+          
+          const tableLines = lines.slice(tableStart).filter(line => line.startsWith('|'))
+          if (tableLines.length >= 2) {
+            const headers = tableLines[0].split('|').slice(1, -1).map(h => h.trim())
+            const rows = tableLines.slice(2).map(line => 
+              line.split('|').slice(1, -1).map(cell => cell.trim())
+            )
+            
+            return (
+              <div key={`table-${index}`} className="my-6 border border-gray-200 rounded-lg overflow-hidden shadow-sm">
+                {title && (
+                  <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+                    <h4 className="font-semibold text-gray-900">{title}</h4>
+                  </div>
+                )}
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        {headers.map((header, i) => (
+                          <th key={i} className="px-4 py-2 text-left text-sm font-semibold text-gray-900 border-b border-gray-200">
+                            {header}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((row, i) => (
+                        <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                          {row.map((cell, j) => (
+                            <td key={j} className="px-4 py-2 text-sm text-gray-700 border-b border-gray-100">
+                              {cell}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )
+          }
+        }
+        
+        // Handle regular text (which might contain element links)
+        if (part && part.trim()) {
+          return (
+            <div key={`content-${index}`}>
+              {processTextForElementLinks(part)}
+            </div>
+          )
+        }
+        
+        return null
+      }).filter(Boolean)}
+    </>
   )
 }
 
@@ -329,6 +683,8 @@ interface EncyclopediaEntry {
       url: string
       caption?: string
       alt?: string
+      width?: number
+      height?: number
     }>
     tables?: Array<{
       title: string
@@ -373,9 +729,10 @@ interface EncyclopediaPanelProps {
   projectId: string
   selectedElement?: any | null  // WorldElement from sidebar
   onEncyclopediaChange?: () => void
+  onNavigateToElement?: (elementId: string, category: string) => void
 }
 
-export default function EncyclopediaPanel({ projectId, selectedElement, onEncyclopediaChange }: EncyclopediaPanelProps) {
+export default function EncyclopediaPanel({ projectId, selectedElement, onEncyclopediaChange, onNavigateToElement }: EncyclopediaPanelProps) {
   const [entries, setEntries] = useState<EncyclopediaEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -390,9 +747,13 @@ export default function EncyclopediaPanel({ projectId, selectedElement, onEncycl
   const [showTableEditor, setShowTableEditor] = useState(false)
   const [showStatsEditor, setShowStatsEditor] = useState(false)
   const [showMediaEmbed, setShowMediaEmbed] = useState(false)
-  const [crossReferences, setCrossReferences] = useState<{[key: string]: EncyclopediaEntry[]}>({})
+  const [crossReferences, setCrossReferences] = useState<{[key: string]: EncyclopediaEntry[]}>({})  
   
-  // Modal form states
+  // Link modal states
+  const [showLinkModal, setShowLinkModal] = useState(false)
+  const [cursorPosition, setCursorPosition] = useState({ field: '', position: 0 })
+  const [allWorldElements, setAllWorldElements] = useState<any[]>([])
+  const [linkSearchTerm, setLinkSearchTerm] = useState('')
   const [imageForm, setImageForm] = useState({ 
     url: '', 
     caption: '', 
@@ -405,6 +766,23 @@ export default function EncyclopediaPanel({ projectId, selectedElement, onEncycl
   const [mediaForm, setMediaForm] = useState({ type: 'video' as 'video' | 'audio' | 'iframe', url: '', title: '' })
 
   const supabase = createSupabaseClient()
+
+  // Handle element link clicks - navigate to element
+  const handleElementClick = (elementId: string, category: string) => {
+    console.log('Encyclopedia: Element link clicked:', elementId, category)
+    if (onNavigateToElement) {
+      onNavigateToElement(elementId, category)
+    } else {
+      console.warn('No navigation handler provided to EncyclopediaPanel')
+    }
+  }
+
+  // Handle image resizing in the main viewer (this is for non-editing mode)
+  const handleViewerImageResize = (width: number, height: number, imageIndex: number, fieldName?: string) => {
+    // In viewer mode, we don't allow resizing, but this could be extended
+    // for future features like saving resize preferences
+    console.log('Image resized in viewer:', { width, height, imageIndex, fieldName })
+  }
 
   // Entry types with icons
   const entryTypes = [
@@ -690,15 +1068,28 @@ export default function EncyclopediaPanel({ projectId, selectedElement, onEncycl
   const fetchEntries = async () => {
     try {
       setLoading(true)
-      const { data, error } = await supabase
-        .from('world_elements')
-        .select('*')
-        .eq('project_id', projectId)
-        .eq('category', 'encyclopedia')
-        .order('name', { ascending: true })
+      
+      // Load encyclopedia entries and all world elements for linking
+      const [entriesResult, worldElementsResult] = await Promise.all([
+        supabase
+          .from('world_elements')
+          .select('*')
+          .eq('project_id', projectId)
+          .eq('category', 'encyclopedia')
+          .order('name', { ascending: true }),
+        supabase
+          .from('world_elements')
+          .select('id, name, category, description')
+          .eq('project_id', projectId)
+          .neq('category', 'encyclopedia')
+          .order('category, name')
+      ])
 
-      if (error) throw error
-      setEntries(data || [])
+      if (entriesResult.error) throw entriesResult.error
+      if (worldElementsResult.error) throw worldElementsResult.error
+      
+      setEntries(entriesResult.data || [])
+      setAllWorldElements(worldElementsResult.data || [])
     } catch (error) {
       console.error('Error fetching encyclopedia entries:', error)
     } finally {
@@ -1123,6 +1514,7 @@ export default function EncyclopediaPanel({ projectId, selectedElement, onEncycl
                     }
                     setIsEditing(false)
                   }}
+                  onElementClick={handleElementClick}
                 />
               ) : (
                 <EncyclopediaEntryViewer 
@@ -1132,6 +1524,7 @@ export default function EncyclopediaPanel({ projectId, selectedElement, onEncycl
                     setSelectedEntry(entry)
                     addToRecent(entry.id)
                   }}
+                  onElementClick={handleElementClick}
                 />
               )}
             </div>
@@ -1387,15 +1780,106 @@ const EncyclopediaCard = React.memo(({
 
 EncyclopediaCard.displayName = "EncyclopediaCard"
 
+// RichTextEditor component moved outside for stability
+const RichTextEditor = ({ 
+  fieldName, 
+  value, 
+  onChange, 
+  onFocus, 
+  onBlur, 
+  placeholder, 
+  className, 
+  textAreaRef, 
+  previewMode, 
+  onTogglePreview,
+  pastingImages,
+  handlePaste,
+  handleDrop,
+  handleDragOver,
+  handleImageResize,
+  renderRichText
+}: {
+  fieldName: string
+  value: string
+  onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void
+  onFocus: () => void
+  onBlur: () => void
+  placeholder: string
+  className: string
+  textAreaRef: React.RefObject<HTMLTextAreaElement | null>
+  previewMode: boolean
+  onTogglePreview: () => void
+  pastingImages: {[key: string]: boolean}
+  handlePaste: (e: React.ClipboardEvent, fieldName: string) => void
+  handleDrop: (e: React.DragEvent, fieldName: string) => void
+  handleDragOver: (e: React.DragEvent) => void
+  handleImageResize: (width: number, height: number, imageIndex: number, fieldName: string) => void
+  renderRichText: (content: string, preview?: boolean, onImageResize?: (width: number, height: number, imageIndex: number) => void) => React.ReactNode
+}) => {
+  return (
+    <div className="relative">
+      <div className="flex justify-between items-center mb-2">
+        <span className="text-xs text-gray-500">
+          {pastingImages[fieldName] ? (
+            <span className="flex items-center gap-2 text-blue-600">
+              <div className="animate-spin w-3 h-3 border border-blue-600 border-t-transparent rounded-full"></div>
+              Uploading pasted image...
+            </span>
+          ) : (
+            'Paste or drag images directly (Ctrl+V)'
+          )}
+        </span>
+        <div className="flex gap-1">
+          <button
+            type="button"
+            onClick={onTogglePreview}
+            className={`px-2 py-1 text-xs rounded transition-colors ${
+              previewMode 
+                ? 'bg-blue-100 text-blue-700 border border-blue-200' 
+                : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'
+            }`}
+            title={previewMode ? 'Switch to edit mode' : 'Preview rendered content'}
+          >
+            {previewMode ? 'Edit' : 'Preview'}
+          </button>
+        </div>
+      </div>
+      {previewMode ? (
+        <div className={`${className} p-4 bg-gray-50 prose prose-sm max-w-none`}>
+          {renderRichText(value, true, (width, height, imageIndex) => {
+            handleImageResize(width, height, imageIndex, fieldName)
+          })}
+        </div>
+      ) : (
+        <Textarea
+          ref={textAreaRef}
+          value={value}
+          onChange={onChange}
+          onFocus={onFocus}
+          onBlur={onBlur}
+          onPaste={(e) => handlePaste(e, fieldName)}
+          onDrop={(e) => handleDrop(e, fieldName)}
+          onDragOver={handleDragOver}
+          placeholder={placeholder}
+          className={`${className} p-4`}
+          data-field={fieldName}
+        />
+      )}
+    </div>
+  )
+}
+
 // Entry Editor Component
 function EncyclopediaEntryEditor({ 
   entry, 
   onSave, 
-  onCancel 
+  onCancel,
+  onElementClick
 }: { 
   entry: EncyclopediaEntry
   onSave: (entry: EncyclopediaEntry) => void
   onCancel: () => void
+  onElementClick?: (elementId: string, category: string) => void
 }) {
   const [editedEntry, setEditedEntry] = useState<EncyclopediaEntry>(entry)
   const [currentStep, setCurrentStep] = useState(1)
@@ -1412,7 +1896,52 @@ function EncyclopediaEntryEditor({
   const [activeTextArea, setActiveTextArea] = useState<string | null>(null)
   const [insertionContext, setInsertionContext] = useState<string | null>(null)
   const [pastingImages, setPastingImages] = useState<{[key: string]: boolean}>({})
-  
+
+  // Link functionality state
+  const [showLinkModal, setShowLinkModal] = useState(false)
+  const [cursorPosition, setCursorPosition] = useState<{ field: string; position: number }>({ field: '', position: 0 })
+  const [allWorldElements, setAllWorldElements] = useState<any[]>([])
+  const [linkSearchTerm, setLinkSearchTerm] = useState('')
+  const [linkCategoryFilter, setLinkCategoryFilter] = useState('all') // Category filter for link modal
+
+  // Load worldbuilding elements for linking
+  useEffect(() => {
+    const loadWorldElements = async () => {
+      if (!editedEntry.project_id) {
+        console.log('No project_id available for loading elements')
+        return
+      }
+      
+      console.log('Loading worldbuilding elements for project:', editedEntry.project_id)
+      
+      try {
+        const supabase = createSupabaseClient()
+        const elements = []
+        
+        // Load all worldbuilding elements from world_elements table
+        const { data: worldElements, error: worldElementsError } = await supabase
+          .from('world_elements')
+          .select('id, name, category')
+          .eq('project_id', editedEntry.project_id)
+          .neq('id', editedEntry.id || '') // Exclude current entry if editing existing one
+        
+        if (worldElementsError) {
+          console.error('World elements query error:', worldElementsError)
+        } else if (worldElements) {
+          console.log('Loaded world elements:', worldElements.length)
+          elements.push(...worldElements.map(e => ({ ...e, category: e.category })))
+        }
+        
+        console.log('Total worldbuilding elements loaded:', elements.length)
+        setAllWorldElements(elements)
+      } catch (error) {
+        console.error('Failed to load worldbuilding elements:', error)
+      }
+    }
+    
+    loadWorldElements()
+  }, [editedEntry.project_id, editedEntry.id])
+
   // Clipboard paste handling
   const handlePaste = async (e: React.ClipboardEvent, fieldName: string) => {
     const items = e.clipboardData?.items
@@ -1439,9 +1968,9 @@ function EncyclopediaEntryEditor({
           })
           
           if (result.success && result.url) {
-            // Create image markdown with a more descriptive name
+            // Create image markdown with a more descriptive name and default size
             const fileName = file.name || `pasted-image-${Date.now()}`
-            const imageMarkdown = `![${fileName}](${result.url})`
+            const imageMarkdown = `![${fileName}](${result.url} width=400 height=300)`
             
             // Insert the image markdown at cursor position
             insertContentAtCursor(fieldName, imageMarkdown)
@@ -1482,7 +2011,7 @@ function EncyclopediaEntryEditor({
         if (result.success && result.url) {
           // Create image markdown
           const fileName = file.name || `dropped-image-${Date.now()}`
-          const imageMarkdown = `![${fileName}](${result.url})`
+          const imageMarkdown = `![${fileName}](${result.url} width=400 height=300)`
           
           // Insert the image markdown at cursor position
           insertContentAtCursor(fieldName, imageMarkdown)
@@ -1524,79 +2053,38 @@ function EncyclopediaEntryEditor({
     }
   }
   
-  // RichTextEditor component with paste support
-  const RichTextEditor = ({ 
-    fieldName, 
-    value, 
-    onChange, 
-    onFocus, 
-    onBlur, 
-    placeholder, 
-    className, 
-    textAreaRef, 
-    previewMode, 
-    onTogglePreview 
-  }: {
-    fieldName: string
-    value: string
-    onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void
-    onFocus: () => void
-    onBlur: () => void
-    placeholder: string
-    className: string
-    textAreaRef: React.RefObject<HTMLTextAreaElement | null>
-    previewMode: boolean
-    onTogglePreview: () => void
-  }) => {
-    return (
-      <div className="relative">
-        <div className="flex justify-between items-center mb-2">
-          <span className="text-xs text-gray-500">
-            {pastingImages[fieldName] ? (
-              <span className="flex items-center gap-2 text-blue-600">
-                <div className="animate-spin w-3 h-3 border border-blue-600 border-t-transparent rounded-full"></div>
-                Uploading pasted image...
-              </span>
-            ) : (
-              'Paste or drag images directly (Ctrl+V)'
-            )}
-          </span>
-          <div className="flex gap-1">
-            <button
-              type="button"
-              onClick={onTogglePreview}
-              className={`px-2 py-1 text-xs rounded transition-colors ${
-                previewMode 
-                  ? 'bg-blue-100 text-blue-700 border border-blue-200' 
-                  : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'
-              }`}
-              title={previewMode ? 'Switch to edit mode' : 'Preview rendered content'}
-            >
-              {previewMode ? 'Edit' : 'Preview'}
-            </button>
-          </div>
-        </div>
-        {previewMode ? (
-          <div className={`${className} p-4 bg-gray-50 prose prose-sm max-w-none`}>
-            {renderRichText(value)}
-          </div>
-        ) : (
-          <Textarea
-            ref={textAreaRef}
-            value={value}
-            onChange={onChange}
-            onFocus={onFocus}
-            onBlur={onBlur}
-            onPaste={(e) => handlePaste(e, fieldName)}
-            onDrop={(e) => handleDrop(e, fieldName)}
-            onDragOver={handleDragOver}
-            placeholder={placeholder}
-            className={`${className} p-4`}
-          />
-        )}
-      </div>
-    )
+  // Handle image resizing in rich text content
+  const handleImageResize = (width: number, height: number, imageIndex: number, fieldName: string) => {
+    const currentValue = fieldName === 'description' ? editedEntry.description : (editedEntry.attributes as any)?.[fieldName] || ''
+    
+    // Find and update the image markdown with size attributes
+    const parts = currentValue.split(/(\!\[.*?\]\([^)]+\))/g)
+    let foundImageIndex = 0
+    
+    const updatedParts = parts.map((part: string) => {
+      const imageMatch = part.match(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+width=\d+)?\s*(?:\s+height=\d+)?\s*(?:\s+"([^"]*)")?\)/)
+      if (imageMatch) {
+        if (foundImageIndex === imageIndex) {
+          const [, alt, url, caption] = imageMatch
+          const captionPart = caption ? ` "${caption}"` : ''
+          const updatedImageMarkdown = `![${alt}](${url} width=${Math.round(width)} height=${Math.round(height)}${captionPart})`
+          foundImageIndex++
+          return updatedImageMarkdown
+        }
+        foundImageIndex++
+      }
+      return part
+    })
+    
+    const newValue = updatedParts.join('')
+    if (fieldName === 'description') {
+      setEditedEntry(prev => ({ ...prev, description: newValue }))
+    } else {
+      updateAttribute(fieldName, newValue)
+    }
   }
+  
+  // RichTextEditor component with paste support moved outside for stability
   
   const [previewMode, setPreviewMode] = useState<{[key: string]: boolean}>({})
   const [textAreaRefs] = useState<{[key: string]: React.RefObject<HTMLTextAreaElement | null>}>({
@@ -1659,6 +2147,56 @@ function EncyclopediaEntryEditor({
       }
     }))
   }
+
+  // Link functionality
+  const handleAddLink = (fieldName?: string) => {
+    // Capture current cursor position in active field
+    const activeFieldName = fieldName || activeTextArea
+    if (!activeFieldName) return
+    
+    const textareaElement = document.querySelector(`textarea[data-field="${activeFieldName}"]`) as HTMLTextAreaElement
+    if (textareaElement) {
+      setCursorPosition({
+        field: activeFieldName,
+        position: textareaElement.selectionStart || 0
+      })
+    }
+    
+    setShowLinkModal(true)
+  }
+
+  const insertElementLink = (element: any) => {
+    const { field, position } = cursorPosition
+    if (!field) return
+    
+    const textareaElement = document.querySelector(`textarea[data-field="${field}"]`) as HTMLTextAreaElement
+    if (!textareaElement) return
+    
+    const currentValue = textareaElement.value
+    const linkText = `@{${element.name}|${element.category}|${element.id}}`
+    const newValue = currentValue.slice(0, position) + linkText + currentValue.slice(position)
+    const newCursorPos = position + linkText.length
+    
+    // Update the appropriate field
+    if (field === 'description') {
+      setEditedEntry(prev => ({ ...prev, description: newValue }))
+    } else {
+      setEditedEntry(prev => ({
+        ...prev,
+        attributes: { ...prev.attributes, [field]: newValue }
+      }))
+    }
+    
+    // Close modal and set cursor position
+    setShowLinkModal(false)
+    setLinkSearchTerm('')
+    setLinkCategoryFilter('all') // Reset category filter
+    
+    setTimeout(() => {
+      textareaElement.focus()
+      textareaElement.setSelectionRange(newCursorPos, newCursorPos)
+    }, 10)
+  }
   
   // Advanced content utility functions
   const addImage = async (url: string, caption?: string, alt?: string, file?: File) => {
@@ -1697,7 +2235,7 @@ function EncyclopediaEntryEditor({
     // If we have an insertion context or active text area, insert inline
     const targetField = insertionContext || activeTextArea
     if (targetField) {
-      const imageMarkdown = `![${alt || caption || 'Image'}](${finalUrl}${caption ? ` "${caption}"` : ''})`
+      const imageMarkdown = `![${alt || caption || 'Image'}](${finalUrl} width=400 height=300${caption ? ` "${caption}"` : ''})`
       insertInlineContent(imageMarkdown)
       setInsertionContext(null) // Clear context after use
     } else {
@@ -2089,6 +2627,7 @@ function EncyclopediaEntryEditor({
                       onAddTable={() => insertInlineTable('definition')}
                       onAddStats={insertInlineStats}
                       onAddMedia={() => setShowMediaEmbed(true)}
+                      onAddLink={() => handleAddLink('definition')}
                       onFormatText={(format) => {
                         // TODO: Implement text formatting
                         console.log('Format text:', format)
@@ -2106,6 +2645,12 @@ function EncyclopediaEntryEditor({
                       textAreaRef={textAreaRefs.definition}
                       previewMode={isPreviewMode('definition')}
                       onTogglePreview={() => togglePreviewMode('definition')}
+                      pastingImages={pastingImages}
+                      handlePaste={handlePaste}
+                      handleDrop={handleDrop}
+                      handleDragOver={handleDragOver}
+                      handleImageResize={handleImageResize}
+                      renderRichText={(text: string, isEditing: boolean = false, onImageResize?: (width: number, height: number, index: number) => void) => renderRichText(text, isEditing, onImageResize, onElementClick)}
                     />
                     <p className="text-sm text-gray-500">A brief, dictionary-style definition</p>
                   </div>
@@ -2119,6 +2664,7 @@ function EncyclopediaEntryEditor({
                       onAddTable={() => insertInlineTable('description')}
                       onAddStats={insertInlineStats}
                       onAddMedia={() => setShowMediaEmbed(true)}
+                      onAddLink={() => handleAddLink('description')}
                       onFormatText={(format) => {
                         console.log('Format text:', format)
                       }}
@@ -2135,6 +2681,12 @@ function EncyclopediaEntryEditor({
                       textAreaRef={textAreaRefs.description}
                       previewMode={isPreviewMode('description')}
                       onTogglePreview={() => togglePreviewMode('description')}
+                      pastingImages={pastingImages}
+                      handlePaste={handlePaste}
+                      handleDrop={handleDrop}
+                      handleDragOver={handleDragOver}
+                      handleImageResize={handleImageResize}
+                      renderRichText={(text: string, isEditing: boolean = false, onImageResize?: (width: number, height: number, index: number) => void) => renderRichText(text, isEditing, onImageResize, onElementClick)}
                     />
                     <p className="text-sm text-gray-500">Elaborate with storytelling details</p>
                   </div>
@@ -2239,6 +2791,7 @@ function EncyclopediaEntryEditor({
                         onAddTable={() => insertInlineTable('origin')}
                         onAddStats={insertInlineStats}
                         onAddMedia={() => setShowMediaEmbed(true)}
+                        onAddLink={() => handleAddLink('origin')}
                         onFormatText={(format) => {
                           console.log('Format text:', format)
                         }}
@@ -2255,6 +2808,12 @@ function EncyclopediaEntryEditor({
                         textAreaRef={textAreaRefs.origin}
                         previewMode={isPreviewMode('origin')}
                         onTogglePreview={() => togglePreviewMode('origin')}
+                        pastingImages={pastingImages}
+                        handlePaste={handlePaste}
+                        handleDrop={handleDrop}
+                        handleDragOver={handleDragOver}
+                        handleImageResize={handleImageResize}
+                        renderRichText={(text: string, isEditing: boolean = false, onImageResize?: (width: number, height: number, index: number) => void) => renderRichText(text, isEditing, onImageResize, onElementClick)}
                       />
                     </div>
                     
@@ -2267,6 +2826,7 @@ function EncyclopediaEntryEditor({
                         onAddTable={() => insertInlineTable('etymology')}
                         onAddStats={insertInlineStats}
                         onAddMedia={() => setShowMediaEmbed(true)}
+                        onAddLink={() => handleAddLink('etymology')}
                         onFormatText={(format) => {
                           console.log('Format text:', format)
                         }}
@@ -2283,6 +2843,12 @@ function EncyclopediaEntryEditor({
                         textAreaRef={textAreaRefs.etymology}
                         previewMode={isPreviewMode('etymology')}
                         onTogglePreview={() => togglePreviewMode('etymology')}
+                        pastingImages={pastingImages}
+                        handlePaste={handlePaste}
+                        handleDrop={handleDrop}
+                        handleDragOver={handleDragOver}
+                        handleImageResize={handleImageResize}
+                        renderRichText={(text: string, isEditing: boolean = false, onImageResize?: (width: number, height: number, index: number) => void) => renderRichText(text, isEditing, onImageResize, onElementClick)}
                       />
                     </div>
                   </div>
@@ -2297,6 +2863,7 @@ function EncyclopediaEntryEditor({
                         onAddTable={() => insertInlineTable('related_terms')}
                         onAddStats={insertInlineStats}
                         onAddMedia={() => setShowMediaEmbed(true)}
+                        onAddLink={() => handleAddLink('related_terms')}
                         onFormatText={(format) => {
                           console.log('Format text:', format)
                         }}
@@ -2313,6 +2880,12 @@ function EncyclopediaEntryEditor({
                         textAreaRef={textAreaRefs.related_terms}
                         previewMode={isPreviewMode('related_terms')}
                         onTogglePreview={() => togglePreviewMode('related_terms')}
+                        pastingImages={pastingImages}
+                        handlePaste={handlePaste}
+                        handleDrop={handleDrop}
+                        handleDragOver={handleDragOver}
+                        handleImageResize={handleImageResize}
+                        renderRichText={(text: string, isEditing: boolean = false, onImageResize?: (width: number, height: number, index: number) => void) => renderRichText(text, isEditing, onImageResize, onElementClick)}
                       />
                     </div>
 
@@ -2325,6 +2898,7 @@ function EncyclopediaEntryEditor({
                         onAddTable={() => insertInlineTable('examples')}
                         onAddStats={insertInlineStats}
                         onAddMedia={() => setShowMediaEmbed(true)}
+                        onAddLink={() => handleAddLink('examples')}
                         onFormatText={(format) => {
                           console.log('Format text:', format)
                         }}
@@ -2341,6 +2915,12 @@ function EncyclopediaEntryEditor({
                         textAreaRef={textAreaRefs.examples}
                         previewMode={isPreviewMode('examples')}
                         onTogglePreview={() => togglePreviewMode('examples')}
+                        pastingImages={pastingImages}
+                        handlePaste={handlePaste}
+                        handleDrop={handleDrop}
+                        handleDragOver={handleDragOver}
+                        handleImageResize={handleImageResize}
+                        renderRichText={(text: string, isEditing: boolean = false, onImageResize?: (width: number, height: number, index: number) => void) => renderRichText(text, isEditing, onImageResize, onElementClick)}
                       />
                     </div>
                   </div>
@@ -2774,6 +3354,135 @@ Elevation: 800m"
           </div>
         </div>
       )}
+
+      {/* Link Modal */}
+      {showLinkModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full mx-4 max-h-[80vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200">
+              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <Link2 className="w-5 h-5" />
+                Link Worldbuilding Element
+              </h3>
+            </div>
+            <div className="p-6 space-y-4">
+              {/* Search Input */}
+              <div>
+                <Input
+                  placeholder="Search worldbuilding elements..."
+                  value={linkSearchTerm}
+                  onChange={(e) => setLinkSearchTerm(e.target.value)}
+                  className="w-full"
+                  autoFocus
+                />
+              </div>
+
+              {/* Category Filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Filter by Category</label>
+                <select
+                  value={linkCategoryFilter}
+                  onChange={(e) => setLinkCategoryFilter(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="all">All Categories ({allWorldElements.length})</option>
+                  {(() => {
+                    // Get unique categories with counts
+                    const categoryGroups = allWorldElements.reduce((acc, el) => {
+                      acc[el.category] = (acc[el.category] || 0) + 1
+                      return acc
+                    }, {} as Record<string, number>)
+                    
+                    const sortedCategories = Object.keys(categoryGroups).sort()
+                    
+                    return sortedCategories.map(category => {
+                      const config = WORLD_ELEMENT_TYPES[category as keyof typeof WORLD_ELEMENT_TYPES]
+                      const emoji = config?.emoji || '📝'
+                      const label = config?.label || category.charAt(0).toUpperCase() + category.slice(1)
+                      const count = categoryGroups[category]
+                      
+                      return (
+                        <option key={category} value={category}>
+                          {emoji} {label} ({count})
+                        </option>
+                      )
+                    })
+                  })()}
+                </select>
+              </div>
+
+              {/* Element List */}
+              <div className="max-h-60 overflow-y-auto space-y-2">
+                {allWorldElements
+                  .filter(element => {
+                    // Category filter
+                    const categoryMatch = linkCategoryFilter === 'all' || element.category === linkCategoryFilter
+                    
+                    // Search filter
+                    const searchMatch = element.name.toLowerCase().includes(linkSearchTerm.toLowerCase()) ||
+                      element.category?.toLowerCase().includes(linkSearchTerm.toLowerCase())
+                    
+                    return categoryMatch && searchMatch
+                  })
+                  .map((element, index) => {
+                    // Get element type configuration
+                    const config = WORLD_ELEMENT_TYPES[element.category as keyof typeof WORLD_ELEMENT_TYPES]
+                    const Icon = config?.icon || BookOpen
+                    const label = config?.label || element.category.charAt(0).toUpperCase() + element.category.slice(1)
+                    
+                    return (
+                      <button
+                        key={`${element.category}-${element.id}`}
+                        onClick={() => insertElementLink(element)}
+                        className="w-full p-3 text-left border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Icon className="w-4 h-4 text-gray-600" />
+                          <div>
+                            <div className="font-medium text-gray-900">{element.name}</div>
+                            <div className="text-sm text-gray-500">{label}</div>
+                          </div>
+                        </div>
+                      </button>
+                    )
+                  })}
+                
+                {allWorldElements.filter(element => {
+                  // Category filter
+                  const categoryMatch = linkCategoryFilter === 'all' || element.category === linkCategoryFilter
+                  
+                  // Search filter
+                  const searchMatch = element.name.toLowerCase().includes(linkSearchTerm.toLowerCase()) ||
+                    element.category?.toLowerCase().includes(linkSearchTerm.toLowerCase())
+                  
+                  return categoryMatch && searchMatch
+                }).length === 0 && (
+                  <div className="text-center py-6 text-gray-500">
+                    {linkSearchTerm || linkCategoryFilter !== 'all' 
+                      ? 'No elements found matching your filters.' 
+                      : 'No worldbuilding elements available.'}
+                  </div>
+                )}
+              </div>
+
+              {/* Actions */}
+              <div className="flex justify-end gap-2 pt-4 border-t border-gray-200">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setShowLinkModal(false)
+                    setLinkSearchTerm('')
+                    setLinkCategoryFilter('all') // Reset category filter
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -2782,11 +3491,13 @@ Elevation: 800m"
 function EncyclopediaEntryViewer({ 
   entry, 
   entries = [], 
-  onEntryClick 
+  onEntryClick,
+  onElementClick
 }: { 
   entry: EncyclopediaEntry
   entries?: EncyclopediaEntry[]
   onEntryClick?: (entry: EncyclopediaEntry) => void 
+  onElementClick?: (elementId: string, category: string) => void
 }) {
   // Entry types for cross-reference display
   const entryTypes = [
@@ -2830,7 +3541,7 @@ function EncyclopediaEntryViewer({
                 <h2 className="text-2xl font-bold mb-4">Definition</h2>
                 <div className="text-xl leading-relaxed font-medium text-blue-50">
                   <span className="whitespace-pre-wrap">
-                    {renderRichText(entry.attributes.definition) || entry.attributes.definition}
+                    {renderRichText(entry.attributes.definition, false, undefined, onElementClick) || entry.attributes.definition}
                   </span>
                 </div>
               </div>
@@ -2849,7 +3560,7 @@ function EncyclopediaEntryViewer({
             </div>
             <div className="prose prose-lg max-w-none">
               <div className="text-gray-700 leading-relaxed text-base">
-                {renderRichText(entry.description)}
+                {renderRichText(entry.description, false, undefined, onElementClick)}
               </div>
             </div>
           </div>
@@ -2887,7 +3598,7 @@ function EncyclopediaEntryViewer({
               <h3 className="text-lg font-bold text-purple-900">Origin Story</h3>
             </div>
             <div className="text-purple-800 leading-relaxed">
-              {renderRichText(entry.attributes.origin) || (
+              {renderRichText(entry.attributes.origin, false, undefined, onElementClick) || (
                 <span className="whitespace-pre-wrap">
                   {entry.attributes.origin}
                 </span>
@@ -2906,7 +3617,7 @@ function EncyclopediaEntryViewer({
               <h3 className="text-lg font-bold text-indigo-900">Etymology</h3>
             </div>
             <div className="text-indigo-800 leading-relaxed">
-              {renderRichText(entry.attributes.etymology) || (
+              {renderRichText(entry.attributes.etymology, false, undefined, onElementClick) || (
                 <span className="whitespace-pre-wrap">
                   {entry.attributes.etymology}
                 </span>
@@ -2925,7 +3636,7 @@ function EncyclopediaEntryViewer({
               <h3 className="text-lg font-bold text-emerald-900">Related Terms & Concepts</h3>
             </div>
             <div className="text-emerald-800 leading-relaxed">
-              {renderRichText(entry.attributes.related_terms) || (
+              {renderRichText(entry.attributes.related_terms, false, undefined, onElementClick) || (
                 <span className="whitespace-pre-wrap">
                   {entry.attributes.related_terms}
                 </span>
@@ -2944,7 +3655,7 @@ function EncyclopediaEntryViewer({
               <h3 className="text-lg font-bold text-amber-900">Examples & Usage</h3>
             </div>
             <div className="text-amber-800 leading-relaxed">
-              {renderRichText(entry.attributes.examples) || (
+              {renderRichText(entry.attributes.examples, false, undefined, onElementClick) || (
                 <span className="whitespace-pre-wrap">
                   {entry.attributes.examples}
                 </span>
