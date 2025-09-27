@@ -319,6 +319,9 @@ export default function MagicPanel({
   const [allWorldElements, setAllWorldElements] = useState<any[]>([])
   const [cursorPosition, setCursorPosition] = useState<{ field: string; position: number }>({ field: '', position: 0 })
   const activeTextAreaRef = useRef<HTMLTextAreaElement | null>(null)
+  
+  // Optional view state
+  const [showOptionalView, setShowOptionalView] = useState(false)
 
   // Form state - enhanced with flexible schema
   const [formData, setFormData] = useState({
@@ -1414,44 +1417,29 @@ export default function MagicPanel({
         </div>
         
         <div className="flex items-center gap-3">
+          <Select value={selectedTemplate} onValueChange={handleTemplateSelect}>
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="Use Template" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="hard">Hard System</SelectItem>
+              <SelectItem value="soft">Soft System</SelectItem>
+              <SelectItem value="spell">D&D-Style Spell</SelectItem>
+              <SelectItem value="ritual">Ritual</SelectItem>
+              <SelectItem value="artifact">Artifact</SelectItem>
+            </SelectContent>
+          </Select>
+          
           <Button
-            variant="outline"
-            onClick={() => {
-              // Optional view functionality - could toggle between different view modes
-              console.log('Optional view clicked')
-            }}
-            className="border-gray-300 hover:border-yellow-500"
+            onClick={() => setShowOptionalView(!showOptionalView)}
+            variant={showOptionalView ? "default" : "outline"}
+            className={showOptionalView 
+              ? "bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white" 
+              : "border-blue-300 text-blue-600 hover:bg-blue-50"
+            }
           >
             <Eye className="w-4 h-4 mr-2" />
             Optional View
-          </Button>
-          
-          <Button
-            variant="outline"
-            onClick={() => {
-              // Export current element
-              if (editingElement) {
-                const exportData = {
-                  version: '1.0',
-                  exported_at: new Date().toISOString(),
-                  element: editingElement
-                }
-                
-                const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
-                const url = URL.createObjectURL(blob)
-                const a = document.createElement('a')
-                a.href = url
-                a.download = `${editingElement.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}-magic-element.json`
-                document.body.appendChild(a)
-                a.click()
-                document.body.removeChild(a)
-                URL.revokeObjectURL(url)
-              }
-            }}
-            className="border-gray-300 hover:border-yellow-500"
-          >
-            <Copy className="w-4 h-4 mr-2" />
-            Export
           </Button>
           
           <Button 
@@ -1582,6 +1570,113 @@ export default function MagicPanel({
               />
             )}
           </div>
+
+          {/* History Panel */}
+          <div className={getPanelClassName('history')} style={getPanelStyle('history')}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-800">History</h3>
+              <div className="flex items-center gap-2 relative">
+                <button
+                  onClick={() => toggleDropdown('history')}
+                  className="text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg p-2 transition-all duration-200"
+                >
+                  <MoreVertical className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+            <Textarea
+              value={editingElement?.attributes?.history || ''}
+              onChange={(e) => setEditingElement(prev => prev ? {
+                ...prev,
+                attributes: { ...prev.attributes, history: e.target.value }
+              } : null)}
+              placeholder="Type here to add notes, backstories, and anything else you need in this Text Panel!"
+              className="resize-none border-0 p-0 focus:ring-0 text-gray-700"
+              rows={12}
+            />
+          </div>
+
+          {/* Costs Panel */}
+          <div className={getPanelClassName('costs')} style={getPanelStyle('costs')}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-800">Costs</h3>
+            </div>
+            <div className="space-y-3">
+              {editingElement?.attributes?.costs?.map((cost: any, index: number) => (
+                <div key={index} className="flex gap-3 items-start p-3 border border-gray-200 rounded-lg">
+                  <div className="flex-1 space-y-2">
+                    <input
+                      type="text"
+                      placeholder="New Item Name"
+                      value={cost.name}
+                      onChange={(e) => updateListItem('costs', index, 'name', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-yellow-500 font-medium"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Add a description..."
+                      value={cost.description}
+                      onChange={(e) => updateListItem('costs', index, 'description', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-yellow-500"
+                    />
+                  </div>
+                  <button
+                    onClick={() => removeListItem('costs', index)}
+                    className="mt-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg p-2 transition-all duration-200"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+              <button
+                onClick={addCostItem}
+                className="w-full flex items-center justify-center space-x-2 py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-yellow-300 hover:text-yellow-600 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Cost</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Effects Panel */}
+          <div className={getPanelClassName('effects')} style={getPanelStyle('effects')}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-800">Effects</h3>
+            </div>
+            <div className="space-y-3">
+              {editingElement?.attributes?.effects?.map((effect: any, index: number) => (
+                <div key={index} className="flex gap-3 items-start p-3 border border-gray-200 rounded-lg">
+                  <div className="flex-1 space-y-2">
+                    <input
+                      type="text"
+                      placeholder="New Effect Name"
+                      value={effect.name}
+                      onChange={(e) => updateListItem('effects', index, 'name', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-yellow-500 font-medium"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Add a description..."
+                      value={effect.description}
+                      onChange={(e) => updateListItem('effects', index, 'description', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-yellow-500"
+                    />
+                  </div>
+                  <button
+                    onClick={() => removeListItem('effects', index)}
+                    className="mt-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg p-2 transition-all duration-200"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+              <button
+                onClick={addEffectItem}
+                className="w-full flex items-center justify-center space-x-2 py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-yellow-300 hover:text-yellow-600 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Effect</span>
+              </button>
 
           {/* History Panel */}
           <div className={getPanelClassName('history')} style={getPanelStyle('history')}>
@@ -2134,6 +2229,7 @@ export default function MagicPanel({
             </div>
           </div>
         </div>
+      </div>
       </div>
 
       {/* Link Modal */}

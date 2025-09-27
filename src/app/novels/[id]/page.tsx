@@ -2934,6 +2934,7 @@ function NovelPageInner() {
             selectedElement={selectedElement}
             onMagicChange={handleLocationsChange}
             onClearSelection={clearSelectedElement}
+            onNavigateToElement={navigateToWorldElement}
           />
         )
 
