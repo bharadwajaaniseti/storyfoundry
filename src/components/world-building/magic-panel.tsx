@@ -311,6 +311,7 @@ export default function MagicPanel({
   const [showImportModal, setShowImportModal] = useState(false)
   const [collapsedPanels, setCollapsedPanels] = useState<{[key: string]: boolean}>({})
   const [showTooltips, setShowTooltips] = useState(true)
+  const [isPreviewMode, setIsPreviewMode] = useState(false)
   
   // Rich text and linking state
   const [showLinkModal, setShowLinkModal] = useState(false)
@@ -1416,14 +1417,11 @@ export default function MagicPanel({
         <div className="flex items-center gap-3">
           <Button
             variant="outline"
-            onClick={() => {
-              // Optional view functionality - could toggle between different view modes
-              console.log('Optional view clicked')
-            }}
-            className="border-gray-300 hover:border-yellow-500"
+            onClick={() => setIsPreviewMode(!isPreviewMode)}
+            className={`border-gray-300 hover:border-yellow-500 ${isPreviewMode ? 'bg-yellow-50 border-yellow-400 text-yellow-700' : ''}`}
           >
             <Eye className="w-4 h-4 mr-2" />
-            Optional View
+            {isPreviewMode ? 'Edit Mode' : 'Preview Mode'}
           </Button>
           
           <Button
@@ -1482,12 +1480,18 @@ export default function MagicPanel({
 
       {/* Name Field */}
       <div className="mb-6">
-        <Input
-          value={editingElement?.name || ''}
-          onChange={(e) => setEditingElement(prev => prev ? {...prev, name: e.target.value} : null)}
-          placeholder="Enter magic element name..."
-          className="text-xl font-semibold border-0 border-b-2 border-gray-200 rounded-none px-0 focus:border-yellow-500 focus:ring-0 bg-transparent"
-        />
+        {isPreviewMode ? (
+          <div className="text-xl font-semibold text-gray-900 border-b-2 border-gray-200 pb-2">
+            {editingElement?.name || 'Untitled Magic Element'}
+          </div>
+        ) : (
+          <Input
+            value={editingElement?.name || ''}
+            onChange={(e) => setEditingElement(prev => prev ? {...prev, name: e.target.value} : null)}
+            placeholder="Enter magic element name..."
+            className="text-xl font-semibold border-0 border-b-2 border-gray-200 rounded-none px-0 focus:border-yellow-500 focus:ring-0 bg-transparent"
+          />
+        )}
       </div>
 
       {/* Panel Grid */}
@@ -1517,12 +1521,14 @@ export default function MagicPanel({
                 )}
               </div>
               <div className="flex items-center gap-2 relative">
-                <button
-                  onClick={() => toggleDropdown('overview')}
-                  className="text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg p-2 transition-all duration-200"
-                >
-                  <MoreVertical className="h-4 w-4" />
-                </button>
+                {!isPreviewMode && (
+                  <button
+                    onClick={() => toggleDropdown('overview')}
+                    className="text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg p-2 transition-all duration-200"
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </button>
+                )}
                 {activeDropdown === 'overview' && (
                   <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
                     <button
@@ -1570,16 +1576,30 @@ export default function MagicPanel({
               </div>
             </div>
             {!collapsedPanels.overview && (
-              <Textarea
-                value={editingElement?.attributes?.overview || editingElement?.description || ''}
-                onChange={(e) => setEditingElement(prev => prev ? {
-                  ...prev,
-                  attributes: { ...prev.attributes, overview: e.target.value }
-                } : null)}
-                placeholder="Type here to add notes, backstories, and anything else you need in this Text Panel!"
-                className="flex-1 resize-none border-0 p-0 focus:ring-0 text-gray-700"
-                rows={15}
-              />
+              isPreviewMode ? (
+                <div className="flex-1 text-gray-700 bg-gray-50 rounded-lg p-4 border border-gray-200">
+                  {editingElement?.attributes?.overview || editingElement?.description ? (
+                    <div className="whitespace-pre-wrap leading-relaxed">
+                      {editingElement?.attributes?.overview || editingElement?.description}
+                    </div>
+                  ) : (
+                    <div className="text-gray-500 italic text-center py-8">
+                      No overview content yet
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <Textarea
+                  value={editingElement?.attributes?.overview || editingElement?.description || ''}
+                  onChange={(e) => setEditingElement(prev => prev ? {
+                    ...prev,
+                    attributes: { ...prev.attributes, overview: e.target.value }
+                  } : null)}
+                  placeholder="Type here to add notes, backstories, and anything else you need in this Text Panel!"
+                  className="flex-1 resize-none border-0 p-0 focus:ring-0 text-gray-700"
+                  rows={15}
+                />
+              )
             )}
           </div>
 
@@ -1588,12 +1608,14 @@ export default function MagicPanel({
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-800">History</h3>
               <div className="flex items-center gap-2 relative">
-                <button
-                  onClick={() => toggleDropdown('history')}
-                  className="text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg p-2 transition-all duration-200"
-                >
-                  <MoreVertical className="h-4 w-4" />
-                </button>
+                {!isPreviewMode && (
+                  <button
+                    onClick={() => toggleDropdown('history')}
+                    className="text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg p-2 transition-all duration-200"
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </button>
+                )}
                 {activeDropdown === 'history' && (
                   <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
                     <button
@@ -1640,16 +1662,30 @@ export default function MagicPanel({
                 )}
               </div>
             </div>
-            <Textarea
-              value={editingElement?.attributes?.history || ''}
-              onChange={(e) => setEditingElement(prev => prev ? {
-                ...prev,
-                attributes: { ...prev.attributes, history: e.target.value }
-              } : null)}
-              placeholder="Type here to add notes, backstories, and anything else you need in this Text Panel!"
-              className="resize-none border-0 p-0 focus:ring-0 text-gray-700"
-              rows={12}
-            />
+            {isPreviewMode ? (
+              <div className="text-gray-700 bg-gray-50 rounded-lg p-4 border border-gray-200">
+                {editingElement?.attributes?.history ? (
+                  <div className="whitespace-pre-wrap leading-relaxed">
+                    {editingElement.attributes.history}
+                  </div>
+                ) : (
+                  <div className="text-gray-500 italic text-center py-8">
+                    No history content yet
+                  </div>
+                )}
+              </div>
+            ) : (
+              <Textarea
+                value={editingElement?.attributes?.history || ''}
+                onChange={(e) => setEditingElement(prev => prev ? {
+                  ...prev,
+                  attributes: { ...prev.attributes, history: e.target.value }
+                } : null)}
+                placeholder="Type here to add notes, backstories, and anything else you need in this Text Panel!"
+                className="resize-none border-0 p-0 focus:ring-0 text-gray-700"
+                rows={12}
+              />
+            )}
           </div>
 
           {/* Costs Panel */}
@@ -1657,12 +1693,14 @@ export default function MagicPanel({
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-800">Costs</h3>
               <div className="flex items-center gap-2 relative">
-                <button
-                  onClick={() => toggleDropdown('costs')}
-                  className="text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg p-2 transition-all duration-200"
-                >
-                  <MoreVertical className="h-4 w-4" />
-                </button>
+                {!isPreviewMode && (
+                  <button
+                    onClick={() => toggleDropdown('costs')}
+                    className="text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg p-2 transition-all duration-200"
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </button>
+                )}
                 {activeDropdown === 'costs' && (
                   <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
                     <button
@@ -1710,39 +1748,56 @@ export default function MagicPanel({
               </div>
             </div>
             <div className="space-y-3">
-              {editingElement?.attributes?.costs?.map((cost: any, index: number) => (
-                <div key={index} className="flex gap-3 items-start p-3 border border-gray-200 rounded-lg">
-                  <div className="flex-1 space-y-2">
-                    <input
-                      type="text"
-                      placeholder="New Item Name"
-                      value={cost.name}
-                      onChange={(e) => updateListItem('costs', index, 'name', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-yellow-500 font-medium"
-                    />
-                    <input
-                      type="text"
-                      placeholder="Add a description..."
-                      value={cost.description}
-                      onChange={(e) => updateListItem('costs', index, 'description', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-yellow-500"
-                    />
+              {isPreviewMode ? (
+                editingElement?.attributes?.costs && editingElement.attributes.costs.length > 0 ? (
+                  editingElement.attributes.costs.map((cost: any, index: number) => (
+                    <div key={index} className="p-4 border border-gray-200 rounded-lg bg-gray-50">
+                      <div className="font-medium text-gray-900 mb-2">{cost.name || 'Unnamed Cost'}</div>
+                      <div className="text-gray-700 text-sm leading-relaxed">{cost.description || 'No description'}</div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-gray-500 italic text-center py-8 border border-dashed border-gray-300 rounded-lg">
+                    No costs defined yet
                   </div>
+                )
+              ) : (
+                <>
+                  {editingElement?.attributes?.costs?.map((cost: any, index: number) => (
+                    <div key={index} className="flex gap-3 items-start p-3 border border-gray-200 rounded-lg">
+                      <div className="flex-1 space-y-2">
+                        <input
+                          type="text"
+                          placeholder="New Item Name"
+                          value={cost.name}
+                          onChange={(e) => updateListItem('costs', index, 'name', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-yellow-500 font-medium"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Add a description..."
+                          value={cost.description}
+                          onChange={(e) => updateListItem('costs', index, 'description', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-yellow-500"
+                        />
+                      </div>
+                      <button
+                        onClick={() => removeListItem('costs', index)}
+                        className="mt-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg p-2 transition-all duration-200"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
                   <button
-                    onClick={() => removeListItem('costs', index)}
-                    className="mt-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg p-2 transition-all duration-200"
+                    onClick={addCostItem}
+                    className="w-full flex items-center justify-center space-x-2 py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-yellow-300 hover:text-yellow-600 transition-colors"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Plus className="w-4 h-4" />
+                    <span>Add Cost Item</span>
                   </button>
-                </div>
-              ))}
-              <button
-                onClick={addCostItem}
-                className="w-full flex items-center justify-center space-x-2 py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-yellow-300 hover:text-yellow-600 transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Add Cost Item</span>
-              </button>
+                </>
+              )}
             </div>
           </div>
 
@@ -1751,12 +1806,14 @@ export default function MagicPanel({
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-800">Limitations</h3>
               <div className="flex items-center gap-2 relative">
-                <button
-                  onClick={() => toggleDropdown('limitations')}
-                  className="text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg p-2 transition-all duration-200"
-                >
-                  <MoreVertical className="h-4 w-4" />
-                </button>
+                {!isPreviewMode && (
+                  <button
+                    onClick={() => toggleDropdown('limitations')}
+                    className="text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg p-2 transition-all duration-200"
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </button>
+                )}
                 {activeDropdown === 'limitations' && (
                   <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
                     <button
@@ -1804,39 +1861,56 @@ export default function MagicPanel({
               </div>
             </div>
             <div className="space-y-3">
-              {editingElement?.attributes?.limitations?.map((limitation: any, index: number) => (
-                <div key={index} className="flex gap-3 items-start p-3 border border-gray-200 rounded-lg">
-                  <div className="flex-1 space-y-2">
-                    <input
-                      type="text"
-                      placeholder="New Item Name"
-                      value={limitation.name}
-                      onChange={(e) => updateListItem('limitations', index, 'name', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-yellow-500 font-medium"
-                    />
-                    <input
-                      type="text"
-                      placeholder="Add a description..."
-                      value={limitation.description}
-                      onChange={(e) => updateListItem('limitations', index, 'description', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-yellow-500"
-                    />
+              {isPreviewMode ? (
+                editingElement?.attributes?.limitations && editingElement.attributes.limitations.length > 0 ? (
+                  editingElement.attributes.limitations.map((limitation: any, index: number) => (
+                    <div key={index} className="p-4 border border-gray-200 rounded-lg bg-gray-50">
+                      <div className="font-medium text-gray-900 mb-2">{limitation.name || 'Unnamed Limitation'}</div>
+                      <div className="text-gray-700 text-sm leading-relaxed">{limitation.description || 'No description'}</div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-gray-500 italic text-center py-8 border border-dashed border-gray-300 rounded-lg">
+                    No limitations defined yet
                   </div>
+                )
+              ) : (
+                <>
+                  {editingElement?.attributes?.limitations?.map((limitation: any, index: number) => (
+                    <div key={index} className="flex gap-3 items-start p-3 border border-gray-200 rounded-lg">
+                      <div className="flex-1 space-y-2">
+                        <input
+                          type="text"
+                          placeholder="New Item Name"
+                          value={limitation.name}
+                          onChange={(e) => updateListItem('limitations', index, 'name', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-yellow-500 font-medium"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Add a description..."
+                          value={limitation.description}
+                          onChange={(e) => updateListItem('limitations', index, 'description', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-yellow-500"
+                        />
+                      </div>
+                      <button
+                        onClick={() => removeListItem('limitations', index)}
+                        className="mt-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg p-2 transition-all duration-200"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
                   <button
-                    onClick={() => removeListItem('limitations', index)}
-                    className="mt-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg p-2 transition-all duration-200"
+                    onClick={addLimitationItem}
+                    className="w-full flex items-center justify-center space-x-2 py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-yellow-300 hover:text-yellow-600 transition-colors"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Plus className="w-4 h-4" />
+                    <span>Add Limitation</span>
                   </button>
-                </div>
-              ))}
-              <button
-                onClick={addLimitationItem}
-                className="w-full flex items-center justify-center space-x-2 py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-yellow-300 hover:text-yellow-600 transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Add Limitation</span>
-              </button>
+                </>
+              )}
             </div>
           </div>
 
@@ -1845,19 +1919,23 @@ export default function MagicPanel({
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-800">Magical People & Places</h3>
               <div className="flex items-center gap-2 relative">
-                <button
-                  onClick={() => setShowLinkModal(true)}
-                  className="text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg p-2 transition-all duration-200"
-                  title="Add Link"
-                >
-                  <Plus className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={() => toggleDropdown('links')}
-                  className="text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg p-2 transition-all duration-200"
-                >
-                  <MoreVertical className="h-4 w-4" />
-                </button>
+                {!isPreviewMode && (
+                  <button
+                    onClick={() => setShowLinkModal(true)}
+                    className="text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg p-2 transition-all duration-200"
+                    title="Add Link"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                )}
+                {!isPreviewMode && (
+                  <button
+                    onClick={() => toggleDropdown('links')}
+                    className="text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg p-2 transition-all duration-200"
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </button>
+                )}
                 {activeDropdown === 'links' && (
                   <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
                     <button
@@ -1905,44 +1983,68 @@ export default function MagicPanel({
               </div>
             </div>
             <div className="space-y-2">
-              {/* Display existing links */}
-              {editingElement?.attributes?.links && editingElement.attributes.links.length > 0 && (
-                <div className="space-y-2 mb-4">
-                  {editingElement.attributes.links.map((link: any, index: number) => (
-                    <div key={index} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50">
-                      <div className="flex items-center gap-3">
+              {isPreviewMode ? (
+                editingElement?.attributes?.links && editingElement.attributes.links.length > 0 ? (
+                  <div className="space-y-2">
+                    {editingElement.attributes.links.map((link: any, index: number) => (
+                      <div key={index} className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors">
                         <div className="text-lg">
                           {WORLD_ELEMENT_TYPES[link.category as keyof typeof WORLD_ELEMENT_TYPES]?.emoji || '📝'}
                         </div>
-                        <div>
+                        <div className="flex-1">
                           <div className="font-medium text-sm">{link.name}</div>
                           <div className="text-xs text-gray-500 capitalize">{link.category}</div>
                         </div>
                       </div>
-                      <button
-                        onClick={() => removeLinkItem(index)}
-                        className="text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg p-1.5 transition-all duration-200"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-gray-500 italic text-center py-8 border border-dashed border-gray-300 rounded-lg">
+                    No links defined yet
+                  </div>
+                )
+              ) : (
+                <>
+                  {/* Display existing links */}
+                  {editingElement?.attributes?.links && editingElement.attributes.links.length > 0 && (
+                    <div className="space-y-2 mb-4">
+                      {editingElement.attributes.links.map((link: any, index: number) => (
+                        <div key={index} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50">
+                          <div className="flex items-center gap-3">
+                            <div className="text-lg">
+                              {WORLD_ELEMENT_TYPES[link.category as keyof typeof WORLD_ELEMENT_TYPES]?.emoji || '📝'}
+                            </div>
+                            <div>
+                              <div className="font-medium text-sm">{link.name}</div>
+                              <div className="text-xs text-gray-500 capitalize">{link.category}</div>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => removeLinkItem(index)}
+                            className="text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg p-1.5 transition-all duration-200"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  )}
+                  
+                  <p className="text-sm text-gray-600">
+                    Links connect {editingElement?.name || 'New Magic System'} with any other elements within Campfire.
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    Click <Plus className="inline w-3 h-3 mx-1" /> <strong>Add Link</strong> below to add a link to an existing element.
+                  </p>
+                  <button
+                    onClick={() => setShowLinkModal(true)}
+                    className="w-full flex items-center justify-center space-x-2 py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-yellow-300 hover:text-yellow-600 transition-colors mt-4"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add Link</span>
+                  </button>
+                </>
               )}
-              
-              <p className="text-sm text-gray-600">
-                Links connect {editingElement?.name || 'New Magic System'} with any other elements within Campfire.
-              </p>
-              <p className="text-sm text-gray-600">
-                Click <Plus className="inline w-3 h-3 mx-1" /> <strong>Add Link</strong> below to add a link to an existing element.
-              </p>
-              <button
-                onClick={() => setShowLinkModal(true)}
-                className="w-full flex items-center justify-center space-x-2 py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-yellow-300 hover:text-yellow-600 transition-colors mt-4"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Add Link</span>
-              </button>
             </div>
           </div>
 
@@ -1951,12 +2053,14 @@ export default function MagicPanel({
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-800">Components</h3>
               <div className="flex items-center gap-2 relative">
-                <button
-                  onClick={() => toggleDropdown('components')}
-                  className="text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg p-2 transition-all duration-200"
-                >
-                  <MoreVertical className="h-4 w-4" />
-                </button>
+                {!isPreviewMode && (
+                  <button
+                    onClick={() => toggleDropdown('components')}
+                    className="text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg p-2 transition-all duration-200"
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </button>
+                )}
                 {activeDropdown === 'components' && (
                   <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
                     <button
@@ -2004,39 +2108,56 @@ export default function MagicPanel({
               </div>
             </div>
             <div className="space-y-3">
-              {editingElement?.attributes?.components?.map((component: any, index: number) => (
-                <div key={index} className="flex gap-3 items-start p-3 border border-gray-200 rounded-lg">
-                  <div className="flex-1 space-y-2">
-                    <input
-                      type="text"
-                      placeholder="Component Name"
-                      value={component.name}
-                      onChange={(e) => updateListItem('components', index, 'name', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-yellow-500 font-medium"
-                    />
-                    <input
-                      type="text"
-                      placeholder="Add a description..."
-                      value={component.description}
-                      onChange={(e) => updateListItem('components', index, 'description', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-yellow-500"
-                    />
+              {isPreviewMode ? (
+                editingElement?.attributes?.components && editingElement.attributes.components.length > 0 ? (
+                  editingElement.attributes.components.map((component: any, index: number) => (
+                    <div key={index} className="p-4 border border-gray-200 rounded-lg bg-gray-50">
+                      <div className="font-medium text-gray-900 mb-2">{component.name || 'Unnamed Component'}</div>
+                      <div className="text-gray-700 text-sm leading-relaxed">{component.description || 'No description'}</div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-gray-500 italic text-center py-8 border border-dashed border-gray-300 rounded-lg">
+                    No components defined yet
                   </div>
+                )
+              ) : (
+                <>
+                  {editingElement?.attributes?.components?.map((component: any, index: number) => (
+                    <div key={index} className="flex gap-3 items-start p-3 border border-gray-200 rounded-lg">
+                      <div className="flex-1 space-y-2">
+                        <input
+                          type="text"
+                          placeholder="Component Name"
+                          value={component.name}
+                          onChange={(e) => updateListItem('components', index, 'name', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-yellow-500 font-medium"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Add a description..."
+                          value={component.description}
+                          onChange={(e) => updateListItem('components', index, 'description', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-yellow-500"
+                        />
+                      </div>
+                      <button
+                        onClick={() => removeListItem('components', index)}
+                        className="mt-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg p-2 transition-all duration-200"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
                   <button
-                    onClick={() => removeListItem('components', index)}
-                    className="mt-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg p-2 transition-all duration-200"
+                    onClick={addComponentItem}
+                    className="w-full flex items-center justify-center space-x-2 py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-yellow-300 hover:text-yellow-600 transition-colors"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Plus className="w-4 h-4" />
+                    <span>Add Component</span>
                   </button>
-                </div>
-              ))}
-              <button
-                onClick={addComponentItem}
-                className="w-full flex items-center justify-center space-x-2 py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-yellow-300 hover:text-yellow-600 transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Add Component</span>
-              </button>
+                </>
+              )}
             </div>
           </div>
 
@@ -2045,12 +2166,14 @@ export default function MagicPanel({
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-800">Effects</h3>
               <div className="flex items-center gap-2 relative">
-                <button
-                  onClick={() => toggleDropdown('effects')}
-                  className="text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg p-2 transition-all duration-200"
-                >
-                  <MoreVertical className="h-4 w-4" />
-                </button>
+                {!isPreviewMode && (
+                  <button
+                    onClick={() => toggleDropdown('effects')}
+                    className="text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg p-2 transition-all duration-200"
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </button>
+                )}
                 {activeDropdown === 'effects' && (
                   <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
                     <button
@@ -2098,39 +2221,56 @@ export default function MagicPanel({
               </div>
             </div>
             <div className="space-y-3">
-              {editingElement?.attributes?.effects?.map((effect: any, index: number) => (
-                <div key={index} className="flex gap-3 items-start p-3 border border-gray-200 rounded-lg">
-                  <div className="flex-1 space-y-2">
-                    <input
-                      type="text"
-                      placeholder="Effect Name"
-                      value={effect.name}
-                      onChange={(e) => updateListItem('effects', index, 'name', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-yellow-500 font-medium"
-                    />
-                    <input
-                      type="text"
-                      placeholder="Add a description..."
-                      value={effect.description}
-                      onChange={(e) => updateListItem('effects', index, 'description', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-yellow-500"
-                    />
+              {isPreviewMode ? (
+                editingElement?.attributes?.effects && editingElement.attributes.effects.length > 0 ? (
+                  editingElement.attributes.effects.map((effect: any, index: number) => (
+                    <div key={index} className="p-4 border border-gray-200 rounded-lg bg-gray-50">
+                      <div className="font-medium text-gray-900 mb-2">{effect.name || 'Unnamed Effect'}</div>
+                      <div className="text-gray-700 text-sm leading-relaxed">{effect.description || 'No description'}</div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-gray-500 italic text-center py-8 border border-dashed border-gray-300 rounded-lg">
+                    No effects defined yet
                   </div>
+                )
+              ) : (
+                <>
+                  {editingElement?.attributes?.effects?.map((effect: any, index: number) => (
+                    <div key={index} className="flex gap-3 items-start p-3 border border-gray-200 rounded-lg">
+                      <div className="flex-1 space-y-2">
+                        <input
+                          type="text"
+                          placeholder="Effect Name"
+                          value={effect.name}
+                          onChange={(e) => updateListItem('effects', index, 'name', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-yellow-500 font-medium"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Add a description..."
+                          value={effect.description}
+                          onChange={(e) => updateListItem('effects', index, 'description', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-yellow-500"
+                        />
+                      </div>
+                      <button
+                        onClick={() => removeListItem('effects', index)}
+                        className="mt-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg p-2 transition-all duration-200"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
                   <button
-                    onClick={() => removeListItem('effects', index)}
-                    className="mt-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg p-2 transition-all duration-200"
+                    onClick={addEffectItem}
+                    className="w-full flex items-center justify-center space-x-2 py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-yellow-300 hover:text-yellow-600 transition-colors"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Plus className="w-4 h-4" />
+                    <span>Add Effect</span>
                   </button>
-                </div>
-              ))}
-              <button
-                onClick={addEffectItem}
-                className="w-full flex items-center justify-center space-x-2 py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-yellow-300 hover:text-yellow-600 transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Add Effect</span>
-              </button>
+                </>
+              )}
             </div>
           </div>
         </div>
