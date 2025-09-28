@@ -1,15 +1,11 @@
 'use client'
 
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { 
-  Plus, Zap, Search, MoreVertical, Trash2, Edit3, BookOpen,
-  Star, Flame, Wind, Droplets, Mountain, Sun, Moon, Eye,
-  Save, X, Wand2, Shield, Target, Clock, Sparkles, Crown,
-  Link, Image as ImageIcon, TableIcon, Bold, Italic, Underline,
-  User, MapPin, Package, Calendar, Globe, Cog, Heart, Brain,
-  Copy, Settings, History, ChevronDown, ChevronUp, Grid3x3,
-  Network, Filter, Bookmark, Tag, GripVertical,
-  FileText, Hash, ToggleLeft, List, Type, Code, Palette
+  Plus, Search, MoreVertical, Trash2, Edit3, BookOpen,
+  Star, Sun, Eye, Save, X, Wand2, Shield, Clock, Sparkles, Crown,
+  Link, User, MapPin, Package, Globe, Heart, Brain, Copy,
+  ChevronDown, ChevronUp, Grid3x3, List, Zap
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -21,8 +17,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Separator } from '@/components/ui/separator'
+import DeleteModal from '@/components/ui/delete-modal'
+import { useToast } from '@/components/ui/toast'
 
 // Safe color classes to prevent Tailwind purging
 const COLOR_CLASSES = {
@@ -47,95 +43,9 @@ const getColorClasses = (colorName: string) => {
   return COLOR_CLASSES[colorName as keyof typeof COLOR_CLASSES] || COLOR_CLASSES.gray
 }
 
-const get = (obj: any, path: string) => {
-  return path.split('.').reduce((current, key) => current?.[key], obj)
-}
 
-const diffAttributes = (prev: any, next: any): string => {
-  const changes: string[] = []
-  const allKeys = new Set([...Object.keys(prev || {}), ...Object.keys(next || {})])
-  
-  for (const key of allKeys) {
-    const prevVal = prev?.[key]
-    const nextVal = next?.[key]
-    
-    if (JSON.stringify(prevVal) !== JSON.stringify(nextVal)) {
-      if (prevVal === undefined) {
-        changes.push(`+ Added ${key}: ${JSON.stringify(nextVal)}`)
-      } else if (nextVal === undefined) {
-        changes.push(`- Removed ${key}`)
-      } else {
-        changes.push(`~ Changed ${key}: ${JSON.stringify(prevVal)} → ${JSON.stringify(nextVal)}`)
-      }
-    }
-  }
-  
-  return changes.length ? changes.join('\n') : 'No changes detected'
-}
 
-// Template definitions
-const buildDefaultTemplate = (kind: 'hard' | 'soft' | 'spell' | 'ritual' | 'artifact') => {
-  const templates = {
-    hard: {
-      type: 'system',
-      __schema: [
-        { id: '1', key: 'power_source', label: 'Power Source', type: 'select' as const, options: ['Mana', 'Life Force', 'Divine', 'Elemental'], group: 'mechanics' as const, showInCard: true },
-        { id: '2', key: 'cost_type', label: 'Cost Type', type: 'select' as const, options: ['Fixed', 'Scaling', 'Resource'], group: 'costs' as const, showInCard: true },
-      ],
-      __values: { power_source: 'Mana', cost_type: 'Fixed' }
-    },
-    soft: {
-      type: 'system',
-      __schema: [
-        { id: '1', key: 'philosophy', label: 'Magical Philosophy', type: 'richtext' as const, group: 'lore' as const, showInCard: false },
-        { id: '2', key: 'manifestation', label: 'How Magic Manifests', type: 'richtext' as const, group: 'mechanics' as const, showInCard: false },
-      ],
-      __values: { philosophy: '', manifestation: '' }
-    },
-    spell: {
-      type: 'spell',
-      school: 'Evocation',
-      level: 3,
-      casting_time: '1 action',
-      duration: 'instantaneous',
-      __schema: [
-        { id: '1', key: 'verbal_component', label: 'Verbal Component Required', type: 'boolean' as const, group: 'components' as const, showInCard: true },
-        { id: '2', key: 'somatic_component', label: 'Somatic Component Required', type: 'boolean' as const, group: 'components' as const, showInCard: true },
-      ],
-      __values: { verbal_component: true, somatic_component: false }
-    },
-    ritual: {
-      type: 'ritual',
-      casting_time: '1 hour',
-      duration: 'permanent',
-      __schema: [
-        { id: '1', key: 'participants_required', label: 'Number of Participants', type: 'number' as const, group: 'mechanics' as const, showInCard: true },
-        { id: '2', key: 'ritual_components', label: 'Special Components', type: 'tags' as const, group: 'components' as const, showInCard: false },
-      ],
-      __values: { participants_required: 3, ritual_components: [] }
-    },
-    artifact: {
-      type: 'artifact',
-      rarity: 'legendary',
-      __schema: [
-        { id: '1', key: 'attunement_required', label: 'Requires Attunement', type: 'boolean' as const, group: 'mechanics' as const, showInCard: true },
-        { id: '2', key: 'charges', label: 'Number of Charges', type: 'number' as const, group: 'mechanics' as const, showInCard: true },
-      ],
-      __values: { attunement_required: true, charges: 3 }
-    }
-  }
-  
-  return templates[kind] || {}
-}
 
-const applyTemplateToForm = (templateAttrs: any, setFormData: any) => {
-  setFormData((prev: any) => ({
-    ...prev,
-    ...templateAttrs,
-    __schema: [...(prev.__schema || []), ...(templateAttrs.__schema || [])],
-    __values: { ...(prev.__values || {}), ...(templateAttrs.__values || {}) }
-  }))
-}
 
 // Custom Field Interface
 interface CustomField {
@@ -165,7 +75,6 @@ interface MagicElement {
     type?: string
     school?: string
     level?: number
-    rarity?: string
     casting_time?: string
     duration?: string
     range?: string
@@ -185,7 +94,6 @@ interface MagicElement {
     __versions?: Version[]
     [key: string]: any
   }
-  tags: string[]
   project_id: string
   created_at: string
   updated_at: string
@@ -208,37 +116,12 @@ const MAGIC_TYPES = [
   { value: 'creature', label: 'Magical Creature', icon: Eye, color: 'red' },
   { value: 'phenomenon', label: 'Magical Phenomenon', icon: Wand2, color: 'cyan' },
   { value: 'ritual', label: 'Ritual', icon: Sun, color: 'orange' },
-  { value: 'enchantment', label: 'Enchantment', icon: Shield, color: 'violet' }
-]
-
-const MAGIC_SCHOOLS = [
-  'Evocation', 'Transmutation', 'Illusion', 'Enchantment', 'Divination',
-  'Necromancy', 'Abjuration', 'Conjuration', 'Elementalism', 'Healing',
-  'Warding', 'Mind Magic', 'Time Magic', 'Space Magic', 'Nature Magic'
-]
-
-const MAGIC_RARITY = [
-  { value: 'common', label: 'Common', color: 'gray' },
-  { value: 'uncommon', label: 'Uncommon', color: 'green' },
-  { value: 'rare', label: 'Rare', color: 'blue' },
-  { value: 'epic', label: 'Epic', color: 'purple' },
-  { value: 'legendary', label: 'Legendary', color: 'amber' },
-  { value: 'mythic', label: 'Mythic', color: 'red' }
-]
-
-const MAGIC_COMPONENTS = [
-  'verbal', 'somatic', 'material', 'focus', 'divine_focus', 'arcane_focus',
-  'blood', 'sacrifice', 'meditation', 'ritual_circle', 'components'
-]
-
-const CASTING_TIMES = [
-  'instant', '1 action', '1 bonus action', '1 reaction', '1 minute', 
-  '10 minutes', '1 hour', '8 hours', '24 hours', 'ritual'
-]
-
-const DURATIONS = [
-  'instantaneous', '1 round', '1 minute', '10 minutes', '1 hour', 
-  '8 hours', '24 hours', 'permanent', 'concentration'
+  { value: 'enchantment', label: 'Enchantment', icon: Shield, color: 'violet' },
+  { value: 'material', label: 'Magical Material', icon: Package, color: 'teal' },
+  { value: 'plane', label: 'Magical Plane/Realm', icon: Globe, color: 'indigo' },
+  { value: 'law', label: 'Magical Law/Rule', icon: BookOpen, color: 'rose' },
+  { value: 'energy', label: 'Magical Energy/Force', icon: Zap, color: 'yellow' },
+  { value: 'tradition', label: 'Magical Tradition', icon: Crown, color: 'pink' }
 ]
 
 // World Element Types Configuration for linking
@@ -297,10 +180,9 @@ export default function MagicPanel({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   
-  // Search and template state
+  // Search state
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedType, setSelectedType] = useState<string>('all')
-  const [selectedTemplate, setSelectedTemplate] = useState<string>('')
   
   // Enhanced features state
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
@@ -308,7 +190,6 @@ export default function MagicPanel({
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
   const [selectedElements, setSelectedElements] = useState<string[]>([])
   const [showBulkActions, setShowBulkActions] = useState(false)
-  const [showImportModal, setShowImportModal] = useState(false)
   const [collapsedPanels, setCollapsedPanels] = useState<{[key: string]: boolean}>({})
   const [showTooltips, setShowTooltips] = useState(true)
   const [isPreviewMode, setIsPreviewMode] = useState(false)
@@ -321,14 +202,27 @@ export default function MagicPanel({
   const [cursorPosition, setCursorPosition] = useState<{ field: string; position: number }>({ field: '', position: 0 })
   const activeTextAreaRef = useRef<HTMLTextAreaElement | null>(null)
 
-  // Form state - enhanced with flexible schema
+  // Delete modal state
+  const [deleteModal, setDeleteModal] = useState<{
+    isOpen: boolean
+    elementId: string
+    elementName: string
+  }>({
+    isOpen: false,
+    elementId: '',
+    elementName: ''
+  })
+
+  // Toast notifications
+  const { addToast } = useToast()
+
+  // Form state
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     type: '',
     school: '',
     level: 1,
-    rarity: 'common',
     casting_time: '',
     duration: '',
     range: '',
@@ -342,7 +236,6 @@ export default function MagicPanel({
     history: '',
     practitioners: [] as string[],
     cost: '',
-    tags: [] as string[],
     __schema: [] as CustomField[],
     __values: {} as Record<string, any>
   })
@@ -418,7 +311,6 @@ export default function MagicPanel({
                 name: 'New Magic System',
                 description: '',
                 attributes: {},
-                tags: [],
                 project_id: projectId,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString(),
@@ -486,8 +378,7 @@ export default function MagicPanel({
       const matchesSearch = !searchTerm || 
         element.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         element.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        element.attributes?.type?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        element.tags?.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()))
+        element.attributes?.type?.toLowerCase().includes(searchTerm.toLowerCase())
       
       const matchesType = selectedType === 'all' || !selectedType || element.attributes?.type === selectedType
       
@@ -552,9 +443,8 @@ export default function MagicPanel({
               by: 'local',
               changes: `Updated magic element`
             }
-          ].slice(-10)
-        },
-        tags: editingElement.tags || []
+            ].slice(-10)
+        }
       }
 
       let result: MagicElement
@@ -601,20 +491,44 @@ export default function MagicPanel({
   }
 
   const handleDeleteElement = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this magic element?')) return
+    const element = magicElements.find(e => e.id === id)
+    if (!element) return
+
+    setDeleteModal({
+      isOpen: true,
+      elementId: id,
+      elementName: element.name
+    })
+  }
+
+  const confirmDelete = async () => {
+    const { elementId, elementName } = deleteModal
+    if (!elementId) return
 
     try {
       const { error } = await supabase
         .from('world_elements')
         .delete()
-        .eq('id', id)
+        .eq('id', elementId)
 
       if (error) throw error
 
-      setMagicElements(prev => prev.filter(e => e.id !== id))
+      setMagicElements(prev => prev.filter(e => e.id !== elementId))
       onMagicChange?.()
+      addToast({
+        type: 'success',
+        title: 'Magic Element Deleted',
+        message: `Successfully deleted "${elementName}"`
+      })
     } catch (error) {
       console.error('Error deleting magic element:', error)
+      addToast({
+        type: 'error',
+        title: 'Delete Failed',
+        message: error instanceof Error ? error.message : 'Failed to delete magic element'
+      })
+    } finally {
+      setDeleteModal({ isOpen: false, elementId: '', elementName: '' })
     }
   }
 
@@ -642,23 +556,11 @@ export default function MagicPanel({
     
     populateEditingElement(duplicateData)
     setIsCreating(true)
-  }
-
-  const handleTemplateSelect = (templateKind: string) => {
-    if (templateKind && templateKind !== '') {
-      const template = buildDefaultTemplate(templateKind as any)
-      if (editingElement) {
-        setEditingElement({
-          ...editingElement,
-          attributes: {
-            ...editingElement.attributes,
-            ...template,
-            type: template.type
-          }
-        })
-      }
-      setSelectedTemplate('')
-    }
+    addToast({
+      type: 'info',
+      title: 'Element Duplicated',
+      message: `Created a copy of "${element.name}" for editing`
+    })
   }
 
   // Panel management functions
@@ -736,11 +638,6 @@ export default function MagicPanel({
   const getMagicTypeColor = (type: string) => {
     const magicType = MAGIC_TYPES.find(t => t.value === type)
     return magicType?.color || 'gray'
-  }
-
-  const getRarityColor = (rarity: string) => {
-    const rarityObj = MAGIC_RARITY.find(r => r.value === rarity)
-    return rarityObj?.color || 'gray'
   }
 
   // Content manipulation functions
@@ -926,38 +823,7 @@ export default function MagicPanel({
     URL.revokeObjectURL(url)
   }
 
-  const handleImportElements = async (file: File) => {
-    try {
-      const text = await file.text()
-      const importData = JSON.parse(text)
-      
-      if (!importData.elements || !Array.isArray(importData.elements)) {
-        throw new Error('Invalid file format')
-      }
-      
-      const elementsToImport = importData.elements.map((element: any) => ({
-        ...element,
-        id: crypto.randomUUID(), // Generate new IDs
-        project_id: projectId,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }))
-      
-      const { data, error } = await supabase
-        .from('world_elements')
-        .insert(elementsToImport)
-        .select()
-      
-      if (error) throw error
-      
-      setMagicElements(prev => [...(data || []), ...prev])
-      setShowImportModal(false)
-      onMagicChange?.()
-    } catch (error) {
-      console.error('Error importing elements:', error)
-      alert('Error importing elements. Please check the file format.')
-    }
-  }
+
 
   const togglePanelCollapse = (panelName: string) => {
     setCollapsedPanels(prev => ({
@@ -985,14 +851,12 @@ export default function MagicPanel({
   if (loading) {
     return (
       <div className="h-full bg-white p-6 overflow-y-auto">
-        <div className="max-w-5xl mx-auto">
-          <div className="animate-pulse">
-            <div className="h-8 bg-gray-200 rounded w-48 mb-4"></div>
-            <div className="space-y-4">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="h-32 bg-gray-100 rounded-lg"></div>
-              ))}
-            </div>
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-200 rounded w-48 mb-4"></div>
+          <div className="space-y-4">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="h-32 bg-gray-100 rounded-lg"></div>
+            ))}
           </div>
         </div>
       </div>
@@ -1003,9 +867,8 @@ export default function MagicPanel({
   if (!isCreating && !editingElement) {
     return (
       <div className="h-full bg-white p-6 overflow-y-auto">
-        <div className="max-w-5xl mx-auto">
-          {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
             <div className="space-y-1">
               <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
                 <div className="p-2 bg-gradient-to-r from-yellow-500 to-amber-500 rounded-xl">
@@ -1023,7 +886,6 @@ export default function MagicPanel({
                   name: 'New Magic System',
                   description: '',
                   attributes: {},
-                  tags: [],
                   project_id: projectId,
                   created_at: new Date().toISOString(),
                   updated_at: new Date().toISOString(),
@@ -1046,7 +908,7 @@ export default function MagicPanel({
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                   <Input
-                    placeholder="Search magic elements, tags, descriptions..."
+                    placeholder="Search magic elements, descriptions..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-10 border-gray-300 focus:border-yellow-500 focus:ring-yellow-500"
@@ -1078,15 +940,6 @@ export default function MagicPanel({
                     ))}
                   </SelectContent>
                 </Select>
-                
-                <Button
-                  onClick={() => setShowImportModal(true)}
-                  variant="outline"
-                  className="border-gray-300 hover:border-yellow-500"
-                >
-                  <Settings className="w-4 h-4 mr-2" />
-                  Import
-                </Button>
                 
                 <Button
                   onClick={handleExportElements}
@@ -1224,7 +1077,6 @@ export default function MagicPanel({
                     name: 'New Magic System',
                     description: '',
                     attributes: {},
-                    tags: [],
                     project_id: projectId,
                     created_at: new Date().toISOString(),
                     updated_at: new Date().toISOString(),
@@ -1239,10 +1091,35 @@ export default function MagicPanel({
               </Button>
             </div>
           ) : (
-            <div className={`gap-4 ${
-              viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 auto-rows-fr' :
-              'space-y-4'
-            }`}>
+            filteredAndSortedElements.length === 0 ? (
+            <div className="text-center py-16">
+              <div className="text-gray-400 mb-4">
+                <Sparkles className="w-16 h-16 mx-auto opacity-50" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-600 mb-2">No magic elements found</h3>
+              <p className="text-gray-500 mb-6">Get started by creating your first magic element</p>
+              <Button
+                onClick={() => {
+                  setEditingElement({
+                    id: '',
+                    name: 'New Magic System',
+                    description: '',
+                    attributes: {},
+                    project_id: projectId,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                    category: 'magic'
+                  })
+                  setIsCreating(true)
+                }}
+                className="bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-600 hover:to-amber-600 text-white"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Create Magic Element
+              </Button>
+            </div>
+          ) : (
+            <div className={viewMode === 'grid' ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4' : 'space-y-2'}>
               {filteredAndSortedElements.map(element => {
                 const TypeIcon = getMagicTypeIcon(element.attributes?.type || '')
                 const typeColorName = getMagicTypeColor(element.attributes?.type || '')
@@ -1251,103 +1128,134 @@ export default function MagicPanel({
                 return (
                   <Card 
                     key={element.id} 
-                    className={`group hover:shadow-xl transition-all duration-300 border border-gray-200 hover:border-yellow-300 bg-white hover:bg-gradient-to-br hover:from-white hover:to-yellow-50/30 h-full flex flex-col min-h-[250px] cursor-pointer hover:scale-[1.01] ${
-                      selectedElements.includes(element.id) ? 'ring-2 ring-yellow-500 border-yellow-400' : ''
+                    className={`group relative overflow-visible border border-gray-200/60 rounded-xl shadow-sm hover:shadow-2xl transition-all duration-500 ease-out cursor-pointer bg-white/90 backdrop-blur-sm hover:bg-white hover:border-yellow-400/60 hover:scale-[1.03] hover:-translate-y-2 ${
+                      viewMode === 'list' 
+                        ? 'flex items-center p-4' 
+                        : 'h-64 flex flex-col'
                     }`}
                     onClick={(e) => {
                       // Don't navigate if clicking on interactive elements
-                      if ((e.target as HTMLElement).closest('button') || 
-                          (e.target as HTMLElement).closest('[data-radix-collection-item]')) {
+                      const target = e.target as HTMLElement
+                      if (target.closest('button') || 
+                          target.closest('[data-radix-collection-item]') ||
+                          target.tagName === 'BUTTON' ||
+                          (target.closest('svg') && target.closest('button'))) {
+                        e.stopPropagation();
                         return;
                       }
                       populateEditingElement(element);
                       setIsCreating(true);
                     }}
                   >
-                    <CardHeader className="pb-4 flex-shrink-0">
-                      <div className="flex items-start justify-between min-h-0">
-                        <div className="flex items-start gap-3 flex-1 min-w-0">
-                          {/* Selection Checkbox */}
-                          <div 
-                            className="flex items-center pt-1"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <Checkbox
-                              checked={selectedElements.includes(element.id)}
-                              onCheckedChange={() => toggleElementSelection(element.id)}
-                              className="border-gray-300 data-[state=checked]:bg-yellow-500 data-[state=checked]:border-yellow-500"
-                            />
+                    {/* Enhanced gradient overlay with glow effect - lower z-index */}
+                    <div className="absolute inset-0 bg-gradient-to-br from-yellow-50/0 via-amber-50/0 to-orange-50/0 group-hover:from-yellow-50/40 group-hover:via-amber-50/30 group-hover:to-orange-50/20 transition-all duration-500 rounded-xl z-0" style={{ pointerEvents: 'none' }} />
+                    {/* Subtle glow ring on hover - lower z-index */}
+                    <div className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-500 ring-1 ring-yellow-400/20 group-hover:ring-yellow-400/40 z-0" style={{ pointerEvents: 'none' }} />
+                    {viewMode === 'list' ? (
+                      /* Compact List View with Left/Right Layout */
+                      <div className="flex items-center justify-between w-full overflow-hidden">
+                        {/* Left Side - Element Info */}
+                        <div className="flex items-center gap-2 flex-1 min-w-0 mr-2 max-w-2xl overflow-hidden">
+                          <div className={`p-1.5 rounded-lg ${typeColor.bg} flex-shrink-0`}>
+                            <TypeIcon className={`w-4 h-4 ${typeColor.text}`} />
                           </div>
-                          <div className={`p-2.5 rounded-xl ${typeColor.bg} ${typeColor.ring}`}>
-                            <TypeIcon className={`w-5 h-5 ${typeColor.text}`} />
-                          </div>
-                          <div className="flex-1 min-w-0 overflow-hidden">
-                            <CardTitle className="text-lg font-bold text-gray-900 truncate group-hover:text-yellow-700 transition-colors leading-tight">
-                              {element.name}
-                            </CardTitle>
-                            <div className="flex flex-wrap items-center gap-1 mt-2 overflow-hidden">
-                              {element.attributes?.type && (
-                                <Badge variant="outline" className="border-gray-300 text-gray-700">
-                                  {MAGIC_TYPES.find(t => t.value === element.attributes?.type)?.label || element.attributes.type}
-                                </Badge>
-                              )}
-                              {element.attributes?.rarity && (
-                                <Badge variant="outline" className={`${getColorClasses(getRarityColor(element.attributes.rarity)).border} ${getColorClasses(getRarityColor(element.attributes.rarity)).text}`}>
-                                  {element.attributes.rarity}
-                                </Badge>
-                              )}
-                              {element.tags && element.tags.length > 0 && (
-                                <Badge variant="outline" className="border-blue-300 text-blue-700">
-                                  {element.tags.length} tag{element.tags.length > 1 ? 's' : ''}
-                                </Badge>
-                              )}
-                            </div>
+                          <div className="min-w-0 flex-1 max-w-xs">
+                            <h3 className="font-semibold text-gray-900 truncate text-sm">{element.name}</h3>
+                            <p className="text-xs text-gray-600 truncate max-w-full">
+                              {element.description && element.description.length > 60 
+                                ? `${element.description.slice(0, 60)}...` 
+                                : element.description || 'No description'}
+                            </p>
                           </div>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteElement(element.id);
-                          }}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-red-500 hover:bg-red-50"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="pt-0 flex-1 flex flex-col justify-between min-h-0">
-                      <div className="space-y-3 flex-1 min-h-0">
-                        {element.description && (
-                          <div className="text-sm text-gray-700 leading-relaxed overflow-hidden" style={{
-                            display: '-webkit-box',
-                            WebkitLineClamp: 3,
-                            WebkitBoxOrient: 'vertical',
-                            maxHeight: '3.75rem'
-                          }}>
-                            {element.description}
+                        
+                        {/* Right Side - Ultra Compact Columns */}
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          {/* Type Badge Column - Only on larger screens */}
+                          <div className="w-12 flex justify-start hidden lg:flex">
+                            {element.attributes?.type && (
+                              <Badge variant="secondary" className="text-xs bg-yellow-50 text-yellow-700 border-yellow-200 px-1 py-0">
+                                {MAGIC_TYPES.find(t => t.value === element.attributes?.type)?.label?.slice(0, 2) || element.attributes.type.slice(0, 2)}
+                              </Badge>
+                            )}
                           </div>
-                        )}
-                      </div>
-
-                      <div className="flex flex-col gap-3 pt-3 border-t border-gray-200 flex-shrink-0">
-                        <div className="flex justify-between items-start gap-2">
-                          <div className="flex items-center gap-1 flex-wrap">
+                          
+                          {/* Combined Stats Column - Always visible */}
+                          <div className="w-10 flex justify-center">
+                            <div className="flex items-center text-xs text-gray-500">
+                              {element.attributes?.links && element.attributes.links.length > 0 ? (
+                                <span className="flex items-center">
+                                  <Link className="w-3 h-3" />
+                                  <span className="ml-0.5">{element.attributes.links.length}</span>
+                                </span>
+                              ) : null}
+                            </div>
+                          </div>
+                          
+                          {/* Action Buttons Column - Minimal */}
+                          <div className="w-12 flex items-center justify-end gap-0.5">
                             <Button
                               variant="ghost"
                               size="sm"
                               onClick={(e) => {
-                                e.stopPropagation();
+                                e.stopPropagation()
                                 populateEditingElement(element)
                                 setIsCreating(true)
                               }}
-                              className="text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50 font-medium h-8 px-2 text-xs"
+                              className="hover:bg-yellow-50 hover:text-yellow-600 transition-colors p-0.5 h-5 w-5"
                               title="Edit"
                             >
-                              <Edit3 className="w-3 h-3 mr-1" />
-                              <span>Edit</span>
+                              <Edit3 className="w-3 h-3" />
                             </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Compact & Modern Grid View */
+                      <>
+                        {/* Compact Header */}
+                        <div className="p-4 pb-2 relative z-10" style={{ pointerEvents: 'auto' }}>
+                          <div className="flex items-start gap-3 mb-3">
+                            <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${typeColor.bg} flex items-center justify-center flex-shrink-0 group-hover:scale-110 group-hover:rotate-3 group-hover:shadow-lg transition-all duration-400 transform-gpu`}>
+                              <TypeIcon className={`w-5 h-5 ${typeColor.text} group-hover:scale-110 transition-all duration-300`} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-semibold text-gray-900 text-base leading-tight mb-1 truncate group-hover:text-gray-800 group-hover:scale-105 transition-all duration-300 origin-left">
+                                {element.name}
+                              </h3>
+                              <div className="flex gap-1.5 flex-wrap">
+                                {element.attributes?.type && (
+                                  <Badge 
+                                    variant="secondary" 
+                                    className="bg-yellow-100 text-yellow-700 text-xs px-2 py-0.5 rounded-full group-hover:bg-yellow-200 group-hover:scale-105 group-hover:shadow-md transition-all duration-300"
+                                  >
+                                    {MAGIC_TYPES.find(t => t.value === element.attributes?.type)?.label.slice(0, 8) || element.attributes.type.slice(0, 8)}
+                                  </Badge>
+                                )}
+                                {element.attributes?.links && element.attributes.links.length > 0 && (
+                                  <div className="flex items-center gap-1 text-green-600 bg-green-50 px-2 py-0.5 rounded-full text-xs group-hover:bg-green-100 group-hover:scale-105 group-hover:shadow-md transition-all duration-300 delay-100">
+                                    <Link className="w-3 h-3 group-hover:scale-110 transition-transform duration-200" />
+                                    <span>{element.attributes.links.length}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Content Area */}
+                        <div className="px-4 pb-4 flex-1 flex flex-col relative z-10">
+                          {/* Description */}
+                          {element.description && (
+                            <p className="text-gray-600 text-sm leading-relaxed mb-3 flex-1 group-hover:text-gray-700 group-hover:scale-[1.02] transition-all duration-300 line-clamp-3 origin-top">
+                              {element.description.length > 60 ? `${element.description.slice(0, 60)}...` : element.description}
+                            </p>
+                          )}
+
+                          {/* Bottom Actions */}
+                          <div 
+                            className="flex justify-between items-center pt-2 border-t border-gray-100 group-hover:border-gray-200 mt-auto transition-all duration-300" 
+                          >
                             <Button
                               variant="ghost"
                               size="sm"
@@ -1355,38 +1263,25 @@ export default function MagicPanel({
                                 e.stopPropagation();
                                 handleDuplicate(element);
                               }}
-                              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 font-medium h-8 px-2 text-xs"
-                              title="Copy"
+                              className="text-gray-500 hover:text-gray-700 hover:bg-gray-50 px-2 h-7 text-xs rounded-md transition-all duration-300 hover:scale-110 hover:shadow-md group-hover:translate-x-1"
                             >
-                              <Copy className="w-3 h-3 mr-1" />
-                              <span>Copy</span>
+                              <Copy className="w-3 h-3 mr-1 group-hover:animate-pulse" />
+                              Copy
                             </Button>
-                            {element.attributes?.links && element.attributes.links.length > 0 && (
-                              <Badge variant="outline" className="border-green-300 text-green-700 text-xs h-6">
-                                <Link className="w-3 h-3 mr-1" />
-                                {element.attributes.links.length}
-                              </Badge>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-1 flex-shrink-0">
-                            <div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded whitespace-nowrap">
-                              {new Date(element.updated_at).toLocaleDateString()}
-                            </div>
-                            {element.attributes?.__versions && element.attributes.__versions.length > 1 && (
-                              <Badge variant="outline" className="border-purple-300 text-purple-700 text-xs h-6">
-                                v{element.attributes.__versions.length}
-                              </Badge>
-                            )}
+                            
+                            <span className="text-xs text-gray-400 group-hover:text-gray-500 group-hover:scale-105 transition-all duration-300">
+                              {new Date(element.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            </span>
                           </div>
                         </div>
-                      </div>
-                    </CardContent>
+                      </>
+                    )}
                   </Card>
                 )
               })}
             </div>
-          )}
-        </div>
+          )
+        )}
       </div>
     )
   }
@@ -1495,8 +1390,7 @@ export default function MagicPanel({
       </div>
 
       {/* Panel Grid */}
-      <div className="container mx-auto px-0">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 lg:gap-8">
           
           {/* Overview Panel */}
           <div className={`${getPanelClassName('overview')} max-h-[567px] flex flex-col`} style={getPanelStyle('overview')}>
@@ -2274,7 +2168,6 @@ export default function MagicPanel({
             </div>
           </div>
         </div>
-      </div>
 
       {/* Link Modal */}
       <Dialog open={showLinkModal} onOpenChange={setShowLinkModal}>
@@ -2329,47 +2222,7 @@ export default function MagicPanel({
         </DialogContent>
       </Dialog>
 
-      {/* Import Modal */}
-      <Dialog open={showImportModal} onOpenChange={setShowImportModal}>
-        <DialogContent className="max-w-md bg-white border border-gray-200 shadow-xl">
-          <DialogHeader>
-            <DialogTitle>Import Magic Elements</DialogTitle>
-            <DialogDescription>
-              Import magic elements from a JSON file
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-yellow-300 transition-colors">
-              <input
-                type="file"
-                accept=".json"
-                onChange={(e) => {
-                  const file = e.target.files?.[0]
-                  if (file) {
-                    handleImportElements(file)
-                  }
-                }}
-                className="hidden"
-                id="import-file"
-              />
-              <label htmlFor="import-file" className="cursor-pointer">
-                <div className="flex flex-col items-center gap-3">
-                  <div className="p-3 bg-gray-100 rounded-full">
-                    <Settings className="w-6 h-6 text-gray-600" />
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium text-gray-900">Click to upload file</div>
-                    <div className="text-xs text-gray-500">JSON files only</div>
-                  </div>
-                </div>
-              </label>
-            </div>
-            <div className="text-xs text-gray-500 bg-gray-50 p-3 rounded-lg">
-              <strong>File Format:</strong> Export your elements first to see the expected format, or ensure your JSON contains an "elements" array with magic element objects.
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+
 
       {/* Keyboard Shortcuts Help */}
       <div className="fixed bottom-4 right-4 z-50">
@@ -2382,6 +2235,16 @@ export default function MagicPanel({
           </div>
         </div>
       </div>
+
+      {/* Delete Modal */}
+      <DeleteModal
+        isOpen={deleteModal.isOpen}
+        onClose={() => setDeleteModal({ isOpen: false, elementId: '', elementName: '' })}
+        onConfirm={confirmDelete}
+        title="Delete Magic Element"
+        itemName={deleteModal.elementName}
+        type="element"
+      />
     </div>
   )
 }
