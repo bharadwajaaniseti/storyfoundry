@@ -573,7 +573,7 @@ export default function MagicPanel({
       setShowColorPicker(section)
     } else if (action === 'delete') {
       // Handle panel deletion
-      console.log('Delete panel:', section)
+      // Panel deletion functionality could be added here if needed
     }
     setActiveDropdown(null)
   }
