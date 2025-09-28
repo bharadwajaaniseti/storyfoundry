@@ -5,7 +5,10 @@ import {
   Plus, Search, MoreVertical, Trash2, Edit3, BookOpen,
   Star, Sun, Eye, Save, X, Wand2, Shield, Clock, Sparkles, Crown,
   Link, User, MapPin, Package, Globe, Heart, Brain, Copy,
-  ChevronDown, ChevronUp, Grid3x3, List, Zap
+  ChevronDown, ChevronUp, Grid3x3, List, Zap,
+  Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight,
+  ListOrdered, List as ListBullet, Quote, Strikethrough, Heading1, Heading2, Minus,
+  FileText, Download, FileDown, Printer, FileType
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -39,8 +42,162 @@ const COLOR_CLASSES = {
 }
 
 // Utility functions
+// Utility functions
 const getColorClasses = (colorName: string) => {
   return COLOR_CLASSES[colorName as keyof typeof COLOR_CLASSES] || COLOR_CLASSES.gray
+}
+
+// Rich text renderer for preview mode (now handles HTML instead of markdown)
+const renderFormattedText = (htmlContent: string) => {
+  if (!htmlContent) return null
+  
+  return (
+    <div 
+      className="whitespace-pre-wrap leading-relaxed"
+      dangerouslySetInnerHTML={{ __html: htmlContent }}
+    />
+  )
+}
+
+// Helper function to strip HTML tags for card previews
+const stripHtmlTags = (html: string) => {
+  if (!html) return ''
+  
+  // Create a temporary div element to parse HTML
+  const tempDiv = document.createElement('div')
+  tempDiv.innerHTML = html
+  
+  // Get the text content without HTML tags
+  const textContent = tempDiv.textContent || tempDiv.innerText || ''
+  
+  return textContent.trim()
+}
+
+// Rich Text Formatting Toolbar Component (like chapters panel)
+interface FormattingToolbarProps {
+  editorRef: React.RefObject<HTMLDivElement | null>
+  onFormatText: (command: string) => void
+}
+
+const FormattingToolbar: React.FC<FormattingToolbarProps> = ({ editorRef, onFormatText }) => {
+  
+  // Simple button click handler
+  const handleClick = (command: string) => (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    
+    console.log(`🖱️ Clicked ${command} button`);
+    
+    if (command === 'h1') {
+      editorRef.current?.focus()
+      setTimeout(() => {
+        document.execCommand('formatBlock', false, 'h1')
+        console.log('📝 Applied H1 formatting');
+      }, 10)
+    } else if (command === 'h2') {
+      editorRef.current?.focus()
+      setTimeout(() => {
+        document.execCommand('formatBlock', false, 'h2')
+        console.log('📝 Applied H2 formatting');
+      }, 10)
+    } else {
+      onFormatText(command)
+    }
+  }
+
+  const formatButtons = [
+    { 
+      icon: Heading1, 
+      label: 'Heading 1', 
+      action: handleClick('h1'),
+      group: 'headers'
+    },
+    { 
+      icon: Heading2, 
+      label: 'Heading 2', 
+      action: handleClick('h2'),
+      group: 'headers'
+    },
+    { 
+      icon: Bold, 
+      label: 'Bold', 
+      action: handleClick('bold'),
+      group: 'basic'
+    },
+    { 
+      icon: Italic, 
+      label: 'Italic', 
+      action: handleClick('italic'),
+      group: 'basic'
+    },
+    { 
+      icon: Underline, 
+      label: 'Underline', 
+      action: handleClick('underline'),
+      group: 'basic'
+    },
+    { 
+      icon: Strikethrough, 
+      label: 'Strikethrough', 
+      action: handleClick('strikeThrough'),
+      group: 'basic'
+    },
+    { 
+      icon: ListBullet, 
+      label: 'Bullet List', 
+      action: handleClick('insertUnorderedList'),
+      group: 'lists'
+    },
+    { 
+      icon: ListOrdered, 
+      label: 'Numbered List', 
+      action: handleClick('insertOrderedList'),
+      group: 'lists'
+    },
+    { 
+      icon: Quote, 
+      label: 'Quote', 
+      action: handleClick('indent'),
+      group: 'special'
+    },
+    { 
+      icon: Minus, 
+      label: 'Horizontal Rule', 
+      action: handleClick('insertHorizontalRule'),
+      group: 'special'
+    }
+  ]
+
+  const handleButtonClick = (action: any) => action
+
+  return (
+    <div className="flex items-center gap-1 p-2 border-b border-gray-200 bg-gray-50/50">
+      {formatButtons.map((button, index) => {
+        const IconComponent = button.icon
+        const isNewGroup = index > 0 && formatButtons[index - 1].group !== button.group
+        
+        return (
+          <React.Fragment key={index}>
+            {isNewGroup && (
+              <div className="w-px h-6 bg-gray-300 mx-1"></div>
+            )}
+            <button
+              onClick={handleButtonClick(button.action)}
+              className="p-2 rounded hover:bg-white hover:shadow-sm text-gray-600 hover:text-gray-800 transition-all duration-150 border border-transparent hover:border-gray-200"
+              title={button.label}
+              type="button"
+            >
+              <IconComponent className="w-4 h-4" />
+            </button>
+          </React.Fragment>
+        )
+      })}
+      <div className="flex-1"></div>
+      <div className="text-xs text-gray-500 px-2">
+        Rich text formatting
+      </div>
+    </div>
+  )
 }
 
 
@@ -201,6 +358,14 @@ export default function MagicPanel({
   const [allWorldElements, setAllWorldElements] = useState<any[]>([])
   const [cursorPosition, setCursorPosition] = useState<{ field: string; position: number }>({ field: '', position: 0 })
   const activeTextAreaRef = useRef<HTMLTextAreaElement | null>(null)
+  
+  // Export modal state
+  const [showExportModal, setShowExportModal] = useState(false)
+  const [exportFormat, setExportFormat] = useState<'word' | 'html' | 'markdown' | 'json'>('word')
+  
+  // Text formatting refs
+  const overviewTextAreaRef = useRef<HTMLDivElement | null>(null)
+  const historyTextAreaRef = useRef<HTMLDivElement | null>(null)
 
   // Delete modal state
   const [deleteModal, setDeleteModal] = useState<{
@@ -263,7 +428,7 @@ export default function MagicPanel({
   useEffect(() => {
     if (selectedElement && selectedElement.category === 'magic') {
       setEditingElement(selectedElement)
-      setIsCreating(true)
+      // Don't set isCreating to true for existing elements - only for new ones
       // Load panel colors if available
       if (selectedElement.attributes?.panel_colors) {
         setPanelColors(selectedElement.attributes.panel_colors)
@@ -801,26 +966,213 @@ export default function MagicPanel({
     }
   }
 
+  // Basic export - now opens modal
   const handleExportElements = () => {
-    const elementsToExport = selectedElements.length > 0 
-      ? magicElements.filter(e => selectedElements.includes(e.id))
-      : magicElements
+    setShowExportModal(true)
+  }
+
+  // Advanced export functions
+  const generateWordDocument = (element: any) => {
+    const stripHtml = (html: string) => stripHtmlTags(html)
     
-    const exportData = {
-      version: '1.0',
-      exported_at: new Date().toISOString(),
-      elements: elementsToExport
+    let content = `${element.name}\n`
+    content += `${'='.repeat(element.name.length)}\n\n`
+    
+    // Type and basic info
+    if (element.attributes?.type) {
+      content += `Type: ${MAGIC_TYPES.find(t => t.value === element.attributes?.type)?.label || element.attributes.type}\n\n`
     }
     
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
+    // Overview
+    if (element.attributes?.overview || element.description) {
+      content += `Overview\n--------\n`
+      content += `${stripHtml(element.attributes?.overview || element.description || '')}\n\n`
+    }
+    
+    // History
+    if (element.attributes?.history) {
+      content += `History\n-------\n`
+      content += `${stripHtml(element.attributes.history)}\n\n`
+    }
+    
+    // Costs table
+    if (element.attributes?.costs && element.attributes.costs.length > 0) {
+      content += `Costs\n-----\n`
+      content += `| Cost Name | Description |\n`
+      content += `|-----------|-------------|\n`
+      element.attributes.costs.forEach((cost: any) => {
+        content += `| ${cost.name || 'Unnamed'} | ${cost.description || 'No description'} |\n`
+      })
+      content += `\n`
+    }
+    
+    // Limitations table
+    if (element.attributes?.limitations && element.attributes.limitations.length > 0) {
+      content += `Limitations\n-----------\n`
+      content += `| Limitation | Description |\n`
+      content += `|------------|-------------|\n`
+      element.attributes.limitations.forEach((limitation: any) => {
+        content += `| ${limitation.name || 'Unnamed'} | ${limitation.description || 'No description'} |\n`
+      })
+      content += `\n`
+    }
+    
+    // Components table
+    if (element.attributes?.components && element.attributes.components.length > 0) {
+      content += `Components\n----------\n`
+      content += `| Component | Description |\n`
+      content += `|-----------|-------------|\n`
+      element.attributes.components.forEach((component: any) => {
+        content += `| ${component.name || 'Unnamed'} | ${component.description || 'No description'} |\n`
+      })
+      content += `\n`
+    }
+    
+    // Effects table
+    if (element.attributes?.effects && element.attributes.effects.length > 0) {
+      content += `Effects\n-------\n`
+      content += `| Effect | Description |\n`
+      content += `|--------|-------------|\n`
+      element.attributes.effects.forEach((effect: any) => {
+        content += `| ${effect.name || 'Unnamed'} | ${effect.description || 'No description'} |\n`
+      })
+      content += `\n`
+    }
+    
+    // Linked Elements
+    if (element.attributes?.links && element.attributes.links.length > 0) {
+      content += `Linked Elements\n---------------\n`
+      element.attributes.links.forEach((link: any) => {
+        content += `• ${link.name} (${link.category})\n`
+      })
+      content += `\n`
+    }
+    
+    content += `\n---\nExported from StoryFoundry on ${new Date().toLocaleDateString()}`
+    
+    return content
+  }
+
+  const generateHtmlDocument = (element: any) => {
+    let html = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>${element.name} - Magic Element</title>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; line-height: 1.6; }
+        h1 { color: #2c3e50; border-bottom: 3px solid #f39c12; padding-bottom: 10px; }
+        h2 { color: #34495e; border-bottom: 1px solid #bdc3c7; padding-bottom: 5px; margin-top: 30px; }
+        .type-badge { background: #f39c12; color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.9em; }
+        table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background-color: #f8f9fa; font-weight: bold; }
+        .links { background: #e8f5e8; padding: 15px; border-radius: 8px; }
+        .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee; color: #666; font-size: 0.9em; }
+    </style>
+</head>
+<body>`
+    
+    html += `<h1>${element.name}</h1>`
+    
+    if (element.attributes?.type) {
+      html += `<p><span class="type-badge">${MAGIC_TYPES.find(t => t.value === element.attributes?.type)?.label || element.attributes.type}</span></p>`
+    }
+    
+    if (element.attributes?.overview || element.description) {
+      html += `<h2>Overview</h2>`
+      html += `<div>${element.attributes?.overview || element.description || ''}</div>`
+    }
+    
+    if (element.attributes?.history) {
+      html += `<h2>History</h2>`
+      html += `<div>${element.attributes.history}</div>`
+    }
+    
+    // Tables for costs, limitations, etc.
+    const sections = [
+      { key: 'costs', title: 'Costs', items: element.attributes?.costs },
+      { key: 'limitations', title: 'Limitations', items: element.attributes?.limitations },
+      { key: 'components', title: 'Components', items: element.attributes?.components },
+      { key: 'effects', title: 'Effects', items: element.attributes?.effects }
+    ]
+    
+    sections.forEach(section => {
+      if (section.items && section.items.length > 0) {
+        html += `<h2>${section.title}</h2>`
+        html += `<table><thead><tr><th>Name</th><th>Description</th></tr></thead><tbody>`
+        section.items.forEach((item: any) => {
+          html += `<tr><td>${item.name || 'Unnamed'}</td><td>${item.description || 'No description'}</td></tr>`
+        })
+        html += `</tbody></table>`
+      }
+    })
+    
+    if (element.attributes?.links && element.attributes.links.length > 0) {
+      html += `<h2>Linked Elements</h2>`
+      html += `<div class="links">`
+      element.attributes.links.forEach((link: any) => {
+        html += `<p><strong>${link.name}</strong> <em>(${link.category})</em></p>`
+      })
+      html += `</div>`
+    }
+    
+    html += `<div class="footer">Exported from StoryFoundry on ${new Date().toLocaleDateString()}</div>`
+    html += `</body></html>`
+    
+    return html
+  }
+
+  const performExport = () => {
+    const element = editingElement
+    if (!element) return
+    
+    let content: string
+    let filename: string
+    let mimeType: string
+    
+    switch (exportFormat) {
+      case 'word':
+        content = generateWordDocument(element)
+        filename = `${element.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_magic_element.txt`
+        mimeType = 'text/plain'
+        break
+      
+      case 'html':
+        content = generateHtmlDocument(element)
+        filename = `${element.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_magic_element.html`
+        mimeType = 'text/html'
+        break
+      
+      case 'markdown':
+        content = generateWordDocument(element) // Markdown format is similar to Word
+        filename = `${element.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_magic_element.md`
+        mimeType = 'text/markdown'
+        break
+      
+      case 'json':
+      default:
+        content = JSON.stringify({
+          project: 'Magic Elements Export',
+          exported_at: new Date().toISOString(),
+          element: element
+        }, null, 2)
+        filename = `${element.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_magic_element.json`
+        mimeType = 'application/json'
+        break
+    }
+    
+    const blob = new Blob([content], { type: mimeType })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `magic-elements-${new Date().toISOString().split('T')[0]}.json`
+    a.download = filename
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
+    
+    setShowExportModal(false)
   }
 
 
@@ -848,6 +1200,102 @@ export default function MagicPanel({
     }
   }
 
+  // Text formatting function
+  // Effect to populate contentEditable divs with initial content (without cursor disruption)
+  useEffect(() => {
+    if (!isPreviewMode && editingElement) {
+      console.log('🔄 Content population effect triggered for element:', editingElement.name)
+      console.log('📄 Overview content:', editingElement.attributes?.overview || editingElement.description || 'EMPTY')
+      console.log('📜 History content:', editingElement.attributes?.history || 'EMPTY')
+      
+      // Delay to ensure DOM elements are ready when switching from preview to edit mode OR when initially loading
+      setTimeout(() => {
+        if (overviewTextAreaRef.current) {
+          const currentContent = overviewTextAreaRef.current.innerHTML
+          const newContent = editingElement.attributes?.overview || editingElement.description || ''
+          
+          console.log('📝 Overview - Current:', currentContent.substring(0, 30), 'New:', newContent.substring(0, 30))
+          
+          // Only update if content is different and editor is not focused (to avoid cursor issues)
+          if (currentContent !== newContent && document.activeElement !== overviewTextAreaRef.current) {
+            overviewTextAreaRef.current.innerHTML = newContent
+            console.log('✅ Restored overview content:', newContent.substring(0, 50) + '...')
+          } else {
+            console.log('⏭️ Skipped overview update - same content or focused')
+          }
+        } else {
+          console.log('❌ Overview ref not found')
+        }
+        
+        if (historyTextAreaRef.current) {
+          const currentContent = historyTextAreaRef.current.innerHTML
+          const newContent = editingElement.attributes?.history || ''
+          
+          console.log('📚 History - Current:', currentContent.substring(0, 30), 'New:', newContent.substring(0, 30))
+          
+          // Only update if content is different and editor is not focused (to avoid cursor issues)
+          if (currentContent !== newContent && document.activeElement !== historyTextAreaRef.current) {
+            historyTextAreaRef.current.innerHTML = newContent
+            console.log('✅ Restored history content:', newContent.substring(0, 50) + '...')
+          } else {
+            console.log('⏭️ Skipped history update - same content or focused')
+          }
+        } else {
+          console.log('❌ History ref not found')
+        }
+      }, 200) // Increased delay to ensure DOM is fully ready
+    } else {
+      console.log('❌ Content population skipped - isPreviewMode:', isPreviewMode, 'editingElement:', !!editingElement)
+    }
+  }, [editingElement?.id, editingElement?.attributes?.overview, editingElement?.attributes?.history, isPreviewMode]) // Run when element changes, content changes, OR when switching edit/preview modes
+
+  // Rich text formatting function (simplified and more reliable)
+  const handleFormatText = (field: 'overview' | 'history') => {
+    return (command: string) => {
+      const editorRef = field === 'overview' ? overviewTextAreaRef : historyTextAreaRef
+      const editor = editorRef.current
+      if (!editor) {
+        console.log('❌ No editor element');
+        return;
+      }
+
+      // Focus the editor first
+      editor.focus()
+      
+      // Execute the formatting command with a delay to ensure focus
+      setTimeout(() => {
+        try {
+          console.log(`🎯 Executing command: ${command}`);
+          
+          // Use document.execCommand for all formatting
+          const result = document.execCommand(command, false, undefined)
+          console.log(`📋 Command result: ${result}`);
+          
+          // Update React state with the new HTML content
+          setTimeout(() => {
+            const newContent = editor.innerHTML
+            console.log(`📄 New content: ${newContent.substring(0, 100)}...`);
+            
+            if (field === 'overview') {
+              setEditingElement(prev => prev ? {
+                ...prev,
+                attributes: { ...prev.attributes, overview: newContent }
+              } : null)
+            } else if (field === 'history') {
+              setEditingElement(prev => prev ? {
+                ...prev,
+                attributes: { ...prev.attributes, history: newContent }
+              } : null)
+            }
+          }, 50)
+          
+        } catch (error) {
+          console.error(`❌ Error executing ${command}:`, error);
+        }
+      }, 10)
+    }
+  }
+
   if (loading) {
     return (
       <div className="h-full bg-white p-6 overflow-y-auto">
@@ -863,8 +1311,8 @@ export default function MagicPanel({
     )
   }
 
-  // Show element list if not creating/editing
-  if (!isCreating && !editingElement) {
+  // Show element list if not editing any element
+  if (!editingElement) {
     return (
       <div className="h-full bg-white p-6 overflow-y-auto">
         {/* Header */}
@@ -1162,9 +1610,12 @@ export default function MagicPanel({
                           <div className="min-w-0 flex-1 max-w-xs">
                             <h3 className="font-semibold text-gray-900 truncate text-sm">{element.name}</h3>
                             <p className="text-xs text-gray-600 truncate max-w-full">
-                              {element.description && element.description.length > 60 
-                                ? `${element.description.slice(0, 60)}...` 
-                                : element.description || 'No description'}
+                              {(() => {
+                                const cleanText = stripHtmlTags(element.description || '')
+                                return cleanText && cleanText.length > 60 
+                                  ? `${cleanText.slice(0, 60)}...` 
+                                  : cleanText || 'No description'
+                              })()}
                             </p>
                           </div>
                         </div>
@@ -1248,7 +1699,10 @@ export default function MagicPanel({
                           {/* Description */}
                           {element.description && (
                             <p className="text-gray-600 text-sm leading-relaxed mb-3 flex-1 group-hover:text-gray-700 group-hover:scale-[1.02] transition-all duration-300 line-clamp-3 origin-top">
-                              {element.description.length > 60 ? `${element.description.slice(0, 60)}...` : element.description}
+                              {(() => {
+                                const cleanText = stripHtmlTags(element.description)
+                                return cleanText.length > 60 ? `${cleanText.slice(0, 60)}...` : cleanText
+                              })()}
                             </p>
                           )}
 
@@ -1289,6 +1743,50 @@ export default function MagicPanel({
   // Show panel-based editor if creating/editing
   return (
     <div className="h-full bg-white p-6 overflow-y-auto">
+      {/* Global CSS for rich text editor styling */}
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          .rich-text-editor ul {
+            list-style-type: disc !important;
+            margin-left: 20px !important;
+            padding-left: 20px !important;
+          }
+          .rich-text-editor ol {
+            list-style-type: decimal !important;
+            margin-left: 20px !important;
+            padding-left: 20px !important;
+          }
+          .rich-text-editor li {
+            margin-bottom: 4px !important;
+            display: list-item !important;
+          }
+          .rich-text-editor h1 {
+            font-size: 2rem !important;
+            font-weight: bold !important;
+            margin: 16px 0 8px 0 !important;
+            line-height: 1.2 !important;
+          }
+          .rich-text-editor h2 {
+            font-size: 1.5rem !important;
+            font-weight: bold !important;
+            margin: 12px 0 6px 0 !important;
+            line-height: 1.3 !important;
+          }
+          .rich-text-editor blockquote {
+            border-left: 4px solid #d1d5db !important;
+            padding-left: 16px !important;
+            margin: 16px 0 !important;
+            font-style: italic !important;
+            color: #6b7280 !important;
+          }
+          .rich-text-editor hr {
+            border: none !important;
+            border-top: 1px solid #d1d5db !important;
+            margin: 16px 0 !important;
+          }
+        `
+      }} />
+      
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
@@ -1321,26 +1819,7 @@ export default function MagicPanel({
           
           <Button
             variant="outline"
-            onClick={() => {
-              // Export current element
-              if (editingElement) {
-                const exportData = {
-                  version: '1.0',
-                  exported_at: new Date().toISOString(),
-                  element: editingElement
-                }
-                
-                const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
-                const url = URL.createObjectURL(blob)
-                const a = document.createElement('a')
-                a.href = url
-                a.download = `${editingElement.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}-magic-element.json`
-                document.body.appendChild(a)
-                a.click()
-                document.body.removeChild(a)
-                URL.revokeObjectURL(url)
-              }
-            }}
+            onClick={() => setShowExportModal(true)}
             className="border-gray-300 hover:border-yellow-500"
           >
             <Copy className="w-4 h-4 mr-2" />
@@ -1473,9 +1952,7 @@ export default function MagicPanel({
               isPreviewMode ? (
                 <div className="flex-1 text-gray-700 bg-gray-50 rounded-lg p-4 border border-gray-200">
                   {editingElement?.attributes?.overview || editingElement?.description ? (
-                    <div className="whitespace-pre-wrap leading-relaxed">
-                      {editingElement?.attributes?.overview || editingElement?.description}
-                    </div>
+                    renderFormattedText(editingElement?.attributes?.overview || editingElement?.description || '')
                   ) : (
                     <div className="text-gray-500 italic text-center py-8">
                       No overview content yet
@@ -1483,16 +1960,43 @@ export default function MagicPanel({
                   )}
                 </div>
               ) : (
-                <Textarea
-                  value={editingElement?.attributes?.overview || editingElement?.description || ''}
-                  onChange={(e) => setEditingElement(prev => prev ? {
-                    ...prev,
-                    attributes: { ...prev.attributes, overview: e.target.value }
-                  } : null)}
-                  placeholder="Type here to add notes, backstories, and anything else you need in this Text Panel!"
-                  className="flex-1 resize-none border-0 p-0 focus:ring-0 text-gray-700"
-                  rows={15}
-                />
+                <div className="flex-1 flex flex-col border border-gray-200 rounded-lg overflow-hidden">
+                  <FormattingToolbar
+                    editorRef={overviewTextAreaRef}
+                    onFormatText={handleFormatText('overview')}
+                  />
+                  <div
+                    ref={overviewTextAreaRef}
+                    contentEditable
+                    suppressContentEditableWarning
+                    onInput={(e) => {
+                      const target = e.target as HTMLDivElement
+                      setEditingElement(prev => prev ? {
+                        ...prev,
+                        attributes: { ...prev.attributes, overview: target.innerHTML }
+                      } : null)
+                    }}
+                    onKeyDown={(e) => {
+                      // Handle keyboard shortcuts
+                      if (!(e.ctrlKey || e.metaKey)) return
+                      const k = e.key.toLowerCase()
+                      if (k === 'b') { e.preventDefault(); handleFormatText('overview')('bold') }
+                      else if (k === 'i') { e.preventDefault(); handleFormatText('overview')('italic') }
+                      else if (k === 'u') { e.preventDefault(); handleFormatText('overview')('underline') }
+                    }}
+                    className="flex-1 p-4 focus:outline-none text-gray-700 min-h-[300px] overflow-y-auto rich-text-editor"
+                    style={{
+                      wordBreak: 'break-word',
+                      whiteSpace: 'pre-wrap'
+                    }}
+                  />
+                  {/* Placeholder when empty */}
+                  {(!editingElement?.attributes?.overview && !editingElement?.description) && (
+                    <div className="absolute top-12 left-4 pointer-events-none text-gray-500 italic text-sm">
+                      Type here to add notes, backstories, and anything else you need in this Text Panel!
+                    </div>
+                  )}
+                </div>
               )
             )}
           </div>
@@ -1559,9 +2063,7 @@ export default function MagicPanel({
             {isPreviewMode ? (
               <div className="text-gray-700 bg-gray-50 rounded-lg p-4 border border-gray-200">
                 {editingElement?.attributes?.history ? (
-                  <div className="whitespace-pre-wrap leading-relaxed">
-                    {editingElement.attributes.history}
-                  </div>
+                  renderFormattedText(editingElement.attributes.history)
                 ) : (
                   <div className="text-gray-500 italic text-center py-8">
                     No history content yet
@@ -1569,16 +2071,43 @@ export default function MagicPanel({
                 )}
               </div>
             ) : (
-              <Textarea
-                value={editingElement?.attributes?.history || ''}
-                onChange={(e) => setEditingElement(prev => prev ? {
-                  ...prev,
-                  attributes: { ...prev.attributes, history: e.target.value }
-                } : null)}
-                placeholder="Type here to add notes, backstories, and anything else you need in this Text Panel!"
-                className="resize-none border-0 p-0 focus:ring-0 text-gray-700"
-                rows={12}
-              />
+              <div className="border border-gray-200 rounded-lg overflow-hidden relative">
+                <FormattingToolbar
+                  editorRef={historyTextAreaRef}
+                  onFormatText={handleFormatText('history')}
+                />
+                <div
+                  ref={historyTextAreaRef}
+                  contentEditable
+                  suppressContentEditableWarning
+                  onInput={(e) => {
+                    const target = e.target as HTMLDivElement
+                    setEditingElement(prev => prev ? {
+                      ...prev,
+                      attributes: { ...prev.attributes, history: target.innerHTML }
+                    } : null)
+                  }}
+                  onKeyDown={(e) => {
+                    // Handle keyboard shortcuts
+                    if (!(e.ctrlKey || e.metaKey)) return
+                    const k = e.key.toLowerCase()
+                    if (k === 'b') { e.preventDefault(); handleFormatText('history')('bold') }
+                    else if (k === 'i') { e.preventDefault(); handleFormatText('history')('italic') }
+                    else if (k === 'u') { e.preventDefault(); handleFormatText('history')('underline') }
+                  }}
+                  className="p-4 focus:outline-none text-gray-700 min-h-[240px] overflow-y-auto rich-text-editor"
+                  style={{
+                    wordBreak: 'break-word',
+                    whiteSpace: 'pre-wrap'
+                  }}
+                />
+                {/* Placeholder when empty */}
+                {!editingElement?.attributes?.history && (
+                  <div className="absolute top-12 left-4 pointer-events-none text-gray-500 italic text-sm">
+                    Type here to add notes, backstories, and anything else you need in this Text Panel!
+                  </div>
+                )}
+              </div>
             )}
           </div>
 
@@ -2235,6 +2764,122 @@ export default function MagicPanel({
           </div>
         </div>
       </div>
+
+      {/* Export Modal */}
+      <Dialog open={showExportModal} onOpenChange={setShowExportModal}>
+        <DialogContent className="sm:max-w-md bg-white border border-gray-200 shadow-xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-gray-800">
+              <Download className="h-5 w-5 text-blue-600" />
+              Export Magic Element
+            </DialogTitle>
+            <DialogDescription className="text-gray-600">
+              Choose the format for exporting "{editingElement?.name}"
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid gap-4 py-4">
+            {/* Format Selection */}
+            <div className="grid gap-3">
+              <div className="text-sm font-medium text-gray-700">Export Format</div>
+              
+              <div className="grid gap-2">
+                <label className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors duration-200">
+                  <input
+                    type="radio"
+                    name="exportFormat"
+                    value="word"
+                    checked={exportFormat === 'word'}
+                    onChange={(e) => setExportFormat(e.target.value as any)}
+                    className="text-blue-600 focus:ring-blue-500"
+                  />
+                  <FileText className="h-5 w-5 text-blue-600" />
+                  <div className="flex-1">
+                    <div className="font-medium text-gray-900">Word Document Style</div>
+                    <div className="text-sm text-gray-600">Structured format with headings, tables, and linked elements</div>
+                  </div>
+                </label>
+                
+                <label className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors duration-200">
+                  <input
+                    type="radio"
+                    name="exportFormat"
+                    value="html"
+                    checked={exportFormat === 'html'}
+                    onChange={(e) => setExportFormat(e.target.value as any)}
+                    className="text-blue-600 focus:ring-blue-500"
+                  />
+                  <FileType className="h-5 w-5 text-orange-600" />
+                  <div className="flex-1">
+                    <div className="font-medium text-gray-900">HTML Document</div>
+                    <div className="text-sm text-gray-600">Rich formatted web page with styling and tables</div>
+                  </div>
+                </label>
+                
+                <label className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors duration-200">
+                  <input
+                    type="radio"
+                    name="exportFormat"
+                    value="markdown"
+                    checked={exportFormat === 'markdown'}
+                    onChange={(e) => setExportFormat(e.target.value as any)}
+                    className="text-blue-600 focus:ring-blue-500"
+                  />
+                  <FileDown className="h-5 w-5 text-green-600" />
+                  <div className="flex-1">
+                    <div className="font-medium text-gray-900">Markdown</div>
+                    <div className="text-sm text-gray-600">Plain text format with markdown formatting</div>
+                  </div>
+                </label>
+                
+                <label className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors duration-200">
+                  <input
+                    type="radio"
+                    name="exportFormat"
+                    value="json"
+                    checked={exportFormat === 'json'}
+                    onChange={(e) => setExportFormat(e.target.value as any)}
+                    className="text-blue-600 focus:ring-blue-500"
+                  />
+                  <Package className="h-5 w-5 text-purple-600" />
+                  <div className="flex-1">
+                    <div className="font-medium text-gray-900">JSON Data</div>
+                    <div className="text-sm text-gray-600">Raw data format for importing into other tools</div>
+                  </div>
+                </label>
+              </div>
+            </div>
+            
+            {/* Format Preview */}
+            <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+              <div className="text-sm font-medium text-gray-700 mb-2">Export Preview:</div>
+              <div className="text-xs text-gray-600">
+                {exportFormat === 'word' && 'Structured document with headings, tables for costs/limitations/components/effects, and linked elements section'}
+                {exportFormat === 'html' && 'Formatted web page with styling, tables, and special highlighting for linked elements'}
+                {exportFormat === 'markdown' && 'Plain text with markdown formatting, perfect for documentation'}
+                {exportFormat === 'json' && 'Raw data format preserving all element attributes and relationships'}
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex gap-2 justify-end pt-4 border-t border-gray-200">
+            <Button
+              variant="outline"
+              onClick={() => setShowExportModal(false)}
+              className="border-gray-200 text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={performExport}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Export
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Modal */}
       <DeleteModal

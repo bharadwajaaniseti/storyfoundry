@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Formatting Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .toolbar { background: #f5f5f5; padding: 10px; border-bottom: 1px solid #ddd; }
+        .toolbar button { margin: 0 5px; padding: 5px 10px; }
+        textarea { width: 100%; height: 200px; margin-top: 10px; }
+        .result { margin-top: 10px; padding: 10px; background: #f9f9f9; border: 1px solid #ddd; }
+    </style>
+</head>
+<body>
+    <h2>Formatting Test</h2>
+    
+    <div class="toolbar">
+        <button onclick="addBold()">**Bold**</button>
+        <button onclick="addItalic()">*Italic*</button>
+        <button onclick="addHeading()"># Heading</button>
+    </div>
+    
+    <textarea id="testArea" placeholder="Type some text here and try the formatting buttons..."></textarea>
+    
+    <div class="result">
+        <h3>Debug Info:</h3>
+        <div id="debug"></div>
+    </div>
+    
+    <script>
+        function updateDebug() {
+            const textarea = document.getElementById('testArea');
+            const debug = document.getElementById('debug');
+            debug.innerHTML = `
+                <p><strong>Selection Start:</strong> ${textarea.selectionStart}</p>
+                <p><strong>Selection End:</strong> ${textarea.selectionEnd}</p>
+                <p><strong>Selected Text:</strong> "${textarea.value.substring(textarea.selectionStart, textarea.selectionEnd)}"</p>
+                <p><strong>Total Length:</strong> ${textarea.value.length}</p>
+            `;
+        }
+        
+        function addBold() {
+            const textarea = document.getElementById('testArea');
+            const start = textarea.selectionStart;
+            const end = textarea.selectionEnd;
+            const selectedText = textarea.value.substring(start, end);
+            
+            let newText;
+            let newStart, newEnd;
+            
+            if (selectedText && start !== end) {
+                // Format selected text
+                newText = textarea.value.substring(0, start) + '**' + selectedText + '**' + textarea.value.substring(end);
+                newStart = start + 2; // After first **
+                newEnd = newStart + selectedText.length;
+            } else {
+                // Insert placeholder
+                const placeholder = 'bold text';
+                newText = textarea.value.substring(0, start) + '**' + placeholder + '**' + textarea.value.substring(end);
+                newStart = start + 2;
+                newEnd = newStart + placeholder.length;
+            }
+            
+            textarea.value = newText;
+            textarea.focus();
+            textarea.setSelectionRange(newStart, newEnd);
+            updateDebug();
+        }
+        
+        function addItalic() {
+            const textarea = document.getElementById('testArea');
+            const start = textarea.selectionStart;
+            const end = textarea.selectionEnd;
+            const selectedText = textarea.value.substring(start, end);
+            
+            let newText;
+            let newStart, newEnd;
+            
+            if (selectedText && start !== end) {
+                newText = textarea.value.substring(0, start) + '*' + selectedText + '*' + textarea.value.substring(end);
+                newStart = start + 1;
+                newEnd = newStart + selectedText.length;
+            } else {
+                const placeholder = 'italic text';
+                newText = textarea.value.substring(0, start) + '*' + placeholder + '*' + textarea.value.substring(end);
+                newStart = start + 1;
+                newEnd = newStart + placeholder.length;
+            }
+            
+            textarea.value = newText;
+            textarea.focus();
+            textarea.setSelectionRange(newStart, newEnd);
+            updateDebug();
+        }
+        
+        function addHeading() {
+            const textarea = document.getElementById('testArea');
+            const start = textarea.selectionStart;
+            const end = textarea.selectionEnd;
+            
+            const placeholder = 'Heading 1';
+            const newText = textarea.value.substring(0, start) + '\\n# ' + placeholder + textarea.value.substring(end);
+            const newStart = start + 3; // After \\n#<space>
+            const newEnd = newStart + placeholder.length;
+            
+            textarea.value = newText;
+            textarea.focus();
+            textarea.setSelectionRange(newStart, newEnd);
+            updateDebug();
+        }
+        
+        // Update debug info when user clicks or types
+        document.getElementById('testArea').addEventListener('click', updateDebug);
+        document.getElementById('testArea').addEventListener('keyup', updateDebug);
+        
+        // Initial debug update
+        updateDebug();
+    </script>
+</body>
+</html>
