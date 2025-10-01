@@ -659,7 +659,7 @@ export default function CultureEditor({ value, onChange, onSubmit, onCancel, sav
                     const works = [...(customAttributes.famous_works || []), { name: '', imageUrls: undefined, link: undefined }]
                     updateAttribute('famous_works', works)
                   }}
-                  className="w-full border-2 border-pink-200 hover:border-pink-300 hover:bg-pink-50"
+                  className="w-full border-2 border-pink-200 hover:border-pink-300 hover:bg-pink-50 mb-4"
                 >
                   <Plus className="w-4 h-4 mr-1" />
                   Add Famous Work
@@ -753,7 +753,7 @@ export default function CultureEditor({ value, onChange, onSubmit, onCancel, sav
                     const dishes = [...(customAttributes.dishes || []), { name: '', imageUrls: undefined, link: undefined }]
                     updateAttribute('dishes', dishes)
                   }}
-                  className="w-full border-2 border-pink-200 hover:border-pink-300 hover:bg-pink-50"
+                  className="w-full border-2 border-pink-200 hover:border-pink-300 hover:bg-pink-50 mb-8"
                 >
                   <Plus className="w-4 h-4 mr-1" />
                   Add Dish
