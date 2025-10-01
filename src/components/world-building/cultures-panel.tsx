@@ -1,38 +1,15 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { Plus, Crown, Search, Trash2, Edit3, Users, Heart, Globe, Flag } from 'lucide-react'
+import { Plus, Crown, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { createSupabaseClient } from '@/lib/auth'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
-import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
 
-interface Culture {
-  id: string
-  name: string
-  description: string
-  attributes: {
-    government?: string
-    religion?: string
-    values?: string[]
-    traditions?: string[]
-    technology_level?: string
-    primary_language?: string
-    territory?: string
-    population?: string
-    notable_figures?: string[]
-    [key: string]: any
-  }
-  tags: string[]
-  project_id: string
-  created_at: string
-  updated_at: string
-  category: string
-}
+import { Culture } from '@/lib/validation/cultureSchema'
+import CultureCard from '@/components/cultures/CultureCard'
+import CultureEditor from '@/components/cultures/CultureEditor'
+import DeleteConfirmDialog from '@/components/cultures/DeleteConfirmDialog'
 
 interface CulturesPanelProps {
   projectId: string
@@ -45,14 +22,12 @@ export default function CulturesPanel({ projectId, selectedElement, onCulturesCh
   const [cultures, setCultures] = useState<Culture[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
-  const [showCreateDialog, setShowCreateDialog] = useState(false)
-  const [editingCulture, setEditingCulture] = useState<Culture | null>(null)
-
-  const [formData, setFormData] = useState({
-    name: '', description: '', government: '', religion: '', values: [] as string[],
-    traditions: [] as string[], technology_level: '', primary_language: '',
-    territory: '', population: '', notable_figures: [] as string[]
-  })
+  const [isCreating, setIsCreating] = useState(false)
+  const [editingCulture, setEditingCulture] = useState<Partial<Culture> | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [cultureToDelete, setCultureToDelete] = useState<Culture | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const supabase = createSupabaseClient()
 
@@ -62,9 +37,20 @@ export default function CulturesPanel({ projectId, selectedElement, onCulturesCh
 
   useEffect(() => {
     if (selectedElement && selectedElement.category === 'cultures') {
-      setEditingCulture(selectedElement)
-      populateFormData(selectedElement)
-      setShowCreateDialog(true)
+      // Transform selectedElement to Culture format
+      const culture: Partial<Culture> = {
+        id: selectedElement.id,
+        name: selectedElement.name,
+        description: selectedElement.description,
+        attributes: selectedElement.attributes || {},
+        tags: selectedElement.tags || [],
+        project_id: selectedElement.project_id,
+        created_at: selectedElement.created_at,
+        updated_at: selectedElement.updated_at,
+        category: 'cultures'
+      }
+      setEditingCulture(culture)
+      setIsCreating(false)
     }
   }, [selectedElement])
 
@@ -78,7 +64,20 @@ export default function CulturesPanel({ projectId, selectedElement, onCulturesCh
         .order('created_at', { ascending: false })
 
       if (error) throw error
-      setCultures(data || [])
+
+      const transformedCultures: Culture[] = (data || []).map(item => ({
+        id: item.id,
+        project_id: item.project_id,
+        category: 'cultures',
+        name: item.name,
+        description: item.description || '',
+        tags: item.tags || [],
+        attributes: item.attributes || {},
+        created_at: item.created_at,
+        updated_at: item.updated_at
+      }))
+
+      setCultures(transformedCultures)
     } catch (error) {
       console.error('Error loading cultures:', error)
     } finally {
@@ -86,35 +85,69 @@ export default function CulturesPanel({ projectId, selectedElement, onCulturesCh
     }
   }
 
-  const populateFormData = (culture: Culture) => {
-    setFormData({
-      name: culture.name,
-      description: culture.description,
-      government: culture.attributes?.government || '',
-      religion: culture.attributes?.religion || '',
-      values: culture.attributes?.values || [],
-      traditions: culture.attributes?.traditions || [],
-      technology_level: culture.attributes?.technology_level || '',
-      primary_language: culture.attributes?.primary_language || '',
-      territory: culture.attributes?.territory || '',
-      population: culture.attributes?.population || '',
-      notable_figures: culture.attributes?.notable_figures || []
+  const handleCreateNew = () => {
+    setEditingCulture({
+      name: '',
+      description: '',
+      tags: [],
+      attributes: {},
+      project_id: projectId,
+      category: 'cultures'
     })
+    setIsCreating(true)
   }
 
-  const handleCreateCulture = async () => {
+  const handleEdit = (culture: Culture) => {
+    setEditingCulture(culture)
+    setIsCreating(false)
+  }
+
+  const handleDelete = (culture: Culture) => {
+    setCultureToDelete(culture)
+    setDeleteDialogOpen(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!cultureToDelete) return
+
+    setDeleting(true)
+    try {
+      const { error } = await supabase
+        .from('world_elements')
+        .delete()
+        .eq('id', cultureToDelete.id)
+
+      if (error) throw error
+
+      setCultures(prev => prev.filter(c => c.id !== cultureToDelete.id))
+      setDeleteDialogOpen(false)
+      setCultureToDelete(null)
+      onCulturesChange?.()
+    } catch (error) {
+      console.error('Error deleting culture:', error)
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  const handleSave = async () => {
+    if (!editingCulture || !editingCulture.name?.trim()) return
+
+    setSaving(true)
     try {
       const cultureData = {
         project_id: projectId,
         category: 'cultures',
-        name: formData.name,
-        description: formData.description,
-        attributes: { ...formData },
-        tags: []
+        name: editingCulture.name,
+        description: editingCulture.description || '',
+        attributes: editingCulture.attributes || {},
+        tags: editingCulture.tags || []
       }
 
       let result: Culture
-      if (editingCulture) {
+
+      if (editingCulture.id) {
+        // Update existing
         const { data, error } = await supabase
           .from('world_elements')
           .update({ ...cultureData, updated_at: new Date().toISOString() })
@@ -123,9 +156,17 @@ export default function CulturesPanel({ projectId, selectedElement, onCulturesCh
           .single()
 
         if (error) throw error
-        result = data as Culture
+        result = {
+          ...data,
+          category: 'cultures',
+          description: data.description || '',
+          tags: data.tags || [],
+          attributes: data.attributes || {}
+        } as Culture
+
         setCultures(prev => prev.map(c => c.id === editingCulture.id ? result : c))
       } else {
+        // Create new
         const { data, error } = await supabase
           .from('world_elements')
           .insert(cultureData)
@@ -133,177 +174,228 @@ export default function CulturesPanel({ projectId, selectedElement, onCulturesCh
           .single()
 
         if (error) throw error
-        result = data as Culture
+        result = {
+          ...data,
+          category: 'cultures',
+          description: data.description || '',
+          tags: data.tags || [],
+          attributes: data.attributes || {}
+        } as Culture
+
         setCultures(prev => [result, ...prev])
       }
 
-      window.dispatchEvent(new CustomEvent('cultureCreated', { detail: { culture: result, projectId } }))
-      setShowCreateDialog(false)
+      // Dispatch custom event for sidebar refresh
+      window.dispatchEvent(new CustomEvent('cultureCreated', {
+        detail: { culture: result, projectId }
+      }))
+
       setEditingCulture(null)
-      resetForm()
+      setIsCreating(false)
+      onClearSelection?.()
       onCulturesChange?.()
     } catch (error) {
-      console.error('Error creating/updating culture:', error)
+      console.error('Error saving culture:', error)
+    } finally {
+      setSaving(false)
     }
   }
 
-  const resetForm = () => {
-    setFormData({
-      name: '', description: '', government: '', religion: '', values: [],
-      traditions: [], technology_level: '', primary_language: '',
-      territory: '', population: '', notable_figures: []
-    })
+  const handleCancel = () => {
+    setEditingCulture(null)
+    setIsCreating(false)
+    onClearSelection?.()
   }
 
-  const filteredCultures = cultures.filter(c => 
-    !searchTerm || 
+  const handleEditorChange = (patch: Partial<Culture>) => {
+    setEditingCulture(prev => ({ ...prev, ...patch }))
+  }
+
+  const filteredCultures = cultures.filter(c =>
+    !searchTerm ||
     c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.description.toLowerCase().includes(searchTerm.toLowerCase())
+    (c.description && c.description.toLowerCase().includes(searchTerm.toLowerCase()))
   )
 
   if (loading) {
-    return <div className="h-full bg-white p-6 overflow-y-auto">
-      <div className="max-w-5xl mx-auto animate-pulse">
-        <div className="h-8 bg-gray-200 rounded w-48 mb-4"></div>
-        <div className="space-y-4">
-          {[...Array(3)].map((_, i) => <div key={i} className="h-32 bg-gray-100 rounded-lg"></div>)}
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-pink-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading cultures...</p>
         </div>
       </div>
-    </div>
+    )
   }
 
-  return (
-    <div className="h-full bg-white p-6 overflow-y-auto">
-      <div className="max-w-5xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-              <Crown className="w-7 h-7 text-pink-500" />
-              Cultures
-            </h2>
-            <p className="text-sm text-gray-500">Define the cultures, traditions, and societies of your world</p>
+  // Edit/Create view - show editor in main content area
+  if (editingCulture) {
+    return (
+      <div className="h-full bg-gradient-to-br from-gray-50 to-white overflow-y-auto">
+        {/* Header with Back button */}
+        <div className="sticky top-0 z-10 bg-white/90 backdrop-blur-sm border-b border-gray-100">
+          <div className="px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleCancel}
+                  className="text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-all duration-200 rounded-xl px-3 py-1.5 flex items-center gap-2"
+                >
+                  <Plus className="w-4 h-4 rotate-45" />
+                  <span className="font-medium">Back</span>
+                </Button>
+                <div className="w-px h-6 bg-gray-200" />
+                <div>
+                  <h1 className="text-xl font-bold text-gray-900 tracking-tight">
+                    {editingCulture.id ? `Edit ${editingCulture.name}` : 'Create New Culture'}
+                  </h1>
+                  <p className="text-xs text-gray-600">
+                    {editingCulture.id ? 'Modify the details of this culture.' : 'Define a new culture for your world.'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="outline" 
+                  onClick={handleCancel}
+                  disabled={saving}
+                  className="border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all duration-200 rounded-xl px-3 py-1.5 text-sm font-medium"
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleSave}
+                  disabled={saving || !editingCulture.name?.trim()}
+                  className="bg-gradient-to-r from-pink-500 to-pink-600 hover:from-pink-600 hover:to-pink-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 rounded-xl px-4 py-1.5 text-sm font-medium"
+                >
+                  {saving ? (
+                    <>
+                      <div className="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin mr-2" />
+                      Saving...
+                    </>
+                  ) : (
+                    editingCulture.id ? 'Update Culture' : 'Create Culture'
+                  )}
+                </Button>
+              </div>
+            </div>
           </div>
-          <Button onClick={() => { setEditingCulture(null); resetForm(); setShowCreateDialog(true) }} className="bg-pink-500 hover:bg-pink-600 text-white">
-            <Plus className="w-4 h-4 mr-2" />
-            New Culture
-          </Button>
         </div>
 
-        <div className="mb-6">
-          <Input placeholder="Search cultures..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="max-w-md" />
+        {/* Editor Content */}
+        <div className="px-6">
+          <CultureEditor
+            value={editingCulture}
+            onChange={handleEditorChange}
+            onSubmit={handleSave}
+            onCancel={handleCancel}
+            saving={saving}
+          />
         </div>
 
-        {filteredCultures.length === 0 ? (
-          <div className="text-center py-12">
-            <Crown className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-600 text-lg mb-2">No cultures yet</p>
-            <p className="text-gray-500 mb-6">Create the diverse cultures and societies that shape your world.</p>
-            <Button onClick={() => { setEditingCulture(null); resetForm(); setShowCreateDialog(true) }} className="bg-pink-500 hover:bg-pink-600 text-white">
+        {/* Delete Confirmation Dialog */}
+        {cultureToDelete && (
+          <DeleteConfirmDialog
+            open={deleteDialogOpen}
+            onOpenChange={setDeleteDialogOpen}
+            cultureName={cultureToDelete.name}
+            onConfirm={confirmDelete}
+            isDeleting={deleting}
+          />
+        )}
+      </div>
+    )
+  }
+
+  // List view
+  return (
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Sticky Header */}
+        <div className="sticky top-0 bg-gray-50 z-10 pb-6">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-pink-100 flex items-center justify-center">
+                  <Crown className="w-7 h-7 text-pink-600" />
+                </div>
+                Cultures
+              </h2>
+              <p className="text-sm text-gray-500 mt-2">
+                Define the cultures, traditions, and societies of your world
+              </p>
+            </div>
+            <Button
+              onClick={handleCreateNew}
+              className="bg-pink-500 hover:bg-pink-600 text-white shadow-sm"
+            >
               <Plus className="w-4 h-4 mr-2" />
-              Create First Culture
+              New Culture
             </Button>
+          </div>
+
+          {/* Search */}
+          <div className="relative max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Input
+              placeholder="Search cultures..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9 bg-white"
+            />
+          </div>
+        </div>
+
+        {/* Content */}
+        {filteredCultures.length === 0 ? (
+          <div className="text-center py-20">
+            <div className="w-20 h-20 rounded-full bg-pink-100 flex items-center justify-center mx-auto mb-4">
+              <Crown className="w-10 h-10 text-pink-600" />
+            </div>
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">
+              {searchTerm ? 'No cultures found' : 'No cultures yet'}
+            </h3>
+            <p className="text-gray-600 mb-6 max-w-md mx-auto">
+              {searchTerm
+                ? 'Try adjusting your search terms.'
+                : 'Create the diverse cultures and societies that shape your world.'}
+            </p>
+            {!searchTerm && (
+              <Button
+                onClick={handleCreateNew}
+                className="bg-pink-500 hover:bg-pink-600 text-white"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Create First Culture
+              </Button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredCultures.map(culture => (
-              <Card key={culture.id} className="hover:shadow-md transition-shadow">
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-2">
-                      <Crown className="w-5 h-5 text-pink-500" />
-                      <CardTitle className="text-lg font-semibold">{culture.name}</CardTitle>
-                    </div>
-                    <Button variant="ghost" size="sm" onClick={() => setCultures(prev => prev.filter(c => c.id !== culture.id))}>
-                      <Trash2 className="w-4 h-4 text-red-500" />
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {culture.description && <p className="text-sm text-gray-600 line-clamp-3">{culture.description}</p>}
-                    
-                    <div className="text-sm space-y-1">
-                      {culture.attributes?.government && (
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Government:</span>
-                          <span>{culture.attributes.government}</span>
-                        </div>
-                      )}
-                      {culture.attributes?.primary_language && (
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Language:</span>
-                          <span>{culture.attributes.primary_language}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex justify-between items-center pt-2 border-t">
-                      <Button variant="ghost" size="sm" onClick={() => { setEditingCulture(culture); populateFormData(culture); setShowCreateDialog(true) }}>
-                        <Edit3 className="w-4 h-4 mr-1" />
-                        Edit
-                      </Button>
-                      <span className="text-xs text-gray-500">{new Date(culture.updated_at).toLocaleDateString()}</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              <CultureCard
+                key={culture.id}
+                culture={culture}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+              />
             ))}
           </div>
         )}
-
-        <Dialog open={showCreateDialog} onOpenChange={(open) => {
-          setShowCreateDialog(open)
-          if (!open) { setEditingCulture(null); resetForm(); onClearSelection?.() }
-        }}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>{editingCulture ? 'Edit Culture' : 'Create New Culture'}</DialogTitle>
-              <DialogDescription>Define a culture or society in your world.</DialogDescription>
-            </DialogHeader>
-
-            <div className="space-y-6 py-4">
-              <div>
-                <Label htmlFor="name">Culture Name</Label>
-                <Input id="name" value={formData.name} onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))} placeholder="Culture name..." />
-              </div>
-
-              <div>
-                <Label htmlFor="description">Description</Label>
-                <Textarea id="description" value={formData.description} onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))} placeholder="Describe this culture..." rows={3} />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="government">Government Type</Label>
-                  <Input id="government" value={formData.government} onChange={(e) => setFormData(prev => ({ ...prev, government: e.target.value }))} placeholder="e.g., monarchy, democracy" />
-                </div>
-                <div>
-                  <Label htmlFor="religion">Religion</Label>
-                  <Input id="religion" value={formData.religion} onChange={(e) => setFormData(prev => ({ ...prev, religion: e.target.value }))} placeholder="e.g., polytheistic, monotheistic" />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="primary_language">Primary Language</Label>
-                  <Input id="primary_language" value={formData.primary_language} onChange={(e) => setFormData(prev => ({ ...prev, primary_language: e.target.value }))} placeholder="Main language spoken" />
-                </div>
-                <div>
-                  <Label htmlFor="technology_level">Technology Level</Label>
-                  <Input id="technology_level" value={formData.technology_level} onChange={(e) => setFormData(prev => ({ ...prev, technology_level: e.target.value }))} placeholder="e.g., medieval, modern, futuristic" />
-                </div>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-4 border-t">
-              <Button variant="outline" onClick={() => { setShowCreateDialog(false); setEditingCulture(null); resetForm(); onClearSelection?.() }}>Cancel</Button>
-              <Button onClick={handleCreateCulture} className="bg-pink-500 hover:bg-pink-600 text-white" disabled={!formData.name.trim()}>
-                {editingCulture ? 'Update' : 'Create'} Culture
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      {cultureToDelete && (
+        <DeleteConfirmDialog
+          open={deleteDialogOpen}
+          onOpenChange={setDeleteDialogOpen}
+          cultureName={cultureToDelete.name}
+          onConfirm={confirmDelete}
+          isDeleting={deleting}
+        />
+      )}
     </div>
   )
 }
