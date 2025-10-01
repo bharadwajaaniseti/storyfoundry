@@ -52,6 +52,13 @@ export const cultureSchema = z.object({
 
 export type CultureFormData = z.infer<typeof cultureSchema>
 
+// Media item type for rich content (works, dishes, etc.)
+export interface MediaItem {
+  name: string
+  imageUrls?: string[]  // Multiple images per item
+  link?: string
+}
+
 // Culture type aligned with world_elements
 export interface Culture {
   id: string
@@ -62,6 +69,7 @@ export interface Culture {
   tags: string[]
   attributes: {
     icon?: string
+    iconImage?: string
     summary?: string
     government?: string
     political_parties?: string[]
@@ -74,12 +82,12 @@ export interface Culture {
     communication?: number
     values?: string[]
     social_expectations?: string
-    famous_works?: string[]
+    famous_works?: MediaItem[] | string[]  // Support both formats for migration
     literature_style?: string
     poetry_style?: string
     music_style?: string
     access_to_art?: string
-    dishes?: string[]
+    dishes?: MediaItem[] | string[]  // Support both formats for migration
     secular_traditions?: string
     sacred_traditions?: string
     [key: string]: any

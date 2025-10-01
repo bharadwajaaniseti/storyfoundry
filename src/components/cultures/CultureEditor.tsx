@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Slider } from '@/components/ui/slider'
 import AttributePicker from './AttributePicker'
 import IconPicker from './IconPicker'
+import MediaItemInput, { MediaItem } from './MediaItemInput'
 
 interface CultureEditorProps {
   value: Partial<Culture>
@@ -28,8 +29,34 @@ export default function CultureEditor({ value, onChange, onSubmit, onCancel, sav
   const [tagInput, setTagInput] = useState('')
   const [customAttributes, setCustomAttributes] = useState<Record<string, any>>(value.attributes || {})
 
+  // Helper function to migrate old string arrays to MediaItem arrays
+  const migrateToMediaItems = (items: any[]): MediaItem[] => {
+    if (!items || items.length === 0) return []
+    // Check if first item is already a MediaItem object
+    if (typeof items[0] === 'object' && 'name' in items[0]) {
+      // Migrate old imageUrl to imageUrls array if needed
+      return items.map(item => {
+        if ('imageUrl' in item && item.imageUrl && !item.imageUrls) {
+          return { ...item, imageUrls: [item.imageUrl], imageUrl: undefined }
+        }
+        return item
+      }) as MediaItem[]
+    }
+    // Convert old string array to MediaItem array
+    return items.map(item => ({ name: item, imageUrls: undefined, link: undefined }))
+  }
+
   useEffect(() => {
-    setCustomAttributes(value.attributes || {})
+    const attrs = value.attributes || {}
+    // Migrate famous_works and dishes if they're old string arrays
+    const migratedAttrs = { ...attrs }
+    if (attrs.famous_works) {
+      migratedAttrs.famous_works = migrateToMediaItems(attrs.famous_works)
+    }
+    if (attrs.dishes) {
+      migratedAttrs.dishes = migrateToMediaItems(attrs.dishes)
+    }
+    setCustomAttributes(migratedAttrs)
   }, [value.attributes])
 
   const updateAttribute = (key: string, attrValue: any) => {
@@ -602,30 +629,37 @@ export default function CultureEditor({ value, onChange, onSubmit, onCancel, sav
           <TabsContent value="arts" className="space-y-4 mt-0">
             <div>
               <Label className="text-sm font-medium text-gray-700">Famous Works</Label>
-              <div className="space-y-2 mt-1">
-                {(customAttributes.famous_works || []).map((work: string, idx: number) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <Input
-                      value={work}
-                      onChange={(e) => updateArrayAttribute('famous_works', idx, e.target.value)}
-                      placeholder={`Work ${idx + 1}`}
-                    />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeArrayItem('famous_works', idx)}
-                      className="h-8 w-8 p-0 hover:bg-red-50 hover:text-red-600"
-                      aria-label="Remove work"
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
-                  </div>
+              <p className="text-xs text-gray-500 mt-1 mb-3">Add literary works, paintings, sculptures, or other cultural artifacts. You can include text, images, and links.</p>
+              <div className="space-y-3 mt-2">
+                {((customAttributes.famous_works || []) as MediaItem[]).map((work, idx) => (
+                  <MediaItemInput
+                    key={idx}
+                    item={work}
+                    index={idx}
+                    placeholder="e.g., Epic of Gilgamesh, Mona Lisa..."
+                    onUpdate={(index, updatedItem) => {
+                      const works = [...(customAttributes.famous_works || [])]
+                      works[index] = updatedItem
+                      updateAttribute('famous_works', works)
+                    }}
+                    onRemove={(index) => {
+                      const works = [...(customAttributes.famous_works || [])]
+                      works.splice(index, 1)
+                      updateAttribute('famous_works', works)
+                    }}
+                    projectId={projectId}
+                    storageBucket="culture-icons"
+                  />
                 ))}
                 <Button
+                  type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => addArrayItem('famous_works')}
-                  className="w-full"
+                  onClick={() => {
+                    const works = [...(customAttributes.famous_works || []), { name: '', imageUrls: undefined, link: undefined }]
+                    updateAttribute('famous_works', works)
+                  }}
+                  className="w-full border-2 border-pink-200 hover:border-pink-300 hover:bg-pink-50"
                 >
                   <Plus className="w-4 h-4 mr-1" />
                   Add Famous Work
@@ -689,30 +723,37 @@ export default function CultureEditor({ value, onChange, onSubmit, onCancel, sav
 
             <div>
               <Label className="text-sm font-medium text-gray-700">Traditional Dishes</Label>
-              <div className="space-y-2 mt-1">
-                {(customAttributes.dishes || []).map((dish: string, idx: number) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <Input
-                      value={dish}
-                      onChange={(e) => updateArrayAttribute('dishes', idx, e.target.value)}
-                      placeholder={`Dish ${idx + 1}`}
-                    />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeArrayItem('dishes', idx)}
-                      className="h-8 w-8 p-0 hover:bg-red-50 hover:text-red-600"
-                      aria-label="Remove dish"
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
-                  </div>
+              <p className="text-xs text-gray-500 mt-1 mb-3">Add traditional foods and beverages. Include photos of dishes and links to recipes if available.</p>
+              <div className="space-y-3 mt-2">
+                {((customAttributes.dishes || []) as MediaItem[]).map((dish, idx) => (
+                  <MediaItemInput
+                    key={idx}
+                    item={dish}
+                    index={idx}
+                    placeholder="e.g., Paella, Sushi, Biryani..."
+                    onUpdate={(index, updatedItem) => {
+                      const dishes = [...(customAttributes.dishes || [])]
+                      dishes[index] = updatedItem
+                      updateAttribute('dishes', dishes)
+                    }}
+                    onRemove={(index) => {
+                      const dishes = [...(customAttributes.dishes || [])]
+                      dishes.splice(index, 1)
+                      updateAttribute('dishes', dishes)
+                    }}
+                    projectId={projectId}
+                    storageBucket="culture-icons"
+                  />
                 ))}
                 <Button
+                  type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => addArrayItem('dishes')}
-                  className="w-full"
+                  onClick={() => {
+                    const dishes = [...(customAttributes.dishes || []), { name: '', imageUrls: undefined, link: undefined }]
+                    updateAttribute('dishes', dishes)
+                  }}
+                  className="w-full border-2 border-pink-200 hover:border-pink-300 hover:bg-pink-50"
                 >
                   <Plus className="w-4 h-4 mr-1" />
                   Add Dish
