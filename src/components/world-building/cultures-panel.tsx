@@ -292,6 +292,7 @@ export default function CulturesPanel({ projectId, selectedElement, onCulturesCh
             onSubmit={handleSave}
             onCancel={handleCancel}
             saving={saving}
+            projectId={projectId}
           />
         </div>
 

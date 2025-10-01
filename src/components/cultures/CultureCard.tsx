@@ -18,8 +18,14 @@ export default function CultureCard({ culture, onEdit, onDelete }: CultureCardPr
         {/* Header */}
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-3 flex-1 min-w-0">
-            <div className="flex-shrink-0 w-10 h-10 rounded-full bg-pink-100 flex items-center justify-center">
-              {culture.attributes.icon ? (
+            <div className="flex-shrink-0 w-10 h-10 rounded-xl border-2 border-pink-100 bg-gradient-to-br from-pink-50 to-white flex items-center justify-center overflow-hidden shadow-sm">
+              {culture.attributes.iconImage ? (
+                <img
+                  src={culture.attributes.iconImage}
+                  alt={culture.name}
+                  className="w-full h-full object-cover"
+                />
+              ) : culture.attributes.icon ? (
                 <span className="text-xl">{culture.attributes.icon}</span>
               ) : (
                 <Crown className="w-5 h-5 text-pink-600" />

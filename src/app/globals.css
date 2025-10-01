@@ -23,6 +23,30 @@
     min-height: 100vh;
   }
   
+  /* Custom text selection - Pink theme */
+  ::selection {
+    background-color: rgba(236, 72, 153, 0.25);
+    color: #831843;
+  }
+  
+  ::-moz-selection {
+    background-color: rgba(236, 72, 153, 0.25);
+    color: #831843;
+  }
+  
+  /* Input and textarea selection */
+  input::selection,
+  textarea::selection {
+    background-color: rgba(236, 72, 153, 0.25);
+    color: #831843;
+  }
+  
+  input::-moz-selection,
+  textarea::-moz-selection {
+    background-color: rgba(236, 72, 153, 0.25);
+    color: #831843;
+  }
+  
   h1, h2, h3, h4, h5, h6 {
     font-weight: 700;
     line-height: 1.2;

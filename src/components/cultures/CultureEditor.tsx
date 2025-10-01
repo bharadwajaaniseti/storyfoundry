@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { Plus, X, Trash2 } from 'lucide-react'
+import { Plus, X, Trash2, Image as ImageIcon } from 'lucide-react'
 import { Culture } from '@/lib/validation/cultureSchema'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Slider } from '@/components/ui/slider'
 import AttributePicker from './AttributePicker'
+import IconPicker from './IconPicker'
 
 interface CultureEditorProps {
   value: Partial<Culture>
@@ -18,10 +19,12 @@ interface CultureEditorProps {
   onSubmit: () => void
   onCancel: () => void
   saving?: boolean
+  projectId: string
 }
 
-export default function CultureEditor({ value, onChange, onSubmit, onCancel, saving }: CultureEditorProps) {
+export default function CultureEditor({ value, onChange, onSubmit, onCancel, saving, projectId }: CultureEditorProps) {
   const [showAttributePicker, setShowAttributePicker] = useState(false)
+  const [showIconPicker, setShowIconPicker] = useState(false)
   const [tagInput, setTagInput] = useState('')
   const [customAttributes, setCustomAttributes] = useState<Record<string, any>>(value.attributes || {})
 
@@ -269,17 +272,64 @@ export default function CultureEditor({ value, onChange, onSubmit, onCancel, sav
             </div>
 
             <div>
-              <Label htmlFor="icon" className="text-sm font-medium text-gray-700">
-                Icon / Emoji
+              <Label className="text-sm font-medium text-gray-700">
+                Culture Symbol
               </Label>
-              <Input
-                id="icon"
-                value={customAttributes.icon || ''}
-                onChange={(e) => updateAttribute('icon', e.target.value)}
-                placeholder="👑"
-                className="mt-1"
-                maxLength={2}
-              />
+              <div className="mt-2 flex items-center gap-4">
+                {/* Display current symbol */}
+                <div className="flex-shrink-0">
+                  {customAttributes.iconImage ? (
+                    <div className="w-20 h-20 rounded-xl border-2 border-pink-200 bg-white p-2 shadow-sm">
+                      <img
+                        src={customAttributes.iconImage}
+                        alt="Culture symbol"
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+                  ) : customAttributes.icon ? (
+                    <div className="w-20 h-20 rounded-xl border-2 border-pink-200 bg-gradient-to-br from-pink-50 to-white flex items-center justify-center text-4xl shadow-sm">
+                      {customAttributes.icon}
+                    </div>
+                  ) : (
+                    <div className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center">
+                      <ImageIcon className="w-8 h-8 text-gray-400" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Button to open picker */}
+                <div className="flex-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowIconPicker(true)}
+                    className="w-full border-2 border-pink-200 hover:border-pink-300 hover:bg-pink-50"
+                  >
+                    <ImageIcon className="w-4 h-4 mr-2" />
+                    {customAttributes.icon || customAttributes.iconImage ? 'Change Symbol' : 'Choose Symbol'}
+                  </Button>
+                  {(customAttributes.icon || customAttributes.iconImage) && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        // Update both attributes at once to avoid race condition
+                        const updated = { ...customAttributes, icon: '', iconImage: '' }
+                        setCustomAttributes(updated)
+                        onChange({ attributes: updated })
+                      }}
+                      className="w-full mt-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <X className="w-3 h-3 mr-1" />
+                      Remove Symbol
+                    </Button>
+                  )}
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                Choose an emoji or upload a custom image to represent this culture
+              </p>
             </div>
 
             <div>
@@ -729,6 +779,29 @@ export default function CultureEditor({ value, onChange, onSubmit, onCancel, sav
         onOpenChange={setShowAttributePicker}
         onAdd={handleAddCustomFields}
         existingKeys={Object.keys(customAttributes)}
+      />
+
+      {/* Icon Picker Modal */}
+      <IconPicker
+        open={showIconPicker}
+        onOpenChange={setShowIconPicker}
+        currentIcon={customAttributes.icon}
+        currentImage={customAttributes.iconImage}
+        onSelect={(icon, imageUrl) => {
+          if (imageUrl) {
+            // Update both attributes at once to avoid race condition
+            const updated = { ...customAttributes, iconImage: imageUrl, icon: '' }
+            setCustomAttributes(updated)
+            onChange({ attributes: updated })
+          } else if (icon) {
+            // Update both attributes at once to avoid race condition
+            const updated = { ...customAttributes, icon: icon, iconImage: '' }
+            setCustomAttributes(updated)
+            onChange({ attributes: updated })
+          }
+          setShowIconPicker(false)
+        }}
+        projectId={projectId}
       />
     </div>
   )
