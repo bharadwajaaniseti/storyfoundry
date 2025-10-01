@@ -170,12 +170,14 @@ export default function MediaItemInput({
                           onClick={() => setViewingImage(imageUrl)}
                         />
                       </div>
-                      {/* View icon on hover */}
+                      {/* View icon on hover - No background */}
                       <div 
-                        className="absolute inset-0 group-hover:bg-black group-hover:bg-opacity-40 transition-all rounded-lg flex items-center justify-center cursor-pointer pointer-events-none"
+                        className="absolute inset-0 flex items-center justify-center cursor-pointer pointer-events-none rounded-lg"
                         onClick={() => setViewingImage(imageUrl)}
                       >
-                        <Eye className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                        <div className="bg-white/90 rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg">
+                          <Eye className="w-4 h-4 text-gray-700 pointer-events-none" />
+                        </div>
                       </div>
                       {/* Remove button */}
                       <Button
@@ -278,10 +280,11 @@ export default function MediaItemInput({
         </div>
       </div>
 
-      {/* Image Viewer Modal */}
+      {/* Image Viewer Modal - Glassmorphism */}
       {viewingImage && (
         <div 
-          className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-md bg-white/30"
+          style={{ backdropFilter: 'blur(12px)' }}
           onClick={() => setViewingImage(null)}
         >
           <Button
@@ -289,14 +292,14 @@ export default function MediaItemInput({
             variant="ghost"
             size="sm"
             onClick={() => setViewingImage(null)}
-            className="absolute top-4 right-4 h-10 w-10 p-0 text-white hover:text-white hover:bg-white/20 rounded-full"
+            className="absolute top-4 right-4 h-10 w-10 p-0 text-gray-700 hover:text-gray-900 hover:bg-white/40 rounded-full shadow-lg"
           >
             <X className="w-6 h-6" />
           </Button>
           <img
             src={viewingImage}
             alt="Full view"
-            className="max-w-full max-h-full object-contain rounded-lg"
+            className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           />
         </div>

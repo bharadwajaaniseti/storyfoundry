@@ -48,13 +48,22 @@ export default function CultureEditor({ value, onChange, onSubmit, onCancel, sav
 
   useEffect(() => {
     const attrs = value.attributes || {}
-    // Migrate famous_works and dishes if they're old string arrays
+    // Migrate famous_works, dishes, political_parties, historical_events, and important_figures if they're old string arrays
     const migratedAttrs = { ...attrs }
     if (attrs.famous_works) {
       migratedAttrs.famous_works = migrateToMediaItems(attrs.famous_works)
     }
     if (attrs.dishes) {
       migratedAttrs.dishes = migrateToMediaItems(attrs.dishes)
+    }
+    if (attrs.political_parties) {
+      migratedAttrs.political_parties = migrateToMediaItems(attrs.political_parties)
+    }
+    if (attrs.historical_events) {
+      migratedAttrs.historical_events = migrateToMediaItems(attrs.historical_events)
+    }
+    if (attrs.important_figures) {
+      migratedAttrs.important_figures = migrateToMediaItems(attrs.important_figures)
     }
     setCustomAttributes(migratedAttrs)
   }, [value.attributes])
@@ -409,7 +418,7 @@ export default function CultureEditor({ value, onChange, onSubmit, onCancel, sav
           </TabsContent>
 
           {/* Basics Tab */}
-          <TabsContent value="basics" className="space-y-4 mt-0">
+          <TabsContent value="basics" className="space-y-4 mt-0 pb-8">
             <div>
               <Label htmlFor="government" className="text-sm font-medium text-gray-700">
                 Government Type
@@ -425,30 +434,36 @@ export default function CultureEditor({ value, onChange, onSubmit, onCancel, sav
 
             <div>
               <Label className="text-sm font-medium text-gray-700">Political Parties</Label>
-              <div className="space-y-2 mt-1">
-                {(customAttributes.political_parties || []).map((party: string, idx: number) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <Input
-                      value={party}
-                      onChange={(e) => updateArrayAttribute('political_parties', idx, e.target.value)}
-                      placeholder={`Party ${idx + 1}`}
-                    />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeArrayItem('political_parties', idx)}
-                      className="h-8 w-8 p-0 hover:bg-red-50 hover:text-red-600"
-                      aria-label="Remove party"
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
-                  </div>
+              <p className="text-xs text-gray-500 mt-1 mb-2">Add political parties, factions, or movements. You can include text, images, and links.</p>
+              <div className="space-y-3 mt-2">
+                {((customAttributes.political_parties || []) as MediaItem[]).map((party, idx) => (
+                  <MediaItemInput
+                    key={idx}
+                    item={party}
+                    index={idx}
+                    placeholder={`Party ${idx + 1}`}
+                    onUpdate={(index, updatedItem) => {
+                      const parties = [...(customAttributes.political_parties || [])]
+                      parties[index] = updatedItem
+                      updateAttribute('political_parties', parties)
+                    }}
+                    onRemove={(index) => {
+                      const parties = [...(customAttributes.political_parties || [])]
+                      parties.splice(index, 1)
+                      updateAttribute('political_parties', parties)
+                    }}
+                    projectId={value.project_id || ''}
+                    storageBucket="culture-icons"
+                  />
                 ))}
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => addArrayItem('political_parties')}
-                  className="w-full"
+                  onClick={() => {
+                    const parties = [...(customAttributes.political_parties || []), { name: '', imageUrls: undefined, link: undefined }]
+                    updateAttribute('political_parties', parties)
+                  }}
+                  className="w-full mb-4"
                 >
                   <Plus className="w-4 h-4 mr-1" />
                   Add Political Party
@@ -504,34 +519,210 @@ export default function CultureEditor({ value, onChange, onSubmit, onCancel, sav
           </TabsContent>
 
           {/* Origins & Homeland Tab */}
-          <TabsContent value="origins" className="space-y-4 mt-0">
+          <TabsContent value="origins" className="space-y-6 mt-0 pb-8">
             <div>
-              <Label htmlFor="origins" className="text-sm font-medium text-gray-700">
-                Origins & Homeland
+              <Label htmlFor="homeland" className="text-sm font-medium text-gray-700">
+                Homeland / Territory
               </Label>
+              <p className="text-xs text-gray-500 mt-1 mb-2">Geographic location, climate, terrain, and natural resources.</p>
               <Textarea
-                id="origins"
-                value={customAttributes.origins_homeland || ''}
-                onChange={(e) => updateAttribute('origins_homeland', e.target.value)}
-                placeholder="Describe the culture's origins, homeland, migration history..."
-                rows={12}
+                id="homeland"
+                value={customAttributes.homeland || ''}
+                onChange={(e) => updateAttribute('homeland', e.target.value)}
+                placeholder="e.g., Rolling hills in the northern highlands, temperate climate with abundant forests..."
+                rows={4}
+                className="mt-1"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="founding" className="text-sm font-medium text-gray-700">
+                Founding & Origins
+              </Label>
+              <p className="text-xs text-gray-500 mt-1 mb-2">How the culture began, founding myths, or historical establishment.</p>
+              <Textarea
+                id="founding"
+                value={customAttributes.founding || ''}
+                onChange={(e) => updateAttribute('founding', e.target.value)}
+                placeholder="e.g., Founded by refugees fleeing the Great War, united under the leadership of..."
+                rows={4}
+                className="mt-1"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="migration" className="text-sm font-medium text-gray-700">
+                Migration History
+              </Label>
+              <p className="text-xs text-gray-500 mt-1 mb-2">Major migrations, diaspora communities, or expansion patterns.</p>
+              <Textarea
+                id="migration"
+                value={customAttributes.migration || ''}
+                onChange={(e) => updateAttribute('migration', e.target.value)}
+                placeholder="e.g., The Great Migration of 1242 brought settlers to the eastern provinces..."
+                rows={4}
+                className="mt-1"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="ancestral" className="text-sm font-medium text-gray-700">
+                Ancestral Influences
+              </Label>
+              <p className="text-xs text-gray-500 mt-1 mb-2">Cultural groups, civilizations, or traditions that influenced this culture.</p>
+              <Textarea
+                id="ancestral"
+                value={customAttributes.ancestral_influences || ''}
+                onChange={(e) => updateAttribute('ancestral_influences', e.target.value)}
+                placeholder="e.g., Descended from the ancient maritime traders, blended with highland shepherds..."
+                rows={4}
                 className="mt-1"
               />
             </div>
           </TabsContent>
 
           {/* History Tab */}
-          <TabsContent value="history" className="space-y-4 mt-0">
+          <TabsContent value="history" className="space-y-6 mt-0 pb-8">
+            {/* Historical Overview */}
             <div>
-              <Label htmlFor="history" className="text-sm font-medium text-gray-700">
-                History
+              <Label htmlFor="history_overview" className="text-sm font-medium text-gray-700">
+                Historical Overview
               </Label>
+              <p className="text-xs text-gray-500 mt-1 mb-2">A brief summary of the culture's historical journey and major eras.</p>
               <Textarea
-                id="history"
-                value={customAttributes.history || ''}
-                onChange={(e) => updateAttribute('history', e.target.value)}
-                placeholder="Key historical events, wars, alliances, important figures..."
-                rows={12}
+                id="history_overview"
+                value={customAttributes.history_overview || ''}
+                onChange={(e) => updateAttribute('history_overview', e.target.value)}
+                placeholder="e.g., From humble beginnings as nomadic tribes to becoming a vast empire spanning three continents..."
+                rows={4}
+                className="mt-1"
+              />
+            </div>
+
+            {/* Major Historical Events */}
+            <div>
+              <Label className="text-sm font-medium text-gray-700">Major Historical Events</Label>
+              <p className="text-xs text-gray-500 mt-1 mb-2">Wars, revolutions, golden ages, disasters, and pivotal moments. Include dates, images, and references.</p>
+              <div className="space-y-3 mt-2">
+                {((customAttributes.historical_events || []) as MediaItem[]).map((event, idx) => (
+                  <MediaItemInput
+                    key={idx}
+                    item={event}
+                    index={idx}
+                    placeholder={`Event ${idx + 1} (e.g., The Great War of 1442)`}
+                    onUpdate={(index, updatedItem) => {
+                      const events = [...(customAttributes.historical_events || [])]
+                      events[index] = updatedItem
+                      updateAttribute('historical_events', events)
+                    }}
+                    onRemove={(index) => {
+                      const events = [...(customAttributes.historical_events || [])]
+                      events.splice(index, 1)
+                      updateAttribute('historical_events', events)
+                    }}
+                    projectId={value.project_id || ''}
+                    storageBucket="culture-icons"
+                  />
+                ))}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const events = [...(customAttributes.historical_events || []), { name: '', imageUrls: undefined, link: undefined }]
+                    updateAttribute('historical_events', events)
+                  }}
+                  className="w-full mb-4"
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  Add Historical Event
+                </Button>
+              </div>
+            </div>
+
+            {/* Important Figures */}
+            <div>
+              <Label className="text-sm font-medium text-gray-700">Important Figures</Label>
+              <p className="text-xs text-gray-500 mt-1 mb-2">Leaders, heroes, villains, scholars, and other influential people. Include portraits and biographical links.</p>
+              <div className="space-y-3 mt-2">
+                {((customAttributes.important_figures || []) as MediaItem[]).map((figure, idx) => (
+                  <MediaItemInput
+                    key={idx}
+                    item={figure}
+                    index={idx}
+                    placeholder={`Figure ${idx + 1} (e.g., Queen Elara the Wise)`}
+                    onUpdate={(index, updatedItem) => {
+                      const figures = [...(customAttributes.important_figures || [])]
+                      figures[index] = updatedItem
+                      updateAttribute('important_figures', figures)
+                    }}
+                    onRemove={(index) => {
+                      const figures = [...(customAttributes.important_figures || [])]
+                      figures.splice(index, 1)
+                      updateAttribute('important_figures', figures)
+                    }}
+                    projectId={value.project_id || ''}
+                    storageBucket="culture-icons"
+                  />
+                ))}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const figures = [...(customAttributes.important_figures || []), { name: '', imageUrls: undefined, link: undefined }]
+                    updateAttribute('important_figures', figures)
+                  }}
+                  className="w-full mb-4"
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  Add Important Figure
+                </Button>
+              </div>
+            </div>
+
+            {/* Wars & Conflicts */}
+            <div>
+              <Label htmlFor="wars" className="text-sm font-medium text-gray-700">
+                Wars & Conflicts
+              </Label>
+              <p className="text-xs text-gray-500 mt-1 mb-2">Major military conflicts, their causes, outcomes, and lasting impacts.</p>
+              <Textarea
+                id="wars"
+                value={customAttributes.wars_conflicts || ''}
+                onChange={(e) => updateAttribute('wars_conflicts', e.target.value)}
+                placeholder="e.g., The Border Wars (1320-1335): A series of skirmishes with neighboring kingdoms over disputed territories..."
+                rows={4}
+                className="mt-1"
+              />
+            </div>
+
+            {/* Alliances & Treaties */}
+            <div>
+              <Label htmlFor="alliances" className="text-sm font-medium text-gray-700">
+                Alliances & Treaties
+              </Label>
+              <p className="text-xs text-gray-500 mt-1 mb-2">Diplomatic relationships, peace treaties, trade agreements, and political unions.</p>
+              <Textarea
+                id="alliances"
+                value={customAttributes.alliances_treaties || ''}
+                onChange={(e) => updateAttribute('alliances_treaties', e.target.value)}
+                placeholder="e.g., The Tripartite Alliance (1450): A defensive pact with the coastal kingdoms ensuring mutual protection..."
+                rows={4}
+                className="mt-1"
+              />
+            </div>
+
+            {/* Cultural Golden Ages */}
+            <div>
+              <Label htmlFor="golden_ages" className="text-sm font-medium text-gray-700">
+                Golden Ages & Decline
+              </Label>
+              <p className="text-xs text-gray-500 mt-1 mb-2">Periods of prosperity, cultural flowering, or decline and hardship.</p>
+              <Textarea
+                id="golden_ages"
+                value={customAttributes.golden_ages || ''}
+                onChange={(e) => updateAttribute('golden_ages', e.target.value)}
+                placeholder="e.g., The Silver Century (1200-1300): An era of unprecedented artistic achievement and economic growth..."
+                rows={4}
                 className="mt-1"
               />
             </div>

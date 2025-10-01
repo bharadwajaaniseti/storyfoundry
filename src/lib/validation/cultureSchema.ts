@@ -72,12 +72,22 @@ export interface Culture {
     iconImage?: string
     summary?: string
     government?: string
-    political_parties?: string[]
+    political_parties?: MediaItem[] | string[]  // Support both formats for migration
     distribution_of_authority?: string
     representation?: number
     primary_language?: string
+    homeland?: string
+    founding?: string
+    migration?: string
+    ancestral_influences?: string
     origins_homeland?: string
     history?: string
+    history_overview?: string
+    historical_events?: MediaItem[] | string[]
+    important_figures?: MediaItem[] | string[]
+    wars_conflicts?: string
+    alliances_treaties?: string
+    golden_ages?: string
     openness?: number
     communication?: number
     values?: string[]
