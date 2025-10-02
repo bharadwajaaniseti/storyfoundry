@@ -19,6 +19,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Separator } from '@/components/ui/separator'
+import MediaItemInput, { MediaItem } from '@/components/cultures/MediaItemInput'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from '@/components/ui/command'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
@@ -58,7 +59,7 @@ interface Item {
     weight?: number
     properties?: PropertyItem[]
     history?: string
-    images?: string[]
+    images?: MediaItem[] | string[]  // Support both formats for backward compatibility
     stats?: Record<string, number>
     links?: LinkRef[]
     custom?: Record<string, string | number>
@@ -197,7 +198,12 @@ interface ItemQuickViewProps {
 function ItemQuickView({ item, open, onOpenChange, onEdit, onDuplicate, onDelete }: ItemQuickViewProps) {
   if (!item) return null
 
-  const images = item.attributes?.images || []
+  const rawImages = item.attributes?.images || []
+  // Convert both old and new formats to array of URLs for display
+  const images: string[] = rawImages.flatMap(img => {
+    if (typeof img === 'string') return [img]
+    return img.imageUrls || []
+  })
   const properties = item.attributes?.properties || []
   const links = item.attributes?.links || []
   const stats = item.attributes?.stats || {}
@@ -611,9 +617,7 @@ function ItemEditorDialog({ open, onOpenChange, initial, onSave, onDelete, onDup
   const [editingProperty, setEditingProperty] = useState<PropertyItem | null>(null)
   const [propertyForm, setPropertyForm] = useState({ title: '', details: '', power: '' })
   
-  const [images, setImages] = useState<string[]>([])
-  const [imageInput, setImageInput] = useState('')
-  const [coverIndex, setCoverIndex] = useState(0)
+  const [images, setImages] = useState<MediaItem[]>([])
   
   const [history, setHistory] = useState('')
   const [originYear, setOriginYear] = useState('')
@@ -636,6 +640,23 @@ function ItemEditorDialog({ open, onOpenChange, initial, onSave, onDelete, onDup
     })
   )
 
+  // Helper function to migrate old string[] format to MediaItem[]
+  const migrateImagesToMediaItems = (images: string[] | MediaItem[] | undefined): MediaItem[] => {
+    if (!images || images.length === 0) return []
+    
+    // Check if already in new format
+    if (typeof images[0] === 'object' && 'name' in images[0]) {
+      return images as MediaItem[]
+    }
+    
+    // Migrate old format
+    return (images as string[]).map(url => ({
+      name: '',
+      imageUrls: [url],
+      link: undefined
+    }))
+  }
+
   // Initialize form when dialog opens or initial changes
   useEffect(() => {
     if (open && initial) {
@@ -647,7 +668,7 @@ function ItemEditorDialog({ open, onOpenChange, initial, onSave, onDelete, onDup
       setWeight(initial.attributes?.weight?.toString() || '')
       setTags(initial.tags || [])
       setProperties(initial.attributes?.properties || [])
-      setImages(initial.attributes?.images || [])
+      setImages(migrateImagesToMediaItems(initial.attributes?.images))
       setHistory(initial.attributes?.history || '')
       setOriginYear(initial.attributes?.custom?.year?.toString() || '')
       setLinks(initial.attributes?.links || [])
@@ -705,21 +726,6 @@ function ItemEditorDialog({ open, onOpenChange, initial, onSave, onDelete, onDup
 
     setPropertyForm({ title: '', details: '', power: '' })
     setEditingProperty(null)
-  }
-
-  // Add image
-  const handleAddImage = () => {
-    if (!imageInput.trim()) return
-    setImages(prev => [...prev, imageInput.trim()])
-    setImageInput('')
-  }
-
-  // Remove image
-  const handleRemoveImage = (index: number) => {
-    setImages(prev => prev.filter((_, i) => i !== index))
-    if (coverIndex >= images.length - 1) {
-      setCoverIndex(Math.max(0, images.length - 2))
-    }
   }
 
   // Add tag
@@ -1140,64 +1146,41 @@ function ItemEditorDialog({ open, onOpenChange, initial, onSave, onDelete, onDup
               {/* Tab 4: Images */}
               <TabsContent value="images" className="mt-0 space-y-4">
                 <div>
-                  <Label htmlFor="imageUrl" className="text-sm font-medium">Add Image URL</Label>
-                  <div className="flex gap-2 mt-1.5">
-                    <Input
-                      id="imageUrl"
-                      value={imageInput}
-                      onChange={(e) => setImageInput(e.target.value)}
-                      placeholder="https://..."
-                    />
+                  <Label className="text-sm font-medium text-gray-700">Images</Label>
+                  <p className="text-xs text-gray-500 mt-1 mb-3">Add images of this item. You can include multiple images with names, descriptions, and reference links.</p>
+                  <div className="space-y-3 mt-2">
+                    {images.map((image, idx) => (
+                      <MediaItemInput
+                        key={idx}
+                        item={image}
+                        index={idx}
+                        placeholder="e.g., Front view, Detail, In use..."
+                        onUpdate={(index, updatedItem) => {
+                          const updatedImages = [...images]
+                          updatedImages[index] = updatedItem
+                          setImages(updatedImages)
+                        }}
+                        onRemove={(index) => {
+                          const updatedImages = [...images]
+                          updatedImages.splice(index, 1)
+                          setImages(updatedImages)
+                        }}
+                        projectId={projectId}
+                        storageBucket="item-images"
+                      />
+                    ))}
                     <Button
                       type="button"
-                      onClick={handleAddImage}
-                      disabled={!imageInput.trim()}
+                      variant="outline"
                       size="sm"
+                      onClick={() => setImages([...images, { name: '', imageUrls: undefined, link: undefined }])}
+                      className="w-full border-2 border-indigo-200 hover:border-indigo-300 hover:bg-indigo-50"
                     >
-                      Add
+                      <Plus className="w-4 h-4 mr-1" />
+                      Add Image
                     </Button>
                   </div>
                 </div>
-
-                {images.length > 0 && (
-                  <div>
-                    <Label className="text-sm font-medium mb-3 block">Images</Label>
-                    <div className="grid grid-cols-3 gap-3">
-                      {images.map((url, idx) => (
-                        <div
-                          key={idx}
-                          className={`relative aspect-square rounded-lg overflow-hidden bg-gray-100 group ${
-                            idx === coverIndex ? 'ring-2 ring-indigo-500' : ''
-                          }`}
-                        >
-                          <img
-                            src={url}
-                            alt={`Image ${idx + 1}`}
-                            className="w-full h-full object-cover"
-                          />
-                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="secondary"
-                              onClick={() => setCoverIndex(idx)}
-                            >
-                              {idx === coverIndex ? 'Cover' : 'Set Cover'}
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="destructive"
-                              onClick={() => handleRemoveImage(idx)}
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </TabsContent>
 
               {/* Tab 5: History & Origins */}
@@ -1930,7 +1913,8 @@ function ItemsGrid({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {items.map(item => {
           const isSelected = selectedIds.has(item.id)
-          const coverImage = item.attributes?.images?.[0]
+          const firstImage = item.attributes?.images?.[0]
+          const coverImage = typeof firstImage === 'string' ? firstImage : firstImage?.imageUrls?.[0]
           
           return (
             <Card 
@@ -2180,7 +2164,8 @@ function ItemsTable({
   // STEP 10: Virtualization - Row renderer for large datasets
   const renderRow = (item: Item) => {
     const isSelected = selectedIds.has(item.id)
-    const coverImage = item.attributes?.images?.[0]
+    const firstImage = item.attributes?.images?.[0]
+    const coverImage = typeof firstImage === 'string' ? firstImage : firstImage?.imageUrls?.[0]
     
     return (
       <TableRow 
