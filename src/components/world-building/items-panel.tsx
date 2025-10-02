@@ -2493,10 +2493,11 @@ export default function ItemsPanel({ projectId, selectedElement, onItemsChange, 
   })
   
   // Computed: Apply search, sort, and filter (STEP 1 - Using helper)
-  const processedItems = useMemo(() => 
-    applySearchSortFilter(items, { query, sort, filters }),
-    [items, query, sort, filters]
-  )
+  const processedItems = useMemo(() => {
+    // Filter out any items without IDs and ensure valid data
+    const validItems = items.filter(item => item && item.id)
+    return applySearchSortFilter(validItems, { query, sort, filters })
+  }, [items, query, sort, filters])
   
   // Computed: Available filter options from data
   const availableTypes = useMemo(() => {
@@ -2549,7 +2550,11 @@ export default function ItemsPanel({ projectId, selectedElement, onItemsChange, 
   
   // STEP 3: Item action handlers
   const handleQuickView = useCallback((item: Item) => {
-    setQuickItem(item)
+    // Open in full-page editor instead of quick view
+    setEditing(item)
+    setIsCreating(false)
+    setEditorOpen(false)
+    setQuickItem(null) // Close quick view if open
   }, [])
   
   const handleEdit = useCallback((item: Item) => {
@@ -2635,7 +2640,7 @@ export default function ItemsPanel({ projectId, selectedElement, onItemsChange, 
             tags: itemData.tags,
             attributes: itemData.attributes || {},
             project_id: projectId,
-            category: 'item'
+            category: 'items'
           })
           .select()
           .single()
@@ -2647,6 +2652,11 @@ export default function ItemsPanel({ projectId, selectedElement, onItemsChange, 
           setItems(prev => prev.map(item => 
             item.id === tempId ? (data as Item) : item
           ))
+          
+          // Dispatch event to update sidebar
+          window.dispatchEvent(new CustomEvent('itemCreated', { 
+            detail: { item: data, projectId } 
+          }))
         }
         
         onItemsChange?.()
@@ -3029,15 +3039,11 @@ export default function ItemsPanel({ projectId, selectedElement, onItemsChange, 
   useEffect(() => { loadItems() }, [projectId])
   useEffect(() => {
     if (selectedElement && selectedElement.category === 'items') {
-      setEditingItem(selectedElement)
-      setFormData({
-        name: selectedElement.name, description: selectedElement.description,
-        type: selectedElement.attributes?.type || '', rarity: selectedElement.attributes?.rarity || 'common',
-        value: selectedElement.attributes?.value || '', weight: selectedElement.attributes?.weight || '',
-        properties: selectedElement.attributes?.properties || [], history: selectedElement.attributes?.history || '',
-        location: selectedElement.attributes?.location || '', owner: selectedElement.attributes?.owner || ''
-      })
-      setShowCreateDialog(true)
+      // Open in full-page editor instead of modal
+      setEditing(selectedElement)
+      setIsCreating(false)
+      setEditorOpen(false)
+      setQuickItem(null)
     }
   }, [selectedElement])
   
@@ -3057,7 +3063,7 @@ export default function ItemsPanel({ projectId, selectedElement, onItemsChange, 
       },
       tags: [],
       project_id: projectId,
-      category: 'item',
+      category: 'items',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     })
@@ -3145,6 +3151,7 @@ export default function ItemsPanel({ projectId, selectedElement, onItemsChange, 
 
   // STEP 8: Load items with soft-delete filtering
   const loadItems = async () => {
+    setLoading(true)
     const supabase = createSupabaseClient()
     
     try {
@@ -3152,21 +3159,13 @@ export default function ItemsPanel({ projectId, selectedElement, onItemsChange, 
         .from('world_elements')
         .select('*')
         .eq('project_id', projectId)
-        .eq('category', 'item')
-        .is('deleted_at', null) // Filter soft-deleted at DB level
+        .eq('category', 'items')
         .order('created_at', { ascending: false })
       
       if (error) throw error
-      
-      // Additional client-side filter as belt-and-suspenders
-      const activeItems = (data || []).filter(item => 
-        item.attributes?.__deleted !== true && !item.deleted_at
-      )
-      
-      setItems(activeItems as Item[])
-    } catch (error: any) {
+      setItems(data || [])
+    } catch (error) {
       console.error('Error loading items:', error)
-      toast.error(error?.message || 'Failed to load items')
     } finally {
       setLoading(false)
     }
@@ -3253,13 +3252,9 @@ export default function ItemsPanel({ projectId, selectedElement, onItemsChange, 
             }}
             initial={editing}
             onSave={async (savedItem) => {
-              if (isCreating) {
-                setItems(prev => [savedItem as Item, ...prev])
-              } else {
-                setItems(prev => prev.map(i => i.id === savedItem.id ? savedItem as Item : i))
-              }
+              // Use handleSaveItem to actually save to database
+              await handleSaveItem(savedItem)
               resetForm()
-              onItemsChange?.()
             }}
             onDelete={handleDelete}
             onDuplicate={handleDuplicate}
