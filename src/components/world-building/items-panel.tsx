@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { Plus, Gem, Search, Trash2, Edit3, Copy, Eye, X, Filter, Grid3x3, List as ListIcon, MoreVertical, Download, Tag, Sparkles, GripVertical, Image as ImageIcon, Link2, BarChart3, Settings, Undo2, CheckSquare, Square, Archive, Loader2, MapPin, Users, Package, ArrowUpDown, SlidersHorizontal, FileJson, FileSpreadsheet } from 'lucide-react'
+import { Plus, Gem, Search, Trash2, Edit3, Copy, Eye, X, Filter, Grid3x3, List as ListIcon, MoreVertical, Download, Tag, Sparkles, GripVertical, Image as ImageIcon, Link2, BarChart3, Settings, Undo2, CheckSquare, Square, Archive, Loader2, MapPin, Users, Package, ArrowUpDown, SlidersHorizontal, FileJson, FileSpreadsheet, ArrowLeft } from 'lucide-react'
 import * as ReactWindow from 'react-window'
 const { FixedSizeList } = ReactWindow as any
 import { Button } from '@/components/ui/button'
@@ -442,6 +442,7 @@ interface ItemEditorDialogProps {
   onDelete?: (item: Item) => void
   onDuplicate?: (item: Item) => void
   projectId: string
+  inline?: boolean // If true, renders without Dialog wrapper for full-page mode
 }
 
 // Sortable Property Item for drag-and-drop
@@ -591,7 +592,7 @@ const ITEM_PRESETS: Record<string, ItemPreset> = {
   }
 }
 
-function ItemEditorDialog({ open, onOpenChange, initial, onSave, onDelete, onDuplicate, projectId }: ItemEditorDialogProps) {
+function ItemEditorDialog({ open, onOpenChange, initial, onSave, onDelete, onDuplicate, projectId, inline = false }: ItemEditorDialogProps) {
   const [activeTab, setActiveTab] = useState('basic')
   const [saving, setSaving] = useState(false)
   const [presetPopoverOpen, setPresetPopoverOpen] = useState(false)
@@ -837,19 +838,10 @@ function ItemEditorDialog({ open, onOpenChange, initial, onSave, onDelete, onDup
 
   const rarities: Rarity[] = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary', 'Mythic']
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] bg-background p-0">
-        <DialogHeader className="px-6 pt-6 pb-4 border-b">
-          <DialogTitle className="text-2xl">
-            {initial ? 'Edit Item' : 'Create New Item'}
-          </DialogTitle>
-          <DialogDescription>
-            {initial ? 'Update item details and properties' : 'Add a new item to your world'}
-          </DialogDescription>
-        </DialogHeader>
-
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
+  // Render form content
+  const formContent = (
+    <>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
           <TabsList className="w-full justify-start rounded-none border-b bg-transparent px-6 h-auto py-0">
             <TabsTrigger value="basic" className="rounded-none border-b-2 border-transparent data-[state=active]:border-indigo-500">
               Basic Info
@@ -1482,6 +1474,26 @@ function ItemEditorDialog({ open, onOpenChange, initial, onSave, onDelete, onDup
             </Button>
           </div>
         </div>
+    </>
+  )
+
+  // Conditionally wrap in Dialog or render inline
+  if (inline) {
+    return formContent
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-4xl max-h-[90vh] bg-background p-0">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b">
+          <DialogTitle className="text-2xl">
+            {initial ? 'Edit Item' : 'Create New Item'}
+          </DialogTitle>
+          <DialogDescription>
+            {initial ? 'Update item details and properties' : 'Add a new item to your world'}
+          </DialogDescription>
+        </DialogHeader>
+        {formContent}
       </DialogContent>
     </Dialog>
   )
@@ -2462,6 +2474,7 @@ export default function ItemsPanel({ projectId, selectedElement, onItemsChange, 
   const [quickItem, setQuickItem] = useState<Item | null>(null)
   const [editorOpen, setEditorOpen] = useState(false)
   const [editing, setEditing] = useState<Item | null>(null)
+  const [isCreating, setIsCreating] = useState(false)
   
   // STEP 9: Bulk actions state
   const [showAddTagDialog, setShowAddTagDialog] = useState(false)
@@ -2541,7 +2554,8 @@ export default function ItemsPanel({ projectId, selectedElement, onItemsChange, 
   
   const handleEdit = useCallback((item: Item) => {
     setEditing(item)
-    setEditorOpen(true)
+    setIsCreating(false)
+    setEditorOpen(false) // Use full-page view instead of drawer
   }, [])
   
   // STEP 8: Enhanced Save handler with optimistic updates
@@ -3027,6 +3041,36 @@ export default function ItemsPanel({ projectId, selectedElement, onItemsChange, 
     }
   }, [selectedElement])
   
+  // Handle new item creation
+  const handleNewItem = useCallback(() => {
+    setEditing({
+      id: '',
+      name: '',
+      description: '',
+      attributes: {
+        type: '',
+        rarity: 'Common',
+        value: 0,
+        weight: 0,
+        properties: [],
+        images: []
+      },
+      tags: [],
+      project_id: projectId,
+      category: 'item',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    })
+    setIsCreating(true)
+    setEditorOpen(false)
+  }, [projectId])
+
+  const resetForm = useCallback(() => {
+    setEditing(null)
+    setIsCreating(false)
+    setEditorOpen(false)
+  }, [])
+  
   // STEP 10: Global keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -3044,8 +3088,7 @@ export default function ItemsPanel({ projectId, selectedElement, onItemsChange, 
       // 'n' - Open new item dialog
       if (e.key === 'n' && !isInput && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault()
-        setEditing(null)
-        setEditorOpen(true)
+        handleNewItem()
         return
       }
       
@@ -3077,7 +3120,7 @@ export default function ItemsPanel({ projectId, selectedElement, onItemsChange, 
     
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [bulkMode, editorOpen, quickItem, showAddTagDialog, showSetRarityDialog, selectedIds.size, processedItems.length, handleSelectAll])
+  }, [bulkMode, editorOpen, quickItem, showAddTagDialog, showSetRarityDialog, selectedIds.size, processedItems.length, handleSelectAll, handleNewItem])
 
   // STEP 10: Focus restoration - Save focus when opening dialogs/drawer
   useEffect(() => {
@@ -3121,9 +3164,9 @@ export default function ItemsPanel({ projectId, selectedElement, onItemsChange, 
       )
       
       setItems(activeItems as Item[])
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading items:', error)
-      toast.error('Failed to load items')
+      toast.error(error?.message || 'Failed to load items')
     } finally {
       setLoading(false)
     }
@@ -3169,6 +3212,65 @@ export default function ItemsPanel({ projectId, selectedElement, onItemsChange, 
     )
   }
 
+  // Full-page editor view (like Species panel)
+  if (isCreating || (editing && !editorOpen && !quickItem)) {
+    return (
+      <div className="h-full bg-gradient-to-br from-gray-50 to-white overflow-hidden flex flex-col">
+        {/* Compact Header */}
+        <div className="bg-white/90 backdrop-blur-sm border-b border-gray-100">
+          <div className="px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={resetForm}
+                  className="text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-all duration-200 rounded-xl px-3 py-1.5 flex items-center gap-2"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span className="font-medium">Back</span>
+                </Button>
+                <div className="w-px h-6 bg-gray-200" />
+                <div>
+                  <h1 className="text-xl font-bold text-gray-900 tracking-tight">
+                    {isCreating ? 'Create New Item' : `Edit ${editing?.name || 'Item'}`}
+                  </h1>
+                  <p className="text-xs text-gray-600">
+                    {isCreating ? 'Add a new item to your world.' : 'Modify the details of this item.'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Editor Content - Embedded directly */}
+        <div className="flex-1 overflow-y-auto">
+          <ItemEditorDialog
+            open={true}
+            onOpenChange={(open) => {
+              if (!open) resetForm()
+            }}
+            initial={editing}
+            onSave={async (savedItem) => {
+              if (isCreating) {
+                setItems(prev => [savedItem as Item, ...prev])
+              } else {
+                setItems(prev => prev.map(i => i.id === savedItem.id ? savedItem as Item : i))
+              }
+              resetForm()
+              onItemsChange?.()
+            }}
+            onDelete={handleDelete}
+            onDuplicate={handleDuplicate}
+            projectId={projectId}
+            inline={true}
+          />
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="h-full bg-white flex flex-col overflow-hidden">
       {/* Page Header */}
@@ -3182,10 +3284,7 @@ export default function ItemsPanel({ projectId, selectedElement, onItemsChange, 
             <p className="text-sm text-gray-500">Catalog important objects, artifacts, and possessions</p>
           </div>
           <Button 
-            onClick={() => { 
-              setEditing(null)
-              setEditorOpen(true)
-            }} 
+            onClick={handleNewItem}
             className="bg-indigo-500 hover:bg-indigo-600 text-white focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
             aria-label="Create new item (Press N)"
           >
