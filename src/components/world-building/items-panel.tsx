@@ -125,9 +125,6 @@ function applySearchSortFilter(
   const { query, sort, filters } = options
   let filtered = items
 
-  // Exclude soft-deleted items
-  filtered = filtered.filter(item => item.attributes.__deleted !== true)
-
   // Apply search query
   if (query.trim()) {
     const q = query.toLowerCase()
@@ -3472,96 +3469,10 @@ export default function ItemsPanel({ projectId, selectedElement, onItemsChange, 
   }, [projectId, onItemsChange])
   
   // STEP 8: Soft Delete handler (default behavior)
-  const handleSoftDelete = useCallback(async (item: Item) => {
-    const supabase = createSupabaseClient()
-    
-    // Optimistic soft delete (remove from UI immediately)
-    setItems(prev => prev.filter(i => i.id !== item.id))
-    setSelectedIds(prev => {
-      const newSet = new Set(prev)
-      newSet.delete(item.id)
-      return newSet
-    })
-    
-    try {
-      const { error } = await supabase
-        .from('world_elements')
-        .update({
-          attributes: {
-            ...item.attributes,
-            __deleted: true
-          }
-        })
-        .eq('id', item.id)
-      
-      if (error) {
-        console.error('Supabase error deleting item:', error)
-        throw new Error(error.message || 'Failed to delete item')
-      }
-      
-      toast.success('Item moved to trash')
-      onItemsChange?.()
-    } catch (error) {
-      // Rollback: restore item to list
-      setItems(prev => [item, ...prev])
-      const errorMessage = error instanceof Error ? error.message : 'Failed to delete item'
-      console.error('Error deleting item:', errorMessage, error)
-      toast.error(errorMessage)
-    }
-  }, [onItemsChange])
-
-  // STEP 8: Bulk Soft Delete handler
-  const handleBulkSoftDelete = useCallback(async (itemIds: string[]) => {
-    const supabase = createSupabaseClient()
-    const itemsToDelete = items.filter(i => itemIds.includes(i.id))
-    
-    // Optimistic bulk soft delete
-    setItems(prev => prev.filter(i => !itemIds.includes(i.id)))
-    setSelectedIds(new Set())
-    
-    try {
-      // Update all items in bulk
-      const updates = itemsToDelete.map(item => ({
-        id: item.id,
-        attributes: {
-          ...item.attributes,
-          __deleted: true
-        },
-        deleted_at: new Date().toISOString()
-      }))
-      
-      for (const update of updates) {
-        const { error } = await supabase
-          .from('world_elements')
-          .update({
-            attributes: update.attributes,
-            deleted_at: update.deleted_at
-          })
-          .eq('id', update.id)
-        
-        if (error) throw error
-      }
-      
-      toast.success(`${itemIds.length} items moved to trash`)
-      onItemsChange?.()
-    } catch (error) {
-      // Rollback: restore all items
-      setItems(prev => [...itemsToDelete, ...prev])
-      console.error('Error bulk deleting items:', error)
-      toast.error('Failed to delete items')
-    }
-  }, [items, onItemsChange])
-
-  // STEP 8: Hard Delete handler (permanent deletion with confirmation)
   const handleHardDelete = useCallback(async (item: Item) => {
     const supabase = createSupabaseClient()
     
-    // Use Dialog for confirmation instead of native confirm
-    if (!confirm(`Permanently delete "${item.name}"? This action CANNOT be undone.`)) {
-      return
-    }
-    
-    // Optimistic delete
+    // Optimistic delete (remove from UI immediately)
     setItems(prev => prev.filter(i => i.id !== item.id))
     setSelectedIds(prev => {
       const newSet = new Set(prev)
@@ -3575,22 +3486,60 @@ export default function ItemsPanel({ projectId, selectedElement, onItemsChange, 
         .delete()
         .eq('id', item.id)
       
-      if (error) throw error
+      if (error) {
+        console.error('Error deleting item:', error)
+        throw new Error(error.message || 'Failed to delete item')
+      }
       
-      toast.success('Item permanently deleted')
+      toast.success(`Deleted "${item.name}"`)
       onItemsChange?.()
     } catch (error) {
-      // Rollback: restore item
+      // Rollback: restore item to list
       setItems(prev => [item, ...prev])
-      console.error('Error permanently deleting item:', error)
-      toast.error('Failed to permanently delete item')
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete item'
+      console.error('Error deleting item:', errorMessage, error)
+      toast.error(errorMessage)
     }
   }, [onItemsChange])
 
-  // STEP 8: Main delete handler (uses soft delete by default)
+  // STEP 8: Bulk Delete handler
+  const handleBulkDelete = useCallback(async (itemIds: string[]) => {
+    if (!confirm(`Are you sure you want to delete ${itemIds.length} items? This action cannot be undone.`)) {
+      return
+    }
+    
+    const supabase = createSupabaseClient()
+    const itemsToDelete = items.filter(i => itemIds.includes(i.id))
+    
+    // Optimistic bulk delete
+    setItems(prev => prev.filter(i => !itemIds.includes(i.id)))
+    setSelectedIds(new Set())
+    
+    try {
+      // Delete all items in bulk
+      for (const itemId of itemIds) {
+        const { error } = await supabase
+          .from('world_elements')
+          .delete()
+          .eq('id', itemId)
+        
+        if (error) throw error
+      }
+      
+      toast.success(`Deleted ${itemIds.length} items`)
+      onItemsChange?.()
+    } catch (error) {
+      // Rollback: restore all items
+      setItems(prev => [...itemsToDelete, ...prev])
+      console.error('Error bulk deleting items:', error)
+      toast.error('Failed to delete items')
+    }
+  }, [items, onItemsChange])
+
+  // STEP 8: Main delete handler
   const handleDelete = useCallback(async (item: Item) => {
-    await handleSoftDelete(item)
-  }, [handleSoftDelete])
+    await handleHardDelete(item)
+  }, [handleHardDelete])
 
   useEffect(() => { loadItems() }, [projectId])
   useEffect(() => {
@@ -3834,7 +3783,7 @@ export default function ItemsPanel({ projectId, selectedElement, onItemsChange, 
           onExportCSV={handleExportCSV}
           onDelete={() => {
             const idsToDelete = Array.from(selectedIds)
-            handleBulkSoftDelete(idsToDelete)
+            handleBulkDelete(idsToDelete)
           }}
           onClearSelection={() => setSelectedIds(new Set())}
         />
@@ -3891,7 +3840,7 @@ export default function ItemsPanel({ projectId, selectedElement, onItemsChange, 
                     size="sm"
                     onClick={() => {
                       const idsToDelete = Array.from(selectedIds)
-                      handleBulkSoftDelete(idsToDelete)
+                      handleBulkDelete(idsToDelete)
                     }}
                   >
                     <Trash2 className="w-4 h-4 mr-2" />
