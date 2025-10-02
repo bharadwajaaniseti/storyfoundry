@@ -1,7 +1,9 @@
 'use client'
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { Plus, Gem, Search, Trash2, Edit3, Copy, Eye, X, Filter, Grid3x3, List, MoreVertical, Download, Tag, Sparkles, GripVertical, Image as ImageIcon, Link2, BarChart3, Settings, Undo2, CheckSquare, Square, Archive, Loader2, MapPin, Users, Package, ArrowUpDown, SlidersHorizontal } from 'lucide-react'
+import { Plus, Gem, Search, Trash2, Edit3, Copy, Eye, X, Filter, Grid3x3, List as ListIcon, MoreVertical, Download, Tag, Sparkles, GripVertical, Image as ImageIcon, Link2, BarChart3, Settings, Undo2, CheckSquare, Square, Archive, Loader2, MapPin, Users, Package, ArrowUpDown, SlidersHorizontal, FileJson, FileSpreadsheet } from 'lucide-react'
+import * as ReactWindow from 'react-window'
+const { FixedSizeList } = ReactWindow as any
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -74,6 +76,12 @@ interface FilterState {
   types: string[]
   rarities: Rarity[]
   tags: string[]
+}
+
+interface UndoSnapshot {
+  action: 'delete' | 'tag' | 'rarity'
+  items: Item[]
+  description: string
 }
 
 // Helper: Get rarity color
@@ -1479,6 +1487,114 @@ function ItemEditorDialog({ open, onOpenChange, initial, onSave, onDelete, onDup
   )
 }
 
+// STEP 9: BulkActionsBar Component
+interface BulkActionsBarProps {
+  selectedCount: number
+  onAddTag: () => void
+  onSetRarity: () => void
+  onExportJSON: () => void
+  onExportCSV: () => void
+  onDelete: () => void
+  onClearSelection: () => void
+}
+
+function BulkActionsBar({
+  selectedCount,
+  onAddTag,
+  onSetRarity,
+  onExportJSON,
+  onExportCSV,
+  onDelete,
+  onClearSelection
+}: BulkActionsBarProps) {
+  return (
+    <div className="sticky top-0 z-20 bg-indigo-600 text-white shadow-lg">
+      <div className="max-w-7xl mx-auto px-6 py-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <CheckSquare className="w-5 h-5" />
+              <span className="font-medium">
+                {selectedCount} {selectedCount === 1 ? 'item' : 'items'} selected
+              </span>
+            </div>
+            
+            <Separator orientation="vertical" className="h-6 bg-indigo-400" />
+            
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onAddTag}
+                className="text-white hover:bg-indigo-700 hover:text-white focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-600"
+                aria-label={`Add tag to ${selectedCount} selected items`}
+              >
+                <Tag className="w-4 h-4 mr-2" />
+                Add Tag
+              </Button>
+              
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onSetRarity}
+                className="text-white hover:bg-indigo-700 hover:text-white focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-600"
+                aria-label={`Set rarity for ${selectedCount} selected items`}
+              >
+                <Gem className="w-4 h-4 mr-2" />
+                Set Rarity
+              </Button>
+              
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onExportJSON}
+                className="text-white hover:bg-indigo-700 hover:text-white focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-600"
+                aria-label={`Export ${selectedCount} selected items as JSON`}
+              >
+                <FileJson className="w-4 h-4 mr-2" />
+                Export JSON
+              </Button>
+              
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onExportCSV}
+                className="text-white hover:bg-indigo-700 hover:text-white focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-600"
+                aria-label={`Export ${selectedCount} selected items as CSV`}
+              >
+                <FileSpreadsheet className="w-4 h-4 mr-2" />
+                Export CSV
+              </Button>
+              
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onDelete}
+                className="text-white hover:bg-red-600 hover:text-white focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-red-600"
+                aria-label={`Delete ${selectedCount} selected items`}
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Delete
+              </Button>
+            </div>
+          </div>
+          
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onClearSelection}
+            className="text-white hover:bg-indigo-700 hover:text-white focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-600"
+            aria-label="Clear selection"
+          >
+            <X className="w-4 h-4 mr-2" />
+            Clear Selection
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // STEP 2: ItemsToolbar Component
 interface ItemsToolbarProps {
   query: string
@@ -1601,7 +1717,11 @@ function ItemsToolbar({
           {/* Filters */}
           <Popover open={filterPopoverOpen} onOpenChange={setFilterPopoverOpen}>
             <PopoverTrigger asChild>
-              <Button variant="outline" className="bg-background">
+              <Button 
+                variant="outline" 
+                className="bg-background focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                aria-label={`Filters${activeFilterCount > 0 ? ` (${activeFilterCount} active)` : ''}`}
+              >
                 <SlidersHorizontal className="h-4 w-4 mr-2" />
                 Filters
                 {activeFilterCount > 0 && (
@@ -1611,7 +1731,7 @@ function ItemsToolbar({
                 )}
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-[320px] p-0 bg-background" align="start">
+            <PopoverContent className="w-[320px] p-0 bg-background rounded-2xl shadow-lg" align="start">
               <Command className="bg-background">
                 <CommandInput placeholder="Search filters..." className="bg-background" />
                 <CommandList>
@@ -1695,7 +1815,7 @@ function ItemsToolbar({
               <Grid3x3 className="h-4 w-4" />
             </ToggleGroupItem>
             <ToggleGroupItem value="list" aria-label="List view" className="bg-background">
-              <List className="h-4 w-4" />
+              <ListIcon className="h-4 w-4" />
             </ToggleGroupItem>
           </ToggleGroup>
           
@@ -1703,7 +1823,9 @@ function ItemsToolbar({
           <Button
             variant={bulkMode ? "default" : "outline"}
             onClick={() => onBulkMode(!bulkMode)}
-            className="bg-background"
+            className="bg-background focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+            aria-label={bulkMode ? `Bulk mode active${selectionCount > 0 ? ` (${selectionCount} selected)` : ''}` : 'Enable bulk mode'}
+            aria-pressed={bulkMode}
           >
             <CheckSquare className="h-4 w-4 mr-2" />
             Bulk
@@ -1816,7 +1938,9 @@ function ItemsGrid({
                   <img 
                     src={coverImage} 
                     alt={item.name}
-                    className="w-full h-full object-cover"
+                    loading="lazy"
+                    className="w-full h-full object-cover blur-[0px] transition-all duration-300"
+                    style={{ backgroundColor: '#e0e7ff' }}
                   />
                 ) : (
                   <Gem className="w-16 h-16 text-indigo-300" />
@@ -1841,7 +1965,8 @@ function ItemsGrid({
                       size="sm"
                       variant="secondary"
                       onClick={(e) => { e.stopPropagation(); onQuickView(item) }}
-                      className="bg-white/90 hover:bg-white"
+                      className="bg-white/90 hover:bg-white focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                      aria-label={`View ${item.name}`}
                     >
                       <Eye className="w-4 h-4 mr-1" />
                       View
@@ -1850,7 +1975,8 @@ function ItemsGrid({
                       size="sm"
                       variant="secondary"
                       onClick={(e) => { e.stopPropagation(); onEdit(item) }}
-                      className="bg-white/90 hover:bg-white"
+                      className="bg-white/90 hover:bg-white focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                      aria-label={`Edit ${item.name}`}
                     >
                       <Edit3 className="w-4 h-4 mr-1" />
                       Edit
@@ -1876,12 +2002,13 @@ function ItemsGrid({
                         <Button 
                           variant="ghost" 
                           size="sm" 
-                          className="h-8 w-8 p-0 -mt-1 -mr-2"
+                          className="h-8 w-8 p-0 -mt-1 -mr-2 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                          aria-label={`Actions for ${item.name}`}
                         >
                           <MoreVertical className="w-4 h-4" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="bg-background w-48">
+                      <DropdownMenuContent align="end" className="bg-background rounded-2xl shadow-lg w-48">
                         <DropdownMenuItem onClick={() => onQuickView(item)}>
                           <Eye className="w-4 h-4 mr-2" />
                           Quick View
@@ -2038,6 +2165,184 @@ function ItemsTable({
   const allSelected = items.length > 0 && items.every(item => selectedIds.has(item.id))
   const someSelected = items.some(item => selectedIds.has(item.id)) && !allSelected
   
+  // STEP 10: Virtualization - Row renderer for large datasets
+  const renderRow = (item: Item) => {
+    const isSelected = selectedIds.has(item.id)
+    const coverImage = item.attributes?.images?.[0]
+    
+    return (
+      <TableRow 
+        key={item.id}
+        className={`group transition-colors ${
+          isSelected 
+            ? 'bg-indigo-50 hover:bg-indigo-100/70' 
+            : 'hover:bg-muted/50'
+        }`}
+      >
+        {bulkMode && (
+          <TableCell onClick={(e) => e.stopPropagation()}>
+            <Checkbox
+              checked={isSelected}
+              onCheckedChange={(checked) => onSelect(item.id, checked as boolean)}
+            />
+          </TableCell>
+        )}
+        
+        {/* Icon/Image */}
+        <TableCell>
+          <button 
+            className="w-10 h-10 rounded-md overflow-hidden bg-gradient-to-br from-indigo-50 to-purple-50 flex items-center justify-center cursor-pointer hover:ring-2 hover:ring-indigo-300 transition-all focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+            onClick={() => onQuickView(item)}
+            aria-label={`View ${item.name}`}
+          >
+            {coverImage ? (
+              <img 
+                src={coverImage} 
+                alt={item.name}
+                loading="lazy"
+                className="w-full h-full object-cover"
+                style={{ backgroundColor: '#e0e7ff' }}
+              />
+            ) : (
+              <Gem className="w-5 h-5 text-indigo-400" />
+            )}
+          </button>
+        </TableCell>
+        
+        {/* Name & Description */}
+        <TableCell 
+          className="cursor-pointer"
+          onClick={() => onQuickView(item)}
+        >
+          <div className="flex flex-col gap-1 min-w-[150px]">
+            <span className="font-semibold text-sm group-hover:text-indigo-600 transition-colors line-clamp-1">
+              {item.name}
+            </span>
+            {item.description && (
+              <span className="text-xs text-muted-foreground line-clamp-1">
+                {item.description}
+              </span>
+            )}
+          </div>
+        </TableCell>
+        
+        {/* Type */}
+        <TableCell className="hidden md:table-cell">
+          {item.attributes?.type ? (
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded bg-muted flex items-center justify-center">
+                <Package className="w-3.5 h-3.5 text-muted-foreground" />
+              </div>
+              <span className="text-sm">{item.attributes.type}</span>
+            </div>
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          )}
+        </TableCell>
+        
+        {/* Rarity */}
+        <TableCell className="hidden lg:table-cell">
+          {item.attributes?.rarity ? (
+            <Badge className={`${getRarityColor(item.attributes.rarity)} font-medium`}>
+              {item.attributes.rarity}
+            </Badge>
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          )}
+        </TableCell>
+        
+        {/* Value */}
+        <TableCell className="hidden lg:table-cell">
+          {item.attributes?.value !== undefined && item.attributes?.value !== null ? (
+            <div className="flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              <span className="text-sm font-medium">{item.attributes.value} gp</span>
+            </div>
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          )}
+        </TableCell>
+        
+        {/* Tags */}
+        <TableCell className="hidden xl:table-cell">
+          {item.tags && item.tags.length > 0 ? (
+            <div className="flex flex-wrap gap-1 max-w-[200px]">
+              {item.tags.slice(0, 2).map(tag => (
+                <Badge key={tag} variant="outline" className="text-xs font-normal">
+                  <Tag className="w-2.5 h-2.5 mr-1" />
+                  {tag}
+                </Badge>
+              ))}
+              {item.tags.length > 2 && (
+                <Badge variant="outline" className="text-xs">
+                  +{item.tags.length - 2}
+                </Badge>
+              )}
+            </div>
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          )}
+        </TableCell>
+        
+        {/* Updated */}
+        <TableCell className="hidden sm:table-cell">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-xs text-muted-foreground">
+              {relativeDate(item.updated_at)}
+            </span>
+            {item.attributes?.weight !== undefined && item.attributes?.weight !== null && (
+              <span className="text-xs text-muted-foreground">
+                {item.attributes.weight} lbs
+              </span>
+            )}
+          </div>
+        </TableCell>
+        
+        {/* Actions */}
+        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="h-8 w-8 p-0 data-[state=open]:bg-muted focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                aria-label={`Actions for ${item.name}`}
+              >
+                <MoreVertical className="w-4 h-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="bg-background w-48 rounded-2xl shadow-lg">
+              <DropdownMenuItem onClick={() => onQuickView(item)}>
+                <Eye className="w-4 h-4 mr-2" />
+                Quick View
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onEdit(item)}>
+                <Edit3 className="w-4 h-4 mr-2" />
+                Edit
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onDuplicate(item)}>
+                <Copy className="w-4 h-4 mr-2" />
+                Duplicate
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem 
+                onClick={() => setDeleteConfirm(item.id)}
+                className="text-red-600 focus:text-red-600 focus:bg-red-50"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </TableCell>
+      </TableRow>
+    )
+  }
+  
+  // STEP 10: Use virtualization for large datasets (>100 items)
+  const useVirtualization = items.length > 100
+  const ROW_HEIGHT = 72 // Approximate height of each table row
+  
   return (
     <>
       <div className="border rounded-lg overflow-hidden bg-background shadow-sm">
@@ -2063,181 +2368,33 @@ function ItemsTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {items.map(item => {
-              const isSelected = selectedIds.has(item.id)
-              const coverImage = item.attributes?.images?.[0]
-              
-              return (
-                <TableRow 
-                  key={item.id}
-                  className={`group transition-colors ${
-                    isSelected 
-                      ? 'bg-indigo-50 hover:bg-indigo-100/70' 
-                      : 'hover:bg-muted/50'
-                  }`}
-                >
-                  {bulkMode && (
-                    <TableCell onClick={(e) => e.stopPropagation()}>
-                      <Checkbox
-                        checked={isSelected}
-                        onCheckedChange={(checked) => onSelect(item.id, checked as boolean)}
-                      />
-                    </TableCell>
-                  )}
-                  
-                  {/* Icon/Image */}
-                  <TableCell>
-                    <div 
-                      className="w-10 h-10 rounded-md overflow-hidden bg-gradient-to-br from-indigo-50 to-purple-50 flex items-center justify-center cursor-pointer hover:ring-2 hover:ring-indigo-300 transition-all"
-                      onClick={() => onQuickView(item)}
-                    >
-                      {coverImage ? (
-                        <img 
-                          src={coverImage} 
-                          alt={item.name}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <Gem className="w-5 h-5 text-indigo-400" />
-                      )}
-                    </div>
-                  </TableCell>
-                  
-                  {/* Name & Description */}
-                  <TableCell 
-                    className="cursor-pointer"
-                    onClick={() => onQuickView(item)}
+            {useVirtualization ? (
+              <tr>
+                <td colSpan={bulkMode ? 9 : 8} className="p-0">
+                  <FixedSizeList
+                    height={Math.min(600, items.length * ROW_HEIGHT)}
+                    itemCount={items.length}
+                    itemSize={ROW_HEIGHT}
+                    width="100%"
                   >
-                    <div className="flex flex-col gap-1 min-w-[150px]">
-                      <span className="font-semibold text-sm group-hover:text-indigo-600 transition-colors line-clamp-1">
-                        {item.name}
-                      </span>
-                      {item.description && (
-                        <span className="text-xs text-muted-foreground line-clamp-1">
-                          {item.description}
-                        </span>
-                      )}
-                    </div>
-                  </TableCell>
-                  
-                  {/* Type */}
-                  <TableCell className="hidden md:table-cell">
-                    {item.attributes?.type ? (
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded bg-muted flex items-center justify-center">
-                          <Package className="w-3.5 h-3.5 text-muted-foreground" />
-                        </div>
-                        <span className="text-sm">{item.attributes.type}</span>
+                    {({ index, style }: { index: number; style: React.CSSProperties }) => (
+                      <div style={style}>
+                        {renderRow(items[index])}
                       </div>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
                     )}
-                  </TableCell>
-                  
-                  {/* Rarity */}
-                  <TableCell className="hidden lg:table-cell">
-                    {item.attributes?.rarity ? (
-                      <Badge className={`${getRarityColor(item.attributes.rarity)} font-medium`}>
-                        {item.attributes.rarity}
-                      </Badge>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  
-                  {/* Value */}
-                  <TableCell className="hidden lg:table-cell">
-                    {item.attributes?.value !== undefined && item.attributes?.value !== null ? (
-                      <div className="flex items-center gap-1.5">
-                        <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                        <span className="text-sm font-medium">{item.attributes.value} gp</span>
-                      </div>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  
-                  {/* Tags */}
-                  <TableCell className="hidden xl:table-cell">
-                    {item.tags && item.tags.length > 0 ? (
-                      <div className="flex flex-wrap gap-1 max-w-[200px]">
-                        {item.tags.slice(0, 2).map(tag => (
-                          <Badge key={tag} variant="outline" className="text-xs font-normal">
-                            <Tag className="w-2.5 h-2.5 mr-1" />
-                            {tag}
-                          </Badge>
-                        ))}
-                        {item.tags.length > 2 && (
-                          <Badge variant="outline" className="text-xs">
-                            +{item.tags.length - 2}
-                          </Badge>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  
-                  {/* Updated */}
-                  <TableCell className="hidden sm:table-cell">
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-xs text-muted-foreground">
-                        {relativeDate(item.updated_at)}
-                      </span>
-                      {item.attributes?.weight !== undefined && item.attributes?.weight !== null && (
-                        <span className="text-xs text-muted-foreground">
-                          {item.attributes.weight} lbs
-                        </span>
-                      )}
-                    </div>
-                  </TableCell>
-                  
-                  {/* Actions */}
-                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="h-8 w-8 p-0 data-[state=open]:bg-muted"
-                        >
-                          <MoreVertical className="w-4 h-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="bg-background w-48">
-                        <DropdownMenuItem onClick={() => onQuickView(item)}>
-                          <Eye className="w-4 h-4 mr-2" />
-                          Quick View
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onEdit(item)}>
-                          <Edit3 className="w-4 h-4 mr-2" />
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onDuplicate(item)}>
-                          <Copy className="w-4 h-4 mr-2" />
-                          Duplicate
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem 
-                          onClick={() => setDeleteConfirm(item.id)}
-                          className="text-red-600 focus:text-red-600 focus:bg-red-50"
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              )
-            })}
+                  </FixedSizeList>
+                </td>
+              </tr>
+            ) : (
+              items.map(item => renderRow(item))
+            )}
           </TableBody>
         </Table>
       </div>
       
       {/* Delete Confirmation Dialog */}
       <Dialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
-        <DialogContent className="bg-background">
+        <DialogContent className="bg-background rounded-2xl shadow-xl">
           <DialogHeader>
             <DialogTitle>Delete Item?</DialogTitle>
             <DialogDescription>
@@ -2246,7 +2403,11 @@ function ItemsTable({
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2 mt-4">
-            <Button variant="outline" onClick={() => setDeleteConfirm(null)}>
+            <Button 
+              variant="outline" 
+              onClick={() => setDeleteConfirm(null)}
+              className="focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+            >
               Cancel
             </Button>
             <Button 
@@ -2256,6 +2417,7 @@ function ItemsTable({
                 if (item) onDelete(item)
                 setDeleteConfirm(null)
               }}
+              className="focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
             >
               <Trash2 className="w-4 h-4 mr-2" />
               Delete
@@ -2277,6 +2439,8 @@ interface ItemsPanelProps {
 export default function ItemsPanel({ projectId, selectedElement, onItemsChange, onClearSelection }: ItemsPanelProps) {
   const supabase = createSupabaseClient()
   const searchInputRef = useRef<HTMLInputElement>(null)
+  // STEP 10: Focus restoration
+  const previousFocusRef = useRef<HTMLElement | null>(null)
 
   // Core data state
   const [items, setItems] = useState<Item[]>([])
@@ -2298,6 +2462,13 @@ export default function ItemsPanel({ projectId, selectedElement, onItemsChange, 
   const [quickItem, setQuickItem] = useState<Item | null>(null)
   const [editorOpen, setEditorOpen] = useState(false)
   const [editing, setEditing] = useState<Item | null>(null)
+  
+  // STEP 9: Bulk actions state
+  const [showAddTagDialog, setShowAddTagDialog] = useState(false)
+  const [showSetRarityDialog, setShowSetRarityDialog] = useState(false)
+  const [bulkTagInput, setBulkTagInput] = useState('')
+  const [bulkRarity, setBulkRarity] = useState<Rarity>('Common')
+  const [undoSnapshot, setUndoSnapshot] = useState<UndoSnapshot | null>(null)
   
   // Legacy state (to be refactored)
   const [editingItem, setEditingItem] = useState<Item | null>(null)
@@ -2373,94 +2544,450 @@ export default function ItemsPanel({ projectId, selectedElement, onItemsChange, 
     setEditorOpen(true)
   }, [])
   
-  // STEP 6: Save handler for editor
+  // STEP 8: Enhanced Save handler with optimistic updates
   const handleSaveItem = useCallback(async (itemData: Partial<Item> & { name: string }) => {
     const supabase = createSupabaseClient()
     
     if (itemData.id) {
-      // Update existing item
-      const { error } = await supabase
-        .from('world_elements')
-        .update({
-          name: itemData.name,
-          description: itemData.description,
-          tags: itemData.tags,
-          attributes: itemData.attributes,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', itemData.id)
+      // UPDATE existing item with optimistic update
+      const optimisticItem: Item = {
+        ...items.find(i => i.id === itemData.id)!,
+        ...itemData,
+        updated_at: new Date().toISOString()
+      } as Item
       
-      if (error) throw error
-      
+      // Optimistic update
       setItems(prev => prev.map(item => 
-        item.id === itemData.id 
-          ? { ...item, ...itemData, updated_at: new Date().toISOString() }
-          : item
+        item.id === itemData.id ? optimisticItem : item
       ))
-    } else {
-      // Create new item
-      const { data, error } = await supabase
-        .from('world_elements')
-        .insert({
-          name: itemData.name,
-          description: itemData.description,
-          tags: itemData.tags,
-          attributes: itemData.attributes || {},
-          project_id: projectId,
-          category: 'item',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .select()
-        .single()
       
-      if (error) throw error
-      if (data) {
-        setItems(prev => [...prev, data as Item])
+      try {
+        // Let Supabase set updated_at timestamp
+        const { data, error } = await supabase
+          .from('world_elements')
+          .update({
+            name: itemData.name,
+            description: itemData.description,
+            tags: itemData.tags,
+            attributes: itemData.attributes
+          })
+          .eq('id', itemData.id)
+          .select()
+          .single()
+        
+        if (error) throw error
+        
+        // Update with server-provided timestamp
+        if (data) {
+          setItems(prev => prev.map(item => 
+            item.id === itemData.id ? (data as Item) : item
+          ))
+        }
+        
+        onItemsChange?.()
+      } catch (error) {
+        // Rollback on error
+        setItems(prev => prev.map(item => 
+          item.id === itemData.id 
+            ? items.find(i => i.id === itemData.id)! 
+            : item
+        ))
+        throw error
+      }
+    } else {
+      // CREATE new item with optimistic insert
+      const tempId = `temp_${Date.now()}`
+      const optimisticItem: Item = {
+        id: tempId,
+        name: itemData.name,
+        description: itemData.description,
+        tags: itemData.tags,
+        attributes: itemData.attributes || {},
+        project_id: projectId,
+        category: 'item',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      } as Item
+      
+      // Optimistic insert at beginning of list
+      setItems(prev => [optimisticItem, ...prev])
+      
+      try {
+        const { data, error } = await supabase
+          .from('world_elements')
+          .insert({
+            name: itemData.name,
+            description: itemData.description,
+            tags: itemData.tags,
+            attributes: itemData.attributes || {},
+            project_id: projectId,
+            category: 'item'
+          })
+          .select()
+          .single()
+        
+        if (error) throw error
+        
+        // Replace temp item with real item from DB
+        if (data) {
+          setItems(prev => prev.map(item => 
+            item.id === tempId ? (data as Item) : item
+          ))
+        }
+        
+        onItemsChange?.()
+      } catch (error) {
+        // Rollback: remove optimistic item
+        setItems(prev => prev.filter(item => item.id !== tempId))
+        throw error
       }
     }
-    
-    onItemsChange?.()
-  }, [projectId, onItemsChange])
+  }, [items, projectId, onItemsChange])
   
-  const handleDuplicate = useCallback(async (item: Item) => {
+  // STEP 9: Undo handler
+  const handleUndo = useCallback(() => {
+    if (!undoSnapshot) return
+    
+    // Restore items from snapshot
+    setItems(undoSnapshot.items)
+    setUndoSnapshot(null)
+    toast.success('Action undone')
+    onItemsChange?.()
+  }, [undoSnapshot, onItemsChange])
+  
+  // STEP 9: Bulk Add Tag handler
+  const handleBulkAddTag = useCallback(async () => {
+    if (!bulkTagInput.trim() || selectedIds.size === 0) return
+    
+    const supabase = createSupabaseClient()
+    const newTag = bulkTagInput.trim()
+    const selectedItems = items.filter(i => selectedIds.has(i.id))
+    
+    // Create snapshot for undo
+    setUndoSnapshot({
+      action: 'tag',
+      items: [...items],
+      description: `Added tag "${newTag}" to ${selectedIds.size} items`
+    })
+    
+    // Optimistic update: add tag to selected items (unique merge)
+    const updatedItems = items.map(item => {
+      if (selectedIds.has(item.id)) {
+        const existingTags = item.tags || []
+        const newTags = existingTags.includes(newTag) 
+          ? existingTags 
+          : [...existingTags, newTag]
+        return { ...item, tags: newTags }
+      }
+      return item
+    })
+    setItems(updatedItems)
+    
     try {
-      const duplicatedItem = {
-        ...item,
-        id: undefined,
-        name: `${item.name} (Copy)`,
-        created_at: undefined,
-        updated_at: undefined
+      // Update database for each selected item
+      for (const item of selectedItems) {
+        const existingTags = item.tags || []
+        const newTags = existingTags.includes(newTag) 
+          ? existingTags 
+          : [...existingTags, newTag]
+        
+        const { error } = await supabase
+          .from('world_elements')
+          .update({ tags: newTags })
+          .eq('id', item.id)
+        
+        if (error) throw error
       }
       
+      toast.success(`Added tag "${newTag}" to ${selectedIds.size} items`, {
+        action: {
+          label: 'Undo',
+          onClick: handleUndo
+        },
+        duration: 5000
+      })
+      setShowAddTagDialog(false)
+      setBulkTagInput('')
+      setSelectedIds(new Set())
+      onItemsChange?.()
+    } catch (error) {
+      // Rollback
+      setItems(undoSnapshot?.items || items)
+      console.error('Error adding tags:', error)
+      toast.error('Failed to add tags')
+      setUndoSnapshot(null)
+    }
+  }, [bulkTagInput, selectedIds, items, handleUndo, onItemsChange])
+  
+  // STEP 9: Bulk Set Rarity handler
+  const handleBulkSetRarity = useCallback(async () => {
+    if (selectedIds.size === 0) return
+    
+    const supabase = createSupabaseClient()
+    const selectedItems = items.filter(i => selectedIds.has(i.id))
+    
+    // Create snapshot for undo
+    setUndoSnapshot({
+      action: 'rarity',
+      items: [...items],
+      description: `Set rarity to ${bulkRarity} for ${selectedIds.size} items`
+    })
+    
+    // Optimistic update: set rarity for selected items
+    const updatedItems = items.map(item => {
+      if (selectedIds.has(item.id)) {
+        return {
+          ...item,
+          attributes: {
+            ...item.attributes,
+            rarity: bulkRarity
+          }
+        }
+      }
+      return item
+    })
+    setItems(updatedItems)
+    
+    try {
+      // Update database for each selected item
+      for (const item of selectedItems) {
+        const { error } = await supabase
+          .from('world_elements')
+          .update({
+            attributes: {
+              ...item.attributes,
+              rarity: bulkRarity
+            }
+          })
+          .eq('id', item.id)
+        
+        if (error) throw error
+      }
+      
+      toast.success(`Set rarity to ${bulkRarity} for ${selectedIds.size} items`, {
+        action: {
+          label: 'Undo',
+          onClick: handleUndo
+        },
+        duration: 5000
+      })
+      setShowSetRarityDialog(false)
+      setSelectedIds(new Set())
+      onItemsChange?.()
+    } catch (error) {
+      // Rollback
+      setItems(undoSnapshot?.items || items)
+      console.error('Error setting rarity:', error)
+      toast.error('Failed to set rarity')
+      setUndoSnapshot(null)
+    }
+  }, [bulkRarity, selectedIds, items, handleUndo, onItemsChange])
+  
+  // STEP 9: Export JSON handler
+  const handleExportJSON = useCallback(() => {
+    const itemsToExport = selectedIds.size > 0 
+      ? items.filter(i => selectedIds.has(i.id))
+      : processedItems
+    
+    const json = JSON.stringify(itemsToExport, null, 2)
+    const blob = new Blob([json], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `items-export-${new Date().toISOString().split('T')[0]}.json`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    
+    toast.success(`Exported ${itemsToExport.length} items to JSON`)
+  }, [selectedIds, items, processedItems])
+  
+  // STEP 9: Export CSV handler
+  const handleExportCSV = useCallback(() => {
+    const itemsToExport = selectedIds.size > 0 
+      ? items.filter(i => selectedIds.has(i.id))
+      : processedItems
+    
+    // Build CSV headers
+    const headers = ['ID', 'Name', 'Type', 'Rarity', 'Value', 'Weight', 'Description', 'Tags', 'Created', 'Updated']
+    
+    // Build CSV rows
+    const rows = itemsToExport.map(item => [
+      item.id,
+      `"${(item.name || '').replace(/"/g, '""')}"`,
+      item.attributes.type || '',
+      item.attributes.rarity || '',
+      item.attributes.value || '',
+      item.attributes.weight || '',
+      `"${(item.description || '').replace(/"/g, '""')}"`,
+      `"${(item.tags || []).join(', ')}"`,
+      new Date(item.created_at).toLocaleDateString(),
+      new Date(item.updated_at).toLocaleDateString()
+    ])
+    
+    // Combine into CSV string
+    const csv = [headers.join(','), ...rows.map(row => row.join(','))].join('\n')
+    
+    // Trigger download
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `items-export-${new Date().toISOString().split('T')[0]}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    
+    toast.success(`Exported ${itemsToExport.length} items to CSV`)
+  }, [selectedIds, items, processedItems])
+  
+  // STEP 8: Enhanced Duplicate handler with optimistic update
+  const handleDuplicate = useCallback(async (item: Item) => {
+    const supabase = createSupabaseClient()
+    const tempId = `temp_${Date.now()}`
+    
+    // Create optimistic duplicate
+    const optimisticDuplicate: Item = {
+      ...item,
+      id: tempId,
+      name: `${item.name} (Copy)`,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }
+    
+    // Optimistic insert at beginning
+    setItems(prev => [optimisticDuplicate, ...prev])
+    toast.success('Duplicating item...')
+    
+    try {
       const { data, error } = await supabase
         .from('world_elements')
         .insert({
           project_id: projectId,
-          category: 'items',
-          name: duplicatedItem.name,
-          description: duplicatedItem.description,
-          attributes: duplicatedItem.attributes,
-          tags: duplicatedItem.tags || []
+          category: 'item',
+          name: optimisticDuplicate.name,
+          description: item.description,
+          attributes: item.attributes,
+          tags: item.tags || []
         })
         .select()
         .single()
       
       if (error) throw error
       
-      setItems(prev => [data as Item, ...prev])
-      toast.success('Item duplicated successfully')
+      // Replace temp item with real item from DB
+      if (data) {
+        setItems(prev => prev.map(i => 
+          i.id === tempId ? (data as Item) : i
+        ))
+        toast.success('Item duplicated successfully')
+      }
+      
       onItemsChange?.()
     } catch (error) {
+      // Rollback: remove optimistic duplicate
+      setItems(prev => prev.filter(i => i.id !== tempId))
       console.error('Error duplicating item:', error)
       toast.error('Failed to duplicate item')
     }
-  }, [projectId, supabase, onItemsChange])
+  }, [projectId, onItemsChange])
   
-  const handleDelete = useCallback(async (item: Item) => {
-    if (!confirm(`Delete "${item.name}"? This action cannot be undone.`)) {
+  // STEP 8: Soft Delete handler (default behavior)
+  const handleSoftDelete = useCallback(async (item: Item) => {
+    const supabase = createSupabaseClient()
+    
+    // Optimistic soft delete (remove from UI immediately)
+    setItems(prev => prev.filter(i => i.id !== item.id))
+    setSelectedIds(prev => {
+      const newSet = new Set(prev)
+      newSet.delete(item.id)
+      return newSet
+    })
+    
+    try {
+      const { error } = await supabase
+        .from('world_elements')
+        .update({
+          attributes: {
+            ...item.attributes,
+            __deleted: true
+          },
+          deleted_at: new Date().toISOString()
+        })
+        .eq('id', item.id)
+      
+      if (error) throw error
+      
+      toast.success('Item moved to trash')
+      onItemsChange?.()
+    } catch (error) {
+      // Rollback: restore item to list
+      setItems(prev => [item, ...prev])
+      console.error('Error deleting item:', error)
+      toast.error('Failed to delete item')
+    }
+  }, [onItemsChange])
+
+  // STEP 8: Bulk Soft Delete handler
+  const handleBulkSoftDelete = useCallback(async (itemIds: string[]) => {
+    const supabase = createSupabaseClient()
+    const itemsToDelete = items.filter(i => itemIds.includes(i.id))
+    
+    // Optimistic bulk soft delete
+    setItems(prev => prev.filter(i => !itemIds.includes(i.id)))
+    setSelectedIds(new Set())
+    
+    try {
+      // Update all items in bulk
+      const updates = itemsToDelete.map(item => ({
+        id: item.id,
+        attributes: {
+          ...item.attributes,
+          __deleted: true
+        },
+        deleted_at: new Date().toISOString()
+      }))
+      
+      for (const update of updates) {
+        const { error } = await supabase
+          .from('world_elements')
+          .update({
+            attributes: update.attributes,
+            deleted_at: update.deleted_at
+          })
+          .eq('id', update.id)
+        
+        if (error) throw error
+      }
+      
+      toast.success(`${itemIds.length} items moved to trash`)
+      onItemsChange?.()
+    } catch (error) {
+      // Rollback: restore all items
+      setItems(prev => [...itemsToDelete, ...prev])
+      console.error('Error bulk deleting items:', error)
+      toast.error('Failed to delete items')
+    }
+  }, [items, onItemsChange])
+
+  // STEP 8: Hard Delete handler (permanent deletion with confirmation)
+  const handleHardDelete = useCallback(async (item: Item) => {
+    const supabase = createSupabaseClient()
+    
+    // Use Dialog for confirmation instead of native confirm
+    if (!confirm(`Permanently delete "${item.name}"? This action CANNOT be undone.`)) {
       return
     }
+    
+    // Optimistic delete
+    setItems(prev => prev.filter(i => i.id !== item.id))
+    setSelectedIds(prev => {
+      const newSet = new Set(prev)
+      newSet.delete(item.id)
+      return newSet
+    })
     
     try {
       const { error } = await supabase
@@ -2470,19 +2997,20 @@ export default function ItemsPanel({ projectId, selectedElement, onItemsChange, 
       
       if (error) throw error
       
-      setItems(prev => prev.filter(i => i.id !== item.id))
-      setSelectedIds(prev => {
-        const newSet = new Set(prev)
-        newSet.delete(item.id)
-        return newSet
-      })
-      toast.success('Item deleted')
+      toast.success('Item permanently deleted')
       onItemsChange?.()
     } catch (error) {
-      console.error('Error deleting item:', error)
-      toast.error('Failed to delete item')
+      // Rollback: restore item
+      setItems(prev => [item, ...prev])
+      console.error('Error permanently deleting item:', error)
+      toast.error('Failed to permanently delete item')
     }
-  }, [supabase, onItemsChange])
+  }, [onItemsChange])
+
+  // STEP 8: Main delete handler (uses soft delete by default)
+  const handleDelete = useCallback(async (item: Item) => {
+    await handleSoftDelete(item)
+  }, [handleSoftDelete])
 
   useEffect(() => { loadItems() }, [projectId])
   useEffect(() => {
@@ -2498,21 +3026,101 @@ export default function ItemsPanel({ projectId, selectedElement, onItemsChange, 
       setShowCreateDialog(true)
     }
   }, [selectedElement])
+  
+  // STEP 10: Global keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger shortcuts when typing in inputs or textareas
+      const target = e.target as HTMLElement
+      const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable
+      
+      // '/' - Focus search
+      if (e.key === '/' && !isInput) {
+        e.preventDefault()
+        searchInputRef.current?.focus()
+        return
+      }
+      
+      // 'n' - Open new item dialog
+      if (e.key === 'n' && !isInput && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault()
+        setEditing(null)
+        setEditorOpen(true)
+        return
+      }
+      
+      // 'Esc' - Close dialogs/drawer
+      if (e.key === 'Escape') {
+        if (editorOpen) {
+          setEditorOpen(false)
+        } else if (quickItem) {
+          setQuickItem(null)
+        } else if (showAddTagDialog) {
+          setShowAddTagDialog(false)
+        } else if (showSetRarityDialog) {
+          setShowSetRarityDialog(false)
+        }
+        return
+      }
+      
+      // 'a' - Select all in bulk mode
+      if (e.key === 'a' && bulkMode && !isInput && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault()
+        if (selectedIds.size === processedItems.length) {
+          setSelectedIds(new Set()) // Deselect all if all selected
+        } else {
+          handleSelectAll(true)
+        }
+        return
+      }
+    }
+    
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [bulkMode, editorOpen, quickItem, showAddTagDialog, showSetRarityDialog, selectedIds.size, processedItems.length, handleSelectAll])
 
+  // STEP 10: Focus restoration - Save focus when opening dialogs/drawer
+  useEffect(() => {
+    if (editorOpen || quickItem || showAddTagDialog || showSetRarityDialog) {
+      // Save the currently focused element before opening
+      previousFocusRef.current = document.activeElement as HTMLElement
+    }
+  }, [editorOpen, quickItem, showAddTagDialog, showSetRarityDialog])
+
+  // STEP 10: Focus restoration - Restore focus when closing dialogs/drawer
+  useEffect(() => {
+    if (!editorOpen && !quickItem && !showAddTagDialog && !showSetRarityDialog) {
+      // Restore focus after all dialogs/drawer are closed
+      if (previousFocusRef.current && document.body.contains(previousFocusRef.current)) {
+        // Use setTimeout to ensure the dialog/drawer has fully closed
+        setTimeout(() => {
+          previousFocusRef.current?.focus()
+        }, 100)
+      }
+    }
+  }, [editorOpen, quickItem, showAddTagDialog, showSetRarityDialog])
+
+  // STEP 8: Load items with soft-delete filtering
   const loadItems = async () => {
+    const supabase = createSupabaseClient()
+    
     try {
       const { data, error } = await supabase
         .from('world_elements')
         .select('*')
         .eq('project_id', projectId)
-        .eq('category', 'items')
+        .eq('category', 'item')
+        .is('deleted_at', null) // Filter soft-deleted at DB level
         .order('created_at', { ascending: false })
       
       if (error) throw error
       
-      // Exclude soft-deleted items at fetch time (belt-and-suspenders approach)
-      const activeItems = (data || []).filter(item => item.attributes?.__deleted !== true)
-      setItems(activeItems)
+      // Additional client-side filter as belt-and-suspenders
+      const activeItems = (data || []).filter(item => 
+        item.attributes?.__deleted !== true && !item.deleted_at
+      )
+      
+      setItems(activeItems as Item[])
     } catch (error) {
       console.error('Error loading items:', error)
       toast.error('Failed to load items')
@@ -2578,13 +3186,30 @@ export default function ItemsPanel({ projectId, selectedElement, onItemsChange, 
               setEditing(null)
               setEditorOpen(true)
             }} 
-            className="bg-indigo-500 hover:bg-indigo-600 text-white"
+            className="bg-indigo-500 hover:bg-indigo-600 text-white focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+            aria-label="Create new item (Press N)"
           >
             <Plus className="w-4 h-4 mr-2" />
             New Item
           </Button>
         </div>
       </div>
+
+      {/* STEP 9: BulkActionsBar - Shown when items are selected */}
+      {bulkMode && selectedIds.size > 0 && (
+        <BulkActionsBar
+          selectedCount={selectedIds.size}
+          onAddTag={() => setShowAddTagDialog(true)}
+          onSetRarity={() => setShowSetRarityDialog(true)}
+          onExportJSON={handleExportJSON}
+          onExportCSV={handleExportCSV}
+          onDelete={() => {
+            const idsToDelete = Array.from(selectedIds)
+            handleBulkSoftDelete(idsToDelete)
+          }}
+          onClearSelection={() => setSelectedIds(new Set())}
+        />
+      )}
 
       {/* STEP 2: ItemsToolbar - Sticky under header */}
       <ItemsToolbar
@@ -2635,28 +3260,9 @@ export default function ItemsPanel({ projectId, selectedElement, onItemsChange, 
                   <Button
                     variant="destructive"
                     size="sm"
-                    onClick={async () => {
-                      if (!confirm(`Delete ${selectedIds.size} items? This action cannot be undone.`)) {
-                        return
-                      }
-                      
+                    onClick={() => {
                       const idsToDelete = Array.from(selectedIds)
-                      try {
-                        const { error } = await supabase
-                          .from('world_elements')
-                          .delete()
-                          .in('id', idsToDelete)
-                        
-                        if (error) throw error
-                        
-                        setItems(prev => prev.filter(item => !selectedIds.has(item.id)))
-                        setSelectedIds(new Set())
-                        toast.success(`${idsToDelete.length} items deleted`)
-                        onItemsChange?.()
-                      } catch (error) {
-                        console.error('Error deleting items:', error)
-                        toast.error('Failed to delete items')
-                      }
+                      handleBulkSoftDelete(idsToDelete)
                     }}
                   >
                     <Trash2 className="w-4 h-4 mr-2" />
@@ -2780,6 +3386,136 @@ export default function ItemsPanel({ projectId, selectedElement, onItemsChange, 
         onDuplicate={handleDuplicate}
         projectId={projectId}
       />
+
+      {/* STEP 9: Add Tag Dialog */}
+      <Dialog open={showAddTagDialog} onOpenChange={setShowAddTagDialog}>
+        <DialogContent className="sm:max-w-md rounded-2xl shadow-xl bg-background">
+          <DialogHeader>
+            <DialogTitle>Add Tag to Selected Items</DialogTitle>
+            <DialogDescription>
+              Enter a tag to add to all {selectedIds.size} selected items. If the tag already exists on an item, it will be skipped.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label htmlFor="bulkTag" className="text-sm font-medium">Tag Name</Label>
+              <Input
+                id="bulkTag"
+                value={bulkTagInput}
+                onChange={(e) => setBulkTagInput(e.target.value)}
+                placeholder="e.g., magical, quest-item, legendary"
+                className="mt-1.5"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && bulkTagInput.trim()) {
+                    e.preventDefault()
+                    handleBulkAddTag()
+                  }
+                }}
+                autoFocus
+              />
+              <p className="text-xs text-muted-foreground mt-1.5">
+                Press Enter to add, or click the button below
+              </p>
+            </div>
+            
+            {availableTags.length > 0 && (
+              <div>
+                <Label className="text-sm font-medium mb-2 block">Common Tags</Label>
+                <div className="flex flex-wrap gap-2">
+                  {availableTags.slice(0, 10).map(tag => (
+                    <Badge
+                      key={tag}
+                      variant="outline"
+                      className="cursor-pointer hover:bg-indigo-50 hover:border-indigo-300"
+                      onClick={() => setBulkTagInput(tag)}
+                    >
+                      {tag}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowAddTagDialog(false)
+                setBulkTagInput('')
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleBulkAddTag}
+              disabled={!bulkTagInput.trim()}
+              className="bg-indigo-500 hover:bg-indigo-600 text-white"
+            >
+              <Tag className="w-4 h-4 mr-2" />
+              Add Tag
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* STEP 9: Set Rarity Dialog */}
+      <Dialog open={showSetRarityDialog} onOpenChange={setShowSetRarityDialog}>
+        <DialogContent className="sm:max-w-md rounded-2xl shadow-xl bg-background">
+          <DialogHeader>
+            <DialogTitle>Set Rarity for Selected Items</DialogTitle>
+            <DialogDescription>
+              Choose a rarity level to apply to all {selectedIds.size} selected items.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label htmlFor="bulkRarity" className="text-sm font-medium mb-3 block">Rarity Level</Label>
+              <div className="space-y-2">
+                {(['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary', 'Mythic'] as Rarity[]).map(rarity => (
+                  <div
+                    key={rarity}
+                    className={`
+                      p-3 rounded-lg border-2 cursor-pointer transition-all
+                      ${bulkRarity === rarity 
+                        ? 'border-indigo-500 bg-indigo-50' 
+                        : 'border-gray-200 hover:border-gray-300 bg-white'
+                      }
+                    `}
+                    onClick={() => setBulkRarity(rarity)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-3 h-3 rounded-full ${
+                        bulkRarity === rarity ? 'bg-indigo-500' : 'bg-gray-300'
+                      }`} />
+                      <div className="flex-1 flex items-center justify-between">
+                        <span className="font-medium">{rarity}</span>
+                        <Badge className={getRarityColor(rarity)}>
+                          {rarity}
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowSetRarityDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleBulkSetRarity}
+              className="bg-indigo-500 hover:bg-indigo-600 text-white"
+            >
+              <Gem className="w-4 h-4 mr-2" />
+              Set Rarity
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
