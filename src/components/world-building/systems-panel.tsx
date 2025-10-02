@@ -1386,12 +1386,12 @@ function SystemEditorDialog({
           stats,
           history: history.trim() || undefined,
           images: coverImage > 0 ? [images[coverImage], ...images.filter((_, i) => i !== coverImage)] : images,
-          custom: customFields
-        },
-        links
+          custom: customFields,
+          links // Move links into attributes
+        }
       }
 
-      if (initial) {
+      if (initial?.id) {
         systemData.id = initial.id
       }
 
@@ -1538,7 +1538,7 @@ function SystemEditorDialog({
   }
 
   // Form Content Component - used both in Dialog and inline mode
-  function FormContent() {
+  const FormContent = useMemo(() => {
     return (
       <>
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
@@ -2167,13 +2167,16 @@ function SystemEditorDialog({
           </div>
         </>
       )
-    }
+  }, [activeTab, presetOpen, name, systemType, scope, status, tags, tagInput, description, symbols, symbolInput, 
+      governance, rules, mechanisms, mechanismInput, participants, participantInput, inputs, inputInput,
+      outputs, outputInput, stats, statKey, statValue, history, images, imageInput, coverImage,
+      customKey, customValue, customFields, links, saving, initial, onSave, onOpenChange, onDuplicate, onDelete, deleteConfirm])
 
   // Conditionally wrap in Dialog or render inline
   if (inline) {
     return (
       <>
-        <FormContent />
+        {FormContent}
         {/* Delete Confirmation */}
         {initial && onDelete && (
           <AlertDialog open={deleteConfirm} onOpenChange={setDeleteConfirm}>
@@ -2249,7 +2252,7 @@ function SystemEditorDialog({
           </DialogHeader>
 
           {/* Form Content - extracted for inline mode */}
-          <FormContent />
+          {FormContent}
         </DialogContent>
       </Dialog>
 
@@ -2822,21 +2825,15 @@ export default function SystemsPanel({ projectId, selectedElement, onSystemsChan
     loadSystems() 
   }, [projectId])
 
-  // Handle external selection (from timeline, etc.)
+  // Handle external selection (from sidebar, timeline, etc.)
   useEffect(() => {
     if (selectedElement && selectedElement.category === 'systems') {
       setEditingSystem(selectedElement)
       setEditing(selectedElement as SystemElement)
-      setFormData({ 
-        name: selectedElement.name, 
-        description: selectedElement.description, 
-        type: selectedElement.attributes?.type || '', 
-        scope: selectedElement.attributes?.scope || '', 
-        rules: selectedElement.attributes?.rules || '', 
-        participants: selectedElement.attributes?.participants || '' 
-      })
-      setShowCreateDialog(true)
-      setEditorOpen(true)
+      setIsCreating(false)
+      setEditorOpen(false) // Use inline editing instead of modal
+      setQuickItem(null)
+      // No need to set formData here - the inline editor will load it from editing state
     }
   }, [selectedElement])
 
@@ -3006,15 +3003,22 @@ export default function SystemsPanel({ projectId, selectedElement, onSystemsChan
     const previousSystems = [...systems]
 
     try {
+      // Remove empty id from data to prevent insert issues
+      const { id, created_at, updated_at, links, ...dataWithoutMeta } = data
+      
       const systemData = {
         project_id: projectId,
         category: 'systems' as const,
-        ...data,
+        ...dataWithoutMeta,
+        ...(id && { id }), // Only include id if it exists and is not empty
         attributes: {
           ...data.attributes,
-          status: data.attributes?.status || 'active'
+          status: data.attributes?.status || 'active',
+          links: links || [] // Store links inside attributes
         }
       }
+
+      console.log('Creating/updating system. isUpdate:', isUpdate, 'systemData:', systemData)
 
       if (isUpdate) {
         // OPTIMISTIC UPDATE
@@ -3063,7 +3067,11 @@ export default function SystemsPanel({ projectId, selectedElement, onSystemsChan
           .select()
           .single()
 
-        if (error) throw error
+        if (error) {
+          console.error('Supabase insert error:', error)
+          console.error('System data being inserted:', systemData)
+          throw error
+        }
 
         // Replace temp with real
         setSystems(prev => prev.map(s => s.id === tempId ? created as SystemElement : s))
@@ -3652,25 +3660,6 @@ export default function SystemsPanel({ projectId, selectedElement, onSystemsChan
                 onCreateFirst={handleNewSystem}
               />
             )
-          )}
-
-          {/* Editor Dialog - Only render when not in inline mode */}
-          {!isCreating && !(editing && !editorOpen && !quickItem) && (
-            <SystemEditorDialog
-              open={editorOpen}
-              onOpenChange={(open) => {
-                setEditorOpen(open)
-                if (!open) {
-                  setEditing(null)
-                  setEditingSystem(null)
-                  onClearSelection?.()
-                }
-              }}
-              initial={editing}
-              onSave={handleCreateSystem}
-              onDuplicate={handleDuplicate}
-              onDelete={handleDelete}
-            />
           )}
 
           {/* Quick View Drawer */}
