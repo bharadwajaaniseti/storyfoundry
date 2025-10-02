@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { Plus, Gem, Search, Trash2, Edit3, Copy, Eye, X, Filter, Grid3x3, List as ListIcon, MoreVertical, Download, Tag, Sparkles, GripVertical, Image as ImageIcon, Link2, BarChart3, Settings, Undo2, CheckSquare, Square, Archive, Loader2, MapPin, Users, Package, ArrowUpDown, SlidersHorizontal, FileJson, FileSpreadsheet, ArrowLeft } from 'lucide-react'
+import { Plus, Gem, Search, Trash2, Edit3, Copy, Eye, X, Filter, Grid3x3, List as ListIcon, MoreVertical, Download, Tag, Sparkles, GripVertical, Image as ImageIcon, Link2, BarChart3, Settings, Undo2, CheckSquare, Square, Archive, Loader2, MapPin, Users, Package, ArrowUpDown, SlidersHorizontal, FileJson, FileSpreadsheet, ArrowLeft, FileText, Zap, Clock, Scale } from 'lucide-react'
 import * as ReactWindow from 'react-window'
 const { FixedSizeList } = ReactWindow as any
 import { Button } from '@/components/ui/button'
@@ -627,6 +627,12 @@ function ItemEditorDialog({ open, onOpenChange, initial, onSave, onDelete, onDup
   const [statKey, setStatKey] = useState('')
   const [statValue, setStatValue] = useState('')
   
+  // Related entities state
+  const [availableEntities, setAvailableEntities] = useState<{ id: string; name: string; type: string }[]>([])
+  const [entitySearchTerm, setEntitySearchTerm] = useState('')
+  const [selectedEntityType, setSelectedEntityType] = useState<'character' | 'location' | 'item' | 'all'>('all')
+  const [isLoadingEntities, setIsLoadingEntities] = useState(false)
+  
   const [customFields, setCustomFields] = useState<Record<string, string | number>>({})
   const [customKey, setCustomKey] = useState('')
   const [customValue, setCustomValue] = useState('')
@@ -793,6 +799,94 @@ function ItemEditorDialog({ open, onOpenChange, initial, onSave, onDelete, onDup
     toast.success(`Applied ${preset.name} preset`)
   }
 
+  // Fetch available entities for linking
+  const fetchAvailableEntities = useCallback(async () => {
+    if (!projectId) return
+    
+    setIsLoadingEntities(true)
+    try {
+      const supabase = await createSupabaseClient()
+      
+      let query = supabase
+        .from('world_elements')
+        .select('id, name, category')
+        .eq('project_id', projectId)
+      
+      // Exclude current item if editing
+      if (initial?.id) {
+        query = query.neq('id', initial.id)
+      }
+      
+      // Filter by category if not 'all'
+      if (selectedEntityType !== 'all') {
+        // Map singular to plural category names
+        const categoryMap: Record<string, string> = {
+          'character': 'characters',
+          'location': 'locations',
+          'item': 'items'
+        }
+        const category = categoryMap[selectedEntityType] || selectedEntityType
+        query = query.eq('category', category)
+      }
+      
+      // Search filter
+      if (entitySearchTerm.trim()) {
+        query = query.ilike('name', `%${entitySearchTerm.trim()}%`)
+      }
+      
+      query = query.order('name').limit(50)
+      
+      const { data, error } = await query
+      
+      if (error) {
+        console.error('Error fetching entities:', error)
+        throw error
+      }
+      
+      // Map category back to type for LinkRef compatibility
+      const mappedData = (data || []).map(item => ({
+        id: item.id,
+        name: item.name,
+        type: item.category?.replace(/s$/, '') || 'item' // Remove plural 's'
+      }))
+      
+      setAvailableEntities(mappedData)
+    } catch (error: any) {
+      console.error('Error fetching entities:', error?.message || error)
+      // Only show toast if it's not just an empty result
+      if (error?.message && !error.message.includes('no rows')) {
+        toast.error('Failed to load entities')
+      }
+    } finally {
+      setIsLoadingEntities(false)
+    }
+  }, [projectId, initial?.id, selectedEntityType, entitySearchTerm])
+  
+  // Add entity link
+  const handleAddEntityLink = (entity: { id: string; name: string; type: string }) => {
+    // Check if already linked
+    if (links.some(link => link.id === entity.id)) {
+      toast.error('This entity is already linked')
+      return
+    }
+    
+    const newLink: LinkRef = {
+      id: entity.id,
+      name: entity.name,
+      type: entity.type as 'character' | 'location' | 'item' | 'faction'
+    }
+    
+    setLinks(prev => [...prev, newLink])
+    toast.success(`Linked to ${entity.name}`)
+  }
+
+  // Auto-fetch entities when Related tab is opened or filters change
+  useEffect(() => {
+    if (activeTab === 'links') {
+      fetchAvailableEntities()
+    }
+  }, [activeTab, fetchAvailableEntities])
+
   // Save handler
   const handleSave = async (closeAfter: boolean = false) => {
     if (!name.trim()) {
@@ -848,49 +942,128 @@ function ItemEditorDialog({ open, onOpenChange, initial, onSave, onDelete, onDup
   const formContent = (
     <>
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
-          <TabsList className="w-full justify-start rounded-none border-b bg-transparent px-6 h-auto py-0">
-            <TabsTrigger value="basic" className="rounded-none border-b-2 border-transparent data-[state=active]:border-indigo-500">
-              Basic Info
-            </TabsTrigger>
-            <TabsTrigger value="overview" className="rounded-none border-b-2 border-transparent data-[state=active]:border-indigo-500">
-              Overview
-            </TabsTrigger>
-            <TabsTrigger value="abilities" className="rounded-none border-b-2 border-transparent data-[state=active]:border-indigo-500">
-              Abilities
-            </TabsTrigger>
-            <TabsTrigger value="images" className="rounded-none border-b-2 border-transparent data-[state=active]:border-indigo-500">
-              Images
-            </TabsTrigger>
-            <TabsTrigger value="history" className="rounded-none border-b-2 border-transparent data-[state=active]:border-indigo-500">
-              History
-            </TabsTrigger>
-            <TabsTrigger value="links" className="rounded-none border-b-2 border-transparent data-[state=active]:border-indigo-500">
-              Related
-            </TabsTrigger>
-            <TabsTrigger value="stats" className="rounded-none border-b-2 border-transparent data-[state=active]:border-indigo-500">
-              Stats
-            </TabsTrigger>
-            <TabsTrigger value="custom" className="rounded-none border-b-2 border-transparent data-[state=active]:border-indigo-500">
-              Custom
-            </TabsTrigger>
+          <TabsList className="w-full justify-start rounded-none border-b bg-white shadow-sm px-0 h-auto py-0 sticky top-0 z-10 backdrop-blur-sm bg-white/95">
+            <div className="w-full max-w-7xl mx-auto px-6 flex items-center overflow-x-auto scrollbar-hide">
+              <TabsTrigger 
+                value="basic" 
+                className="relative rounded-none border-b-2 border-transparent data-[state=active]:border-indigo-500 hover:bg-gray-50 data-[state=active]:bg-indigo-50/50 transition-all duration-200 gap-2 px-4 py-3 font-medium text-sm whitespace-nowrap group"
+              >
+                <div className="flex items-center gap-2">
+                  <Package className="w-4 h-4 text-gray-500 group-data-[state=active]:text-indigo-600 transition-colors" />
+                  <span className="text-gray-600 group-data-[state=active]:text-indigo-900 transition-colors">Basic Info</span>
+                </div>
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-indigo-500 to-purple-500 transform scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-300 rounded-full" />
+              </TabsTrigger>
+              
+              <TabsTrigger 
+                value="overview" 
+                className="relative rounded-none border-b-2 border-transparent data-[state=active]:border-blue-500 hover:bg-gray-50 data-[state=active]:bg-blue-50/50 transition-all duration-200 gap-2 px-4 py-3 font-medium text-sm whitespace-nowrap group"
+              >
+                <div className="flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-gray-500 group-data-[state=active]:text-blue-600 transition-colors" />
+                  <span className="text-gray-600 group-data-[state=active]:text-blue-900 transition-colors">Overview</span>
+                </div>
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 to-cyan-500 transform scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-300 rounded-full" />
+              </TabsTrigger>
+              
+              <TabsTrigger 
+                value="abilities" 
+                className="relative rounded-none border-b-2 border-transparent data-[state=active]:border-purple-500 hover:bg-gray-50 data-[state=active]:bg-purple-50/50 transition-all duration-200 gap-2 px-4 py-3 font-medium text-sm whitespace-nowrap group"
+              >
+                <div className="flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-gray-500 group-data-[state=active]:text-purple-600 transition-colors" />
+                  <span className="text-gray-600 group-data-[state=active]:text-purple-900 transition-colors">Abilities</span>
+                </div>
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-purple-500 to-pink-500 transform scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-300 rounded-full" />
+              </TabsTrigger>
+              
+              <TabsTrigger 
+                value="images" 
+                className="relative rounded-none border-b-2 border-transparent data-[state=active]:border-emerald-500 hover:bg-gray-50 data-[state=active]:bg-emerald-50/50 transition-all duration-200 gap-2 px-4 py-3 font-medium text-sm whitespace-nowrap group"
+              >
+                <div className="flex items-center gap-2">
+                  <ImageIcon className="w-4 h-4 text-gray-500 group-data-[state=active]:text-emerald-600 transition-colors" />
+                  <span className="text-gray-600 group-data-[state=active]:text-emerald-900 transition-colors">Images</span>
+                </div>
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-emerald-500 to-teal-500 transform scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-300 rounded-full" />
+              </TabsTrigger>
+              
+              <TabsTrigger 
+                value="history" 
+                className="relative rounded-none border-b-2 border-transparent data-[state=active]:border-amber-500 hover:bg-gray-50 data-[state=active]:bg-amber-50/50 transition-all duration-200 gap-2 px-4 py-3 font-medium text-sm whitespace-nowrap group"
+              >
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-gray-500 group-data-[state=active]:text-amber-600 transition-colors" />
+                  <span className="text-gray-600 group-data-[state=active]:text-amber-900 transition-colors">History</span>
+                </div>
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-amber-500 to-orange-500 transform scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-300 rounded-full" />
+              </TabsTrigger>
+              
+              <TabsTrigger 
+                value="links" 
+                className="relative rounded-none border-b-2 border-transparent data-[state=active]:border-rose-500 hover:bg-gray-50 data-[state=active]:bg-rose-50/50 transition-all duration-200 gap-2 px-4 py-3 font-medium text-sm whitespace-nowrap group"
+              >
+                <div className="flex items-center gap-2">
+                  <Link2 className="w-4 h-4 text-gray-500 group-data-[state=active]:text-rose-600 transition-colors" />
+                  <span className="text-gray-600 group-data-[state=active]:text-rose-900 transition-colors">Related</span>
+                </div>
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-rose-500 to-pink-500 transform scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-300 rounded-full" />
+              </TabsTrigger>
+              
+              <TabsTrigger 
+                value="stats" 
+                className="relative rounded-none border-b-2 border-transparent data-[state=active]:border-green-500 hover:bg-gray-50 data-[state=active]:bg-green-50/50 transition-all duration-200 gap-2 px-4 py-3 font-medium text-sm whitespace-nowrap group"
+              >
+                <div className="flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4 text-gray-500 group-data-[state=active]:text-green-600 transition-colors" />
+                  <span className="text-gray-600 group-data-[state=active]:text-green-900 transition-colors">Stats</span>
+                </div>
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-green-500 to-emerald-500 transform scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-300 rounded-full" />
+              </TabsTrigger>
+              
+              <TabsTrigger 
+                value="custom" 
+                className="relative rounded-none border-b-2 border-transparent data-[state=active]:border-violet-500 hover:bg-gray-50 data-[state=active]:bg-violet-50/50 transition-all duration-200 gap-2 px-4 py-3 font-medium text-sm whitespace-nowrap group"
+              >
+                <div className="flex items-center gap-2">
+                  <Settings className="w-4 h-4 text-gray-500 group-data-[state=active]:text-violet-600 transition-colors" />
+                  <span className="text-gray-600 group-data-[state=active]:text-violet-900 transition-colors">Custom</span>
+                </div>
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-violet-500 to-purple-500 transform scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-300 rounded-full" />
+              </TabsTrigger>
+            </div>
           </TabsList>
 
-          <ScrollArea className="flex-1 px-6">
-            <div className="py-6 space-y-6">
+          <ScrollArea className="flex-1">
+            <div className="max-w-5xl mx-auto px-6 py-8 space-y-6">
               {/* Tab 1: Basic Info */}
-              <TabsContent value="basic" className="mt-0 space-y-4">
-                <div>
-                  <Label htmlFor="name" className="text-sm font-medium">
-                    Item Name <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Enter item name..."
-                    className="mt-1.5"
-                  />
-                </div>
+              <TabsContent value="basic" className="mt-0 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                <Card className="border-gray-200 shadow-sm">
+                  <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600">
+                        <Package className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-lg">Essential Information</CardTitle>
+                        <p className="text-sm text-gray-500 mt-0.5">Core details about this item</p>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-6 space-y-5">
+                    <div>
+                      <Label htmlFor="name" className="text-sm font-medium flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-amber-500" />
+                        Item Name <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        id="name"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="Enter item name..."
+                        className="mt-1.5 rounded-lg focus:ring-2 focus:ring-indigo-500 transition-all duration-200"
+                      />
+                    </div>
 
                 {/* STEP 7: Apply Preset Button */}
                 {!initial && (
@@ -956,22 +1129,28 @@ function ItemEditorDialog({ open, onOpenChange, initial, onSave, onDelete, onDup
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="type" className="text-sm font-medium">Type</Label>
+                    <Label htmlFor="type" className="text-sm font-medium flex items-center gap-2">
+                      <Package className="w-4 h-4 text-blue-500" />
+                      Type
+                    </Label>
                     <Input
                       id="type"
                       value={type}
                       onChange={(e) => setType(e.target.value)}
                       placeholder="e.g., weapon, armor, tool"
-                      className="mt-1.5"
+                      className="mt-1.5 rounded-lg focus:ring-2 focus:ring-indigo-500 transition-all duration-200"
                     />
                   </div>
                   <div>
-                    <Label htmlFor="rarity" className="text-sm font-medium">Rarity</Label>
+                    <Label htmlFor="rarity" className="text-sm font-medium flex items-center gap-2">
+                      <Gem className="w-4 h-4 text-purple-500" />
+                      Rarity
+                    </Label>
                     <Select value={rarity} onValueChange={(val) => setRarity(val as Rarity)}>
-                      <SelectTrigger id="rarity" className="mt-1.5">
+                      <SelectTrigger id="rarity" className="mt-1.5 rounded-lg focus:ring-2 focus:ring-indigo-500 transition-all duration-200">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="bg-white border border-gray-200 shadow-xl rounded-lg z-50">
                         {rarities.map((r) => (
                           <SelectItem key={r} value={r}>
                             <div className="flex items-center gap-2">
@@ -988,31 +1167,40 @@ function ItemEditorDialog({ open, onOpenChange, initial, onSave, onDelete, onDup
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="value" className="text-sm font-medium">Value</Label>
+                    <Label htmlFor="value" className="text-sm font-medium flex items-center gap-2">
+                      <span className="text-amber-500 text-base">🪙</span>
+                      Value (Gold)
+                    </Label>
                     <Input
                       id="value"
                       type="number"
                       value={value}
                       onChange={(e) => setValue(e.target.value)}
                       placeholder="0"
-                      className="mt-1.5"
+                      className="mt-1.5 rounded-lg focus:ring-2 focus:ring-indigo-500 transition-all duration-200"
                     />
                   </div>
                   <div>
-                    <Label htmlFor="weight" className="text-sm font-medium">Weight</Label>
+                    <Label htmlFor="weight" className="text-sm font-medium flex items-center gap-2">
+                      <Scale className="w-4 h-4 text-gray-500" />
+                      Weight (lbs)
+                    </Label>
                     <Input
                       id="weight"
                       type="number"
                       value={weight}
                       onChange={(e) => setWeight(e.target.value)}
                       placeholder="0"
-                      className="mt-1.5"
+                      className="mt-1.5 rounded-lg focus:ring-2 focus:ring-indigo-500 transition-all duration-200"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <Label htmlFor="tags" className="text-sm font-medium">Tags</Label>
+                  <Label htmlFor="tags" className="text-sm font-medium flex items-center gap-2">
+                    <Tag className="w-4 h-4 text-indigo-500" />
+                    Tags
+                  </Label>
                   <div className="flex flex-wrap gap-2 mt-1.5 mb-2">
                     {tags.map((tag, idx) => (
                       <Badge key={idx} variant="secondary" className="gap-1">
@@ -1033,62 +1221,104 @@ function ItemEditorDialog({ open, onOpenChange, initial, onSave, onDelete, onDup
                     onChange={(e) => setTagInput(e.target.value)}
                     onKeyDown={handleAddTag}
                     placeholder="Type tag and press Enter..."
+                    className="rounded-lg"
                   />
                 </div>
-              </TabsContent>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
               {/* Tab 2: Overview */}
-              <TabsContent value="overview" className="mt-0 space-y-4">
-                <div>
-                  <Label htmlFor="description" className="text-sm font-medium">Description</Label>
-                  <Textarea
-                    id="description"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Describe this item in detail..."
-                    rows={12}
-                    className="mt-1.5"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1.5">
-                    Provide a detailed description of the item's appearance, purpose, and significance.
-                  </p>
-                </div>
+              <TabsContent value="overview" className="mt-0 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                <Card className="border-gray-200 shadow-sm">
+                  <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-600">
+                        <FileText className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-lg">Item Overview</CardTitle>
+                        <p className="text-sm text-gray-500 mt-0.5">Detailed description and narrative</p>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-6 space-y-5">
+                    <div>
+                      <Label htmlFor="description" className="text-sm font-medium flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-gray-500" />
+                        Description
+                      </Label>
+                      <Textarea
+                        id="description"
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        placeholder="Describe this item in detail..."
+                        rows={12}
+                        className="mt-1.5 rounded-lg focus:ring-2 focus:ring-indigo-500 transition-all duration-200"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1.5 flex items-center gap-1.5">
+                        <span className="text-gray-400">{description.length} characters</span>
+                        <span className="text-gray-300">•</span>
+                        <span className="text-gray-500">Provide a detailed description of the item's appearance, purpose, and significance.</span>
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
               </TabsContent>
 
               {/* Tab 3: Abilities & Magical Properties */}
-              <TabsContent value="abilities" className="mt-0 space-y-4">
-                <div>
-                  <Label className="text-sm font-medium mb-3 block">Abilities & Magical Properties</Label>
+              <TabsContent value="abilities" className="mt-0 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                <Card className="border-gray-200 shadow-sm">
+                  <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-gradient-to-br from-purple-500 to-pink-600">
+                        <Zap className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-lg">Abilities & Powers</CardTitle>
+                        <p className="text-sm text-gray-500 mt-0.5">Magical properties and special abilities</p>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-6 space-y-5">
+                    <div>
+                      <Label className="text-sm font-medium mb-3 flex items-center gap-2">
+                        <Zap className="w-4 h-4 text-amber-500" />
+                        Abilities & Magical Properties
+                      </Label>
                   
-                  {/* Property Form */}
-                  <div className="space-y-3 p-4 bg-muted/30 rounded-lg mb-4">
-                    <Input
-                      placeholder="Ability title..."
-                      value={propertyForm.title}
-                      onChange={(e) => setPropertyForm(prev => ({ ...prev, title: e.target.value }))}
-                    />
-                    <Textarea
-                      placeholder="Details (optional)..."
-                      value={propertyForm.details}
-                      onChange={(e) => setPropertyForm(prev => ({ ...prev, details: e.target.value }))}
-                      rows={2}
-                    />
-                    <div className="flex gap-2">
-                      <Input
-                        type="number"
-                        placeholder="Power level (optional)"
-                        value={propertyForm.power}
-                        onChange={(e) => setPropertyForm(prev => ({ ...prev, power: e.target.value }))}
-                        className="flex-1"
-                      />
-                      <Button
-                        type="button"
-                        onClick={handleSaveProperty}
-                        disabled={!propertyForm.title.trim()}
-                        size="sm"
-                      >
-                        {editingProperty ? 'Update' : 'Add'} Property
-                      </Button>
+                      {/* Property Form */}
+                      <div className="space-y-3 p-4 bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg mb-4">
+                        <Input
+                          placeholder="Ability title..."
+                          value={propertyForm.title}
+                          onChange={(e) => setPropertyForm(prev => ({ ...prev, title: e.target.value }))}
+                          className="bg-white rounded-lg"
+                        />
+                        <Textarea
+                          placeholder="Details (optional)..."
+                          value={propertyForm.details}
+                          onChange={(e) => setPropertyForm(prev => ({ ...prev, details: e.target.value }))}
+                          rows={2}
+                          className="bg-white rounded-lg"
+                        />
+                        <div className="flex gap-2">
+                          <Input
+                            type="number"
+                            placeholder="Power level (optional)"
+                            value={propertyForm.power}
+                            onChange={(e) => setPropertyForm(prev => ({ ...prev, power: e.target.value }))}
+                            className="flex-1 bg-white rounded-lg"
+                          />
+                          <Button
+                            type="button"
+                            onClick={handleSaveProperty}
+                            disabled={!propertyForm.title.trim()}
+                            size="sm"
+                            className="bg-purple-600 hover:bg-purple-700"
+                          >
+                            {editingProperty ? 'Update' : 'Add'} Property
+                          </Button>
                       {editingProperty && (
                         <Button
                           type="button"
@@ -1136,18 +1366,38 @@ function ItemEditorDialog({ open, onOpenChange, initial, onSave, onDelete, onDup
                       </SortableContext>
                     </DndContext>
                   ) : (
-                    <div className="text-center py-8 text-sm text-muted-foreground">
-                      No abilities added yet. Add magical properties or special abilities above.
+                    <div className="text-center py-8 text-sm text-muted-foreground bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
+                      <Zap className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                      <p>No abilities added yet.</p>
+                      <p className="text-xs mt-1">Add magical properties or special abilities above.</p>
                     </div>
                   )}
                 </div>
-              </TabsContent>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
               {/* Tab 4: Images */}
-              <TabsContent value="images" className="mt-0 space-y-4">
-                <div>
-                  <Label className="text-sm font-medium text-gray-700">Images</Label>
-                  <p className="text-xs text-gray-500 mt-1 mb-3">Add images of this item. You can include multiple images with names, descriptions, and reference links.</p>
+              <TabsContent value="images" className="mt-0 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                <Card className="border-gray-200 shadow-sm">
+                  <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600">
+                        <ImageIcon className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-lg">Visual Gallery</CardTitle>
+                        <p className="text-sm text-gray-500 mt-0.5">Images and visual references</p>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-6 space-y-5">
+                    <div>
+                      <Label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                        <ImageIcon className="w-4 h-4 text-teal-500" />
+                        Images
+                      </Label>
+                      <p className="text-xs text-gray-500 mt-1 mb-3">Add images of this item. You can include multiple images with names, descriptions, and reference links.</p>
                   <div className="space-y-3 mt-2">
                     {images.map((image, idx) => (
                       <MediaItemInput
@@ -1169,113 +1419,266 @@ function ItemEditorDialog({ open, onOpenChange, initial, onSave, onDelete, onDup
                         storageBucket="item-images"
                       />
                     ))}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setImages([...images, { name: '', imageUrls: undefined, link: undefined }])}
-                      className="w-full border-2 border-indigo-200 hover:border-indigo-300 hover:bg-indigo-50"
-                    >
-                      <Plus className="w-4 h-4 mr-1" />
-                      Add Image
-                    </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setImages([...images, { name: '', imageUrls: undefined, link: undefined }])}
+                        className="w-full border-2 border-emerald-200 hover:border-emerald-300 hover:bg-emerald-50 rounded-lg transition-all duration-200"
+                      >
+                        <Plus className="w-4 h-4 mr-1" />
+                        Add Image
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              </TabsContent>
+                </CardContent>
+              </Card>
+            </TabsContent>
 
               {/* Tab 5: History & Origins */}
-              <TabsContent value="history" className="mt-0 space-y-4">
-                <div>
-                  <Label htmlFor="history" className="text-sm font-medium">History & Origins</Label>
-                  <Textarea
-                    id="history"
-                    value={history}
-                    onChange={(e) => setHistory(e.target.value)}
-                    placeholder="Describe the item's history, origins, and past owners..."
-                    rows={10}
-                    className="mt-1.5"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="originYear" className="text-sm font-medium">Origin Year (optional)</Label>
-                  <Input
-                    id="originYear"
-                    type="number"
-                    value={originYear}
-                    onChange={(e) => setOriginYear(e.target.value)}
-                    placeholder="e.g., 1247"
-                    className="mt-1.5"
-                  />
-                </div>
+              <TabsContent value="history" className="mt-0 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                <Card className="border-gray-200 shadow-sm">
+                  <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600">
+                        <Clock className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-lg">History & Origins</CardTitle>
+                        <p className="text-sm text-gray-500 mt-0.5">Past events and original creation</p>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-6 space-y-5">
+                    <div>
+                      <Label htmlFor="history" className="text-sm font-medium flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-amber-500" />
+                        History & Origins
+                      </Label>
+                      <Textarea
+                        id="history"
+                        value={history}
+                        onChange={(e) => setHistory(e.target.value)}
+                        placeholder="Describe the item's history, origins, and past owners..."
+                        rows={10}
+                        className="mt-1.5 rounded-lg focus:ring-2 focus:ring-indigo-500 transition-all duration-200"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="originYear" className="text-sm font-medium flex items-center gap-2">
+                        <span className="text-base">📅</span>
+                        Origin Year (optional)
+                      </Label>
+                      <Input
+                        id="originYear"
+                        type="number"
+                        value={originYear}
+                        onChange={(e) => setOriginYear(e.target.value)}
+                        placeholder="e.g., 1247"
+                        className="mt-1.5 rounded-lg focus:ring-2 focus:ring-indigo-500 transition-all duration-200"
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
               </TabsContent>
 
               {/* Tab 6: Related People & Places */}
-              <TabsContent value="links" className="mt-0 space-y-4">
-                <div>
-                  <Label className="text-sm font-medium mb-3 block">Related People & Places</Label>
-                  {links.length > 0 ? (
-                    <div className="flex flex-wrap gap-2 mb-4">
-                      {links.map((link) => {
-                        const Icon =
-                          link.type === 'character' ? Users :
-                          link.type === 'location' ? MapPin :
-                          link.type === 'faction' ? Users :
-                          Package
-                        return (
-                          <Badge key={link.id} variant="outline" className="gap-1.5">
-                            <Icon className="w-3 h-3" />
-                            {link.name}
-                            <button
-                              type="button"
-                              onClick={() => setLinks(prev => prev.filter(l => l.id !== link.id))}
-                              className="ml-1 hover:text-red-600"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                          </Badge>
-                        )
-                      })}
+              <TabsContent value="links" className="mt-0 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                <Card className="border-gray-200 shadow-sm">
+                  <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-gradient-to-br from-rose-500 to-pink-600">
+                        <Link2 className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-lg">Related Entities</CardTitle>
+                        <p className="text-sm text-gray-500 mt-0.5">Link to characters, locations, and other items</p>
+                      </div>
                     </div>
-                  ) : (
-                    <div className="text-center py-8 text-sm text-muted-foreground">
-                      No related entities yet. Link this item to characters, locations, or other items.
+                  </CardHeader>
+                  <CardContent className="pt-6 space-y-5">
+                    <div>
+                      <Label className="text-sm font-medium mb-3 flex items-center gap-2">
+                        <Link2 className="w-4 h-4 text-rose-500" />
+                        Related People & Places
+                      </Label>
+                      
+                      {/* Current Links */}
+                      {links.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                          {links.map((link) => {
+                            const Icon =
+                              link.type === 'character' ? Users :
+                              link.type === 'location' ? MapPin :
+                              link.type === 'faction' ? Users :
+                              Package
+                            return (
+                              <Badge key={link.id} variant="outline" className="gap-1.5 bg-white">
+                                <Icon className="w-3 h-3" />
+                                {link.name}
+                                <button
+                                  type="button"
+                                  onClick={() => setLinks(prev => prev.filter(l => l.id !== link.id))}
+                                  className="ml-1 hover:text-red-600 transition-colors"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </Badge>
+                            )
+                          })}
+                        </div>
+                      )}
+                      
+                      {/* Entity Search & Filter */}
+                      <div className="space-y-3 p-4 bg-gradient-to-r from-rose-50 to-pink-50 border border-rose-200 rounded-lg">
+                        <div className="flex gap-2">
+                          <div className="relative flex-1">
+                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                            <Input
+                              placeholder="Search entities..."
+                              value={entitySearchTerm}
+                              onChange={(e) => setEntitySearchTerm(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  fetchAvailableEntities()
+                                }
+                              }}
+                              className="pl-10 bg-white rounded-lg"
+                            />
+                          </div>
+                          <Select value={selectedEntityType} onValueChange={(val) => setSelectedEntityType(val as any)}>
+                            <SelectTrigger className="w-32 bg-white rounded-lg">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="bg-white border border-gray-200 shadow-xl rounded-lg z-50">
+                              <SelectItem value="all">All Types</SelectItem>
+                              <SelectItem value="character">Characters</SelectItem>
+                              <SelectItem value="location">Locations</SelectItem>
+                              <SelectItem value="item">Items</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        {/* Available Entities List */}
+                        {isLoadingEntities && (
+                          <div className="text-center py-8 bg-white rounded-lg border-2 border-gray-200">
+                            <Loader2 className="w-8 h-8 mx-auto mb-2 text-rose-500 animate-spin" />
+                            <p className="text-sm text-muted-foreground">Loading entities...</p>
+                          </div>
+                        )}
+                        
+                        {availableEntities.length > 0 && !isLoadingEntities && (
+                          <div className="max-h-64 overflow-y-auto space-y-2 bg-white rounded-lg p-3 border border-gray-200">
+                            {availableEntities.map((entity) => {
+                              const Icon =
+                                entity.type === 'character' ? Users :
+                                entity.type === 'location' ? MapPin :
+                                Package
+                              const isLinked = links.some(link => link.id === entity.id)
+                              
+                              return (
+                                <button
+                                  key={entity.id}
+                                  type="button"
+                                  onClick={() => handleAddEntityLink(entity)}
+                                  disabled={isLinked}
+                                  className={`w-full text-left p-3 rounded-lg border-2 transition-all duration-200 ${
+                                    isLinked
+                                      ? 'bg-gray-50 border-gray-200 opacity-50 cursor-not-allowed'
+                                      : 'bg-white border-gray-200 hover:border-rose-300 hover:bg-rose-50'
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <Icon className="w-4 h-4 text-gray-500" />
+                                      <span className="font-medium text-sm">{entity.name}</span>
+                                    </div>
+                                    <Badge variant="secondary" className="text-xs">
+                                      {entity.type}
+                                    </Badge>
+                                  </div>
+                                  {isLinked && (
+                                    <p className="text-xs text-gray-500 mt-1">Already linked</p>
+                                  )}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        )}
+                        
+                        {availableEntities.length === 0 && !isLoadingEntities && (
+                          <div className="text-center py-8 bg-white rounded-lg border-2 border-dashed border-gray-200">
+                            <Search className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                            <p className="text-sm text-muted-foreground">
+                              {entitySearchTerm 
+                                ? 'No entities found matching your search' 
+                                : 'No entities available to link'}
+                            </p>
+                            {!entitySearchTerm && (
+                              <p className="text-xs text-gray-400 mt-1">Create characters, locations, or other items first</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      
+                      {links.length === 0 && (
+                        <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200 mt-4">
+                          <Link2 className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                          <p className="text-sm text-muted-foreground">No related entities yet.</p>
+                          <p className="text-xs text-gray-400 mt-1">Use the search above to find and link characters, locations, or other items</p>
+                        </div>
+                      )}
                     </div>
-                  )}
-                  <p className="text-xs text-muted-foreground">
-                    Note: Entity picker will be implemented in a future update. For now, links can be added programmatically.
-                  </p>
-                </div>
+                  </CardContent>
+                </Card>
               </TabsContent>
 
               {/* Tab 7: Item Stats */}
-              <TabsContent value="stats" className="mt-0 space-y-4">
-                <div>
-                  <Label className="text-sm font-medium mb-3 block">Item Stats</Label>
+              <TabsContent value="stats" className="mt-0 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                <Card className="border-gray-200 shadow-sm">
+                  <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-gradient-to-br from-green-500 to-emerald-600">
+                        <BarChart3 className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-lg">Item Statistics</CardTitle>
+                        <p className="text-sm text-gray-500 mt-0.5">Numerical attributes and ratings</p>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-6 space-y-5">
+                    <div>
+                      <Label className="text-sm font-medium mb-3 flex items-center gap-2">
+                        <BarChart3 className="w-4 h-4 text-green-500" />
+                        Item Stats
+                      </Label>
                   
-                  {/* Add Stat Form */}
-                  <div className="flex gap-2 mb-4">
-                    <Input
-                      placeholder="Stat name..."
-                      value={statKey}
-                      onChange={(e) => setStatKey(e.target.value)}
-                      className="flex-1"
-                    />
-                    <Input
-                      type="number"
-                      placeholder="Value..."
-                      value={statValue}
-                      onChange={(e) => setStatValue(e.target.value)}
-                      className="w-32"
-                    />
-                    <Button
-                      type="button"
-                      onClick={handleAddStat}
-                      disabled={!statKey.trim() || !statValue}
-                      size="sm"
-                    >
-                      Add
-                    </Button>
-                  </div>
+                      {/* Add Stat Form */}
+                      <div className="flex gap-2 mb-4 p-4 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg">
+                        <Input
+                          placeholder="Stat name..."
+                          value={statKey}
+                          onChange={(e) => setStatKey(e.target.value)}
+                          className="flex-1 bg-white rounded-lg"
+                        />
+                        <Input
+                          type="number"
+                          placeholder="Value..."
+                          value={statValue}
+                          onChange={(e) => setStatValue(e.target.value)}
+                          className="w-32 bg-white rounded-lg"
+                        />
+                        <Button
+                          type="button"
+                          onClick={handleAddStat}
+                          disabled={!statKey.trim() || !statValue}
+                          size="sm"
+                          className="bg-green-600 hover:bg-green-700"
+                        >
+                          Add
+                        </Button>
+                      </div>
 
                   {/* Stats List */}
                   {Object.keys(stats).length > 0 ? (
@@ -1283,13 +1686,19 @@ function ItemEditorDialog({ open, onOpenChange, initial, onSave, onDelete, onDup
                       {Object.entries(stats).map(([key, val]) => (
                         <div
                           key={key}
-                          className="flex items-center justify-between p-3 bg-muted/30 rounded-lg"
+                          className="flex items-center justify-between p-4 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg hover:shadow-md transition-all duration-200"
                         >
                           <span className="text-sm font-medium capitalize">
                             {key.replace(/_/g, ' ')}
                           </span>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-bold text-indigo-600">{val}</span>
+                          <div className="flex items-center gap-3">
+                            <div className="flex-1 bg-gray-200 rounded-full h-2 w-24">
+                              <div 
+                                className="bg-gradient-to-r from-green-500 to-emerald-600 h-2 rounded-full transition-all duration-300"
+                                style={{ width: `${Math.min((val / 100) * 100, 100)}%` }}
+                              />
+                            </div>
+                            <span className="text-sm font-bold text-green-600 w-12 text-right">{val}</span>
                             <Button
                               type="button"
                               variant="ghost"
@@ -1298,7 +1707,7 @@ function ItemEditorDialog({ open, onOpenChange, initial, onSave, onDelete, onDup
                                 const { [key]: _, ...rest } = stats
                                 setStats(rest)
                               }}
-                              className="h-6 w-6 p-0 text-red-600"
+                              className="h-6 w-6 p-0 text-red-600 hover:bg-red-50"
                             >
                               <X className="w-3 h-3" />
                             </Button>
@@ -1307,52 +1716,74 @@ function ItemEditorDialog({ open, onOpenChange, initial, onSave, onDelete, onDup
                       ))}
                     </div>
                   ) : (
-                    <div className="text-center py-8 text-sm text-muted-foreground">
-                      No stats added yet. Add numerical attributes like damage, defense, speed, etc.
+                    <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
+                      <BarChart3 className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                      <p className="text-sm text-muted-foreground">No stats added yet.</p>
+                      <p className="text-xs text-gray-400 mt-1">Add numerical attributes like damage, defense, speed, etc.</p>
                     </div>
                   )}
                 </div>
-              </TabsContent>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
               {/* Tab 8: Custom Fields */}
-              <TabsContent value="custom" className="mt-0 space-y-4">
-                <div>
-                  <Label className="text-sm font-medium mb-3 block">Custom Fields</Label>
-                  
-                  {/* Add Custom Field Form */}
-                  <div className="space-y-3 p-4 bg-muted/30 rounded-lg mb-4">
-                    <Input
-                      placeholder="Field name..."
-                      value={customKey}
-                      onChange={(e) => setCustomKey(e.target.value)}
-                    />
-                    <div className="flex gap-2">
-                      <Input
-                        placeholder="Value..."
-                        type={customType === 'number' ? 'number' : 'text'}
-                        value={customValue}
-                        onChange={(e) => setCustomValue(e.target.value)}
-                        className="flex-1"
-                      />
-                      <Select value={customType} onValueChange={(val) => setCustomType(val as 'text' | 'number')}>
-                        <SelectTrigger className="w-28">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="text">Text</SelectItem>
-                          <SelectItem value="number">Number</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Button
-                        type="button"
-                        onClick={handleAddCustomField}
-                        disabled={!customKey.trim() || !customValue.trim()}
-                        size="sm"
-                      >
-                        Add
-                      </Button>
+              <TabsContent value="custom" className="mt-0 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                <Card className="border-gray-200 shadow-sm">
+                  <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600">
+                        <Settings className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-lg">Custom Fields</CardTitle>
+                        <p className="text-sm text-gray-500 mt-0.5">Additional metadata for your world</p>
+                      </div>
                     </div>
-                  </div>
+                  </CardHeader>
+                  <CardContent className="pt-6 space-y-5">
+                    <div>
+                      <Label className="text-sm font-medium mb-3 flex items-center gap-2">
+                        <Settings className="w-4 h-4 text-violet-500" />
+                        Custom Fields
+                      </Label>
+                  
+                      {/* Add Custom Field Form */}
+                      <div className="space-y-3 p-4 bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-200 rounded-lg mb-4">
+                        <Input
+                          placeholder="Field name..."
+                          value={customKey}
+                          onChange={(e) => setCustomKey(e.target.value)}
+                          className="bg-white rounded-lg"
+                        />
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="Value..."
+                            type={customType === 'number' ? 'number' : 'text'}
+                            value={customValue}
+                            onChange={(e) => setCustomValue(e.target.value)}
+                            className="flex-1 bg-white rounded-lg"
+                          />
+                          <Select value={customType} onValueChange={(val) => setCustomType(val as 'text' | 'number')}>
+                            <SelectTrigger className="w-28 bg-white rounded-lg">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="bg-white border border-gray-200 shadow-xl rounded-lg z-50">
+                              <SelectItem value="text">Text</SelectItem>
+                              <SelectItem value="number">Number</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            type="button"
+                            onClick={handleAddCustomField}
+                            disabled={!customKey.trim() || !customValue.trim()}
+                            size="sm"
+                            className="bg-violet-600 hover:bg-violet-700"
+                          >
+                            Add
+                          </Button>
+                        </div>
+                      </div>
 
                   {/* Custom Fields List */}
                   {Object.keys(customFields).length > 0 ? (
@@ -1360,16 +1791,23 @@ function ItemEditorDialog({ open, onOpenChange, initial, onSave, onDelete, onDup
                       {Object.entries(customFields).map(([key, val]) => (
                         <div
                           key={key}
-                          className="flex items-center justify-between p-3 bg-muted/30 rounded-lg"
+                          className="flex items-center justify-between p-4 bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-200 rounded-lg hover:shadow-md transition-all duration-200"
                         >
                           <div>
-                            <div className="text-sm font-medium">{key}</div>
-                            <div className="text-xs text-muted-foreground">
+                            <div className="text-sm font-medium flex items-center gap-2">
+                              {typeof val === 'number' ? (
+                                <span className="text-base">🔢</span>
+                              ) : (
+                                <FileText className="w-4 h-4 text-violet-500" />
+                              )}
+                              {key}
+                            </div>
+                            <div className="text-xs text-muted-foreground mt-0.5">
                               {typeof val === 'number' ? 'Number' : 'Text'}
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
-                            <span className="text-sm">{val}</span>
+                            <span className="text-sm font-medium">{val}</span>
                             <Button
                               type="button"
                               variant="ghost"
@@ -1378,7 +1816,7 @@ function ItemEditorDialog({ open, onOpenChange, initial, onSave, onDelete, onDup
                                 const { [key]: _, ...rest } = customFields
                                 setCustomFields(rest)
                               }}
-                              className="h-6 w-6 p-0 text-red-600"
+                              className="h-6 w-6 p-0 text-red-600 hover:bg-red-50"
                             >
                               <X className="w-3 h-3" />
                             </Button>
@@ -1387,12 +1825,16 @@ function ItemEditorDialog({ open, onOpenChange, initial, onSave, onDelete, onDup
                       ))}
                     </div>
                   ) : (
-                    <div className="text-center py-8 text-sm text-muted-foreground">
-                      No custom fields yet. Add any additional metadata specific to your world.
+                    <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
+                      <Settings className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                      <p className="text-sm text-muted-foreground">No custom fields yet.</p>
+                      <p className="text-xs text-gray-400 mt-1">Add any additional metadata specific to your world.</p>
                     </div>
                   )}
                 </div>
-              </TabsContent>
+              </CardContent>
+            </Card>
+          </TabsContent>
             </div>
           </ScrollArea>
         </Tabs>
@@ -1412,19 +1854,6 @@ function ItemEditorDialog({ open, onOpenChange, initial, onSave, onDelete, onDup
               >
                 <Trash2 className="w-4 h-4 mr-2" />
                 Delete
-              </Button>
-            )}
-            {initial && onDuplicate && (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  onDuplicate(initial)
-                  onOpenChange(false)
-                }}
-              >
-                <Copy className="w-4 h-4 mr-2" />
-                Duplicate
               </Button>
             )}
           </div>
@@ -1450,7 +1879,7 @@ function ItemEditorDialog({ open, onOpenChange, initial, onSave, onDelete, onDup
               type="button"
               onClick={() => handleSave(true)}
               disabled={saving || !name.trim()}
-              className="bg-indigo-500 hover:bg-indigo-600 text-white"
+              className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white shadow-lg hover:shadow-xl transition-all duration-200 rounded-xl px-6 py-2.5 font-medium"
             >
               {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
               Save & Close
@@ -1467,7 +1896,7 @@ function ItemEditorDialog({ open, onOpenChange, initial, onSave, onDelete, onDup
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] bg-background p-0">
+      <DialogContent className="max-w-4xl max-h-[90vh] bg-white p-0 rounded-2xl shadow-xl">
         <DialogHeader className="px-6 pt-6 pb-4 border-b">
           <DialogTitle className="text-2xl">
             {initial ? 'Edit Item' : 'Create New Item'}
@@ -1678,208 +2107,258 @@ function ItemsToolbar({
   }
 
   return (
-    <div className="sticky top-0 z-10 bg-background border-b">
-      <div className="p-4 space-y-3">
-        {/* Main toolbar row */}
-        <div className="flex items-center gap-3 flex-wrap">
-          {/* Search */}
-          <div className="relative flex-1 min-w-[240px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              ref={searchInputRef}
-              placeholder="Search items... (Press '/' to focus)"
-              value={query}
-              onChange={(e) => onQuery(e.target.value)}
-              className="pl-9 bg-background"
-            />
-          </div>
-          
-          {/* Sort */}
-          <Select value={sort} onValueChange={(value) => onSort(value as SortMode)}>
-            <SelectTrigger className="w-[180px] bg-background">
-              <ArrowUpDown className="h-4 w-4 mr-2" />
-              <SelectValue placeholder="Sort by..." />
-            </SelectTrigger>
-            <SelectContent className="bg-background">
-              <SelectItem value="name_asc">Name A→Z</SelectItem>
-              <SelectItem value="name_desc">Name Z→A</SelectItem>
-              <SelectItem value="newest">Newest First</SelectItem>
-              <SelectItem value="oldest">Oldest First</SelectItem>
-              <SelectItem value="rarity_desc">Rarity (High→Low)</SelectItem>
-            </SelectContent>
-          </Select>
-          
-          {/* Filters */}
-          <Popover open={filterPopoverOpen} onOpenChange={setFilterPopoverOpen}>
-            <PopoverTrigger asChild>
-              <Button 
-                variant="outline" 
-                className="bg-background focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-                aria-label={`Filters${activeFilterCount > 0 ? ` (${activeFilterCount} active)` : ''}`}
+    <div className="px-6 py-6">
+      <Card className="rounded-xl border border-gray-200 shadow-sm bg-white mb-6">
+        <CardContent className="p-4">
+          <div className="flex flex-col lg:flex-row gap-4">
+            {/* Search */}
+            <div className="flex-1 max-w-md">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  ref={searchInputRef}
+                  placeholder="Search items... (Press '/' to focus)"
+                  value={query}
+                  onChange={(e) => onQuery(e.target.value)}
+                  className="pl-10 rounded-xl border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
+                />
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-3 flex-wrap">
+              {/* Type Filter */}
+              {availableTypes.length > 0 && (
+                <Select 
+                  value={filters.types[0] || 'all'} 
+                  onValueChange={(value) => {
+                    if (value === 'all') {
+                      onFilters({ ...filters, types: [] })
+                    } else {
+                      onFilters({ ...filters, types: [value] })
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-[140px] rounded-xl px-4 py-3 border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200">
+                    <SelectValue placeholder="All Types" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border border-gray-200 shadow-xl rounded-xl z-50">
+                    <SelectItem value="all">All Types</SelectItem>
+                    {availableTypes.map(type => (
+                      <SelectItem key={type} value={type}>{type}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              
+              {/* Sort */}
+              <Select value={sort} onValueChange={(value) => onSort(value as SortMode)}>
+                <SelectTrigger className="w-[140px] rounded-xl px-4 py-3 border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200">
+                  <SelectValue placeholder="Sort by..." />
+                </SelectTrigger>
+                <SelectContent className="bg-white border border-gray-200 shadow-xl rounded-xl z-50">
+                  <SelectItem value="name_asc">Name A→Z</SelectItem>
+                  <SelectItem value="name_desc">Name Z→A</SelectItem>
+                  <SelectItem value="newest">Newest First</SelectItem>
+                  <SelectItem value="oldest">Oldest First</SelectItem>
+                  <SelectItem value="rarity_desc">Rarity (High→Low)</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              {/* Advanced Filters */}
+              <Popover open={filterPopoverOpen} onOpenChange={setFilterPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    className="rounded-xl px-4 py-3 border-gray-200 focus:ring-2 focus:ring-indigo-500 transition-all duration-200"
+                    aria-label={`Filters${activeFilterCount > 0 ? ` (${activeFilterCount} active)` : ''}`}
+                  >
+                    <SlidersHorizontal className="h-4 w-4 mr-2" />
+                    Filters
+                    {activeFilterCount > 0 && (
+                      <Badge variant="secondary" className="ml-2 h-5 px-1.5">
+                        {activeFilterCount}
+                      </Badge>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[320px] p-0 bg-white rounded-xl shadow-lg" align="start">
+                  <Command className="bg-white">
+                    <CommandInput placeholder="Search filters..." className="bg-white" />
+                    <CommandList>
+                      <CommandEmpty>No filters found.</CommandEmpty>
+                      
+                      {/* Types */}
+                      {availableTypes.length > 0 && (
+                        <>
+                          <CommandGroup heading="Type">
+                            {availableTypes.map(type => (
+                              <CommandItem
+                                key={type}
+                                onSelect={() => toggleType(type)}
+                                className="cursor-pointer"
+                              >
+                                <div className="flex items-center gap-2 w-full">
+                                  <Checkbox
+                                    checked={filters.types.includes(type)}
+                                    onCheckedChange={() => toggleType(type)}
+                                  />
+                                  <span className="flex-1">{type}</span>
+                                </div>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                          <CommandSeparator />
+                        </>
+                      )}
+                      
+                      {/* Rarities */}
+                      <CommandGroup heading="Rarity">
+                        {allRarities.map(rarity => (
+                          <CommandItem
+                            key={rarity}
+                            onSelect={() => toggleRarity(rarity)}
+                            className="cursor-pointer"
+                          >
+                            <div className="flex items-center gap-2 w-full">
+                              <Checkbox
+                                checked={filters.rarities.includes(rarity)}
+                                onCheckedChange={() => toggleRarity(rarity)}
+                              />
+                              <Badge className={getRarityColor(rarity)}>{rarity}</Badge>
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                      
+                      {/* Tags */}
+                      {availableTags.length > 0 && (
+                        <>
+                          <CommandSeparator />
+                          <CommandGroup heading="Tags">
+                            {availableTags.map(tag => (
+                              <CommandItem
+                                key={tag}
+                                onSelect={() => toggleTag(tag)}
+                                className="cursor-pointer"
+                              >
+                                <div className="flex items-center gap-2 w-full">
+                                  <Checkbox
+                                    checked={filters.tags.includes(tag)}
+                                    onCheckedChange={() => toggleTag(tag)}
+                                  />
+                                  <Tag className="h-3 w-3" />
+                                  <span className="flex-1">{tag}</span>
+                                </div>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </>
+                      )}
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+              
+              {/* View toggle */}
+              <div className="flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onView('grid')}
+                  className={`rounded-md px-3 transition-all duration-200 ${
+                    view === 'grid' 
+                      ? 'bg-white shadow-sm text-gray-900' 
+                      : 'hover:bg-white/60 text-gray-600'
+                  }`}
+                  aria-label="Grid view"
+                  aria-pressed={view === 'grid'}
+                >
+                  <Grid3x3 className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onView('list')}
+                  className={`rounded-md px-3 transition-all duration-200 ${
+                    view === 'list' 
+                      ? 'bg-white shadow-sm text-gray-900' 
+                      : 'hover:bg-white/60 text-gray-600'
+                  }`}
+                  aria-label="List view"
+                  aria-pressed={view === 'list'}
+                >
+                  <ListIcon className="h-4 w-4" />
+                </Button>
+              </div>
+              
+              {/* Bulk mode */}
+              <Button
+                variant={bulkMode ? "default" : "outline"}
+                onClick={() => onBulkMode(!bulkMode)}
+                className="rounded-xl px-4 py-3 border-gray-200 focus:ring-2 focus:ring-indigo-500 transition-all duration-200"
+                aria-label={bulkMode ? `Bulk mode active${selectionCount > 0 ? ` (${selectionCount} selected)` : ''}` : 'Enable bulk mode'}
+                aria-pressed={bulkMode}
               >
-                <SlidersHorizontal className="h-4 w-4 mr-2" />
-                Filters
-                {activeFilterCount > 0 && (
+                <CheckSquare className="h-4 w-4 mr-2" />
+                Bulk
+                {bulkMode && selectionCount > 0 && (
                   <Badge variant="secondary" className="ml-2 h-5 px-1.5">
-                    {activeFilterCount}
+                    {selectionCount}
                   </Badge>
                 )}
               </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-[320px] p-0 bg-background rounded-2xl shadow-lg" align="start">
-              <Command className="bg-background">
-                <CommandInput placeholder="Search filters..." className="bg-background" />
-                <CommandList>
-                  <CommandEmpty>No filters found.</CommandEmpty>
-                  
-                  {/* Types */}
-                  {availableTypes.length > 0 && (
-                    <>
-                      <CommandGroup heading="Type">
-                        {availableTypes.map(type => (
-                          <CommandItem
-                            key={type}
-                            onSelect={() => toggleType(type)}
-                            className="cursor-pointer"
-                          >
-                            <div className="flex items-center gap-2 w-full">
-                              <Checkbox
-                                checked={filters.types.includes(type)}
-                                onCheckedChange={() => toggleType(type)}
-                              />
-                              <span className="flex-1">{type}</span>
-                            </div>
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                      <CommandSeparator />
-                    </>
-                  )}
-                  
-                  {/* Rarities */}
-                  <CommandGroup heading="Rarity">
-                    {allRarities.map(rarity => (
-                      <CommandItem
-                        key={rarity}
-                        onSelect={() => toggleRarity(rarity)}
-                        className="cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2 w-full">
-                          <Checkbox
-                            checked={filters.rarities.includes(rarity)}
-                            onCheckedChange={() => toggleRarity(rarity)}
-                          />
-                          <Badge className={getRarityColor(rarity)}>{rarity}</Badge>
-                        </div>
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                  
-                  {/* Tags */}
-                  {availableTags.length > 0 && (
-                    <>
-                      <CommandSeparator />
-                      <CommandGroup heading="Tags">
-                        {availableTags.map(tag => (
-                          <CommandItem
-                            key={tag}
-                            onSelect={() => toggleTag(tag)}
-                            className="cursor-pointer"
-                          >
-                            <div className="flex items-center gap-2 w-full">
-                              <Checkbox
-                                checked={filters.tags.includes(tag)}
-                                onCheckedChange={() => toggleTag(tag)}
-                              />
-                              <Tag className="h-3 w-3" />
-                              <span className="flex-1">{tag}</span>
-                            </div>
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </>
-                  )}
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+      
+      {/* Active filter chips */}
+      {activeFilterCount > 0 && (
+        <div className="flex items-center gap-2 flex-wrap mb-4">
+          <span className="text-sm text-gray-500">Active filters:</span>
           
-          {/* View toggle */}
-          <ToggleGroup type="single" value={view} onValueChange={(val: string) => val && onView(val as ViewMode)}>
-            <ToggleGroupItem value="grid" aria-label="Grid view" className="bg-background">
-              <Grid3x3 className="h-4 w-4" />
-            </ToggleGroupItem>
-            <ToggleGroupItem value="list" aria-label="List view" className="bg-background">
-              <ListIcon className="h-4 w-4" />
-            </ToggleGroupItem>
-          </ToggleGroup>
+          {filters.types.map(type => (
+            <Badge key={`type-${type}`} variant="secondary" className="gap-1">
+              <Package className="h-3 w-3" />
+              {type}
+              <X
+                className="h-3 w-3 cursor-pointer hover:text-destructive"
+                onClick={() => removeFilter('types', type)}
+              />
+            </Badge>
+          ))}
           
-          {/* Bulk mode */}
+          {filters.rarities.map(rarity => (
+            <Badge key={`rarity-${rarity}`} className={`${getRarityColor(rarity)} gap-1`}>
+              {rarity}
+              <X
+                className="h-3 w-3 cursor-pointer hover:text-destructive"
+                onClick={() => removeFilter('rarities', rarity)}
+              />
+            </Badge>
+          ))}
+          
+          {filters.tags.map(tag => (
+            <Badge key={`tag-${tag}`} variant="outline" className="gap-1">
+              <Tag className="h-3 w-3" />
+              {tag}
+              <X
+                className="h-3 w-3 cursor-pointer hover:text-destructive"
+                onClick={() => removeFilter('tags', tag)}
+              />
+            </Badge>
+          ))}
+          
           <Button
-            variant={bulkMode ? "default" : "outline"}
-            onClick={() => onBulkMode(!bulkMode)}
-            className="bg-background focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-            aria-label={bulkMode ? `Bulk mode active${selectionCount > 0 ? ` (${selectionCount} selected)` : ''}` : 'Enable bulk mode'}
-            aria-pressed={bulkMode}
+            variant="ghost"
+            size="sm"
+            onClick={onClearFilters}
+            className="h-6 px-2 text-xs"
           >
-            <CheckSquare className="h-4 w-4 mr-2" />
-            Bulk
-            {bulkMode && selectionCount > 0 && (
-              <Badge variant="secondary" className="ml-2 h-5 px-1.5">
-                {selectionCount}
-              </Badge>
-            )}
+            Clear all
           </Button>
         </div>
-        
-        {/* Active filter chips */}
-        {activeFilterCount > 0 && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm text-muted-foreground">Active filters:</span>
-            
-            {filters.types.map(type => (
-              <Badge key={`type-${type}`} variant="secondary" className="gap-1">
-                <Package className="h-3 w-3" />
-                {type}
-                <X
-                  className="h-3 w-3 cursor-pointer hover:text-destructive"
-                  onClick={() => removeFilter('types', type)}
-                />
-              </Badge>
-            ))}
-            
-            {filters.rarities.map(rarity => (
-              <Badge key={`rarity-${rarity}`} className={`${getRarityColor(rarity)} gap-1`}>
-                {rarity}
-                <X
-                  className="h-3 w-3 cursor-pointer hover:text-destructive"
-                  onClick={() => removeFilter('rarities', rarity)}
-                />
-              </Badge>
-            ))}
-            
-            {filters.tags.map(tag => (
-              <Badge key={`tag-${tag}`} variant="outline" className="gap-1">
-                <Tag className="h-3 w-3" />
-                {tag}
-                <X
-                  className="h-3 w-3 cursor-pointer hover:text-destructive"
-                  onClick={() => removeFilter('tags', tag)}
-                />
-              </Badge>
-            ))}
-            
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onClearFilters}
-              className="h-6 px-2 text-xs"
-            >
-              Clear all
-            </Button>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   )
 }
@@ -1894,6 +2373,7 @@ interface ItemsGridProps {
   onEdit: (item: Item) => void
   onDuplicate: (item: Item) => void
   onDelete: (item: Item) => void
+  viewMode?: 'grid' | 'list'
 }
 
 function ItemsGrid({
@@ -1904,198 +2384,292 @@ function ItemsGrid({
   onQuickView,
   onEdit,
   onDuplicate,
-  onDelete
+  onDelete,
+  viewMode = 'grid'
 }: ItemsGridProps) {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   
   return (
     <>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      <div className={viewMode === 'grid' 
+        ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4' 
+        : 'space-y-3'
+      }>
         {items.map(item => {
           const isSelected = selectedIds.has(item.id)
           const firstImage = item.attributes?.images?.[0]
           const coverImage = typeof firstImage === 'string' ? firstImage : firstImage?.imageUrls?.[0]
+          const rarityColor = getRarityColor(item.attributes?.rarity)
           
+          // List View Rendering
+          if (viewMode === 'list') {
+            return (
+              <Card 
+                key={item.id} 
+                className={`group relative rounded-xl border border-gray-200/80 bg-white shadow-sm hover:shadow-xl hover:border-indigo-400/50 transition-all duration-300 cursor-pointer overflow-hidden before:absolute before:inset-0 before:bg-gradient-to-r before:from-indigo-500/0 before:via-indigo-500/5 before:to-purple-500/0 before:opacity-0 hover:before:opacity-100 before:transition-opacity before:duration-300 ${
+                  isSelected ? 'ring-2 ring-indigo-500 shadow-md' : ''
+                }`}
+                onClick={(e) => {
+                  if ((e.target as HTMLElement).closest('.dropdown-trigger')) return;
+                  if (!bulkMode) onQuickView(item);
+                }}
+              >
+                <CardContent className="p-3.5 relative z-10">
+                  <div className="flex items-center gap-4">
+                    {/* Icon Column */}
+                    <div className="relative flex-shrink-0">
+                      <div className="absolute inset-0 bg-gradient-to-br from-indigo-400 to-purple-400 rounded-lg opacity-0 group-hover:opacity-20 blur-md transition-opacity duration-300"></div>
+                      {coverImage ? (
+                        <div className="relative w-11 h-11 rounded-lg overflow-hidden border border-indigo-200/60 group-hover:border-indigo-300 group-hover:shadow-lg group-hover:scale-105 transition-all duration-300">
+                          <img 
+                            src={coverImage} 
+                            alt={item.name}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      ) : (
+                        <div className="relative w-11 h-11 rounded-lg bg-gradient-to-br from-indigo-50 via-indigo-50 to-purple-50 flex items-center justify-center border border-indigo-200/60 group-hover:border-indigo-300 group-hover:shadow-lg group-hover:scale-105 transition-all duration-300">
+                          <Package className="w-5 h-5 text-indigo-600 group-hover:scale-110 transition-transform duration-300" />
+                        </div>
+                      )}
+                      {bulkMode && (
+                        <div className="absolute -top-1 -left-1 z-10">
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={(checked) => onSelect(item.id, checked as boolean)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="bg-white shadow-md border-2"
+                          />
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Name & Description Column */}
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-gray-900 text-base truncate group-hover:text-indigo-700 transition-colors duration-300">
+                        {item.name}
+                      </h3>
+                      <p className="text-xs text-gray-600 line-clamp-1 leading-snug group-hover:text-gray-700 transition-colors duration-300">
+                        {item.description || 'No description provided'}
+                      </p>
+                    </div>
+                    
+                    {/* Type Column */}
+                    <div className="hidden md:flex items-center justify-center min-w-[120px]">
+                      {item.attributes?.type ? (
+                        <Badge 
+                          variant="secondary" 
+                          className="bg-gradient-to-r from-gray-100 to-gray-50 text-gray-700 border border-gray-200/80 text-xs font-medium px-2.5 py-1 group-hover:border-indigo-200 group-hover:from-indigo-50 group-hover:to-indigo-50/50 transition-all duration-300"
+                        >
+                          {item.attributes.type}
+                        </Badge>
+                      ) : (
+                        <span className="text-xs text-gray-400">—</span>
+                      )}
+                    </div>
+                    
+                    {/* Rarity Column */}
+                    <div className="hidden lg:flex items-center justify-center min-w-[100px]">
+                      {item.attributes?.rarity ? (
+                        <Badge 
+                          className={`${rarityColor} text-xs font-medium px-2.5 py-1 transition-all duration-300`}
+                        >
+                          {item.attributes.rarity}
+                        </Badge>
+                      ) : (
+                        <span className="text-xs text-gray-400">—</span>
+                      )}
+                    </div>
+                    
+                    {/* Value Column */}
+                    <div className="hidden lg:flex items-center justify-center min-w-[90px]">
+                      {item.attributes?.value !== undefined && item.attributes?.value !== null ? (
+                        <span className="flex items-center gap-1.5 text-xs group-hover:text-amber-600 transition-colors duration-300">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 group-hover:bg-amber-500 group-hover:shadow-sm group-hover:shadow-amber-300 transition-all duration-300"></span>
+                          <span className="font-medium">{item.attributes.value} gp</span>
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-400">—</span>
+                      )}
+                    </div>
+                    
+                    {/* Tags Column */}
+                    <div className="hidden xl:flex items-center justify-center min-w-[80px]">
+                      {item.tags && item.tags.length > 0 ? (
+                        <span className="flex items-center gap-1.5 text-xs text-gray-400 group-hover:text-indigo-600 transition-colors duration-300">
+                          <Tag className="w-3 h-3" />
+                          <span className="font-medium">{item.tags.length}</span>
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-400">—</span>
+                      )}
+                    </div>
+                    
+                    {/* Updated Column */}
+                    <div className="hidden sm:flex items-center justify-center min-w-[90px]">
+                      <div className="flex flex-col gap-0.5 items-end">
+                        <span className="text-xs text-gray-500">{relativeDate(item.updated_at)}</span>
+                        {item.attributes?.weight !== undefined && item.attributes?.weight !== null && (
+                          <span className="flex items-center gap-1 text-xs group-hover:text-blue-600 transition-colors duration-300">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 group-hover:bg-blue-500 transition-all duration-300"></span>
+                            <span className="font-medium">{item.attributes.weight} lbs</span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Actions Column */}
+                    {!bulkMode && (
+                      <div className="flex-shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => { e.stopPropagation(); onDuplicate(item); }}
+                          className="h-8 w-8 p-0 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all duration-200"
+                          title="Duplicate"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => { e.stopPropagation(); setDeleteConfirm(item.id); }}
+                          className="h-8 w-8 p-0 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+                
+                {/* Animated Bottom Border on Hover */}
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500 ease-out"></div>
+              </Card>
+            )
+          }
+          
+          // Grid View Rendering (default)
           return (
             <Card 
               key={item.id} 
-              className={`group relative overflow-hidden hover:shadow-lg transition-all duration-200 ${
-                isSelected ? 'ring-2 ring-indigo-500 shadow-md' : 'hover:border-indigo-200'
+              className={`group relative rounded-xl border border-gray-200/80 bg-white shadow-sm hover:shadow-xl hover:border-indigo-400/50 transition-all duration-300 cursor-pointer overflow-visible before:absolute before:inset-0 before:bg-gradient-to-br before:from-indigo-500/0 before:via-indigo-500/5 before:to-purple-500/0 before:opacity-0 hover:before:opacity-100 before:transition-opacity before:duration-300 ${
+                isSelected ? 'ring-2 ring-indigo-500 shadow-md' : ''
               }`}
+              onClick={(e) => {
+                if ((e.target as HTMLElement).closest('.dropdown-trigger')) return;
+                if (!bulkMode) onQuickView(item);
+              }}
             >
-              {/* Cover Image or Placeholder */}
-              <div 
-                className={`relative h-40 bg-gradient-to-br from-indigo-50 to-purple-50 flex items-center justify-center ${
-                  bulkMode ? 'cursor-default' : 'cursor-pointer'
-                }`}
-                onClick={() => !bulkMode && onQuickView(item)}
-              >
-                {coverImage ? (
-                  <img 
-                    src={coverImage} 
-                    alt={item.name}
-                    loading="lazy"
-                    className="w-full h-full object-cover blur-[0px] transition-all duration-300"
-                    style={{ backgroundColor: '#e0e7ff' }}
-                  />
-                ) : (
-                  <Gem className="w-16 h-16 text-indigo-300" />
-                )}
-                
-                {/* Checkbox overlay (bulk mode) */}
-                {bulkMode && (
-                  <div className="absolute top-2 left-2 z-10">
-                    <Checkbox
-                      checked={isSelected}
-                      onCheckedChange={(checked) => onSelect(item.id, checked as boolean)}
-                      onClick={(e) => e.stopPropagation()}
-                      className="bg-white shadow-md border-2"
-                    />
-                  </div>
-                )}
-                
-                {/* Hover actions overlay */}
+              <CardContent className="p-4 relative z-10">
+                {/* Action buttons - positioned absolute top-right */}
                 {!bulkMode && (
-                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center gap-2">
-                    <Button 
+                  <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-20">
+                    <Button
+                      variant="ghost"
                       size="sm"
-                      variant="secondary"
-                      onClick={(e) => { e.stopPropagation(); onQuickView(item) }}
-                      className="bg-white/90 hover:bg-white focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-                      aria-label={`View ${item.name}`}
+                      onClick={(e) => { e.stopPropagation(); onDuplicate(item); }}
+                      className="h-7 w-7 p-0 text-gray-400 hover:text-green-600 hover:bg-white/90 hover:shadow-md rounded-lg transition-all duration-200 backdrop-blur-sm"
+                      title="Duplicate"
                     >
-                      <Eye className="w-4 h-4 mr-1" />
-                      View
+                      <Copy className="w-3.5 h-3.5" />
                     </Button>
-                    <Button 
+                    <Button
+                      variant="ghost"
                       size="sm"
-                      variant="secondary"
-                      onClick={(e) => { e.stopPropagation(); onEdit(item) }}
-                      className="bg-white/90 hover:bg-white focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-                      aria-label={`Edit ${item.name}`}
+                      onClick={(e) => { e.stopPropagation(); setDeleteConfirm(item.id); }}
+                      className="h-7 w-7 p-0 text-gray-400 hover:text-red-600 hover:bg-white/90 hover:shadow-md rounded-lg transition-all duration-200 backdrop-blur-sm"
+                      title="Delete"
                     >
-                      <Edit3 className="w-4 h-4 mr-1" />
-                      Edit
+                      <Trash2 className="w-3.5 h-3.5" />
                     </Button>
                   </div>
                 )}
-              </div>
-              
-              <CardContent className="p-4 space-y-3">
-                {/* Header: Name + Rarity */}
-                <div className="space-y-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <h3 
-                      className="font-semibold text-base leading-tight line-clamp-2 flex-1 cursor-pointer hover:text-indigo-600 transition-colors"
-                      onClick={() => onQuickView(item)}
-                    >
-                      {item.name}
-                    </h3>
-                    
-                    {/* More actions dropdown */}
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="h-8 w-8 p-0 -mt-1 -mr-2 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-                          aria-label={`Actions for ${item.name}`}
-                        >
-                          <MoreVertical className="w-4 h-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="bg-background rounded-2xl shadow-lg w-48">
-                        <DropdownMenuItem onClick={() => onQuickView(item)}>
-                          <Eye className="w-4 h-4 mr-2" />
-                          Quick View
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onEdit(item)}>
-                          <Edit3 className="w-4 h-4 mr-2" />
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onDuplicate(item)}>
-                          <Copy className="w-4 h-4 mr-2" />
-                          Duplicate
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem 
-                          onClick={() => setDeleteConfirm(item.id)}
-                          className="text-red-600 focus:text-red-600 focus:bg-red-50"
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                  
-                  {/* Rarity badge */}
-                  {item.attributes?.rarity && (
-                    <Badge className={`${getRarityColor(item.attributes.rarity)} text-xs font-medium`}>
-                      {item.attributes.rarity}
-                    </Badge>
-                  )}
-                </div>
-                
-                {/* Description */}
-                {item.description && (
-                  <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed">
-                    {item.description}
-                  </p>
-                )}
-                
-                {/* Key Facts */}
-                <div className="space-y-1.5 text-sm">
-                  {item.attributes?.type && (
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Package className="w-3.5 h-3.5 flex-shrink-0" />
-                      <span className="truncate">{item.attributes.type}</span>
-                    </div>
-                  )}
-                  {item.attributes?.value !== undefined && item.attributes?.value !== null && (
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Sparkles className="w-3.5 h-3.5 flex-shrink-0" />
-                      <span>{item.attributes.value} gp</span>
-                    </div>
-                  )}
-                  {item.attributes?.weight !== undefined && item.attributes?.weight !== null && (
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Package className="w-3.5 h-3.5 flex-shrink-0" />
-                      <span>{item.attributes.weight} lbs</span>
-                    </div>
-                  )}
-                </div>
-                
-                {/* Tags */}
-                {item.tags && item.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-1">
-                    {item.tags.slice(0, 3).map(tag => (
-                      <Badge key={tag} variant="outline" className="text-xs font-normal">
-                        <Tag className="w-2.5 h-2.5 mr-1" />
-                        {tag}
-                      </Badge>
-                    ))}
-                    {item.tags.length > 3 && (
-                      <Badge variant="outline" className="text-xs font-normal">
-                        +{item.tags.length - 3} more
-                      </Badge>
+
+                <div className="flex items-start gap-3 mb-3">
+                  {/* Enhanced Icon with Gradient Background and Glow Effect */}
+                  <div className="relative flex-shrink-0">
+                    <div className="absolute inset-0 bg-gradient-to-br from-indigo-400 to-purple-400 rounded-xl opacity-0 group-hover:opacity-20 blur-md transition-opacity duration-300"></div>
+                    {coverImage ? (
+                      <div className="relative w-12 h-12 rounded-xl overflow-hidden border border-indigo-200/60 group-hover:border-indigo-300 group-hover:shadow-lg group-hover:scale-110 transition-all duration-300">
+                        <img 
+                          src={coverImage} 
+                          alt={item.name}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    ) : (
+                      <div className="relative w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-50 via-indigo-50 to-purple-50 flex items-center justify-center border border-indigo-200/60 group-hover:border-indigo-300 group-hover:shadow-lg group-hover:scale-110 transition-all duration-300">
+                        <Package className="w-6 h-6 text-indigo-600 group-hover:scale-110 transition-transform duration-300" />
+                      </div>
+                    )}
+                    {bulkMode && (
+                      <div className="absolute -top-1 -left-1 z-10">
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={(checked) => onSelect(item.id, checked as boolean)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="bg-white shadow-md border-2"
+                        />
+                      </div>
                     )}
                   </div>
-                )}
+                  
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-gray-900 text-base truncate group-hover:text-indigo-700 transition-colors duration-300 mb-1">
+                      {item.name}
+                    </h3>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {item.attributes?.rarity && (
+                        <Badge 
+                          variant="secondary" 
+                          className={`${rarityColor} text-xs font-medium px-2 py-0.5 group-hover:border-indigo-200 transition-all duration-300`}
+                        >
+                          {item.attributes.rarity}
+                        </Badge>
+                      )}
+                      {item.attributes?.type && (
+                        <Badge 
+                          variant="outline" 
+                          className="text-xs text-gray-600 border-gray-300 px-2 py-0.5 group-hover:border-indigo-300 group-hover:text-indigo-700 transition-all duration-300"
+                        >
+                          {item.attributes.type}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                </div>
                 
-                {/* Footer */}
-                <div className="pt-3 border-t flex items-center justify-between text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    Updated {relativeDate(item.updated_at)}
-                  </span>
-                  {item.attributes?.properties && item.attributes.properties.length > 0 && (
-                    <span className="flex items-center gap-1">
-                      <Sparkles className="w-3 h-3" />
-                      {item.attributes.properties.length} {item.attributes.properties.length === 1 ? 'property' : 'properties'}
+                <p className="text-sm text-gray-600 line-clamp-2 mb-3 leading-relaxed group-hover:text-gray-700 transition-colors duration-300 min-h-[2.5rem]">
+                  {item.description || 'No description provided'}
+                </p>
+                
+                {/* Enhanced Info Row with Icons */}
+                <div className="flex items-center gap-3 text-xs text-gray-500">
+                  {item.attributes?.value ? (
+                    <span className="flex items-center gap-1.5 group-hover:text-amber-600 transition-colors duration-300">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 group-hover:bg-amber-500 group-hover:shadow-sm group-hover:shadow-amber-300 transition-all duration-300"></span>
+                      <span className="font-medium">{item.attributes.value}gp</span>
                     </span>
-                  )}
+                  ) : null}
+                  {item.attributes?.weight ? (
+                    <span className="flex items-center gap-1.5 group-hover:text-blue-600 transition-colors duration-300">
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-400 group-hover:bg-blue-500 group-hover:shadow-sm group-hover:shadow-blue-300 transition-all duration-300"></span>
+                      <span className="font-medium">{item.attributes.weight}lbs</span>
+                    </span>
+                  ) : null}
+                  {item.tags && item.tags.length > 0 ? (
+                    <span className="flex items-center gap-1.5 text-gray-400 group-hover:text-indigo-600 transition-colors duration-300">
+                      <Tag className="w-3 h-3" />
+                      <span className="font-medium">{item.tags.length}</span>
+                    </span>
+                  ) : null}
                 </div>
               </CardContent>
+              
+              {/* Animated Bottom Border on Hover */}
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500 ease-out"></div>
             </Card>
           )
         })}
@@ -2103,7 +2677,7 @@ function ItemsGrid({
       
       {/* Delete Confirmation Dialog */}
       <Dialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
-        <DialogContent className="bg-background">
+        <DialogContent className="bg-white rounded-2xl shadow-xl">
           <DialogHeader>
             <DialogTitle>Delete Item?</DialogTitle>
             <DialogDescription>
@@ -2116,7 +2690,8 @@ function ItemsGrid({
               Cancel
             </Button>
             <Button 
-              variant="destructive" 
+              variant="destructive"
+              className="bg-red-600 hover:bg-red-700 text-white"
               onClick={() => {
                 const item = items.find(i => i.id === deleteConfirm)
                 if (item) onDelete(item)
@@ -2308,7 +2883,7 @@ function ItemsTable({
                 <MoreVertical className="w-4 h-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="bg-background w-48 rounded-2xl shadow-lg">
+            <DropdownMenuContent align="end" className="bg-white border border-gray-200 w-48 rounded-2xl shadow-xl">
               <DropdownMenuItem onClick={() => onQuickView(item)}>
                 <Eye className="w-4 h-4 mr-2" />
                 Quick View
@@ -2391,7 +2966,7 @@ function ItemsTable({
       
       {/* Delete Confirmation Dialog */}
       <Dialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
-        <DialogContent className="bg-background rounded-2xl shadow-xl">
+        <DialogContent className="bg-white rounded-2xl shadow-xl">
           <DialogHeader>
             <DialogTitle>Delete Item?</DialogTitle>
             <DialogDescription>
@@ -2408,13 +2983,13 @@ function ItemsTable({
               Cancel
             </Button>
             <Button 
-              variant="destructive" 
+              variant="destructive"
+              className="bg-red-600 hover:bg-red-700 text-white focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
               onClick={() => {
                 const item = items.find(i => i.id === deleteConfirm)
                 if (item) onDelete(item)
                 setDeleteConfirm(null)
               }}
-              className="focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
             >
               <Trash2 className="w-4 h-4 mr-2" />
               Delete
@@ -2468,14 +3043,7 @@ export default function ItemsPanel({ projectId, selectedElement, onItemsChange, 
   const [bulkRarity, setBulkRarity] = useState<Rarity>('Common')
   const [undoSnapshot, setUndoSnapshot] = useState<UndoSnapshot | null>(null)
   
-  // Legacy state (to be refactored)
-  const [editingItem, setEditingItem] = useState<Item | null>(null)
-  const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
-  const [formData, setFormData] = useState<any>({
-    name: '', description: '', type: '', rarity: 'common',
-    value: '', weight: '', properties: [], history: '', location: '', owner: ''
-  })
   
   // Computed: Apply search, sort, and filter (STEP 1 - Using helper)
   const processedItems = useMemo(() => {
@@ -2922,20 +3490,23 @@ export default function ItemsPanel({ projectId, selectedElement, onItemsChange, 
           attributes: {
             ...item.attributes,
             __deleted: true
-          },
-          deleted_at: new Date().toISOString()
+          }
         })
         .eq('id', item.id)
       
-      if (error) throw error
+      if (error) {
+        console.error('Supabase error deleting item:', error)
+        throw new Error(error.message || 'Failed to delete item')
+      }
       
       toast.success('Item moved to trash')
       onItemsChange?.()
     } catch (error) {
       // Rollback: restore item to list
       setItems(prev => [item, ...prev])
-      console.error('Error deleting item:', error)
-      toast.error('Failed to delete item')
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete item'
+      console.error('Error deleting item:', errorMessage, error)
+      toast.error(errorMessage)
     }
   }, [onItemsChange])
 
@@ -3156,31 +3727,6 @@ export default function ItemsPanel({ projectId, selectedElement, onItemsChange, 
     }
   }
 
-  const handleCreateItem = async () => {
-    try {
-      const itemData = { project_id: projectId, category: 'items', name: formData.name, description: formData.description, attributes: { ...formData }, tags: [] }
-      let result: Item
-      if (editingItem) {
-        const { data, error } = await supabase.from('world_elements').update({ ...itemData, updated_at: new Date().toISOString() }).eq('id', editingItem.id).select().single()
-        if (error) throw error
-        result = data as Item
-        setItems(prev => prev.map(i => i.id === editingItem.id ? result : i))
-      } else {
-        const { data, error } = await supabase.from('world_elements').insert(itemData).select().single()
-        if (error) throw error
-        result = data as Item
-        setItems(prev => [result, ...prev])
-      }
-      window.dispatchEvent(new CustomEvent('itemCreated', { detail: { item: result, projectId } }))
-      setShowCreateDialog(false)
-      setEditingItem(null)
-      setFormData({ name: '', description: '', type: '', rarity: 'common', value: '', weight: '', properties: [], history: '', location: '', owner: '' })
-      onItemsChange?.()
-    } catch (error) {
-      console.error('Error creating/updating item:', error)
-    }
-  }
-
   const filteredItems = items.filter(i => !searchTerm || i.name.toLowerCase().includes(searchTerm.toLowerCase()) || (i.description?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false))
 
   if (loading) {
@@ -3254,23 +3800,27 @@ export default function ItemsPanel({ projectId, selectedElement, onItemsChange, 
   return (
     <div className="h-full bg-white flex flex-col overflow-hidden">
       {/* Page Header */}
-      <div className="border-b bg-white px-6 py-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-              <Package className="w-7 h-7 text-indigo-500" />
-              Items & Artifacts
-            </h2>
-            <p className="text-sm text-gray-500">Catalog important objects, artifacts, and possessions</p>
+      <div className="sticky top-0 z-10 bg-white/90 backdrop-blur-sm border-b border-gray-100">
+        <div className="px-6 py-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="p-2.5 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl shadow-lg">
+                <Package className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Items & Artifacts</h1>
+                <p className="text-sm text-gray-500">Catalog important objects, artifacts, and possessions</p>
+              </div>
+            </div>
+            <Button 
+              onClick={handleNewItem}
+              className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white shadow-lg hover:shadow-xl transition-all duration-200 rounded-xl px-6 py-2.5 font-medium flex items-center gap-2"
+              aria-label="Create new item (Press N)"
+            >
+              <Plus className="w-4 h-4" />
+              New Item
+            </Button>
           </div>
-          <Button 
-            onClick={handleNewItem}
-            className="bg-indigo-500 hover:bg-indigo-600 text-white focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-            aria-label="Create new item (Press N)"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            New Item
-          </Button>
         </div>
       </div>
 
@@ -3310,7 +3860,7 @@ export default function ItemsPanel({ projectId, selectedElement, onItemsChange, 
 
       {/* STEP 3: Main content area with scroll */}
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-7xl mx-auto p-6">
+        <div className="px-6">
           {/* Bulk selection banner */}
           {bulkMode && processedItems.length > 0 && (
             <div className="mb-4 p-3 bg-indigo-50 border border-indigo-200 rounded-lg flex items-center justify-between">
@@ -3367,11 +3917,9 @@ export default function ItemsPanel({ projectId, selectedElement, onItemsChange, 
                 </p>
                 {!query && activeFilterCount === 0 && (
                   <Button 
-                    onClick={() => { 
-                      setEditing(null)
-                      setEditorOpen(true)
-                    }} 
-                    className="bg-indigo-500 hover:bg-indigo-600 text-white"
+                     onClick={handleNewItem}
+                      className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white shadow-lg hover:shadow-xl transition-all duration-200 rounded-xl px-6 py-2.5 font-medium flex items-center gap-2"
+                      aria-label="Create new item (Press N)"
                   >
                     <Plus className="w-4 h-4 mr-2" />
                     Create Your First Item
@@ -3380,70 +3928,21 @@ export default function ItemsPanel({ projectId, selectedElement, onItemsChange, 
               </CardContent>
             </Card>
           ) : (
-            /* STEP 3: Grid or List view */
-            view === 'grid' ? (
-              <ItemsGrid
-                items={processedItems}
-                bulkMode={bulkMode}
-                selectedIds={selectedIds}
-                onSelect={handleSelect}
-                onQuickView={handleQuickView}
-                onEdit={handleEdit}
-                onDuplicate={handleDuplicate}
-                onDelete={handleDelete}
-              />
-            ) : (
-              <ItemsTable
-                items={processedItems}
-                bulkMode={bulkMode}
-                selectedIds={selectedIds}
-                onSelect={handleSelect}
-                onSelectAll={handleSelectAll}
-                onQuickView={handleQuickView}
-                onEdit={handleEdit}
-                onDuplicate={handleDuplicate}
-                onDelete={handleDelete}
-              />
-            )
+            /* STEP 3: Unified view - both grid and list */
+            <ItemsGrid
+              items={processedItems}
+              bulkMode={bulkMode}
+              selectedIds={selectedIds}
+              onSelect={handleSelect}
+              onQuickView={handleQuickView}
+              onEdit={handleEdit}
+              onDuplicate={handleDuplicate}
+              onDelete={handleDelete}
+              viewMode={view}
+            />
           )}
         </div>
       </div>
-
-      {/* Legacy Dialog - to be refactored */}
-      <Dialog open={showCreateDialog} onOpenChange={(open) => { setShowCreateDialog(open); if (!open) { setEditingItem(null); setFormData({ name: '', description: '', type: '', rarity: 'common', value: '', weight: '', properties: [], history: '', location: '', owner: '' }); onClearSelection?.() } }}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-background">
-          <DialogHeader>
-            <DialogTitle>{editingItem ? 'Edit Item' : 'Create New Item'}</DialogTitle>
-            <DialogDescription>Define an important object or artifact.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-6 py-4">
-            <div>
-              <Label htmlFor="name">Item Name</Label>
-              <Input id="name" value={formData.name} onChange={(e) => setFormData((prev: any) => ({ ...prev, name: e.target.value }))} placeholder="Item name..." />
-            </div>
-            <div>
-              <Label htmlFor="description">Description</Label>
-              <Textarea id="description" value={formData.description} onChange={(e) => setFormData((prev: any) => ({ ...prev, description: e.target.value }))} placeholder="Describe this item..." rows={3} />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="type">Type</Label>
-                <Input id="type" value={formData.type} onChange={(e) => setFormData((prev: any) => ({ ...prev, type: e.target.value }))} placeholder="e.g., weapon, armor, tool" />
-              </div>
-              <div>
-                <Label htmlFor="rarity">Rarity</Label>
-                <Input id="rarity" value={formData.rarity} onChange={(e) => setFormData((prev: any) => ({ ...prev, rarity: e.target.value }))} placeholder="common, rare, legendary" />
-              </div>
-            </div>
-          </div>
-          <div className="flex justify-end gap-2 pt-4 border-t">
-            <Button variant="outline" onClick={() => { setShowCreateDialog(false); setEditingItem(null); setFormData({ name: '', description: '', type: '', rarity: 'common', value: '', weight: '', properties: [], history: '', location: '', owner: '' }); onClearSelection?.() }}>Cancel</Button>
-            <Button onClick={handleCreateItem} className="bg-indigo-500 hover:bg-indigo-600 text-white" disabled={!formData.name.trim()}>
-              {editingItem ? 'Update' : 'Create'} Item
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* STEP 5: Quick View Drawer */}
       <ItemQuickView
@@ -3468,7 +3967,7 @@ export default function ItemsPanel({ projectId, selectedElement, onItemsChange, 
 
       {/* STEP 9: Add Tag Dialog */}
       <Dialog open={showAddTagDialog} onOpenChange={setShowAddTagDialog}>
-        <DialogContent className="sm:max-w-md rounded-2xl shadow-xl bg-background">
+        <DialogContent className="sm:max-w-md rounded-2xl shadow-xl bg-white">
           <DialogHeader>
             <DialogTitle>Add Tag to Selected Items</DialogTitle>
             <DialogDescription>
@@ -3539,7 +4038,7 @@ export default function ItemsPanel({ projectId, selectedElement, onItemsChange, 
 
       {/* STEP 9: Set Rarity Dialog */}
       <Dialog open={showSetRarityDialog} onOpenChange={setShowSetRarityDialog}>
-        <DialogContent className="sm:max-w-md rounded-2xl shadow-xl bg-background">
+        <DialogContent className="sm:max-w-md rounded-2xl shadow-xl bg-white">
           <DialogHeader>
             <DialogTitle>Set Rarity for Selected Items</DialogTitle>
             <DialogDescription>
