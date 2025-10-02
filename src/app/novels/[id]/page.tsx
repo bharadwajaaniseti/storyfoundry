@@ -192,6 +192,44 @@ function NovelPageInner() {
     category: string
   } | null>(null)
 
+  // Hook for dynamic context menu dimensions
+  const useContextMenuDimensions = () => {
+    const [dimensions, setDimensions] = useState({ width: 200, height: 300 })
+    
+    const measureMenu = useCallback((menuElement: HTMLElement | null) => {
+      if (menuElement) {
+        const rect = menuElement.getBoundingClientRect()
+        setDimensions({
+          width: Math.ceil(rect.width),
+          height: Math.ceil(rect.height)
+        })
+      }
+    }, [])
+    
+    return { dimensions, measureMenu }
+  }
+
+  const { dimensions: contextMenuDimensions, measureMenu: measureContextMenu } = useContextMenuDimensions()
+
+  // Second hook for category context menu dimensions
+  const useCategoryContextMenuDimensions = () => {
+    const [dimensions, setDimensions] = useState({ width: 200, height: 100 })
+    
+    const measureMenu = useCallback((menuElement: HTMLElement | null) => {
+      if (menuElement) {
+        const rect = menuElement.getBoundingClientRect()
+        setDimensions({
+          width: Math.ceil(rect.width),
+          height: Math.ceil(rect.height)
+        })
+      }
+    }, [])
+    
+    return { dimensions, measureMenu }
+  }
+
+  const { dimensions: categoryMenuDimensions, measureMenu: measureCategoryMenu } = useCategoryContextMenuDimensions()
+
   // Drag and drop state
   const [draggedItem, setDraggedItem] = useState<{
     id: string
@@ -1841,10 +1879,67 @@ function NovelPageInner() {
   // Context menu handlers
   const handleContextMenu = (e: React.MouseEvent, categoryId: string, categoryLabel: string) => {
     e.preventDefault()
+    
+    // Get exact mouse coordinates
+    const mouseX = e.clientX
+    const mouseY = e.clientY
+    const viewportWidth = window.innerWidth
+    const viewportHeight = window.innerHeight
+    
+    // Use measured dimensions or fallback to defaults
+    const menuWidth = categoryMenuDimensions.width || 200
+    const menuHeight = categoryMenuDimensions.height || 100
+    const margin = 8
+    
+    // Calculate available space in all directions
+    const spaceRight = viewportWidth - mouseX
+    const spaceLeft = mouseX
+    const spaceBelow = viewportHeight - mouseY
+    const spaceAbove = mouseY
+    
+    // Determine horizontal position with improved logic
+    let x: number
+    if (spaceRight >= menuWidth + margin) {
+      // Show to the right (default)
+      x = mouseX + 4
+    } else if (spaceLeft >= menuWidth + margin) {
+      // Show to the left
+      x = mouseX - menuWidth - 4
+    } else {
+      // Center horizontally if neither side has enough space
+      x = Math.max(margin, Math.min(
+        mouseX - menuWidth / 2,
+        viewportWidth - menuWidth - margin
+      ))
+    }
+    
+    // Determine vertical position with improved logic
+    let y: number
+    if (spaceBelow >= menuHeight + margin) {
+      // Show below (default)
+      y = mouseY + 4
+    } else if (spaceAbove >= menuHeight + margin) {
+      // Show above - this is the key fix for bottom screen items
+      y = mouseY - menuHeight - 4
+    } else {
+      // If neither above nor below has enough space, position optimally
+      if (spaceAbove > spaceBelow) {
+        // More space above, position at top of available space
+        y = Math.max(margin, mouseY - menuHeight - 4)
+      } else {
+        // More space below, position at bottom of available space
+        y = Math.min(mouseY + 4, viewportHeight - menuHeight - margin)
+      }
+    }
+    
+    // Final viewport clamping for absolute safety
+    x = Math.max(margin, Math.min(x, viewportWidth - menuWidth - margin))
+    y = Math.max(margin, Math.min(y, viewportHeight - menuHeight - margin))
+    
     setContextMenu({
       visible: true,
-      x: e.clientX,
-      y: e.clientY,
+      x,
+      y,
       categoryId,
       categoryLabel
     })
@@ -1854,10 +1949,66 @@ function NovelPageInner() {
     e.preventDefault()
     e.stopPropagation()
     
+    // Get exact mouse coordinates
+    const mouseX = e.clientX
+    const mouseY = e.clientY
+    const viewportWidth = window.innerWidth
+    const viewportHeight = window.innerHeight
+    
+    // Use measured dimensions or fallback to defaults
+    const menuWidth = contextMenuDimensions.width || 200
+    const menuHeight = contextMenuDimensions.height || 300
+    const margin = 8
+    
+    // Calculate available space in all directions
+    const spaceRight = viewportWidth - mouseX
+    const spaceLeft = mouseX
+    const spaceBelow = viewportHeight - mouseY
+    const spaceAbove = mouseY
+    
+    // Determine horizontal position with improved logic
+    let x: number
+    if (spaceRight >= menuWidth + margin) {
+      // Show to the right (default)
+      x = mouseX + 4
+    } else if (spaceLeft >= menuWidth + margin) {
+      // Show to the left
+      x = mouseX - menuWidth - 4
+    } else {
+      // Center horizontally if neither side has enough space
+      x = Math.max(margin, Math.min(
+        mouseX - menuWidth / 2,
+        viewportWidth - menuWidth - margin
+      ))
+    }
+    
+    // Determine vertical position with improved logic
+    let y: number
+    if (spaceBelow >= menuHeight + margin) {
+      // Show below (default)
+      y = mouseY + 4
+    } else if (spaceAbove >= menuHeight + margin) {
+      // Show above - this is the key fix for bottom screen items
+      y = mouseY - menuHeight - 4
+    } else {
+      // If neither above nor below has enough space, position optimally
+      if (spaceAbove > spaceBelow) {
+        // More space above, position at top of available space
+        y = Math.max(margin, mouseY - menuHeight - 4)
+      } else {
+        // More space below, position at bottom of available space
+        y = Math.min(mouseY + 4, viewportHeight - menuHeight - margin)
+      }
+    }
+    
+    // Final viewport clamping for absolute safety
+    x = Math.max(margin, Math.min(x, viewportWidth - menuWidth - margin))
+    y = Math.max(margin, Math.min(y, viewportHeight - menuHeight - margin))
+    
     setElementContextMenu({
       visible: true,
-      x: e.clientX,
-      y: e.clientY,
+      x,
+      y,
       type,
       item,
       category
@@ -3494,6 +3645,7 @@ function NovelPageInner() {
       {/* Context Menu */}
       {contextMenu && (
         <div
+          ref={measureCategoryMenu}
           className="fixed bg-white border border-gray-200 rounded-lg shadow-lg py-2 z-50"
           style={{
             left: contextMenu.x,
@@ -3520,6 +3672,7 @@ function NovelPageInner() {
       {/* Element Context Menu */}
       {elementContextMenu?.visible && elementContextMenu.item && (
         <div
+          ref={measureContextMenu}
           className="fixed bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-50 min-w-48"
           style={{
             left: elementContextMenu.x,
