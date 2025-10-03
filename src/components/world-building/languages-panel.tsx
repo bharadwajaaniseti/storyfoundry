@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from '@/components/ui/command'
@@ -42,6 +43,12 @@ import {
 import { useToast } from '@/components/ui/toast'
 
 // Types
+interface LinkRef {
+  id: string
+  name: string
+  category: string
+}
+
 type WordEntry = {
   id: string
   term: string
@@ -272,6 +279,10 @@ export default function LanguagesPanel({ projectId, selectedElement, onLanguages
         .or('attributes->>__deleted.is.null,attributes->>__deleted.eq.false')
         .order('updated_at', { ascending: false })
       if (error) throw error
+      console.log('📚 Loaded languages from DB:', data?.length)
+      if (data && data.length > 0) {
+        console.log('📋 First language attributes:', data[0].attributes)
+      }
       setLanguages(data || [])
     } finally { setLoading(false) }
   }
@@ -331,6 +342,8 @@ export default function LanguagesPanel({ projectId, selectedElement, onLanguages
 
   const loadLanguageIntoForm = (language: any) => {
     const attrs = language.attributes || {}
+    console.log('🔍 Loading language:', language.name)
+    console.log('🔍 Loaded links from DB:', attrs.links)
     setForm({
       name: language.name || '',
       description: language.description || '',
@@ -604,6 +617,13 @@ export default function LanguagesPanel({ projectId, selectedElement, onLanguages
     languageStatuses={languageStatuses}
     writingSystems={writingSystems}
     languageId={selectedId}
+    projectId={projectId}
+    onUpdate={(updatedLanguage) => {
+      // Update the language in the local state
+      setLanguages(prev => prev.map(lang => 
+        lang.id === updatedLanguage.id ? updatedLanguage : lang
+      ))
+    }}
     metadata={currentLanguage ? {
       created_at: currentLanguage.created_at,
       updated_at: currentLanguage.updated_at
@@ -1204,6 +1224,8 @@ function LanguageWorkspace({
   languageStatuses,
   writingSystems,
   languageId,
+  projectId,
+  onUpdate,
   metadata
 }: {
   mode: 'create' | 'edit'
@@ -1214,6 +1236,8 @@ function LanguageWorkspace({
   languageStatuses: string[]
   writingSystems: string[]
   languageId?: string | null
+  projectId: string
+  onUpdate?: (language: any) => void
   metadata?: {
     created_at?: string
     updated_at?: string
@@ -1334,7 +1358,7 @@ function LanguageWorkspace({
                       <SelectTrigger id="status" className="rounded-lg">
                         <SelectValue placeholder="Select status" />
                       </SelectTrigger>
-                      <SelectContent className="bg-background">
+                      <SelectContent className="bg-white border border-gray-200 shadow-xl rounded-lg z-50">
                         {languageStatuses.map(status => (
                           <SelectItem key={status} value={status}>
                             {status.charAt(0).toUpperCase() + status.slice(1)}
@@ -1370,7 +1394,7 @@ function LanguageWorkspace({
                       <SelectTrigger id="writing_system" className="rounded-lg">
                         <SelectValue placeholder="Select writing system" />
                       </SelectTrigger>
-                      <SelectContent className="bg-background">
+                      <SelectContent className="bg-white border border-gray-200 shadow-xl rounded-lg z-50">
                         {writingSystems.map(system => (
                           <SelectItem key={system} value={system}>
                             {system.charAt(0).toUpperCase() + system.slice(1)}
@@ -1470,6 +1494,8 @@ function LanguageWorkspace({
     languageStatuses={languageStatuses}
     writingSystems={writingSystems}
     languageId={languageId}
+    projectId={projectId}
+    onUpdate={onUpdate}
     metadata={metadata}
   />
 }
@@ -1486,6 +1512,8 @@ function LanguageWorkspaceEdit({
   languageStatuses,
   writingSystems,
   languageId,
+  projectId,
+  onUpdate,
   metadata
 }: {
   form: LanguageForm
@@ -1495,6 +1523,8 @@ function LanguageWorkspaceEdit({
   languageStatuses: string[]
   writingSystems: string[]
   languageId?: string | null
+  projectId: string
+  onUpdate?: (language: any) => void
   metadata?: {
     created_at?: string
     updated_at?: string
@@ -1528,39 +1558,74 @@ function LanguageWorkspaceEdit({
   const [showBulkAdd, setShowBulkAdd] = useState(false)
   const [uploadingSymbolId, setUploadingSymbolId] = useState<string | null>(null)
 
+  // Relationships tab state
+  const [showLinkModal, setShowLinkModal] = useState(false)
+  const [linkSearchTerm, setLinkSearchTerm] = useState('')
+  const [availableElements, setAvailableElements] = useState<LinkRef[]>([])
+  const [linkCategoryFilter, setLinkCategoryFilter] = useState<string>('all')
+
   // Auto-save with debounce (600ms)
   const autoSave = useCallback(async (updatedForm: LanguageForm) => {
     if (!languageId) return
+
+    console.log('🔗 Auto-saving links:', updatedForm.links)
 
     try {
       setIsSaving(true)
       const supabase = createSupabaseClient()
       
-      const { error } = await supabase
+      // First, get the current record to preserve any existing attributes
+      const { data: currentData, error: fetchError } = await supabase
+        .from('world_elements')
+        .select('attributes')
+        .eq('id', languageId)
+        .single()
+
+      if (fetchError) throw fetchError
+
+      const currentAttributes = currentData?.attributes || {}
+
+      // Merge the updated attributes with existing ones
+      const updatedAttributes = {
+        ...currentAttributes,
+        family: updatedForm.family,
+        status: updatedForm.status,
+        speakers: updatedForm.speakers,
+        writing_system: updatedForm.writing_system,
+        sample_text: updatedForm.sample_text,
+        words: updatedForm.words,
+        word_types: updatedForm.word_types,
+        symbols: updatedForm.symbols,
+        phonology: updatedForm.phonology,
+        grammar: updatedForm.grammar,
+        links: updatedForm.links,
+        images: updatedForm.images
+      }
+
+      console.log('💾 Saving attributes with links:', updatedAttributes.links)
+      
+      const { data, error } = await supabase
         .from('world_elements')
         .update({
           name: updatedForm.name,
           description: updatedForm.description,
-          attributes: {
-            family: updatedForm.family,
-            status: updatedForm.status,
-            speakers: updatedForm.speakers,
-            writing_system: updatedForm.writing_system,
-            sample_text: updatedForm.sample_text,
-            words: updatedForm.words,
-            word_types: updatedForm.word_types,
-            symbols: updatedForm.symbols,
-            phonology: updatedForm.phonology,
-            grammar: updatedForm.grammar,
-            links: updatedForm.links,
-            images: updatedForm.images
-          },
+          attributes: updatedAttributes,
           tags: updatedForm.tags || [],
           updated_at: new Date().toISOString()
         })
         .eq('id', languageId)
+        .select()
+        .single()
 
       if (error) throw error
+
+      console.log('✅ Links saved successfully')
+      console.log('🔍 Saved data returned from DB:', data?.attributes?.links)
+
+      // Notify parent component of the update
+      if (onUpdate && data) {
+        onUpdate(data)
+      }
 
       addToast({
         type: 'success',
@@ -1802,6 +1867,107 @@ function LanguageWorkspaceEdit({
 
   // Import/Export Functions
   const exportWords = (format: 'json' | 'csv', selectedOnly: boolean = false) => {
+    const words = selectedOnly ? form.words.filter((_, i) => i < 10) : form.words // For now, export all
+    
+    if (format === 'json') {
+      const blob = new Blob([JSON.stringify(words, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${form.name || 'language'}-dictionary.json`
+      a.click()
+      URL.revokeObjectURL(url)
+      
+      addToast({
+        type: 'success',
+        title: 'Exported',
+        message: `Dictionary exported to JSON`,
+        duration: 2000
+      })
+    }
+  }
+
+  // Relationship Management Functions
+  const loadAvailableElements = async () => {
+    const supabase = createSupabaseClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    const { data, error } = await supabase
+      .from('world_elements')
+      .select('id, name, category')
+      .eq('project_id', projectId)
+      .neq('category', 'languages') // Don't show other languages (or same language)
+      .order('name')
+
+    if (!error && data) {
+      setAvailableElements(data.map((el: any) => ({ id: el.id, name: el.name, category: el.category })))
+    }
+  }
+
+  const handleOpenLinkModal = () => {
+    loadAvailableElements()
+    setShowLinkModal(true)
+  }
+
+  const handleCloseLinkModal = () => {
+    setShowLinkModal(false)
+    setLinkSearchTerm('')
+    setLinkCategoryFilter('all')
+  }
+
+  const handleAddLink = (element: LinkRef) => {
+    const existingLinks = form.links || []
+    if (existingLinks.find((l: any) => l.id === element.id)) {
+      addToast({
+        type: 'error',
+        title: 'Already linked',
+        message: `${element.name} is already linked`
+      })
+      return
+    }
+
+    const newLink = {
+      type: element.category as 'character' | 'location' | 'faction' | 'item' | 'system' | 'language',
+      id: element.id,
+      name: element.name
+    }
+    
+    const updated = {
+      ...form,
+      links: [...existingLinks, newLink]
+    }
+    setForm(updated)
+    triggerAutoSave(updated)
+    handleCloseLinkModal()
+    
+    addToast({
+      type: 'success',
+      title: 'Link added',
+      message: `Linked to ${element.name}`,
+      duration: 2000
+    })
+  }
+
+  const handleRemoveLink = (index: number) => {
+    const link = form.links?.[index]
+    const updated = {
+      ...form,
+      links: (form.links || []).filter((_, i) => i !== index)
+    }
+    setForm(updated)
+    triggerAutoSave(updated)
+    
+    addToast({
+      type: 'success',
+      title: 'Link removed',
+      message: link ? `Removed link to ${link.name}` : 'Link removed',
+      duration: 2000
+    })
+  }
+
+  // Import/Export Functions (continued)
+  const exportWordsOld = (format: 'json' | 'csv', selectedOnly: boolean = false) => {
     const words = selectedOnly ? form.words.filter((_, i) => i < 10) : form.words // For now, export all
     
     if (format === 'json') {
@@ -2312,46 +2478,77 @@ function LanguageWorkspaceEdit({
         </div>
 
         {/* Bottom Row: Tabs */}
-        <div className="px-6">
-          <div className="max-w-7xl mx-auto">
+        <div className="border-b border-gray-200 bg-white shadow-sm sticky top-0 z-10 backdrop-blur-sm bg-white/95">
+          <div className="max-w-7xl mx-auto px-6">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="w-full justify-start h-auto p-0 bg-transparent border-0 space-x-6">
-                <TabsTrigger 
-                  value="overview" 
-                  className="data-[state=active]:bg-transparent data-[state=active]:shadow-none relative px-0 pb-3 pt-2 rounded-none border-b-2 border-transparent data-[state=active]:border-amber-500 data-[state=active]:text-amber-600 font-medium transition-colors"
-                >
-                  Overview
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="dictionary" 
-                  className="data-[state=active]:bg-transparent data-[state=active]:shadow-none relative px-0 pb-3 pt-2 rounded-none border-b-2 border-transparent data-[state=active]:border-amber-500 data-[state=active]:text-amber-600 font-medium transition-colors"
-                >
-                  Dictionary
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="script" 
-                  className="data-[state=active]:bg-transparent data-[state=active]:shadow-none relative px-0 pb-3 pt-2 rounded-none border-b-2 border-transparent data-[state=active]:border-amber-500 data-[state=active]:text-amber-600 font-medium transition-colors"
-                >
-                  Script
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="phonology" 
-                  className="data-[state=active]:bg-transparent data-[state=active]:shadow-none relative px-0 pb-3 pt-2 rounded-none border-b-2 border-transparent data-[state=active]:border-amber-500 data-[state=active]:text-amber-600 font-medium transition-colors"
-                >
-                  Phonology & Grammar
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="relationships" 
-                  className="data-[state=active]:bg-transparent data-[state=active]:shadow-none relative px-0 pb-3 pt-2 rounded-none border-b-2 border-transparent data-[state=active]:border-amber-500 data-[state=active]:text-amber-600 font-medium transition-colors"
-                >
-                  Relationships
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="media" 
-                  className="data-[state=active]:bg-transparent data-[state=active]:shadow-none relative px-0 pb-3 pt-2 rounded-none border-b-2 border-transparent data-[state=active]:border-amber-500 data-[state=active]:text-amber-600 font-medium transition-colors"
-                >
-                  Media
-                </TabsTrigger>
+              <TabsList className="w-full justify-start h-auto p-0 bg-transparent border-0 overflow-x-auto scrollbar-hide">
+                <div className="flex items-center gap-0">
+                  <TabsTrigger 
+                    value="overview" 
+                    className="relative rounded-none border-b-2 border-transparent data-[state=active]:border-amber-500 hover:bg-gray-50 data-[state=active]:bg-amber-50/50 transition-all duration-200 gap-2 px-4 py-3 font-medium text-sm whitespace-nowrap group"
+                  >
+                    <div className="flex items-center gap-2">
+                      <BookOpen className="w-4 h-4 text-gray-500 group-data-[state=active]:text-amber-600 transition-colors" />
+                      <span className="text-gray-600 group-data-[state=active]:text-amber-900 transition-colors">Overview</span>
+                    </div>
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-amber-500 to-orange-500 transform scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-300 rounded-full" />
+                  </TabsTrigger>
+                  
+                  <TabsTrigger 
+                    value="dictionary" 
+                    className="relative rounded-none border-b-2 border-transparent data-[state=active]:border-blue-500 hover:bg-gray-50 data-[state=active]:bg-blue-50/50 transition-all duration-200 gap-2 px-4 py-3 font-medium text-sm whitespace-nowrap group"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Hash className="w-4 h-4 text-gray-500 group-data-[state=active]:text-blue-600 transition-colors" />
+                      <span className="text-gray-600 group-data-[state=active]:text-blue-900 transition-colors">Dictionary</span>
+                    </div>
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 to-cyan-500 transform scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-300 rounded-full" />
+                  </TabsTrigger>
+                  
+                  <TabsTrigger 
+                    value="script" 
+                    className="relative rounded-none border-b-2 border-transparent data-[state=active]:border-purple-500 hover:bg-gray-50 data-[state=active]:bg-purple-50/50 transition-all duration-200 gap-2 px-4 py-3 font-medium text-sm whitespace-nowrap group"
+                  >
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-gray-500 group-data-[state=active]:text-purple-600 transition-colors" />
+                      <span className="text-gray-600 group-data-[state=active]:text-purple-900 transition-colors">Script</span>
+                    </div>
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-purple-500 to-pink-500 transform scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-300 rounded-full" />
+                  </TabsTrigger>
+                  
+                  <TabsTrigger 
+                    value="phonology" 
+                    className="relative rounded-none border-b-2 border-transparent data-[state=active]:border-emerald-500 hover:bg-gray-50 data-[state=active]:bg-emerald-50/50 transition-all duration-200 gap-2 px-4 py-3 font-medium text-sm whitespace-nowrap group"
+                  >
+                    <div className="flex items-center gap-2">
+                      <MessageSquare className="w-4 h-4 text-gray-500 group-data-[state=active]:text-emerald-600 transition-colors" />
+                      <span className="text-gray-600 group-data-[state=active]:text-emerald-900 transition-colors">Phonology & Grammar</span>
+                    </div>
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-emerald-500 to-teal-500 transform scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-300 rounded-full" />
+                  </TabsTrigger>
+                  
+                  <TabsTrigger 
+                    value="relationships" 
+                    className="relative rounded-none border-b-2 border-transparent data-[state=active]:border-rose-500 hover:bg-gray-50 data-[state=active]:bg-rose-50/50 transition-all duration-200 gap-2 px-4 py-3 font-medium text-sm whitespace-nowrap group"
+                  >
+                    <div className="flex items-center gap-2">
+                      <LinkIcon className="w-4 h-4 text-gray-500 group-data-[state=active]:text-rose-600 transition-colors" />
+                      <span className="text-gray-600 group-data-[state=active]:text-rose-900 transition-colors">Relationships</span>
+                    </div>
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-rose-500 to-pink-500 transform scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-300 rounded-full" />
+                  </TabsTrigger>
+                  
+                  <TabsTrigger 
+                    value="media" 
+                    className="relative rounded-none border-b-2 border-transparent data-[state=active]:border-indigo-500 hover:bg-gray-50 data-[state=active]:bg-indigo-50/50 transition-all duration-200 gap-2 px-4 py-3 font-medium text-sm whitespace-nowrap group"
+                  >
+                    <div className="flex items-center gap-2">
+                      <ImageIcon className="w-4 h-4 text-gray-500 group-data-[state=active]:text-indigo-600 transition-colors" />
+                      <span className="text-gray-600 group-data-[state=active]:text-indigo-900 transition-colors">Media</span>
+                    </div>
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-indigo-500 to-purple-500 transform scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-300 rounded-full" />
+                  </TabsTrigger>
+                </div>
               </TabsList>
             </Tabs>
           </div>
@@ -2381,7 +2578,7 @@ function LanguageWorkspaceEdit({
                     <CardContent className="pt-6 space-y-4">
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <Label htmlFor="family">Language Family</Label>
+                          <Label htmlFor="family" className="mb-2 block">Language Family</Label>
                           <Input 
                             id="family" 
                             value={form.family || ''} 
@@ -2395,7 +2592,7 @@ function LanguageWorkspaceEdit({
                           />
                         </div>
                         <div>
-                          <Label htmlFor="speakers">Number of Speakers</Label>
+                          <Label htmlFor="speakers" className="mb-2 block">Number of Speakers</Label>
                           <Input 
                             id="speakers" 
                             value={form.speakers || ''} 
@@ -2412,7 +2609,7 @@ function LanguageWorkspaceEdit({
 
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <Label htmlFor="status">Status</Label>
+                          <Label htmlFor="status" className="mb-2 block">Status</Label>
                           <Select 
                             value={form.status} 
                             onValueChange={(value: any) => {
@@ -2424,7 +2621,7 @@ function LanguageWorkspaceEdit({
                             <SelectTrigger className="rounded-lg">
                               <SelectValue placeholder="Select status" />
                             </SelectTrigger>
-                            <SelectContent className="bg-background">
+                            <SelectContent className="bg-white border border-gray-200 shadow-xl rounded-lg z-50">
                               {languageStatuses.map(status => (
                                 <SelectItem key={status} value={status}>
                                   {status.charAt(0).toUpperCase() + status.slice(1)}
@@ -2434,7 +2631,7 @@ function LanguageWorkspaceEdit({
                           </Select>
                         </div>
                         <div>
-                          <Label htmlFor="writing_system">Writing System</Label>
+                          <Label htmlFor="writing_system" className="mb-2 block">Writing System</Label>
                           <Select 
                             value={form.writing_system} 
                             onValueChange={(value: any) => {
@@ -2446,7 +2643,7 @@ function LanguageWorkspaceEdit({
                             <SelectTrigger className="rounded-lg">
                               <SelectValue placeholder="Select writing system" />
                             </SelectTrigger>
-                            <SelectContent className="bg-background">
+                            <SelectContent className="bg-white border border-gray-200 shadow-xl rounded-lg z-50">
                               {writingSystems.map(system => (
                                 <SelectItem key={system} value={system}>
                                   {system.charAt(0).toUpperCase() + system.slice(1)}
@@ -2458,7 +2655,7 @@ function LanguageWorkspaceEdit({
                       </div>
                       
                       <div>
-                        <Label htmlFor="description">Description</Label>
+                        <Label htmlFor="description" className="mb-2 block">Description</Label>
                         <Textarea 
                           id="description" 
                           value={form.description || ''} 
@@ -2474,7 +2671,7 @@ function LanguageWorkspaceEdit({
                       </div>
 
                       <div>
-                        <Label htmlFor="sample_text">Sample Text/Phrases</Label>
+                        <Label htmlFor="sample_text" className="mb-2 block">Sample Text/Phrases</Label>
                         <Textarea 
                           id="sample_text" 
                           value={form.sample_text || ''} 
@@ -2491,7 +2688,7 @@ function LanguageWorkspaceEdit({
 
                       {/* Tags */}
                       <div>
-                        <Label htmlFor="tags">Tags</Label>
+                        <Label htmlFor="tags" className="mb-2 block">Tags</Label>
                         <div className="flex gap-2 mb-2">
                           <Input 
                             id="tags"
@@ -2653,7 +2850,7 @@ function LanguageWorkspaceEdit({
                     <SelectTrigger className="w-[180px] rounded-lg">
                       <SelectValue placeholder="Filter by type" />
                     </SelectTrigger>
-                    <SelectContent className="bg-background">
+                    <SelectContent className="bg-white border border-gray-200 shadow-xl rounded-lg z-50">
                       <SelectItem value="all">All Types</SelectItem>
                       {form.word_types.map(type => (
                         <SelectItem key={type} value={type}>{type}</SelectItem>
@@ -2668,7 +2865,7 @@ function LanguageWorkspaceEdit({
                         Export
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent className="bg-background">
+                    <DropdownMenuContent className="bg-white border border-gray-200 shadow-xl rounded-lg z-50">
                       <DropdownMenuItem onClick={() => exportWords('json')}>
                         Export as JSON
                       </DropdownMenuItem>
@@ -2837,7 +3034,7 @@ function LanguageWorkspaceEdit({
                                 <SelectTrigger className="h-8 rounded">
                                   <SelectValue placeholder="Select type" />
                                 </SelectTrigger>
-                                <SelectContent className="bg-background">
+                                <SelectContent className="bg-white border border-gray-200 shadow-xl rounded-lg z-50">
                                   {form.word_types.map(type => (
                                     <SelectItem key={type} value={type}>{type}</SelectItem>
                                   ))}
@@ -2904,7 +3101,7 @@ function LanguageWorkspaceEdit({
                                     <MoreVertical className="w-4 h-4" />
                                   </Button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent className="bg-background" align="end">
+                                <DropdownMenuContent className="bg-white border border-gray-200 shadow-xl rounded-lg z-50" align="end">
                                   <DropdownMenuItem onClick={() => setEditingWordId(word.id)}>
                                     <Edit3 className="w-4 h-4 mr-2" />
                                     Edit
@@ -3019,7 +3216,7 @@ function LanguageWorkspaceEdit({
                         <SelectTrigger className="rounded-lg w-40">
                           <SelectValue placeholder="Select" />
                         </SelectTrigger>
-                        <SelectContent className="bg-background">
+                        <SelectContent className="bg-white border border-gray-200 shadow-xl rounded-lg z-50">
                           {writingSystems.map(system => (
                             <SelectItem key={system} value={system}>
                               {system.charAt(0).toUpperCase() + system.slice(1)}
@@ -3117,7 +3314,7 @@ function LanguageWorkspaceEdit({
                                     <MoreHorizontal className="w-4 h-4" />
                                   </Button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent className="bg-background" align="end">
+                                <DropdownMenuContent className="bg-white border border-gray-200 shadow-xl rounded-lg z-50" align="end">
                                   <DropdownMenuItem onClick={() => duplicateSymbol(symbol.id)}>
                                     <Copy className="w-4 h-4 mr-2" />
                                     Duplicate
@@ -3462,7 +3659,7 @@ function LanguageWorkspaceEdit({
                         <SelectTrigger className="rounded-lg">
                           <SelectValue placeholder="Select word order" />
                         </SelectTrigger>
-                        <SelectContent className="bg-background">
+                        <SelectContent className="bg-white border border-gray-200 shadow-xl rounded-lg z-50">
                           <SelectItem value="SVO">SVO (Subject-Verb-Object)</SelectItem>
                           <SelectItem value="SOV">SOV (Subject-Object-Verb)</SelectItem>
                           <SelectItem value="VSO">VSO (Verb-Subject-Object)</SelectItem>
@@ -3620,58 +3817,131 @@ function LanguageWorkspaceEdit({
             <TabsContent value="relationships" className="mt-0 space-y-6">
               <Card className="rounded-xl border-gray-200">
                 <CardHeader className="border-b border-gray-100">
-                  <CardTitle>Related Elements</CardTitle>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>Related Elements</CardTitle>
+                      <p className="text-sm text-gray-500 mt-1">Connect to related characters, locations, factions, items, and systems</p>
+                    </div>
+                    <Button
+                      type="button"
+                      onClick={handleOpenLinkModal}
+                      variant="outline"
+                      size="sm"
+                      className="rounded-xl border-2 border-gray-300 hover:border-rose-400 hover:bg-rose-50 transition-all duration-200"
+                    >
+                      <Plus className="w-4 h-4 mr-1.5" />
+                      Add Link
+                    </Button>
+                  </div>
                 </CardHeader>
-                <CardContent className="pt-6 space-y-4">
-                  <p className="text-sm text-gray-500">Link to characters, locations, factions, items, systems, or other languages that use or relate to this language.</p>
-                  
-                  {/* Existing Links */}
+                <CardContent className="pt-6">
                   {(form.links && form.links.length > 0) ? (
-                    <div className="space-y-2 mb-4">
+                    <div className="grid gap-3">
                       {form.links.map((link, idx) => (
-                        <div key={idx} className="flex items-center justify-between p-3 border rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
-                          <div className="flex items-center gap-2">
-                            <LinkIcon className="w-4 h-4 text-gray-400" />
-                            <span className="text-sm font-medium">{link.name}</span>
-                            <Badge variant="outline" className="text-xs capitalize">{link.type}</Badge>
+                        <div
+                          key={idx}
+                          className="flex items-center justify-between p-4 bg-gradient-to-r from-rose-50/50 to-white rounded-xl border-2 border-gray-200 hover:border-rose-300 transition-all duration-200 shadow-sm"
+                        >
+                          <div className="flex items-center gap-3">
+                            <Badge variant="secondary" className="bg-rose-100 text-rose-700 border-2 border-rose-200 capitalize shadow-sm">
+                              {link.type}
+                            </Badge>
+                            <span className="font-medium text-gray-900">{link.name}</span>
                           </div>
-                          <Button 
-                            variant="ghost" 
+                          <Button
+                            type="button"
+                            variant="ghost"
                             size="sm"
-                            onClick={() => {
-                              const updated = {
-                                ...form,
-                                links: (form.links || []).filter((_, i) => i !== idx)
-                              }
-                              setForm(updated)
-                              triggerAutoSave(updated)
-                              addToast({
-                                type: 'success',
-                                title: 'Link removed',
-                                message: `Removed link to ${link.name}`
-                              })
-                            }}
-                            className="hover:bg-red-50 text-red-600 h-8 w-8 p-0"
+                            onClick={() => handleRemoveLink(idx)}
+                            className="h-8 w-8 p-0 rounded-lg hover:bg-red-100"
                           >
-                            <X className="w-4 h-4" />
+                            <X className="w-4 h-4 text-gray-500 hover:text-red-600" />
                           </Button>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
-                      <LinkIcon className="w-8 h-8 mx-auto text-gray-400 mb-2" />
-                      <p className="text-sm text-gray-500">No relationships added yet</p>
-                      <p className="text-xs text-gray-400 mt-1">Add links to connect this language with other elements</p>
+                    <div className="text-center py-12 px-4 bg-gradient-to-br from-gray-50 to-white rounded-xl border-2 border-dashed border-gray-300">
+                      <LinkIcon className="w-12 h-12 mx-auto text-gray-400 mb-3" />
+                      <p className="text-sm text-gray-600 font-medium">No linked elements yet</p>
+                      <p className="text-xs text-gray-500 mt-1">Click "Add Link" to connect related elements</p>
                     </div>
                   )}
-
-                  {/* Add Link Section - Placeholder for future implementation */}
-                  <div className="pt-4 border-t border-gray-100">
-                    <p className="text-xs text-gray-500 italic">Note: Use the link picker in the main interface to add relationships to other elements.</p>
-                  </div>
                 </CardContent>
               </Card>
+
+              {/* Link Selection Modal */}
+              <Dialog open={showLinkModal} onOpenChange={setShowLinkModal}>
+                <DialogContent className="bg-white max-w-2xl">
+                  <DialogHeader>
+                    <DialogTitle>Add Linked Element</DialogTitle>
+                    <DialogDescription>
+                      Select an element to link to this language
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Search elements..."
+                        value={linkSearchTerm}
+                        onChange={(e) => setLinkSearchTerm(e.target.value)}
+                        className="flex-1 rounded-xl border-2 border-gray-300 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20"
+                      />
+                      <Select value={linkCategoryFilter} onValueChange={setLinkCategoryFilter}>
+                        <SelectTrigger className="w-40 rounded-xl border-2 border-gray-300">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white border-2 border-gray-200 shadow-xl rounded-xl">
+                          <SelectItem value="all">All Types</SelectItem>
+                          <SelectItem value="characters">Characters</SelectItem>
+                          <SelectItem value="locations">Locations</SelectItem>
+                          <SelectItem value="factions">Factions</SelectItem>
+                          <SelectItem value="items">Items</SelectItem>
+                          <SelectItem value="cultures">Cultures</SelectItem>
+                          <SelectItem value="magic">Magic</SelectItem>
+                          <SelectItem value="species">Species</SelectItem>
+                          <SelectItem value="systems">Systems</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="max-h-96 overflow-y-auto space-y-2">
+                      {availableElements
+                        .filter(el => {
+                          const matchesSearch = el.name.toLowerCase().includes(linkSearchTerm.toLowerCase())
+                          const matchesCategory = linkCategoryFilter === 'all' || el.category === linkCategoryFilter
+                          const notAlreadyLinked = !(form.links || []).find((l: any) => l.id === el.id)
+                          return matchesSearch && matchesCategory && notAlreadyLinked
+                        })
+                        .map(element => (
+                          <div
+                            key={element.id}
+                            onClick={() => handleAddLink(element)}
+                            className="flex items-center justify-between p-3 bg-gray-50 hover:bg-rose-50 rounded-xl border-2 border-gray-200 hover:border-rose-300 cursor-pointer transition-all duration-200"
+                          >
+                            <div className="flex items-center gap-3">
+                              <Badge variant="outline" className="capitalize">
+                                {element.category}
+                              </Badge>
+                              <span className="font-medium text-gray-900">{element.name}</span>
+                            </div>
+                            <Plus className="w-4 h-4 text-gray-400" />
+                          </div>
+                        ))}
+                      {availableElements.filter(el => {
+                        const matchesSearch = el.name.toLowerCase().includes(linkSearchTerm.toLowerCase())
+                        const matchesCategory = linkCategoryFilter === 'all' || el.category === linkCategoryFilter
+                        const notAlreadyLinked = !(form.links || []).find((l: any) => l.id === el.id)
+                        return matchesSearch && matchesCategory && notAlreadyLinked
+                      }).length === 0 && (
+                        <div className="text-center py-8 text-gray-500">
+                          <p className="text-sm">No elements found</p>
+                          <p className="text-xs mt-1">Try adjusting your search or filter</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </TabsContent>
 
             {/* MEDIA TAB */}
@@ -3819,7 +4089,7 @@ function LanguageWorkspaceEdit({
                                     <MoreVertical className="w-4 h-4" />
                                   </Button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="bg-background">
+                                <DropdownMenuContent align="end" className="bg-white border border-gray-200 shadow-xl rounded-lg z-50">
                                   <DropdownMenuItem 
                                     onClick={() => {
                                       const updatedForm = {
