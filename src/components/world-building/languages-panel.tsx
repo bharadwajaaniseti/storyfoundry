@@ -1,7 +1,7 @@
 'use client'
 
-import React, { useState, useEffect, useRef } from 'react'
-import { Plus, MessageSquare, Search, Trash2, Edit3, ArrowLeft, X, Save, Link as LinkIcon, Filter, Grid3x3, List, Copy, MoreHorizontal, BookOpen, Upload } from 'lucide-react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
+import { Plus, MessageSquare, Search, Trash2, Edit3, ArrowLeft, X, Save, Link as LinkIcon, Filter, Grid3x3, List, Copy, MoreHorizontal, BookOpen, Upload, Calendar, FileText, Hash, Clock, GripVertical, Download, MoreVertical, Check, Image as ImageIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -39,6 +39,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { useToast } from '@/components/ui/toast'
 
 // Types
 type WordEntry = {
@@ -88,6 +89,12 @@ type LanguageForm = {
     id: string
     name: string
   }[]
+  images?: {
+    id: string
+    url: string
+    caption?: string
+    isCover?: boolean
+  }[]
   tags?: string[]
 }
 
@@ -124,8 +131,63 @@ const INITIAL_FORM: LanguageForm = {
     plurals: ''
   },
   links: [],
+  images: [],
   tags: []
 }
+
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
+
+// Utility: Relative time
+const relativeTime = (dateString: string) => {
+  const date = new Date(dateString)
+  const now = new Date()
+  const seconds = Math.floor((now.getTime() - date.getTime()) / 1000)
+  
+  if (seconds < 60) return 'just now'
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  if (days < 7) return `${days}d ago`
+  const weeks = Math.floor(days / 7)
+  if (weeks < 4) return `${weeks}w ago`
+  const months = Math.floor(days / 30)
+  if (months < 12) return `${months}mo ago`
+  const years = Math.floor(days / 365)
+  return `${years}y ago`
+}
+
+// Utility: Status pill color
+const getStatusPillColor = (status: string) => {
+  switch (status) {
+    case 'living': return 'bg-green-100 text-green-800 border-green-200'
+    case 'dead': return 'bg-gray-100 text-gray-800 border-gray-200'
+    case 'constructed': return 'bg-blue-100 text-blue-800 border-blue-200'
+    case 'ancient': return 'bg-purple-100 text-purple-800 border-purple-200'
+    case 'ceremonial': return 'bg-yellow-100 text-yellow-800 border-yellow-200'
+    default: return 'bg-gray-100 text-gray-800 border-gray-200'
+  }
+}
+
+// Utility: Writing system pill color
+const getWSysPillColor = (ws: string) => {
+  switch (ws) {
+    case 'alphabetic': return 'bg-blue-100 text-blue-800 border-blue-200'
+    case 'logographic': return 'bg-purple-100 text-purple-800 border-purple-200'
+    case 'syllabic': return 'bg-indigo-100 text-indigo-800 border-indigo-200'
+    case 'abjad': return 'bg-cyan-100 text-cyan-800 border-cyan-200'
+    case 'abugida': return 'bg-teal-100 text-teal-800 border-teal-200'
+    case 'pictographic': return 'bg-pink-100 text-pink-800 border-pink-200'
+    default: return 'bg-gray-100 text-gray-800 border-gray-200'
+  }
+}
+
+// ============================================================================
+// MAIN PANEL COMPONENT
+// ============================================================================
 
 export default function LanguagesPanel({ projectId, selectedElement, onLanguagesChange, onClearSelection }: any) {
   const [languages, setLanguages] = useState<any[]>([])
@@ -153,6 +215,40 @@ export default function LanguagesPanel({ projectId, selectedElement, onLanguages
   const languageStatuses = ['living', 'dead', 'constructed', 'ancient', 'ceremonial']
   const writingSystems = ['alphabetic', 'logographic', 'syllabic', 'abjad', 'abugida', 'pictographic', 'none']
 
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Skip if user is typing in an input/textarea
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return
+      }
+
+      // '/' focuses search
+      if (e.key === '/' && mode === 'list') {
+        e.preventDefault()
+        document.querySelector<HTMLInputElement>('[placeholder*="Search"]')?.focus()
+      }
+
+      // 'n' starts create
+      if (e.key === 'n' && mode === 'list') {
+        e.preventDefault()
+        setForm(INITIAL_FORM)
+        setMode('create')
+      }
+
+      // Escape to go back to list
+      if (e.key === 'Escape' && (mode === 'create' || mode === 'edit')) {
+        if (!e.target || !(e.target as HTMLElement).closest('[role="dialog"]')) {
+          setMode('list')
+          setSelectedId(null)
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [mode])
+
   useEffect(() => { loadLanguages() }, [projectId])
   
   useEffect(() => {
@@ -168,10 +264,69 @@ export default function LanguagesPanel({ projectId, selectedElement, onLanguages
 
   const loadLanguages = async () => {
     try {
-      const { data, error } = await supabase.from('world_elements').select('*').eq('project_id', projectId).eq('category', 'languages').order('created_at', { ascending: false })
+      const { data, error } = await supabase
+        .from('world_elements')
+        .select('*')
+        .eq('project_id', projectId)
+        .eq('category', 'languages')
+        .or('attributes->>__deleted.is.null,attributes->>__deleted.eq.false')
+        .order('updated_at', { ascending: false })
       if (error) throw error
       setLanguages(data || [])
     } finally { setLoading(false) }
+  }
+
+  // Apply search, sort, and filter using utility function
+  const applySearchSortFilter = () => {
+    let filtered = [...languages]
+
+    // Search
+    if (query.trim()) {
+      const search = query.toLowerCase()
+      filtered = filtered.filter(lang => 
+        lang.name?.toLowerCase().includes(search) ||
+        lang.description?.toLowerCase().includes(search) ||
+        lang.attributes?.family?.toLowerCase().includes(search)
+      )
+    }
+
+    // Filters
+    if (filters.families.length > 0) {
+      filtered = filtered.filter(lang => 
+        filters.families.includes(lang.attributes?.family || '')
+      )
+    }
+    if (filters.statuses.length > 0) {
+      filtered = filtered.filter(lang => 
+        filters.statuses.includes(lang.attributes?.status || '')
+      )
+    }
+    if (filters.writingSystems.length > 0) {
+      filtered = filtered.filter(lang => 
+        filters.writingSystems.includes(lang.attributes?.writing_system || '')
+      )
+    }
+
+    // Sort
+    switch (sort) {
+      case 'name_asc':
+        filtered.sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+        break
+      case 'name_desc':
+        filtered.sort((a, b) => (b.name || '').localeCompare(a.name || ''))
+        break
+      case 'newest':
+        filtered.sort((a, b) => new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime())
+        break
+      case 'oldest':
+        filtered.sort((a, b) => new Date(a.updated_at || a.created_at).getTime() - new Date(b.updated_at || b.created_at).getTime())
+        break
+      case 'status':
+        filtered.sort((a, b) => (a.attributes?.status || '').localeCompare(b.attributes?.status || ''))
+        break
+    }
+
+    return filtered
   }
 
   const loadLanguageIntoForm = (language: any) => {
@@ -190,6 +345,7 @@ export default function LanguagesPanel({ projectId, selectedElement, onLanguages
       phonology: attrs.phonology || { vowels: [], consonants: [], syllableStructure: '' },
       grammar: attrs.grammar || { wordOrder: '', morphology: '', tenses: [], cases: [], plurals: '' },
       links: attrs.links || [],
+      images: attrs.images || [],
       tags: attrs.tags || []
     })
   }
@@ -213,6 +369,7 @@ export default function LanguagesPanel({ projectId, selectedElement, onLanguages
           phonology: form.phonology,
           grammar: form.grammar,
           links: form.links,
+          images: form.images,
           tags: form.tags
         },
         tags: form.tags || []
@@ -268,10 +425,31 @@ export default function LanguagesPanel({ projectId, selectedElement, onLanguages
     setMode('edit')
   }
 
-  const handleDelete = async (languageId: string) => {
+  const handleDelete = async (languageId: string, hardDelete = false) => {
     try {
-      const { error } = await supabase.from('world_elements').delete().eq('id', languageId)
-      if (error) throw error
+      if (hardDelete) {
+        // Hard delete - permanently remove from database
+        const { error } = await supabase
+          .from('world_elements')
+          .delete()
+          .eq('id', languageId)
+        if (error) throw error
+      } else {
+        // Soft delete - set __deleted flag
+        const language = languages.find(l => l.id === languageId)
+        const { error } = await supabase
+          .from('world_elements')
+          .update({
+            attributes: {
+              ...(language?.attributes || {}),
+              __deleted: true
+            },
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', languageId)
+        if (error) throw error
+      }
+      
       setLanguages(prev => prev.filter(l => l.id !== languageId))
       setDeleteConfirm(null)
       onLanguagesChange?.()
@@ -303,81 +481,8 @@ export default function LanguagesPanel({ projectId, selectedElement, onLanguages
     }
   }
 
-  // Format relative time
-  const getRelativeTime = (dateString: string) => {
-    const date = new Date(dateString)
-    const now = new Date()
-    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000)
-    
-    if (diffInSeconds < 60) return 'just now'
-    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`
-    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`
-    if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d ago`
-    if (diffInSeconds < 2592000) return `${Math.floor(diffInSeconds / 604800)}w ago`
-    return date.toLocaleDateString()
-  }
-
-  // Apply search, sort, and filters
-  const getFilteredAndSortedLanguages = () => {
-    let result = [...languages]
-
-    // Apply search query
-    if (query.trim()) {
-      const q = query.toLowerCase()
-      result = result.filter(lang =>
-        lang.name.toLowerCase().includes(q) ||
-        lang.description?.toLowerCase().includes(q) ||
-        lang.attributes?.family?.toLowerCase().includes(q) ||
-        lang.tags?.some((tag: string) => tag.toLowerCase().includes(q))
-      )
-    }
-
-    // Apply family filters
-    if (filters.families.length > 0) {
-      result = result.filter(lang =>
-        lang.attributes?.family && filters.families.includes(lang.attributes.family)
-      )
-    }
-
-    // Apply status filters
-    if (filters.statuses.length > 0) {
-      result = result.filter(lang =>
-        lang.attributes?.status && filters.statuses.includes(lang.attributes.status)
-      )
-    }
-
-    // Apply writing system filters
-    if (filters.writingSystems.length > 0) {
-      result = result.filter(lang =>
-        lang.attributes?.writing_system && filters.writingSystems.includes(lang.attributes.writing_system)
-      )
-    }
-
-    // Apply sorting
-    switch (sort) {
-      case 'name_asc':
-        result.sort((a, b) => a.name.localeCompare(b.name))
-        break
-      case 'name_desc':
-        result.sort((a, b) => b.name.localeCompare(a.name))
-        break
-      case 'newest':
-        result.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-        break
-      case 'oldest':
-        result.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-        break
-      case 'status':
-        result.sort((a, b) => {
-          const statusA = a.attributes?.status || ''
-          const statusB = b.attributes?.status || ''
-          return statusA.localeCompare(statusB)
-        })
-        break
-    }
-
-    return result
-  }
+  // Apply search, sort, and filters (delegate to utility function)
+  const getFilteredAndSortedLanguages = applySearchSortFilter
 
   const handleClearFilters = () => {
     setFilters({
@@ -444,7 +549,6 @@ export default function LanguagesPanel({ projectId, selectedElement, onLanguages
                 onEdit={handleEdit}
                 onDelete={(id: string) => setDeleteConfirm(id)}
                 onDuplicate={handleDuplicate}
-                getRelativeTime={getRelativeTime}
               />
             ) : (
               <LanguagesTable 
@@ -452,7 +556,6 @@ export default function LanguagesPanel({ projectId, selectedElement, onLanguages
                 onEdit={handleEdit}
                 onDelete={(id: string) => setDeleteConfirm(id)}
                 onDuplicate={handleDuplicate}
-                getRelativeTime={getRelativeTime}
               />
             )}
           </div>
@@ -462,18 +565,23 @@ export default function LanguagesPanel({ projectId, selectedElement, onLanguages
         <AlertDialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
           <AlertDialogContent className="bg-background">
             <AlertDialogHeader>
-              <AlertDialogTitle>Delete Language?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This will permanently delete this language and all its data. This action cannot be undone.
+              <AlertDialogTitle>Archive Language?</AlertDialogTitle>
+              <AlertDialogDescription className="space-y-2">
+                <p>
+                  This will archive the language, hiding it from your list. You can restore it later if needed.
+                </p>
+                <p className="text-xs text-gray-500">
+                  Tip: Use the action menu on the language card to permanently delete if you want to remove it completely.
+                </p>
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction 
-                onClick={() => deleteConfirm && handleDelete(deleteConfirm)}
-                className="bg-red-600 hover:bg-red-700"
+                onClick={() => deleteConfirm && handleDelete(deleteConfirm, false)}
+                className="bg-amber-600 hover:bg-amber-700"
               >
-                Delete
+                Archive
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -483,6 +591,7 @@ export default function LanguagesPanel({ projectId, selectedElement, onLanguages
   }
 
   // Render WORKSPACE (create/edit)
+  const currentLanguage = selectedId ? languages.find(l => l.id === selectedId) : null
   return <LanguageWorkspace 
     mode={mode}
     form={form}
@@ -491,6 +600,11 @@ export default function LanguagesPanel({ projectId, selectedElement, onLanguages
     onCancel={handleCancel}
     languageStatuses={languageStatuses}
     writingSystems={writingSystems}
+    languageId={selectedId}
+    metadata={currentLanguage ? {
+      created_at: currentLanguage.created_at,
+      updated_at: currentLanguage.updated_at
+    } : undefined}
   />
 }
 
@@ -534,21 +648,9 @@ interface LanguagesGridProps {
   onEdit: (language: any) => void
   onDelete: (id: string) => void
   onDuplicate: (language: any) => void
-  getRelativeTime: (date: string) => string
 }
 
-function LanguagesGrid({ languages, onEdit, onDelete, onDuplicate, getRelativeTime }: LanguagesGridProps) {
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'living': return 'bg-green-100 text-green-800 border-green-200'
-      case 'dead': return 'bg-gray-100 text-gray-800 border-gray-200'
-      case 'constructed': return 'bg-blue-100 text-blue-800 border-blue-200'
-      case 'ancient': return 'bg-purple-100 text-purple-800 border-purple-200'
-      case 'ceremonial': return 'bg-yellow-100 text-yellow-800 border-yellow-200'
-      default: return 'bg-gray-100 text-gray-800 border-gray-200'
-    }
-  }
-
+function LanguagesGrid({ languages, onEdit, onDelete, onDuplicate }: LanguagesGridProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {languages.map((language) => (
@@ -612,13 +714,13 @@ function LanguagesGrid({ languages, onEdit, onDelete, onDuplicate, getRelativeTi
               {language.attributes?.status && (
                 <Badge 
                   variant="outline" 
-                  className={`text-xs font-medium border ${getStatusColor(language.attributes.status)}`}
+                  className={`text-xs font-medium border ${getStatusPillColor(language.attributes.status)}`}
                 >
                   {language.attributes.status}
                 </Badge>
               )}
               {language.attributes?.writing_system && (
-                <Badge variant="outline" className="text-xs font-medium border border-amber-200 bg-amber-50 text-amber-800">
+                <Badge variant="outline" className={`text-xs font-medium border ${getWSysPillColor(language.attributes.writing_system)}`}>
                   {language.attributes.writing_system}
                 </Badge>
               )}
@@ -636,7 +738,7 @@ function LanguagesGrid({ languages, onEdit, onDelete, onDuplicate, getRelativeTi
               <div className="flex items-center gap-1.5 text-xs text-gray-500">
                 <span>Updated</span>
                 <span>•</span>
-                <span className="font-medium">{getRelativeTime(language.updated_at)}</span>
+                <span className="font-medium">{relativeTime(language.updated_at)}</span>
               </div>
             </div>
           </CardContent>
@@ -655,21 +757,9 @@ interface LanguagesTableProps {
   onEdit: (language: any) => void
   onDelete: (id: string) => void
   onDuplicate: (language: any) => void
-  getRelativeTime: (date: string) => string
 }
 
-function LanguagesTable({ languages, onEdit, onDelete, onDuplicate, getRelativeTime }: LanguagesTableProps) {
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'living': return 'bg-green-100 text-green-800 border-green-200'
-      case 'dead': return 'bg-gray-100 text-gray-800 border-gray-200'
-      case 'constructed': return 'bg-blue-100 text-blue-800 border-blue-200'
-      case 'ancient': return 'bg-purple-100 text-purple-800 border-purple-200'
-      case 'ceremonial': return 'bg-yellow-100 text-yellow-800 border-yellow-200'
-      default: return 'bg-gray-100 text-gray-800 border-gray-200'
-    }
-  }
-
+function LanguagesTable({ languages, onEdit, onDelete, onDuplicate }: LanguagesTableProps) {
   return (
     <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
       <Table>
@@ -712,7 +802,7 @@ function LanguagesTable({ languages, onEdit, onDelete, onDuplicate, getRelativeT
                 {language.attributes?.status ? (
                   <Badge 
                     variant="outline" 
-                    className={`text-xs font-medium border ${getStatusColor(language.attributes.status)}`}
+                    className={`text-xs font-medium border ${getStatusPillColor(language.attributes.status)}`}
                   >
                     {language.attributes.status}
                   </Badge>
@@ -720,13 +810,13 @@ function LanguagesTable({ languages, onEdit, onDelete, onDuplicate, getRelativeT
               </TableCell>
               <TableCell className="text-gray-700">
                 {language.attributes?.writing_system ? (
-                  <Badge variant="outline" className="text-xs font-medium border border-amber-200 bg-amber-50 text-amber-800">
+                  <Badge variant="outline" className={`text-xs font-medium border ${getWSysPillColor(language.attributes.writing_system)}`}>
                     {language.attributes.writing_system}
                   </Badge>
                 ) : '—'}
               </TableCell>
               <TableCell className="text-sm text-gray-500">
-                {getRelativeTime(language.updated_at)}
+                {relativeTime(language.updated_at)}
               </TableCell>
               <TableCell onClick={(e) => e.stopPropagation()}>
                 <DropdownMenu>
@@ -1094,7 +1184,9 @@ function LanguageWorkspace({
   onSave, 
   onCancel,
   languageStatuses,
-  writingSystems
+  writingSystems,
+  languageId,
+  metadata
 }: {
   mode: 'create' | 'edit'
   form: LanguageForm
@@ -1103,6 +1195,11 @@ function LanguageWorkspace({
   onCancel: () => void
   languageStatuses: string[]
   writingSystems: string[]
+  languageId?: string | null
+  metadata?: {
+    created_at?: string
+    updated_at?: string
+  }
 }) {
   const [newTag, setNewTag] = useState('')
 
@@ -1354,6 +1451,8 @@ function LanguageWorkspace({
     onCancel={onCancel}
     languageStatuses={languageStatuses}
     writingSystems={writingSystems}
+    languageId={languageId}
+    metadata={metadata}
   />
 }
 
@@ -1367,7 +1466,9 @@ function LanguageWorkspaceEdit({
   onSave,
   onCancel,
   languageStatuses,
-  writingSystems
+  writingSystems,
+  languageId,
+  metadata
 }: {
   form: LanguageForm
   setForm: React.Dispatch<React.SetStateAction<LanguageForm>>
@@ -1375,7 +1476,13 @@ function LanguageWorkspaceEdit({
   onCancel: () => void
   languageStatuses: string[]
   writingSystems: string[]
+  languageId?: string | null
+  metadata?: {
+    created_at?: string
+    updated_at?: string
+  }
 }) {
+  const { addToast } = useToast()
   const [activeTab, setActiveTab] = useState('overview')
   const [newWord, setNewWord] = useState<Partial<WordEntry>>({})
   const [newSymbol, setNewSymbol] = useState<Partial<SymbolEntry>>({})
@@ -1383,7 +1490,97 @@ function LanguageWorkspaceEdit({
   const [newTag, setNewTag] = useState('')
   const [isEditingName, setIsEditingName] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
   const nameInputRef = useRef<HTMLInputElement>(null)
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  
+  // Dictionary tab state
+  const [editingWordId, setEditingWordId] = useState<string | null>(null)
+  const [wordSearch, setWordSearch] = useState('')
+  const [wordTypeFilter, setWordTypeFilter] = useState<string>('all')
+  const [draggedWordId, setDraggedWordId] = useState<string | null>(null)
+  const [showImportDialog, setShowImportDialog] = useState(false)
+  const [importPreview, setImportPreview] = useState<WordEntry[]>([])
+  const [editWordCache, setEditWordCache] = useState<{[key: string]: WordEntry}>({})
+
+  // Script tab state
+  const [editingSymbolId, setEditingSymbolId] = useState<string | null>(null)
+  const [draggedSymbolId, setDraggedSymbolId] = useState<string | null>(null)
+  const [bulkAddText, setBulkAddText] = useState('')
+  const [showBulkAdd, setShowBulkAdd] = useState(false)
+  const [uploadingSymbolId, setUploadingSymbolId] = useState<string | null>(null)
+
+  // Auto-save with debounce (600ms)
+  const autoSave = useCallback(async (updatedForm: LanguageForm) => {
+    if (!languageId) return
+
+    try {
+      setIsSaving(true)
+      const supabase = createSupabaseClient()
+      
+      const { error } = await supabase
+        .from('world_elements')
+        .update({
+          name: updatedForm.name,
+          description: updatedForm.description,
+          attributes: {
+            family: updatedForm.family,
+            status: updatedForm.status,
+            speakers: updatedForm.speakers,
+            writing_system: updatedForm.writing_system,
+            sample_text: updatedForm.sample_text,
+            words: updatedForm.words,
+            word_types: updatedForm.word_types,
+            symbols: updatedForm.symbols,
+            phonology: updatedForm.phonology,
+            grammar: updatedForm.grammar,
+            links: updatedForm.links,
+            images: updatedForm.images
+          },
+          tags: updatedForm.tags || [],
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', languageId)
+
+      if (error) throw error
+
+      addToast({
+        type: 'success',
+        title: 'Saved',
+        message: 'Changes saved successfully',
+        duration: 2000
+      })
+    } catch (error) {
+      console.error('Auto-save error:', error)
+      addToast({
+        type: 'error',
+        title: 'Save Failed',
+        message: 'Could not save changes. Please try again.',
+        duration: 4000
+      })
+    } finally {
+      setIsSaving(false)
+    }
+  }, [languageId, addToast])
+
+  // Debounced auto-save trigger
+  const triggerAutoSave = useCallback((updatedForm: LanguageForm) => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current)
+    }
+    saveTimeoutRef.current = setTimeout(() => {
+      autoSave(updatedForm)
+    }, 600)
+  }, [autoSave])
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+      }
+    }
+  }, [])
 
   // Focus name input when editing starts
   useEffect(() => {
@@ -1424,6 +1621,7 @@ function LanguageWorkspaceEdit({
           phonology: form.phonology,
           grammar: form.grammar,
           links: form.links,
+          images: form.images,
           tags: form.tags
         },
         tags: form.tags || []
@@ -1466,7 +1664,460 @@ function LanguageWorkspaceEdit({
     setForm(prev => ({ ...prev, words: prev.words.filter(w => w.id !== id) }))
   }
 
-  // Symbol Management
+  // Dictionary Management Functions
+  const addNewWord = () => {
+    const newWord: WordEntry = {
+      id: crypto.randomUUID(),
+      term: '',
+      pronunciation: '',
+      type: '',
+      definition: '',
+      notes: '',
+      examples: []
+    }
+    const updated = { ...form, words: [newWord, ...(form.words || [])] }
+    setForm(updated)
+    setEditingWordId(newWord.id)
+    triggerAutoSave(updated)
+  }
+
+  const updateWord = (id: string, field: keyof WordEntry, value: any) => {
+    const updated = {
+      ...form,
+      words: form.words.map(w => w.id === id ? { ...w, [field]: value } : w)
+    }
+    setForm(updated)
+    
+    // Update cache for inline editing
+    setEditWordCache(prev => ({
+      ...prev,
+      [id]: { ...(prev[id] || form.words.find(w => w.id === id)!), [field]: value }
+    }))
+  }
+
+  const saveWord = (id: string) => {
+    setEditingWordId(null)
+    setEditWordCache(prev => {
+      const { [id]: _, ...rest } = prev
+      return rest
+    })
+    triggerAutoSave(form)
+  }
+
+  const cancelEditWord = (id: string) => {
+    if (editWordCache[id]) {
+      const updated = {
+        ...form,
+        words: form.words.map(w => w.id === id ? editWordCache[id] : w)
+      }
+      setForm(updated)
+    }
+    setEditingWordId(null)
+    setEditWordCache(prev => {
+      const { [id]: _, ...rest } = prev
+      return rest
+    })
+  }
+
+  const duplicateWord = (id: string) => {
+    const word = form.words.find(w => w.id === id)
+    if (!word) return
+    
+    const duplicate: WordEntry = {
+      ...word,
+      id: crypto.randomUUID(),
+      term: `${word.term} (Copy)`
+    }
+    const updated = { ...form, words: [...form.words, duplicate] }
+    setForm(updated)
+    triggerAutoSave(updated)
+    
+    addToast({
+      type: 'success',
+      title: 'Word Duplicated',
+      message: `"${word.term}" has been duplicated`,
+      duration: 2000
+    })
+  }
+
+  const deleteWord = (id: string) => {
+    const word = form.words.find(w => w.id === id)
+    const updated = { ...form, words: form.words.filter(w => w.id !== id) }
+    setForm(updated)
+    triggerAutoSave(updated)
+    
+    addToast({
+      type: 'success',
+      title: 'Word Deleted',
+      message: word ? `"${word.term}" has been deleted` : 'Word deleted',
+      duration: 2000
+    })
+  }
+
+  // Drag and Drop for word reordering
+  const handleDragStart = (id: string) => {
+    setDraggedWordId(id)
+  }
+
+  const handleDragOver = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault()
+    if (!draggedWordId || draggedWordId === targetId) return
+
+    const draggedIndex = form.words.findIndex(w => w.id === draggedWordId)
+    const targetIndex = form.words.findIndex(w => w.id === targetId)
+    
+    if (draggedIndex === -1 || targetIndex === -1) return
+
+    const newWords = [...form.words]
+    const [removed] = newWords.splice(draggedIndex, 1)
+    newWords.splice(targetIndex, 0, removed)
+    
+    setForm(prev => ({ ...prev, words: newWords }))
+  }
+
+  const handleDragEnd = () => {
+    if (draggedWordId) {
+      triggerAutoSave(form)
+    }
+    setDraggedWordId(null)
+  }
+
+  // Import/Export Functions
+  const exportWords = (format: 'json' | 'csv', selectedOnly: boolean = false) => {
+    const words = selectedOnly ? form.words.filter((_, i) => i < 10) : form.words // For now, export all
+    
+    if (format === 'json') {
+      const blob = new Blob([JSON.stringify(words, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${form.name}-dictionary.json`
+      a.click()
+      URL.revokeObjectURL(url)
+    } else {
+      const csv = [
+        'Term,Pronunciation,Type,Definition,Notes',
+        ...words.map(w => `"${w.term}","${w.pronunciation || ''}","${w.type || ''}","${w.definition || ''}","${w.notes || ''}"`)
+      ].join('\n')
+      
+      const blob = new Blob([csv], { type: 'text/csv' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${form.name}-dictionary.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+    }
+    
+    addToast({
+      type: 'success',
+      title: 'Exported',
+      message: `Dictionary exported as ${format.toUpperCase()}`,
+      duration: 2000
+    })
+  }
+
+  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      try {
+        const content = event.target?.result as string
+        let importedWords: WordEntry[] = []
+
+        if (file.name.endsWith('.json')) {
+          const parsed = JSON.parse(content)
+          importedWords = Array.isArray(parsed) ? parsed : [parsed]
+        } else if (file.name.endsWith('.csv')) {
+          const lines = content.split('\n')
+          const headers = lines[0].split(',')
+          importedWords = lines.slice(1).filter(line => line.trim()).map(line => {
+            const values = line.split(',').map(v => v.replace(/^"|"$/g, ''))
+            return {
+              id: crypto.randomUUID(),
+              term: values[0] || '',
+              pronunciation: values[1] || '',
+              type: values[2] || '',
+              definition: values[3] || '',
+              notes: values[4] || '',
+              examples: []
+            }
+          })
+        }
+
+        // Ensure all words have IDs
+        importedWords = importedWords.map(w => ({
+          ...w,
+          id: w.id || crypto.randomUUID()
+        }))
+
+        setImportPreview(importedWords)
+        setShowImportDialog(true)
+      } catch (error) {
+        addToast({
+          type: 'error',
+          title: 'Import Failed',
+          message: 'Could not parse file. Please check the format.',
+          duration: 4000
+        })
+      }
+    }
+    reader.readAsText(file)
+    e.target.value = '' // Reset input
+  }
+
+  const confirmImport = () => {
+    const updated = { ...form, words: [...importPreview, ...form.words] }
+    setForm(updated)
+    triggerAutoSave(updated)
+    setShowImportDialog(false)
+    setImportPreview([])
+    
+    addToast({
+      type: 'success',
+      title: 'Words Imported',
+      message: `${importPreview.length} word(s) added to dictionary`,
+      duration: 3000
+    })
+  }
+
+  // Filter words based on search and type
+  const getFilteredWords = () => {
+    let filtered = form.words || []
+    
+    if (wordSearch.trim()) {
+      const search = wordSearch.toLowerCase()
+      filtered = filtered.filter(w => 
+        w.term.toLowerCase().includes(search) ||
+        w.definition?.toLowerCase().includes(search) ||
+        w.pronunciation?.toLowerCase().includes(search)
+      )
+    }
+    
+    if (wordTypeFilter !== 'all') {
+      filtered = filtered.filter(w => w.type === wordTypeFilter)
+    }
+    
+    return filtered
+  }
+
+  // === Script Tab Symbol Functions ===
+  
+  // Add new symbol at top
+  const addNewSymbol = () => {
+    const newSym: SymbolEntry = {
+      id: crypto.randomUUID(),
+      glyph: '',
+      romanization: '',
+      sound: '',
+      tags: [],
+      image: ''
+    }
+    const updated = {
+      ...form,
+      symbols: [newSym, ...(form.symbols || [])]
+    }
+    setForm(updated)
+    setEditingSymbolId(newSym.id)
+    triggerAutoSave(updated)
+    addToast({
+      type: 'success',
+      title: 'Symbol added',
+      message: 'New symbol created at the top'
+    })
+  }
+
+  // Bulk add symbols from textarea
+  const handleBulkAdd = () => {
+    if (!bulkAddText.trim()) return
+    
+    const lines = bulkAddText.split('\n').filter(line => line.trim())
+    const newSymbols: SymbolEntry[] = lines.map(line => {
+      const parts = line.split('|').map(p => p.trim())
+      return {
+        id: crypto.randomUUID(),
+        glyph: parts[0] || '',
+        romanization: parts[1] || '',
+        sound: parts[2] || '',
+        tags: parts[3] ? parts[3].split(',').map(t => t.trim()) : [],
+        image: ''
+      }
+    })
+    
+    const updated = {
+      ...form,
+      symbols: [...newSymbols, ...(form.symbols || [])]
+    }
+    setForm(updated)
+    setBulkAddText('')
+    setShowBulkAdd(false)
+    triggerAutoSave(updated)
+    addToast({
+      type: 'success',
+      title: `${newSymbols.length} symbols added`,
+      message: 'Bulk import completed successfully'
+    })
+  }
+
+  // Update symbol field
+  const updateSymbol = (id: string, field: keyof SymbolEntry, value: any) => {
+    const updated = {
+      ...form,
+      symbols: (form.symbols || []).map(symbol => 
+        symbol.id === id ? { ...symbol, [field]: value } : symbol
+      )
+    }
+    setForm(updated)
+    triggerAutoSave(updated)
+  }
+
+  // Add tag to symbol
+  const addSymbolTag = (id: string, tag: string) => {
+    if (!tag.trim()) return
+    const updated = {
+      ...form,
+      symbols: (form.symbols || []).map(symbol => 
+        symbol.id === id 
+          ? { ...symbol, tags: [...(symbol.tags || []), tag.trim()] }
+          : symbol
+      )
+    }
+    setForm(updated)
+    triggerAutoSave(updated)
+  }
+
+  // Remove tag from symbol
+  const removeSymbolTag = (id: string, tag: string) => {
+    const updated = {
+      ...form,
+      symbols: (form.symbols || []).map(symbol => 
+        symbol.id === id 
+          ? { ...symbol, tags: (symbol.tags || []).filter(t => t !== tag) }
+          : symbol
+      )
+    }
+    setForm(updated)
+    triggerAutoSave(updated)
+  }
+
+  // Delete symbol
+  const deleteSymbol = (id: string) => {
+    const symbol = form.symbols?.find(s => s.id === id)
+    const updated = {
+      ...form,
+      symbols: (form.symbols || []).filter(s => s.id !== id)
+    }
+    setForm(updated)
+    triggerAutoSave(updated)
+    addToast({
+      type: 'success',
+      title: 'Symbol deleted',
+      message: symbol?.glyph ? `Deleted "${symbol.glyph}"` : 'Symbol removed'
+    })
+  }
+
+  // Duplicate symbol
+  const duplicateSymbol = (id: string) => {
+    const symbol = form.symbols?.find(s => s.id === id)
+    if (!symbol) return
+    
+    const newSym = {
+      ...symbol,
+      id: crypto.randomUUID()
+    }
+    const index = form.symbols?.findIndex(s => s.id === id) || 0
+    const newSymbols = [...(form.symbols || [])]
+    newSymbols.splice(index + 1, 0, newSym)
+    
+    const updated = { ...form, symbols: newSymbols }
+    setForm(updated)
+    triggerAutoSave(updated)
+    addToast({
+      type: 'success',
+      title: 'Symbol duplicated',
+      message: 'Copy created below original'
+    })
+  }
+
+  // Drag & Drop for symbols
+  const handleSymbolDragStart = (id: string) => {
+    setDraggedSymbolId(id)
+  }
+
+  const handleSymbolDragOver = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault()
+    if (!draggedSymbolId || draggedSymbolId === targetId) return
+    
+    const symbols = [...(form.symbols || [])]
+    const draggedIndex = symbols.findIndex(s => s.id === draggedSymbolId)
+    const targetIndex = symbols.findIndex(s => s.id === targetId)
+    
+    if (draggedIndex === -1 || targetIndex === -1) return
+    
+    const [removed] = symbols.splice(draggedIndex, 1)
+    symbols.splice(targetIndex, 0, removed)
+    
+    setForm(prev => ({ ...prev, symbols }))
+  }
+
+  const handleSymbolDragEnd = () => {
+    if (draggedSymbolId) {
+      triggerAutoSave(form)
+    }
+    setDraggedSymbolId(null)
+  }
+
+  // Upload image for symbol
+  const handleSymbolImageUpload = async (symbolId: string, file: File) => {
+    if (!file.type.startsWith('image/')) {
+      addToast({
+        type: 'error',
+        title: 'Invalid file',
+        message: 'Please upload an image file'
+      })
+      return
+    }
+
+    setUploadingSymbolId(symbolId)
+
+    try {
+      const supabase = createSupabaseClient()
+      const fileExt = file.name.split('.').pop()
+      const fileName = `${crypto.randomUUID()}.${fileExt}`
+      const filePath = `${languageId}/${fileName}`
+
+      const { error: uploadError } = await supabase.storage
+        .from('language-symbols')
+        .upload(filePath, file)
+
+      if (uploadError) throw uploadError
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('language-symbols')
+        .getPublicUrl(filePath)
+
+      updateSymbol(symbolId, 'image', publicUrl)
+      
+      addToast({
+        type: 'success',
+        title: 'Image uploaded',
+        message: 'Symbol image updated successfully'
+      })
+    } catch (error) {
+      console.error('Upload error:', error)
+      addToast({
+        type: 'error',
+        title: 'Upload failed',
+        message: 'Could not upload image'
+      })
+    } finally {
+      setUploadingSymbolId(null)
+    }
+  }
+
+  // Old symbol management - for backwards compatibility
   const addSymbol = () => {
     if (!newSymbol.glyph && !newSymbol.romanization) return
     const symbol: SymbolEntry = {
@@ -1499,12 +2150,16 @@ function LanguageWorkspaceEdit({
   // Tag Management
   const addTag = () => {
     if (!newTag.trim() || form.tags?.includes(newTag.trim())) return
-    setForm(prev => ({ ...prev, tags: [...(prev.tags || []), newTag.trim()] }))
+    const updated = { ...form, tags: [...(form.tags || []), newTag.trim()] }
+    setForm(updated)
     setNewTag('')
+    triggerAutoSave(updated)
   }
 
   const removeTag = (tag: string) => {
-    setForm(prev => ({ ...prev, tags: (prev.tags || []).filter(t => t !== tag) }))
+    const updated = { ...form, tags: (form.tags || []).filter(t => t !== tag) }
+    setForm(updated)
+    triggerAutoSave(updated)
   }
 
   // Array helpers for phonology/grammar
@@ -1690,62 +2345,661 @@ function LanguageWorkspaceEdit({
         <div className="max-w-7xl mx-auto">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             {/* OVERVIEW TAB */}
-            <TabsContent value="overview" className="mt-0 space-y-6">
-              <Card className="rounded-xl border-gray-200">
-                <CardHeader className="border-b border-gray-100">
-                  <CardTitle>Basic Information</CardTitle>
-                </CardHeader>
-                <CardContent className="pt-6 space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="family">Language Family</Label>
-                      <Input 
-                        id="family" 
-                        value={form.family || ''} 
-                        onChange={(e) => setForm(prev => ({ ...prev, family: e.target.value }))} 
-                        placeholder="e.g., Indo-European, Sino-Tibetan..." 
-                        className="rounded-lg"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="speakers">Number of Speakers</Label>
-                      <Input 
-                        id="speakers" 
-                        value={form.speakers || ''} 
-                        onChange={(e) => setForm(prev => ({ ...prev, speakers: e.target.value }))} 
-                        placeholder="e.g., 1 million, Few hundred" 
-                        className="rounded-lg"
-                      />
-                    </div>
+            <TabsContent value="overview" className="mt-0">
+              <div className="grid grid-cols-1 xl:grid-cols-[1fr,320px] gap-6">
+                {/* Main Content */}
+                <div className="space-y-6">
+                  {/* Basic Information Card */}
+                  <Card className="rounded-xl border-gray-200">
+                    <CardHeader className="border-b border-gray-100">
+                      <CardTitle>Basic Information</CardTitle>
+                      {isSaving && (
+                        <span className="text-xs text-gray-500 flex items-center gap-1">
+                          <Clock className="w-3 h-3 animate-pulse" />
+                          Saving...
+                        </span>
+                      )}
+                    </CardHeader>
+                    <CardContent className="pt-6 space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="family">Language Family</Label>
+                          <Input 
+                            id="family" 
+                            value={form.family || ''} 
+                            onChange={(e) => {
+                              const updated = { ...form, family: e.target.value }
+                              setForm(updated)
+                              triggerAutoSave(updated)
+                            }} 
+                            placeholder="e.g., Indo-European, Sino-Tibetan..." 
+                            className="rounded-lg"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="speakers">Number of Speakers</Label>
+                          <Input 
+                            id="speakers" 
+                            value={form.speakers || ''} 
+                            onChange={(e) => {
+                              const updated = { ...form, speakers: e.target.value }
+                              setForm(updated)
+                              triggerAutoSave(updated)
+                            }} 
+                            placeholder="e.g., 1 million, Few hundred" 
+                            className="rounded-lg"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="status">Status</Label>
+                          <Select 
+                            value={form.status} 
+                            onValueChange={(value: any) => {
+                              const updated = { ...form, status: value }
+                              setForm(updated)
+                              triggerAutoSave(updated)
+                            }}
+                          >
+                            <SelectTrigger className="rounded-lg">
+                              <SelectValue placeholder="Select status" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-background">
+                              {languageStatuses.map(status => (
+                                <SelectItem key={status} value={status}>
+                                  {status.charAt(0).toUpperCase() + status.slice(1)}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label htmlFor="writing_system">Writing System</Label>
+                          <Select 
+                            value={form.writing_system} 
+                            onValueChange={(value: any) => {
+                              const updated = { ...form, writing_system: value }
+                              setForm(updated)
+                              triggerAutoSave(updated)
+                            }}
+                          >
+                            <SelectTrigger className="rounded-lg">
+                              <SelectValue placeholder="Select writing system" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-background">
+                              {writingSystems.map(system => (
+                                <SelectItem key={system} value={system}>
+                                  {system.charAt(0).toUpperCase() + system.slice(1)}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <Label htmlFor="description">Description</Label>
+                        <Textarea 
+                          id="description" 
+                          value={form.description || ''} 
+                          onChange={(e) => {
+                            const updated = { ...form, description: e.target.value }
+                            setForm(updated)
+                            triggerAutoSave(updated)
+                          }} 
+                          placeholder="Describe this language..." 
+                          rows={6}
+                          className="rounded-lg resize-none"
+                        />
+                      </div>
+
+                      <div>
+                        <Label htmlFor="sample_text">Sample Text/Phrases</Label>
+                        <Textarea 
+                          id="sample_text" 
+                          value={form.sample_text || ''} 
+                          onChange={(e) => {
+                            const updated = { ...form, sample_text: e.target.value }
+                            setForm(updated)
+                            triggerAutoSave(updated)
+                          }} 
+                          placeholder="Common phrases, greetings, or sample text in this language..." 
+                          rows={4}
+                          className="rounded-lg resize-none"
+                        />
+                      </div>
+
+                      {/* Tags */}
+                      <div>
+                        <Label htmlFor="tags">Tags</Label>
+                        <div className="flex gap-2 mb-2">
+                          <Input 
+                            id="tags"
+                            value={newTag}
+                            onChange={(e) => setNewTag(e.target.value)}
+                            placeholder="Add tag..."
+                            className="rounded-lg"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault()
+                                addTag()
+                              }
+                            }}
+                          />
+                          <Button onClick={addTag} size="sm" variant="outline" className="rounded-lg">
+                            Add
+                          </Button>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {(form.tags || []).map(tag => (
+                            <Badge 
+                              key={tag} 
+                              variant="secondary" 
+                              className="bg-amber-100 text-amber-800 hover:bg-amber-200 cursor-pointer transition-colors"
+                              onClick={() => removeTag(tag)}
+                            >
+                              {tag}
+                              <X className="w-3 h-3 ml-1" />
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Facts Sidebar (readonly) */}
+                <div className="space-y-4">
+                  <Card className="rounded-xl border-gray-200 bg-gray-50">
+                    <CardHeader className="border-b border-gray-100 bg-white rounded-t-xl">
+                      <CardTitle className="text-sm font-semibold text-gray-700">Language Facts</CardTitle>
+                    </CardHeader>
+                    <CardContent className="pt-4 space-y-4 text-sm">
+                      {/* Created */}
+                      {metadata?.created_at && (
+                        <div className="flex items-start gap-3">
+                          <Calendar className="w-4 h-4 text-gray-400 mt-0.5" />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">Created</div>
+                            <div className="text-gray-900 mt-1">
+                              {new Date(metadata.created_at).toLocaleDateString('en-US', { 
+                                month: 'short', 
+                                day: 'numeric', 
+                                year: 'numeric' 
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Updated */}
+                      {metadata?.updated_at && (
+                        <div className="flex items-start gap-3">
+                          <Clock className="w-4 h-4 text-gray-400 mt-0.5" />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">Last Updated</div>
+                            <div className="text-gray-900 mt-1">
+                              {new Date(metadata.updated_at).toLocaleDateString('en-US', { 
+                                month: 'short', 
+                                day: 'numeric', 
+                                year: 'numeric',
+                                hour: 'numeric',
+                                minute: '2-digit'
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="border-t border-gray-200 pt-4 space-y-3">
+                        {/* Word Count */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-gray-600">
+                            <FileText className="w-4 h-4" />
+                            <span>Words</span>
+                          </div>
+                          <span className="font-semibold text-amber-600">{form.words?.length || 0}</span>
+                        </div>
+
+                        {/* Symbol Count */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-gray-600">
+                            <Hash className="w-4 h-4" />
+                            <span>Symbols</span>
+                          </div>
+                          <span className="font-semibold text-amber-600">{form.symbols?.length || 0}</span>
+                        </div>
+
+                        {/* Tag Count */}
+                        {form.tags && form.tags.length > 0 && (
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2 text-gray-600">
+                              <X className="w-4 h-4" />
+                              <span>Tags</span>
+                            </div>
+                            <span className="font-semibold text-amber-600">{form.tags.length}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Tag Cloud */}
+                      {form.tags && form.tags.length > 0 && (
+                        <div className="border-t border-gray-200 pt-4">
+                          <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Tags</div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {form.tags.map(tag => (
+                              <Badge 
+                                key={tag} 
+                                variant="secondary" 
+                                className="text-xs bg-amber-100 text-amber-800"
+                              >
+                                {tag}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            </TabsContent>
+
+
+            {/* DICTIONARY TAB */}
+            <TabsContent value="dictionary" className="mt-0">
+              {/* Toolbar */}
+              <div className="mb-4 space-y-4">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Button 
+                    onClick={addNewWord}
+                    size="sm"
+                    className="bg-amber-500 hover:bg-amber-600 text-white rounded-lg"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Word
+                  </Button>
+
+                  <div className="flex-1 min-w-[200px]">
+                    <Input 
+                      placeholder="Search words..."
+                      value={wordSearch}
+                      onChange={(e) => setWordSearch(e.target.value)}
+                      className="rounded-lg"
+                    />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="status">Status</Label>
-                      <Select 
-                        value={form.status} 
-                        onValueChange={(value: any) => setForm(prev => ({ ...prev, status: value }))}
+                  <Select value={wordTypeFilter} onValueChange={setWordTypeFilter}>
+                    <SelectTrigger className="w-[180px] rounded-lg">
+                      <SelectValue placeholder="Filter by type" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background">
+                      <SelectItem value="all">All Types</SelectItem>
+                      {form.word_types.map(type => (
+                        <SelectItem key={type} value={type}>{type}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm" className="rounded-lg">
+                        <Download className="w-4 h-4 mr-2" />
+                        Export
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="bg-background">
+                      <DropdownMenuItem onClick={() => exportWords('json')}>
+                        Export as JSON
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => exportWords('csv')}>
+                        Export as CSV
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => document.getElementById('import-file')?.click()}
+                    className="rounded-lg"
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    Import
+                  </Button>
+                  <input 
+                    id="import-file"
+                    type="file"
+                    accept=".json,.csv"
+                    onChange={handleImportFile}
+                    className="hidden"
+                  />
+                </div>
+
+                {/* Word Type Management */}
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-600">Word Types:</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {form.word_types.map(type => (
+                      <Badge 
+                        key={type}
+                        variant="secondary"
+                        className="bg-amber-100 text-amber-800"
                       >
-                        <SelectTrigger className="rounded-lg">
-                          <SelectValue placeholder="Select status" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-background">
-                          {languageStatuses.map(status => (
-                            <SelectItem key={status} value={status}>
-                              {status.charAt(0).toUpperCase() + status.slice(1)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        {type}
+                      </Badge>
+                    ))}
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-6 px-2 text-xs">
+                          <Plus className="w-3 h-3 mr-1" />
+                          Add Type
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="bg-background w-64" align="start">
+                        <div className="space-y-2">
+                          <Label>New Word Type</Label>
+                          <div className="flex gap-2">
+                            <Input 
+                              placeholder="e.g., noun, verb..."
+                              value={newWordType}
+                              onChange={(e) => setNewWordType(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  addWordType()
+                                }
+                              }}
+                              className="rounded-lg"
+                            />
+                            <Button onClick={addWordType} size="sm" className="rounded-lg">
+                              Add
+                            </Button>
+                          </div>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </div>
+              </div>
+
+              {/* Dictionary Table */}
+              {getFilteredWords().length === 0 ? (
+                <Card className="rounded-xl border-gray-200">
+                  <CardContent className="py-12">
+                    <div className="text-center">
+                      <BookOpen className="w-12 h-12 mx-auto text-gray-400 mb-3" />
+                      <p className="text-gray-500 mb-4">
+                        {wordSearch || wordTypeFilter !== 'all' ? 'No words match your filters' : 'No words yet'}
+                      </p>
+                      {!wordSearch && wordTypeFilter === 'all' && (
+                        <Button onClick={addNewWord} variant="outline" className="rounded-lg">
+                          <Plus className="w-4 h-4 mr-2" />
+                          Add Your First Word
+                        </Button>
+                      )}
                     </div>
-                    <div>
-                      <Label htmlFor="writing_system">Writing System</Label>
-                      <Select 
-                        value={form.writing_system} 
-                        onValueChange={(value: any) => setForm(prev => ({ ...prev, writing_system: value }))}
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card className="rounded-xl border-gray-200">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-8"></TableHead>
+                        <TableHead>Term</TableHead>
+                        <TableHead>Pronunciation</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Definition</TableHead>
+                        <TableHead className="w-16">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {getFilteredWords().map((word) => (
+                        <TableRow 
+                          key={word.id}
+                          draggable
+                          onDragStart={() => handleDragStart(word.id)}
+                          onDragOver={(e) => handleDragOver(e, word.id)}
+                          onDragEnd={handleDragEnd}
+                          className={draggedWordId === word.id ? 'opacity-50' : ''}
+                        >
+                          <TableCell>
+                            <GripVertical className="w-4 h-4 text-gray-400 cursor-grab active:cursor-grabbing" />
+                          </TableCell>
+                          <TableCell>
+                            {editingWordId === word.id ? (
+                              <Input 
+                                value={word.term}
+                                onChange={(e) => updateWord(word.id, 'term', e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') saveWord(word.id)
+                                  if (e.key === 'Escape') cancelEditWord(word.id)
+                                }}
+                                autoFocus
+                                className="h-8 rounded"
+                              />
+                            ) : (
+                              <div 
+                                onClick={() => setEditingWordId(word.id)}
+                                className="cursor-pointer hover:bg-gray-50 px-2 py-1 rounded min-h-[32px] flex items-center"
+                              >
+                                {word.term || <span className="text-gray-400">Click to edit</span>}
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {editingWordId === word.id ? (
+                              <Input 
+                                value={word.pronunciation || ''}
+                                onChange={(e) => updateWord(word.id, 'pronunciation', e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') saveWord(word.id)
+                                  if (e.key === 'Escape') cancelEditWord(word.id)
+                                }}
+                                placeholder="/IPA/"
+                                className="h-8 rounded"
+                              />
+                            ) : (
+                              <div 
+                                onClick={() => setEditingWordId(word.id)}
+                                className="cursor-pointer hover:bg-gray-50 px-2 py-1 rounded min-h-[32px] flex items-center font-mono text-sm"
+                              >
+                                {word.pronunciation || <span className="text-gray-400">—</span>}
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {editingWordId === word.id ? (
+                              <Select 
+                                value={word.type || ''}
+                                onValueChange={(value) => updateWord(word.id, 'type', value)}
+                              >
+                                <SelectTrigger className="h-8 rounded">
+                                  <SelectValue placeholder="Select type" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-background">
+                                  {form.word_types.map(type => (
+                                    <SelectItem key={type} value={type}>{type}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <div 
+                                onClick={() => setEditingWordId(word.id)}
+                                className="cursor-pointer hover:bg-gray-50 px-2 py-1 rounded min-h-[32px] flex items-center"
+                              >
+                                {word.type ? (
+                                  <Badge variant="outline" className="text-xs">{word.type}</Badge>
+                                ) : (
+                                  <span className="text-gray-400">—</span>
+                                )}
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {editingWordId === word.id ? (
+                              <Input 
+                                value={word.definition || ''}
+                                onChange={(e) => updateWord(word.id, 'definition', e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') saveWord(word.id)
+                                  if (e.key === 'Escape') cancelEditWord(word.id)
+                                }}
+                                placeholder="Definition..."
+                                className="h-8 rounded"
+                              />
+                            ) : (
+                              <div 
+                                onClick={() => setEditingWordId(word.id)}
+                                className="cursor-pointer hover:bg-gray-50 px-2 py-1 rounded min-h-[32px] flex items-center"
+                              >
+                                {word.definition || <span className="text-gray-400">Click to edit</span>}
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {editingWordId === word.id ? (
+                              <div className="flex gap-1">
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => saveWord(word.id)}
+                                  className="h-8 w-8 p-0"
+                                >
+                                  <Check className="w-4 h-4 text-green-600" />
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => cancelEditWord(word.id)}
+                                  className="h-8 w-8 p-0"
+                                >
+                                  <X className="w-4 h-4 text-red-600" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                    <MoreVertical className="w-4 h-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent className="bg-background" align="end">
+                                  <DropdownMenuItem onClick={() => setEditingWordId(word.id)}>
+                                    <Edit3 className="w-4 h-4 mr-2" />
+                                    Edit
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => duplicateWord(word.id)}>
+                                    <Copy className="w-4 h-4 mr-2" />
+                                    Duplicate
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem 
+                                    onClick={() => deleteWord(word.id)}
+                                    className="text-red-600"
+                                  >
+                                    <Trash2 className="w-4 h-4 mr-2" />
+                                    Delete
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </Card>
+              )}
+
+              {/* Import Preview Dialog */}
+              <AlertDialog open={showImportDialog} onOpenChange={setShowImportDialog}>
+                <AlertDialogContent className="bg-background max-w-4xl max-h-[80vh] overflow-auto">
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Import Preview</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Review {importPreview.length} word(s) before importing. They will be added to the top of your dictionary.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <div className="my-4 max-h-96 overflow-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Term</TableHead>
+                          <TableHead>Pronunciation</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead>Definition</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {importPreview.map((word, idx) => (
+                          <TableRow key={idx}>
+                            <TableCell>{word.term}</TableCell>
+                            <TableCell className="font-mono text-sm">{word.pronunciation || '—'}</TableCell>
+                            <TableCell>
+                              {word.type && <Badge variant="outline" className="text-xs">{word.type}</Badge>}
+                            </TableCell>
+                            <TableCell className="max-w-md truncate">{word.definition}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction 
+                      onClick={confirmImport}
+                      className="bg-amber-500 hover:bg-amber-600 text-white"
+                    >
+                      Import {importPreview.length} Word(s)
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </TabsContent>
+
+            {/* SCRIPT TAB */}
+            <TabsContent value="script" className="mt-0">
+              <div className="flex gap-6">
+                {/* Main Content - Symbols Grid */}
+                <div className="flex-1 space-y-4">
+                  {/* Toolbar */}
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-2">
+                      <Button 
+                        onClick={addNewSymbol}
+                        size="sm"
+                        className="bg-amber-500 hover:bg-amber-600 text-white rounded-lg"
                       >
-                        <SelectTrigger className="rounded-lg">
-                          <SelectValue placeholder="Select writing system" />
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add Symbol
+                      </Button>
+                      <Button 
+                        onClick={() => setShowBulkAdd(!showBulkAdd)}
+                        size="sm"
+                        variant="outline"
+                        className="rounded-lg"
+                      >
+                        <Upload className="w-4 h-4 mr-2" />
+                        Bulk Add
+                      </Button>
+                    </div>
+                    
+                    {/* Writing System Selector */}
+                    <div className="flex items-center gap-2">
+                      <Label className="text-sm text-gray-600">Writing System:</Label>
+                      <Select 
+                        value={form.writing_system || 'none'} 
+                        onValueChange={(value: any) => {
+                          const updated = { ...form, writing_system: value }
+                          setForm(updated)
+                          triggerAutoSave(updated)
+                        }}
+                      >
+                        <SelectTrigger className="rounded-lg w-40">
+                          <SelectValue placeholder="Select" />
                         </SelectTrigger>
                         <SelectContent className="bg-background">
                           {writingSystems.map(system => (
@@ -1757,456 +3011,284 @@ function LanguageWorkspaceEdit({
                       </Select>
                     </div>
                   </div>
-                  
-                  <div>
-                    <Label htmlFor="description">Description</Label>
-                    <Textarea 
-                      id="description" 
-                      value={form.description || ''} 
-                      onChange={(e) => setForm(prev => ({ ...prev, description: e.target.value }))} 
-                      placeholder="Describe this language..." 
-                      rows={6}
-                      className="rounded-lg resize-none"
-                    />
-                  </div>
 
-                  <div>
-                    <Label htmlFor="sample_text">Sample Text/Phrases</Label>
-                    <Textarea 
-                      id="sample_text" 
-                      value={form.sample_text || ''} 
-                      onChange={(e) => setForm(prev => ({ ...prev, sample_text: e.target.value }))} 
-                      placeholder="Common phrases, greetings, or sample text in this language..." 
-                      rows={4}
-                      className="rounded-lg resize-none"
-                    />
-                  </div>
-
-                  {/* Tags */}
-                  <div>
-                    <Label htmlFor="tags">Tags</Label>
-                    <div className="flex gap-2 mb-2">
-                      <Input 
-                        id="tags"
-                        value={newTag}
-                        onChange={(e) => setNewTag(e.target.value)}
-                        placeholder="Add tag..."
-                        className="rounded-lg"
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault()
-                            addTag()
-                          }
-                        }}
-                      />
-                      <Button onClick={addTag} size="sm" variant="outline" className="rounded-lg">
-                        Add
-                      </Button>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {(form.tags || []).map(tag => (
-                        <Badge 
-                          key={tag} 
-                          variant="secondary" 
-                          className="bg-amber-100 text-amber-800 hover:bg-amber-200 cursor-pointer transition-colors"
-                          onClick={() => removeTag(tag)}
-                        >
-                          {tag}
-                          <X className="w-3 h-3 ml-1" />
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Save Button */}
-              <div className="flex justify-end">
-                <Button 
-                  onClick={onSave} 
-                  className="bg-amber-500 hover:bg-amber-600 text-white rounded-lg"
-                  disabled={!form.name.trim()}
-                >
-                  <Save className="w-4 h-4 mr-2" />
-                  Save Changes
-                </Button>
-              </div>
-            </TabsContent>
-
-            {/* DICTIONARY TAB */}
-            <TabsContent value="dictionary" className="mt-0 space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Basic Information</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="name">Language Name *</Label>
-                      <Input 
-                        id="name" 
-                        value={form.name} 
-                        onChange={(e) => setForm(prev => ({ ...prev, name: e.target.value }))} 
-                        placeholder="Language name..." 
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="family">Language Family</Label>
-                      <Input 
-                        id="family" 
-                        value={form.family} 
-                        onChange={(e) => setForm(prev => ({ ...prev, family: e.target.value }))} 
-                        placeholder="e.g., Indo-European, Sino-Tibetan..." 
-                      />
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="description">Description</Label>
-                    <Textarea 
-                      id="description" 
-                      value={form.description} 
-                      onChange={(e) => setForm(prev => ({ ...prev, description: e.target.value }))} 
-                      placeholder="Describe this language..." 
-                      rows={4} 
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="status">Status</Label>
-                      <Select 
-                        value={form.status} 
-                        onValueChange={(value: any) => setForm(prev => ({ ...prev, status: value }))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select status" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-background">
-                          {languageStatuses.map(status => (
-                            <SelectItem key={status} value={status}>
-                              {status.charAt(0).toUpperCase() + status.slice(1)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="speakers">Number of Speakers</Label>
-                      <Input 
-                        id="speakers" 
-                        value={form.speakers} 
-                        onChange={(e) => setForm(prev => ({ ...prev, speakers: e.target.value }))} 
-                        placeholder="e.g., 1 million, Few hundred..." 
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <Label htmlFor="sample_text">Sample Text/Phrases</Label>
-                    <Textarea 
-                      id="sample_text" 
-                      value={form.sample_text} 
-                      onChange={(e) => setForm(prev => ({ ...prev, sample_text: e.target.value }))} 
-                      placeholder="Common phrases, greetings, or sample text in this language..." 
-                      rows={4} 
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            {/* DICTIONARY TAB */}
-            <TabsContent value="dictionary" className="mt-0 space-y-6">
-              <Card className="rounded-xl border-gray-200">
-                <CardHeader className="border-b border-gray-100">
-                  <div className="flex items-center justify-between">
-                    <CardTitle>Dictionary & Vocabulary</CardTitle>
-                    <Button 
-                      onClick={() => {
-                        setForm(prev => ({
-                          ...prev,
-                          words: [...(prev.words || []), { id: crypto.randomUUID(), term: '', pronunciation: '', type: '', definition: '', notes: '', examples: [] }]
-                        }))
-                      }}
-                      size="sm"
-                      variant="outline"
-                      className="rounded-lg"
-                    >
-                      <Plus className="w-4 h-4 mr-2" />
-                      Add Word
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-6">
-                  {(!form.words || form.words.length === 0) ? (
-                    <div className="text-center py-12">
-                      <BookOpen className="w-12 h-12 mx-auto text-gray-400 mb-3" />
-                      <p className="text-gray-500 mb-4">No words yet</p>
-                      <Button 
-                        onClick={() => {
-                          setForm(prev => ({
-                            ...prev,
-                            words: [{ id: crypto.randomUUID(), term: '', pronunciation: '', type: '', definition: '', notes: '', examples: [] }]
-                          }))
-                        }}
-                        variant="outline"
-                        className="rounded-lg"
-                      >
-                        <Plus className="w-4 h-4 mr-2" />
-                        Add Your First Word
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {form.words.map((word, index) => (
-                        <Card key={index} className="rounded-lg border-gray-200">
-                          <CardContent className="pt-6">
-                            <div className="grid grid-cols-2 gap-4 mb-4">
-                              <div>
-                                <Label>Term</Label>
-                                <Input 
-                                  value={word.term}
-                                  onChange={(e) => {
-                                    const newWords = [...(form.words || [])]
-                                    newWords[index] = { ...newWords[index], term: e.target.value }
-                                    setForm(prev => ({ ...prev, words: newWords }))
-                                  }}
-                                  placeholder="Word in your language"
-                                  className="rounded-lg"
-                                />
-                              </div>
-                              <div>
-                                <Label>Definition</Label>
-                                <Input 
-                                  value={word.definition}
-                                  onChange={(e) => {
-                                    const newWords = [...(form.words || [])]
-                                    newWords[index] = { ...newWords[index], definition: e.target.value }
-                                    setForm(prev => ({ ...prev, words: newWords }))
-                                  }}
-                                  placeholder="English definition"
-                                  className="rounded-lg"
-                                />
-                              </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4 mb-4">
-                              <div>
-                                <Label>Type</Label>
-                                <Input 
-                                  value={word.type || ''}
-                                  onChange={(e) => {
-                                    const newWords = [...(form.words || [])]
-                                    newWords[index] = { ...newWords[index], type: e.target.value }
-                                    setForm(prev => ({ ...prev, words: newWords }))
-                                  }}
-                                  placeholder="e.g., noun, verb, adjective"
-                                  className="rounded-lg"
-                                />
-                              </div>
-                              <div>
-                                <Label>Pronunciation (IPA)</Label>
-                                <Input 
-                                  value={word.pronunciation || ''}
-                                  onChange={(e) => {
-                                    const newWords = [...(form.words || [])]
-                                    newWords[index] = { ...newWords[index], pronunciation: e.target.value }
-                                    setForm(prev => ({ ...prev, words: newWords }))
-                                  }}
-                                  placeholder="e.g., /fəˈnɛtɪk/"
-                                  className="rounded-lg"
-                                />
-                              </div>
-                            </div>
-                            <div className="mb-4">
-                              <Label>Notes</Label>
-                              <Textarea 
-                                value={word.notes || ''}
-                                onChange={(e) => {
-                                  const newWords = [...(form.words || [])]
-                                  newWords[index] = { ...newWords[index], notes: e.target.value }
-                                  setForm(prev => ({ ...prev, words: newWords }))
-                                }}
-                                placeholder="Etymology, usage context, cultural notes..."
-                                rows={2}
-                                className="rounded-lg resize-none"
-                              />
-                            </div>
-                            <div className="flex justify-end">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  const newWords = (form.words || []).filter((_, i) => i !== index)
-                                  setForm(prev => ({ ...prev, words: newWords }))
-                                }}
-                                className="text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg"
-                              >
-                                <Trash2 className="w-4 h-4 mr-2" />
-                                Remove Word
-                              </Button>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
+                  {/* Bulk Add Dialog */}
+                  {showBulkAdd && (
+                    <Card className="rounded-xl border-amber-200 bg-amber-50">
+                      <CardContent className="pt-6 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <Label>Bulk Add Symbols</Label>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => setShowBulkAdd(false)}
+                            className="h-6 w-6 p-0"
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+                        <Textarea 
+                          value={bulkAddText}
+                          onChange={(e) => setBulkAddText(e.target.value)}
+                          placeholder="Paste symbols, one per line. Format: Glyph | Romanization | Sound | Tags&#10;Example: あ | a | /a/ | hiragana, vowel"
+                          className="rounded-lg min-h-[120px] bg-white"
+                        />
+                        <div className="flex justify-end gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => {
+                              setBulkAddText('')
+                              setShowBulkAdd(false)
+                            }}
+                            className="rounded-lg"
+                          >
+                            Cancel
+                          </Button>
+                          <Button 
+                            onClick={handleBulkAdd}
+                            size="sm"
+                            className="bg-amber-500 hover:bg-amber-600 text-white rounded-lg"
+                            disabled={!bulkAddText.trim()}
+                          >
+                            Import Symbols
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
                   )}
-                </CardContent>
-              </Card>
 
-              {/* Save Button */}
-              <div className="flex justify-end">
-                <Button 
-                  onClick={onSave} 
-                  className="bg-amber-500 hover:bg-amber-600 text-white rounded-lg"
-                  disabled={!form.name.trim()}
-                >
-                  <Save className="w-4 h-4 mr-2" />
-                  Save Changes
-                </Button>
-              </div>
-            </TabsContent>
-
-            {/* SCRIPT TAB */}
-            <TabsContent value="script" className="mt-0 space-y-6">
-              <Card className="rounded-xl border-gray-200">
-                <CardHeader className="border-b border-gray-100">
-                  <div className="flex items-center justify-between">
-                    <CardTitle>Writing System & Symbols</CardTitle>
-                    <Button 
-                      onClick={() => {
-                        setForm(prev => ({
-                          ...prev,
-                          symbols: [...(prev.symbols || []), { id: crypto.randomUUID(), glyph: '', romanization: '', sound: '', tags: [], image: '' }]
-                        }))
-                      }}
-                      size="sm"
-                      variant="outline"
-                      className="rounded-lg"
-                    >
-                      <Plus className="w-4 h-4 mr-2" />
-                      Add Symbol
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-6 space-y-6">
-                  {/* Writing System Type */}
-                  <div>
-                    <Label htmlFor="writing_system">Writing System Type</Label>
-                    <Select 
-                      value={form.writing_system} 
-                      onValueChange={(value: any) => setForm(prev => ({ ...prev, writing_system: value }))}
-                    >
-                      <SelectTrigger className="rounded-lg">
-                        <SelectValue placeholder="Select writing system" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-background">
-                        {writingSystems.map(system => (
-                          <SelectItem key={system} value={system}>
-                            {system.charAt(0).toUpperCase() + system.slice(1)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Symbols List */}
+                  {/* Symbols Grid */}
                   {(!form.symbols || form.symbols.length === 0) ? (
-                    <div className="text-center py-12">
-                      <MessageSquare className="w-12 h-12 mx-auto text-gray-400 mb-3" />
-                      <p className="text-gray-500 mb-4">No symbols yet</p>
-                      <Button 
-                        onClick={() => {
-                          setForm(prev => ({
-                            ...prev,
-                            symbols: [{ id: crypto.randomUUID(), glyph: '', romanization: '', sound: '', tags: [], image: '' }]
-                          }))
-                        }}
-                        variant="outline"
-                        className="rounded-lg"
-                      >
-                        <Plus className="w-4 h-4 mr-2" />
-                        Add Your First Symbol
-                      </Button>
-                    </div>
+                    <Card className="rounded-xl border-gray-200">
+                      <CardContent className="py-16">
+                        <div className="text-center">
+                          <MessageSquare className="w-12 h-12 mx-auto text-gray-400 mb-3" />
+                          <p className="text-gray-500 mb-4">No symbols yet</p>
+                          <Button 
+                            onClick={addNewSymbol}
+                            variant="outline"
+                            className="rounded-lg"
+                          >
+                            <Plus className="w-4 h-4 mr-2" />
+                            Add Your First Symbol
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
                   ) : (
-                    <div className="space-y-4">
-                      {form.symbols.map((symbol, index) => (
-                        <Card key={index} className="rounded-lg border-gray-200">
-                          <CardContent className="pt-6">
-                            <div className="grid grid-cols-3 gap-4 mb-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {form.symbols.map((symbol) => (
+                        <Card 
+                          key={symbol.id}
+                          draggable
+                          onDragStart={() => handleSymbolDragStart(symbol.id)}
+                          onDragOver={(e) => handleSymbolDragOver(e, symbol.id)}
+                          onDragEnd={handleSymbolDragEnd}
+                          className={`rounded-xl border-gray-200 transition-all hover:shadow-md ${
+                            draggedSymbolId === symbol.id ? 'opacity-50' : ''
+                          }`}
+                        >
+                          <CardContent className="pt-6 space-y-4">
+                            {/* Drag Handle & Actions */}
+                            <div className="flex items-start justify-between">
+                              <GripVertical className="w-5 h-5 text-gray-400 cursor-grab active:cursor-grabbing" />
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                    <MoreHorizontal className="w-4 h-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent className="bg-background" align="end">
+                                  <DropdownMenuItem onClick={() => duplicateSymbol(symbol.id)}>
+                                    <Copy className="w-4 h-4 mr-2" />
+                                    Duplicate
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem 
+                                    onClick={() => deleteSymbol(symbol.id)}
+                                    className="text-red-600"
+                                  >
+                                    <Trash2 className="w-4 h-4 mr-2" />
+                                    Delete
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+
+                            {/* Glyph Display / Image */}
+                            <div className="text-center">
+                              {symbol.image ? (
+                                <div className="relative">
+                                  <img 
+                                    src={symbol.image} 
+                                    alt={symbol.glyph || 'Symbol'} 
+                                    className="w-20 h-20 mx-auto object-contain rounded-lg"
+                                  />
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => updateSymbol(symbol.id, 'image', '')}
+                                    className="absolute top-0 right-0 h-6 w-6 p-0 rounded-full bg-white shadow"
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </Button>
+                                </div>
+                              ) : symbol.glyph ? (
+                                <div className="text-5xl font-serif mb-2">{symbol.glyph}</div>
+                              ) : (
+                                <div className="text-5xl text-gray-300 mb-2">?</div>
+                              )}
+                              
+                              {/* Image Upload */}
+                              {!symbol.image && (
+                                <div className="mt-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => document.getElementById(`symbol-upload-${symbol.id}`)?.click()}
+                                    disabled={uploadingSymbolId === symbol.id}
+                                    className="text-xs rounded h-7"
+                                  >
+                                    <ImageIcon className="w-3 h-3 mr-1" />
+                                    {uploadingSymbolId === symbol.id ? 'Uploading...' : 'Upload Image'}
+                                  </Button>
+                                  <input
+                                    id={`symbol-upload-${symbol.id}`}
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0]
+                                      if (file) handleSymbolImageUpload(symbol.id, file)
+                                    }}
+                                    className="hidden"
+                                  />
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Fields */}
+                            <div className="space-y-2">
                               <div>
-                                <Label>Glyph/Character</Label>
+                                <Label className="text-xs text-gray-600">Glyph</Label>
                                 <Input 
-                                  value={symbol.glyph}
-                                  onChange={(e) => {
-                                    const newSymbols = [...(form.symbols || [])]
-                                    newSymbols[index] = { ...newSymbols[index], glyph: e.target.value }
-                                    setForm(prev => ({ ...prev, symbols: newSymbols }))
-                                  }}
-                                  placeholder="The symbol itself"
-                                  className="rounded-lg text-2xl text-center"
+                                  value={symbol.glyph || ''}
+                                  onChange={(e) => updateSymbol(symbol.id, 'glyph', e.target.value)}
+                                  placeholder="Symbol character"
+                                  className="rounded h-9 text-center text-xl"
                                 />
                               </div>
                               <div>
-                                <Label>Romanization</Label>
+                                <Label className="text-xs text-gray-600">Romanization</Label>
                                 <Input 
-                                  value={symbol.romanization}
-                                  onChange={(e) => {
-                                    const newSymbols = [...(form.symbols || [])]
-                                    newSymbols[index] = { ...newSymbols[index], romanization: e.target.value }
-                                    setForm(prev => ({ ...prev, symbols: newSymbols }))
-                                  }}
-                                  placeholder="Latin alphabet equivalent"
-                                  className="rounded-lg"
+                                  value={symbol.romanization || ''}
+                                  onChange={(e) => updateSymbol(symbol.id, 'romanization', e.target.value)}
+                                  placeholder="Latin equivalent"
+                                  className="rounded h-9"
                                 />
                               </div>
                               <div>
-                                <Label>Sound (IPA)</Label>
+                                <Label className="text-xs text-gray-600">Sound (IPA)</Label>
                                 <Input 
                                   value={symbol.sound || ''}
-                                  onChange={(e) => {
-                                    const newSymbols = [...(form.symbols || [])]
-                                    newSymbols[index] = { ...newSymbols[index], sound: e.target.value }
-                                    setForm(prev => ({ ...prev, symbols: newSymbols }))
-                                  }}
-                                  placeholder="e.g., /a/"
-                                  className="rounded-lg"
+                                  onChange={(e) => updateSymbol(symbol.id, 'sound', e.target.value)}
+                                  placeholder="/a/"
+                                  className="rounded h-9 font-mono text-sm"
                                 />
                               </div>
-                            </div>
-                            <div className="flex justify-end">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  const newSymbols = (form.symbols || []).filter((_, i) => i !== index)
-                                  setForm(prev => ({ ...prev, symbols: newSymbols }))
-                                }}
-                                className="text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg"
-                              >
-                                <Trash2 className="w-4 h-4 mr-2" />
-                                Remove Symbol
-                              </Button>
+                              
+                              {/* Tags */}
+                              <div>
+                                <Label className="text-xs text-gray-600 mb-1 block">Tags</Label>
+                                <div className="flex flex-wrap gap-1.5 mb-2">
+                                  {(symbol.tags || []).map(tag => (
+                                    <Badge 
+                                      key={tag}
+                                      variant="secondary"
+                                      className="bg-amber-100 text-amber-800 text-xs cursor-pointer hover:bg-red-100"
+                                      onClick={() => removeSymbolTag(symbol.id, tag)}
+                                    >
+                                      {tag} <X className="w-3 h-3 ml-1" />
+                                    </Badge>
+                                  ))}
+                                </div>
+                                <Input 
+                                  placeholder="Add tag..."
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      addSymbolTag(symbol.id, e.currentTarget.value)
+                                      e.currentTarget.value = ''
+                                    }
+                                  }}
+                                  className="rounded h-8 text-sm"
+                                />
+                              </div>
                             </div>
                           </CardContent>
                         </Card>
                       ))}
                     </div>
                   )}
-                </CardContent>
-              </Card>
+                </div>
 
-              {/* Save Button */}
-              <div className="flex justify-end">
-                <Button 
-                  onClick={onSave} 
-                  className="bg-amber-500 hover:bg-amber-600 text-white rounded-lg"
-                  disabled={!form.name.trim()}
-                >
-                  <Save className="w-4 h-4 mr-2" />
-                  Save Changes
-                </Button>
+                {/* Right Sidebar - Writing System Tips */}
+                <div className="hidden lg:block w-80 space-y-4">
+                  <Card className="rounded-xl border-gray-200 sticky top-4">
+                    <CardHeader className="border-b border-gray-100">
+                      <CardTitle className="text-base">Writing System Guide</CardTitle>
+                    </CardHeader>
+                    <CardContent className="pt-4 space-y-4">
+                      <div className="space-y-3 text-sm">
+                        <div>
+                          <h4 className="font-semibold text-amber-600 mb-1">Alphabetic</h4>
+                          <p className="text-gray-600 text-xs">Each symbol represents a single sound (phoneme). Examples: Latin, Greek, Cyrillic.</p>
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-amber-600 mb-1">Logographic</h4>
+                          <p className="text-gray-600 text-xs">Symbols represent words or morphemes. Examples: Chinese characters, Egyptian hieroglyphs.</p>
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-amber-600 mb-1">Syllabic</h4>
+                          <p className="text-gray-600 text-xs">Each symbol represents a syllable. Examples: Japanese kana, Cherokee syllabary.</p>
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-amber-600 mb-1">Abjad</h4>
+                          <p className="text-gray-600 text-xs">Consonants only; vowels are implied or marked with diacritics. Examples: Arabic, Hebrew.</p>
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-amber-600 mb-1">Abugida</h4>
+                          <p className="text-gray-600 text-xs">Consonant-vowel combinations with inherent vowel. Examples: Devanagari, Amharic.</p>
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-amber-600 mb-1">Pictographic</h4>
+                          <p className="text-gray-600 text-xs">Symbols represent objects or concepts directly. Examples: early Sumerian, Dongba.</p>
+                        </div>
+                      </div>
+
+                      <div className="pt-4 border-t border-gray-100">
+                        <h4 className="font-semibold text-sm mb-2">Symbol Stats</h4>
+                        <div className="space-y-1 text-sm text-gray-600">
+                          <div className="flex justify-between">
+                            <span>Total symbols:</span>
+                            <span className="font-medium text-gray-900">{form.symbols?.length || 0}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>With images:</span>
+                            <span className="font-medium text-gray-900">
+                              {form.symbols?.filter(s => s.image).length || 0}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>With sounds:</span>
+                            <span className="font-medium text-gray-900">
+                              {form.symbols?.filter(s => s.sound).length || 0}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
               </div>
             </TabsContent>
 
@@ -2223,13 +3305,23 @@ function LanguageWorkspaceEdit({
                     <Label>Vowels</Label>
                     <div className="flex gap-2 mb-2">
                       <Input 
-                        placeholder="Add vowel..."
+                        placeholder="Add vowel (press Enter)..."
                         className="rounded-lg"
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
                             const input = e.currentTarget
-                            addToArray('phonology.vowels', input.value)
-                            input.value = ''
+                            if (input.value.trim()) {
+                              const updated = {
+                                ...form,
+                                phonology: { 
+                                  ...form.phonology, 
+                                  vowels: [...(form.phonology?.vowels || []), input.value.trim()] 
+                                }
+                              }
+                              setForm(updated)
+                              triggerAutoSave(updated)
+                              input.value = ''
+                            }
                           }
                         }}
                       />
@@ -2240,7 +3332,17 @@ function LanguageWorkspaceEdit({
                           key={vowel} 
                           variant="secondary" 
                           className="bg-amber-100 text-amber-800 hover:bg-red-100 cursor-pointer transition-colors"
-                          onClick={() => removeFromArray('phonology.vowels', vowel)}
+                          onClick={() => {
+                            const updated = {
+                              ...form,
+                              phonology: {
+                                ...form.phonology,
+                                vowels: (form.phonology?.vowels || []).filter(v => v !== vowel)
+                              }
+                            }
+                            setForm(updated)
+                            triggerAutoSave(updated)
+                          }}
                         >
                           {vowel} <X className="w-3 h-3 ml-1" />
                         </Badge>
@@ -2253,13 +3355,23 @@ function LanguageWorkspaceEdit({
                     <Label>Consonants</Label>
                     <div className="flex gap-2 mb-2">
                       <Input 
-                        placeholder="Add consonant..."
+                        placeholder="Add consonant (press Enter)..."
                         className="rounded-lg"
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
                             const input = e.currentTarget
-                            addToArray('phonology.consonants', input.value)
-                            input.value = ''
+                            if (input.value.trim()) {
+                              const updated = {
+                                ...form,
+                                phonology: { 
+                                  ...form.phonology, 
+                                  consonants: [...(form.phonology?.consonants || []), input.value.trim()] 
+                                }
+                              }
+                              setForm(updated)
+                              triggerAutoSave(updated)
+                              input.value = ''
+                            }
                           }
                         }}
                       />
@@ -2270,7 +3382,17 @@ function LanguageWorkspaceEdit({
                           key={consonant} 
                           variant="secondary" 
                           className="bg-amber-100 text-amber-800 hover:bg-red-100 cursor-pointer transition-colors"
-                          onClick={() => removeFromArray('phonology.consonants', consonant)}
+                          onClick={() => {
+                            const updated = {
+                              ...form,
+                              phonology: {
+                                ...form.phonology,
+                                consonants: (form.phonology?.consonants || []).filter(c => c !== consonant)
+                              }
+                            }
+                            setForm(updated)
+                            triggerAutoSave(updated)
+                          }}
                         >
                           {consonant} <X className="w-3 h-3 ml-1" />
                         </Badge>
@@ -2284,10 +3406,14 @@ function LanguageWorkspaceEdit({
                     <Input 
                       id="syllableStructure"
                       value={form.phonology?.syllableStructure || ''}
-                      onChange={(e) => setForm(prev => ({
-                        ...prev,
-                        phonology: { ...prev.phonology, syllableStructure: e.target.value }
-                      }))}
+                      onChange={(e) => {
+                        const updated = {
+                          ...form,
+                          phonology: { ...form.phonology, syllableStructure: e.target.value }
+                        }
+                        setForm(updated)
+                        triggerAutoSave(updated)
+                      }}
                       placeholder="e.g., (C)V(C), CVC, CV..."
                       className="rounded-lg"
                     />
@@ -2304,28 +3430,47 @@ function LanguageWorkspaceEdit({
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="wordOrder">Word Order</Label>
-                      <Input 
-                        id="wordOrder"
+                      <Select 
                         value={form.grammar?.wordOrder || ''}
-                        onChange={(e) => setForm(prev => ({
-                          ...prev,
-                          grammar: { ...prev.grammar, wordOrder: e.target.value }
-                        }))}
-                        placeholder="e.g., SVO, SOV, VSO..."
-                        className="rounded-lg"
-                      />
+                        onValueChange={(value) => {
+                          const updated = {
+                            ...form,
+                            grammar: { ...form.grammar, wordOrder: value }
+                          }
+                          setForm(updated)
+                          triggerAutoSave(updated)
+                        }}
+                      >
+                        <SelectTrigger className="rounded-lg">
+                          <SelectValue placeholder="Select word order" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-background">
+                          <SelectItem value="SVO">SVO (Subject-Verb-Object)</SelectItem>
+                          <SelectItem value="SOV">SOV (Subject-Object-Verb)</SelectItem>
+                          <SelectItem value="VSO">VSO (Verb-Subject-Object)</SelectItem>
+                          <SelectItem value="VOS">VOS (Verb-Object-Subject)</SelectItem>
+                          <SelectItem value="OVS">OVS (Object-Verb-Subject)</SelectItem>
+                          <SelectItem value="OSV">OSV (Object-Subject-Verb)</SelectItem>
+                          <SelectItem value="free">Free word order</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div>
                       <Label htmlFor="morphology">Morphology</Label>
-                      <Input 
+                      <Textarea 
                         id="morphology"
                         value={form.grammar?.morphology || ''}
-                        onChange={(e) => setForm(prev => ({
-                          ...prev,
-                          grammar: { ...prev.grammar, morphology: e.target.value }
-                        }))}
-                        placeholder="e.g., agglutinative, fusional..."
-                        className="rounded-lg"
+                        onChange={(e) => {
+                          const updated = {
+                            ...form,
+                            grammar: { ...form.grammar, morphology: e.target.value }
+                          }
+                          setForm(updated)
+                          triggerAutoSave(updated)
+                        }}
+                        placeholder="e.g., agglutinative, fusional, isolating..."
+                        rows={1}
+                        className="rounded-lg resize-none"
                       />
                     </div>
                   </div>
@@ -2335,13 +3480,23 @@ function LanguageWorkspaceEdit({
                     <Label>Tenses</Label>
                     <div className="flex gap-2 mb-2">
                       <Input 
-                        placeholder="Add tense..."
+                        placeholder="Add tense (press Enter)..."
                         className="rounded-lg"
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
                             const input = e.currentTarget
-                            addToArray('grammar.tenses', input.value)
-                            input.value = ''
+                            if (input.value.trim()) {
+                              const updated = {
+                                ...form,
+                                grammar: { 
+                                  ...form.grammar, 
+                                  tenses: [...(form.grammar?.tenses || []), input.value.trim()] 
+                                }
+                              }
+                              setForm(updated)
+                              triggerAutoSave(updated)
+                              input.value = ''
+                            }
                           }
                         }}
                       />
@@ -2352,7 +3507,17 @@ function LanguageWorkspaceEdit({
                           key={tense} 
                           variant="secondary" 
                           className="bg-amber-100 text-amber-800 hover:bg-red-100 cursor-pointer transition-colors"
-                          onClick={() => removeFromArray('grammar.tenses', tense)}
+                          onClick={() => {
+                            const updated = {
+                              ...form,
+                              grammar: {
+                                ...form.grammar,
+                                tenses: (form.grammar?.tenses || []).filter(t => t !== tense)
+                              }
+                            }
+                            setForm(updated)
+                            triggerAutoSave(updated)
+                          }}
                         >
                           {tense} <X className="w-3 h-3 ml-1" />
                         </Badge>
@@ -2365,13 +3530,23 @@ function LanguageWorkspaceEdit({
                     <Label>Grammatical Cases</Label>
                     <div className="flex gap-2 mb-2">
                       <Input 
-                        placeholder="Add case..."
+                        placeholder="Add case (press Enter)..."
                         className="rounded-lg"
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
                             const input = e.currentTarget
-                            addToArray('grammar.cases', input.value)
-                            input.value = ''
+                            if (input.value.trim()) {
+                              const updated = {
+                                ...form,
+                                grammar: { 
+                                  ...form.grammar, 
+                                  cases: [...(form.grammar?.cases || []), input.value.trim()] 
+                                }
+                              }
+                              setForm(updated)
+                              triggerAutoSave(updated)
+                              input.value = ''
+                            }
                           }
                         }}
                       />
@@ -2382,7 +3557,17 @@ function LanguageWorkspaceEdit({
                           key={grammarCase} 
                           variant="secondary" 
                           className="bg-amber-100 text-amber-800 hover:bg-red-100 cursor-pointer transition-colors"
-                          onClick={() => removeFromArray('grammar.cases', grammarCase)}
+                          onClick={() => {
+                            const updated = {
+                              ...form,
+                              grammar: {
+                                ...form.grammar,
+                                cases: (form.grammar?.cases || []).filter(c => c !== grammarCase)
+                              }
+                            }
+                            setForm(updated)
+                            triggerAutoSave(updated)
+                          }}
                         >
                           {grammarCase} <X className="w-3 h-3 ml-1" />
                         </Badge>
@@ -2396,10 +3581,14 @@ function LanguageWorkspaceEdit({
                     <Textarea 
                       id="plurals"
                       value={form.grammar?.plurals || ''}
-                      onChange={(e) => setForm(prev => ({
-                        ...prev,
-                        grammar: { ...prev.grammar, plurals: e.target.value }
-                      }))}
+                      onChange={(e) => {
+                        const updated = {
+                          ...form,
+                          grammar: { ...form.grammar, plurals: e.target.value }
+                        }
+                        setForm(updated)
+                        triggerAutoSave(updated)
+                      }}
                       placeholder="Describe how plurals are formed..."
                       rows={3}
                       className="rounded-lg resize-none"
@@ -2407,18 +3596,6 @@ function LanguageWorkspaceEdit({
                   </div>
                 </CardContent>
               </Card>
-
-              {/* Save Button */}
-              <div className="flex justify-end">
-                <Button 
-                  onClick={onSave} 
-                  className="bg-amber-500 hover:bg-amber-600 text-white rounded-lg"
-                  disabled={!form.name.trim()}
-                >
-                  <Save className="w-4 h-4 mr-2" />
-                  Save Changes
-                </Button>
-              </div>
             </TabsContent>
 
             {/* RELATIONSHIPS TAB */}
@@ -2427,78 +3604,251 @@ function LanguageWorkspaceEdit({
                 <CardHeader className="border-b border-gray-100">
                   <CardTitle>Related Elements</CardTitle>
                 </CardHeader>
-                <CardContent className="pt-6">
-                  <p className="text-sm text-gray-500 mb-4">Link to characters, locations, factions, etc. that use this language</p>
-                  <div className="space-y-2">
-                    {(form.links || []).map((link, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-3 border rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
-                        <div className="flex items-center gap-2">
-                          <LinkIcon className="w-4 h-4 text-gray-400" />
-                          <span className="text-sm font-medium">{link.name}</span>
-                          <Badge variant="outline" className="text-xs">{link.type}</Badge>
+                <CardContent className="pt-6 space-y-4">
+                  <p className="text-sm text-gray-500">Link to characters, locations, factions, items, systems, or other languages that use or relate to this language.</p>
+                  
+                  {/* Existing Links */}
+                  {(form.links && form.links.length > 0) ? (
+                    <div className="space-y-2 mb-4">
+                      {form.links.map((link, idx) => (
+                        <div key={idx} className="flex items-center justify-between p-3 border rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
+                          <div className="flex items-center gap-2">
+                            <LinkIcon className="w-4 h-4 text-gray-400" />
+                            <span className="text-sm font-medium">{link.name}</span>
+                            <Badge variant="outline" className="text-xs capitalize">{link.type}</Badge>
+                          </div>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => {
+                              const updated = {
+                                ...form,
+                                links: (form.links || []).filter((_, i) => i !== idx)
+                              }
+                              setForm(updated)
+                              triggerAutoSave(updated)
+                              addToast({
+                                type: 'success',
+                                title: 'Link removed',
+                                message: `Removed link to ${link.name}`
+                              })
+                            }}
+                            className="hover:bg-red-50 text-red-600 h-8 w-8 p-0"
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
                         </div>
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={() => setForm(prev => ({
-                            ...prev,
-                            links: (prev.links || []).filter((_, i) => i !== idx)
-                          }))}
-                          className="hover:bg-red-50 text-red-600"
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    ))}
-                    {(!form.links || form.links.length === 0) && (
-                      <p className="text-sm text-gray-500 text-center py-4">No links added yet</p>
-                    )}
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
+                      <LinkIcon className="w-8 h-8 mx-auto text-gray-400 mb-2" />
+                      <p className="text-sm text-gray-500">No relationships added yet</p>
+                      <p className="text-xs text-gray-400 mt-1">Add links to connect this language with other elements</p>
+                    </div>
+                  )}
+
+                  {/* Add Link Section - Placeholder for future implementation */}
+                  <div className="pt-4 border-t border-gray-100">
+                    <p className="text-xs text-gray-500 italic">Note: Use the link picker in the main interface to add relationships to other elements.</p>
                   </div>
                 </CardContent>
               </Card>
-
-              {/* Save Button */}
-              <div className="flex justify-end">
-                <Button 
-                  onClick={onSave} 
-                  className="bg-amber-500 hover:bg-amber-600 text-white rounded-lg"
-                  disabled={!form.name.trim()}
-                >
-                  <Save className="w-4 h-4 mr-2" />
-                  Save Changes
-                </Button>
-              </div>
             </TabsContent>
 
             {/* MEDIA TAB */}
             <TabsContent value="media" className="mt-0 space-y-6">
               <Card className="rounded-xl border-gray-200">
                 <CardHeader className="border-b border-gray-100">
-                  <CardTitle>Media & Attachments</CardTitle>
+                  <div className="flex items-center justify-between">
+                    <CardTitle>Media & Attachments</CardTitle>
+                    <Button 
+                      variant="outline"
+                      size="sm"
+                      onClick={() => document.getElementById('media-upload')?.click()}
+                      className="rounded-lg"
+                    >
+                      <Upload className="w-4 h-4 mr-2" />
+                      Upload Image
+                    </Button>
+                    <input 
+                      id="media-upload"
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={async (e) => {
+                        const files = Array.from(e.target.files || [])
+                        if (files.length === 0) return
+
+                        if (!languageId) {
+                          addToast({
+                            type: 'error',
+                            title: 'Save first',
+                            message: 'Please save the language before uploading images'
+                          })
+                          return
+                        }
+
+                        addToast({
+                          type: 'info',
+                          title: 'Uploading...',
+                          message: `Uploading ${files.length} image(s)`
+                        })
+
+                        try {
+                          const supabase = createSupabaseClient()
+                          const uploadedImages = []
+
+                          for (const file of files) {
+                            if (!file.type.startsWith('image/')) {
+                              console.warn('Skipping non-image file:', file.name)
+                              continue
+                            }
+
+                            const fileExt = file.name.split('.').pop()
+                            const fileName = `${crypto.randomUUID()}.${fileExt}`
+                            const filePath = `${languageId}/${fileName}`
+
+                            const { error: uploadError } = await supabase.storage
+                              .from('language-images')
+                              .upload(filePath, file)
+
+                            if (uploadError) {
+                              console.error('Upload error:', uploadError)
+                              continue
+                            }
+
+                            const { data: { publicUrl } } = supabase.storage
+                              .from('language-images')
+                              .getPublicUrl(filePath)
+
+                            uploadedImages.push({
+                              id: crypto.randomUUID(),
+                              url: publicUrl,
+                              caption: file.name.replace(/\.[^/.]+$/, ''), // filename without extension
+                              isCover: false
+                            })
+                          }
+
+                          if (uploadedImages.length > 0) {
+                            const updatedForm = {
+                              ...form,
+                              images: [...(form.images || []), ...uploadedImages]
+                            }
+                            setForm(updatedForm)
+                            triggerAutoSave(updatedForm)
+
+                            addToast({
+                              type: 'success',
+                              title: 'Upload complete',
+                              message: `Successfully uploaded ${uploadedImages.length} image(s)`
+                            })
+                          } else {
+                            addToast({
+                              type: 'error',
+                              title: 'Upload failed',
+                              message: 'No images were uploaded successfully'
+                            })
+                          }
+                        } catch (error) {
+                          console.error('Upload error:', error)
+                          addToast({
+                            type: 'error',
+                            title: 'Upload failed',
+                            message: 'Could not upload images. Please try again.'
+                          })
+                        }
+
+                        // Reset input
+                        e.target.value = ''
+                      }}
+                    />
+                  </div>
                 </CardHeader>
                 <CardContent className="pt-6">
-                  <div className="text-center py-12">
-                    <Upload className="w-12 h-12 mx-auto text-gray-400 mb-3" />
-                    <p className="text-gray-500 mb-4">No media uploaded yet</p>
-                    <Button variant="outline" className="rounded-lg">
-                      <Upload className="w-4 h-4 mr-2" />
-                      Upload Image or File
-                    </Button>
-                  </div>
+                  {!form.images || form.images.length === 0 ? (
+                    <div className="text-center py-16 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
+                      <Upload className="w-12 h-12 mx-auto text-gray-400 mb-3" />
+                      <p className="text-gray-600 mb-2">Upload calligraphy samples, charts, or reference images</p>
+                      <p className="text-sm text-gray-500 mb-4">Drag & drop or click the button above</p>
+                      <p className="text-xs text-gray-400">Supported formats: JPG, PNG, GIF, WebP</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                      {form.images.map((image, index) => (
+                        <Card key={image.id} className="overflow-hidden group relative">
+                          <div className="aspect-square bg-gray-100 relative">
+                            <img 
+                              src={image.url} 
+                              alt={image.caption || `Image ${index + 1}`}
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                            />
+                            {image.isCover && (
+                              <Badge className="absolute top-2 left-2 bg-amber-500 text-white">
+                                Cover
+                              </Badge>
+                            )}
+                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button 
+                                    variant="secondary" 
+                                    size="sm" 
+                                    className="h-8 w-8 p-0 bg-white/90 hover:bg-white"
+                                  >
+                                    <MoreVertical className="w-4 h-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="bg-background">
+                                  <DropdownMenuItem 
+                                    onClick={() => {
+                                      const updatedForm = {
+                                        ...form,
+                                        images: form.images?.map(img => ({
+                                          ...img,
+                                          isCover: img.id === image.id
+                                        }))
+                                      }
+                                      setForm(updatedForm)
+                                      triggerAutoSave(updatedForm)
+                                    }}
+                                    className="cursor-pointer"
+                                  >
+                                    <Check className="w-4 h-4 mr-2" />
+                                    Set as Cover
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem 
+                                    onClick={() => {
+                                      const updatedForm = {
+                                        ...form,
+                                        images: form.images?.filter(img => img.id !== image.id)
+                                      }
+                                      setForm(updatedForm)
+                                      triggerAutoSave(updatedForm)
+                                    }}
+                                    className="cursor-pointer text-red-600 focus:text-red-600"
+                                  >
+                                    <Trash2 className="w-4 h-4 mr-2" />
+                                    Remove
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          </div>
+                          {image.caption && (
+                            <CardContent className="p-3">
+                              <p className="text-sm text-gray-700 truncate">{image.caption}</p>
+                            </CardContent>
+                          )}
+                        </Card>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
-
-              {/* Save Button */}
-              <div className="flex justify-end">
-                <Button 
-                  onClick={onSave} 
-                  className="bg-amber-500 hover:bg-amber-600 text-white rounded-lg"
-                  disabled={!form.name.trim()}
-                >
-                  <Save className="w-4 h-4 mr-2" />
-                  Save Changes
-                </Button>
-              </div>
             </TabsContent>
           </Tabs>
         </div>
