@@ -346,7 +346,7 @@ export default function LanguagesPanel({ projectId, selectedElement, onLanguages
       grammar: attrs.grammar || { wordOrder: '', morphology: '', tenses: [], cases: [], plurals: '' },
       links: attrs.links || [],
       images: attrs.images || [],
-      tags: attrs.tags || []
+      tags: language.tags || []
     })
   }
 
@@ -369,8 +369,7 @@ export default function LanguagesPanel({ projectId, selectedElement, onLanguages
           phonology: form.phonology,
           grammar: form.grammar,
           links: form.links,
-          images: form.images,
-          tags: form.tags
+          images: form.images
         },
         tags: form.tags || []
       }
@@ -536,29 +535,33 @@ export default function LanguagesPanel({ projectId, selectedElement, onLanguages
         </div>
 
         {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto px-6 py-6">
-          <div className="max-w-7xl mx-auto">
-            {filteredLanguages.length === 0 ? (
+        <div className="flex-1 overflow-y-auto py-6">
+          {filteredLanguages.length === 0 ? (
+            <div className="px-6">
               <EmptyState 
                 onCreateFirst={() => { setForm(INITIAL_FORM); setSelectedId(null); setMode('create') }} 
                 hasFilters={!!(query || filters.families.length > 0 || filters.statuses.length > 0 || filters.writingSystems.length > 0)} 
               />
-            ) : view === 'grid' ? (
+            </div>
+          ) : view === 'grid' ? (
+            <div className="px-6">
               <LanguagesGrid 
                 languages={filteredLanguages}
                 onEdit={handleEdit}
                 onDelete={(id: string) => setDeleteConfirm(id)}
                 onDuplicate={handleDuplicate}
               />
-            ) : (
+            </div>
+          ) : (
+            <div className="px-6">
               <LanguagesTable 
                 languages={filteredLanguages}
                 onEdit={handleEdit}
                 onDelete={(id: string) => setDeleteConfirm(id)}
                 onDuplicate={handleDuplicate}
               />
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* Delete Confirmation Dialog */}
@@ -656,71 +659,76 @@ function LanguagesGrid({ languages, onEdit, onDelete, onDuplicate }: LanguagesGr
       {languages.map((language) => (
         <Card 
           key={language.id} 
-          className="group relative overflow-hidden rounded-2xl border border-gray-200 bg-white hover:shadow-xl hover:shadow-amber-100/50 transition-all duration-300 hover:-translate-y-1"
+          className="group relative rounded-2xl border-2 border-gray-200/60 bg-white shadow-md hover:shadow-2xl hover:border-amber-400/60 transition-all duration-500 cursor-pointer overflow-hidden hover:-translate-y-1 before:absolute before:inset-0 before:bg-gradient-to-br before:from-amber-500/0 before:via-amber-500/5 before:to-orange-500/0 before:opacity-0 hover:before:opacity-100 before:transition-opacity before:duration-500"
+          onClick={() => onEdit(language)}
         >
-          <CardContent className="p-6">
+          <CardContent className="p-6 relative z-10">
             {/* Header with Icon and Actions */}
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-start gap-3 flex-1 min-w-0">
-                <div className="rounded-xl bg-amber-100 p-2.5 flex-shrink-0">
-                  <MessageSquare className="w-5 h-5 text-amber-600" />
+                <div className="relative flex-shrink-0">
+                  <div className="absolute inset-0 bg-gradient-to-br from-amber-400 to-orange-400 rounded-xl opacity-0 group-hover:opacity-20 blur-md transition-opacity duration-300"></div>
+                  <div className="relative rounded-xl bg-gradient-to-br from-amber-50 via-amber-50 to-orange-50 p-2.5 flex-shrink-0 border border-amber-200/60 group-hover:border-amber-300 group-hover:shadow-lg group-hover:scale-105 transition-all duration-300">
+                    <MessageSquare className="w-5 h-5 text-amber-600 group-hover:scale-110 transition-transform duration-300" />
+                  </div>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-lg text-gray-900 truncate mb-1">
+                  <h3 className="font-semibold text-lg text-gray-900 truncate mb-1 group-hover:text-amber-700 transition-colors duration-300">
                     {language.name}
                   </h3>
                   {language.attributes?.family && (
-                    <p className="text-sm text-gray-500 truncate">
+                    <p className="text-sm text-gray-500 truncate group-hover:text-gray-700 transition-colors duration-300">
                       {language.attributes.family}
                     </p>
                   )}
-                </div>
               </div>
-
-              {/* Actions Dropdown */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 p-0 rounded-lg"
-                  >
-                    <MoreHorizontal className="w-4 h-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="bg-background w-48">
-                  <DropdownMenuItem onClick={() => onEdit(language)} className="cursor-pointer">
-                    <Edit3 className="w-4 h-4 mr-2" />
-                    Edit
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => onDuplicate(language)} className="cursor-pointer">
-                    <Copy className="w-4 h-4 mr-2" />
-                    Duplicate
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem 
-                    onClick={() => onDelete(language.id)} 
-                    className="cursor-pointer text-red-600 focus:text-red-600"
-                  >
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    Delete
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
             </div>
 
-            {/* Pills/Badges */}
+            {/* Action Buttons */}
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0 rounded-lg hover:bg-amber-50 hover:text-amber-700 transition-colors"
+                onClick={(e) => { e.stopPropagation(); onEdit(language); }}
+                title="Edit"
+              >
+                <Edit3 className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0 rounded-lg hover:bg-amber-50 hover:text-amber-700 transition-colors"
+                onClick={(e) => { e.stopPropagation(); onDuplicate(language); }}
+                title="Duplicate"
+              >
+                <Copy className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0 rounded-lg hover:bg-red-50 hover:text-red-600 transition-colors"
+                onClick={(e) => { e.stopPropagation(); onDelete(language.id); }}
+                title="Delete"
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>            {/* Pills/Badges */}
             <div className="flex flex-wrap gap-2 mb-3">
               {language.attributes?.status && (
                 <Badge 
                   variant="outline" 
-                  className={`text-xs font-medium border ${getStatusPillColor(language.attributes.status)}`}
+                  className={`text-xs font-medium border ${getStatusPillColor(language.attributes.status)} group-hover:border-amber-200 transition-all duration-300`}
                 >
                   {language.attributes.status}
                 </Badge>
               )}
               {language.attributes?.writing_system && (
-                <Badge variant="outline" className={`text-xs font-medium border ${getWSysPillColor(language.attributes.writing_system)}`}>
+                <Badge 
+                  variant="outline" 
+                  className={`text-xs font-medium border ${getWSysPillColor(language.attributes.writing_system)} group-hover:border-amber-200 transition-all duration-300`}
+                >
                   {language.attributes.writing_system}
                 </Badge>
               )}
@@ -728,19 +736,21 @@ function LanguagesGrid({ languages, onEdit, onDelete, onDuplicate }: LanguagesGr
 
             {/* Description */}
             {language.description && (
-              <p className="text-sm text-gray-600 line-clamp-2 mb-4 min-h-[2.5rem]">
+              <p className="text-sm text-gray-600 line-clamp-2 mb-4 min-h-[2.5rem] group-hover:text-gray-700 transition-colors duration-300">
                 {language.description}
               </p>
             )}
 
             {/* Footer */}
-            <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-              <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                <span>Updated</span>
-                <span>•</span>
-                <span className="font-medium">{relativeTime(language.updated_at)}</span>
+            <div className="flex items-center justify-between pt-4 border-t border-gray-100 group-hover:border-amber-100 transition-colors duration-300">
+              <div className="flex items-center gap-1.5 text-xs text-gray-500 group-hover:text-amber-600 transition-colors duration-300">
+                <Clock className="w-3 h-3" />
+                <span>{relativeTime(language.updated_at)}</span>
               </div>
             </div>
+
+            {/* Animated Bottom Border on Hover */}
+            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500 ease-out"></div>
           </CardContent>
         </Card>
       ))}
@@ -761,98 +771,106 @@ interface LanguagesTableProps {
 
 function LanguagesTable({ languages, onEdit, onDelete, onDuplicate }: LanguagesTableProps) {
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
-      <Table>
-        <TableHeader>
-          <TableRow className="bg-gray-50 hover:bg-gray-50">
-            <TableHead className="font-semibold text-gray-900">Name</TableHead>
-            <TableHead className="font-semibold text-gray-900">Family</TableHead>
-            <TableHead className="font-semibold text-gray-900">Status</TableHead>
-            <TableHead className="font-semibold text-gray-900">Writing System</TableHead>
-            <TableHead className="font-semibold text-gray-900">Updated</TableHead>
-            <TableHead className="w-[100px] font-semibold text-gray-900">Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {languages.map((language) => (
-            <TableRow 
-              key={language.id}
-              className="group hover:bg-amber-50/50 transition-colors cursor-pointer"
-              onClick={() => onEdit(language)}
-            >
-              <TableCell className="font-medium">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-lg bg-amber-100 p-2 flex-shrink-0">
-                    <MessageSquare className="w-4 h-4 text-amber-600" />
-                  </div>
-                  <div>
-                    <div className="font-semibold text-gray-900">{language.name}</div>
-                    {language.description && (
-                      <div className="text-xs text-gray-500 line-clamp-1 mt-0.5">
-                        {language.description}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </TableCell>
-              <TableCell className="text-gray-700">
+    <div className="space-y-3">
+      {languages.map((language) => (
+        <div
+          key={language.id}
+          className="group relative rounded-xl border border-gray-200/80 bg-white shadow-sm hover:shadow-xl hover:border-amber-400/50 transition-all duration-300 cursor-pointer overflow-hidden before:absolute before:inset-0 before:bg-gradient-to-r before:from-amber-500/0 before:via-amber-500/5 before:to-orange-500/0 before:opacity-0 hover:before:opacity-100 before:transition-opacity before:duration-300"
+          onClick={() => onEdit(language)}
+        >
+          <div className="p-4 flex items-center gap-4 relative z-10">
+            {/* Icon */}
+            <div className="relative flex-shrink-0">
+              <div className="absolute inset-0 bg-gradient-to-br from-amber-400 to-orange-400 rounded-lg opacity-0 group-hover:opacity-20 blur-md transition-opacity duration-300"></div>
+              <div className="relative rounded-lg bg-gradient-to-br from-amber-50 via-amber-50 to-orange-50 p-2.5 border border-amber-200/60 group-hover:border-amber-300 group-hover:scale-105 transition-all duration-300">
+                <MessageSquare className="w-5 h-5 text-amber-600 group-hover:scale-110 transition-transform duration-300" />
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 min-w-0 grid grid-cols-1 md:grid-cols-5 gap-4 items-center">
+              {/* Name & Description */}
+              <div className="md:col-span-2 min-w-0">
+                <h3 className="font-semibold text-gray-900 truncate group-hover:text-amber-700 transition-colors duration-300">
+                  {language.name}
+                </h3>
+                {language.description && (
+                  <p className="text-sm text-gray-500 line-clamp-1 mt-0.5 group-hover:text-gray-700 transition-colors duration-300">
+                    {language.description}
+                  </p>
+                )}
+              </div>
+
+              {/* Family */}
+              <div className="text-sm text-gray-700 truncate group-hover:text-gray-900 transition-colors duration-300">
                 {language.attributes?.family || '—'}
-              </TableCell>
-              <TableCell>
-                {language.attributes?.status ? (
+              </div>
+
+              {/* Badges */}
+              <div className="flex flex-wrap gap-2">
+                {language.attributes?.status && (
                   <Badge 
                     variant="outline" 
-                    className={`text-xs font-medium border ${getStatusPillColor(language.attributes.status)}`}
+                    className={`text-xs font-medium border ${getStatusPillColor(language.attributes.status)} group-hover:border-amber-200 transition-all duration-300`}
                   >
                     {language.attributes.status}
                   </Badge>
-                ) : '—'}
-              </TableCell>
-              <TableCell className="text-gray-700">
-                {language.attributes?.writing_system ? (
-                  <Badge variant="outline" className={`text-xs font-medium border ${getWSysPillColor(language.attributes.writing_system)}`}>
+                )}
+                {language.attributes?.writing_system && (
+                  <Badge 
+                    variant="outline" 
+                    className={`text-xs font-medium border ${getWSysPillColor(language.attributes.writing_system)} group-hover:border-amber-200 transition-all duration-300`}
+                  >
                     {language.attributes.writing_system}
                   </Badge>
-                ) : '—'}
-              </TableCell>
-              <TableCell className="text-sm text-gray-500">
-                {relativeTime(language.updated_at)}
-              </TableCell>
-              <TableCell onClick={(e) => e.stopPropagation()}>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      className="h-8 w-8 p-0 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <MoreHorizontal className="w-4 h-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="bg-background w-48">
-                    <DropdownMenuItem onClick={() => onEdit(language)} className="cursor-pointer">
-                      <Edit3 className="w-4 h-4 mr-2" />
-                      Edit
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => onDuplicate(language)} className="cursor-pointer">
-                      <Copy className="w-4 h-4 mr-2" />
-                      Duplicate
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem 
-                      onClick={() => onDelete(language.id)} 
-                      className="cursor-pointer text-red-600 focus:text-red-600"
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+                )}
+              </div>
+
+              {/* Updated */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-xs text-gray-500 group-hover:text-amber-600 transition-colors duration-300">
+                  <Clock className="w-3 h-3" />
+                  <span>{relativeTime(language.updated_at)}</span>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0 rounded-lg hover:bg-amber-50 hover:text-amber-700 transition-colors"
+                    onClick={(e) => { e.stopPropagation(); onEdit(language); }}
+                    title="Edit"
+                  >
+                    <Edit3 className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0 rounded-lg hover:bg-amber-50 hover:text-amber-700 transition-colors"
+                    onClick={(e) => { e.stopPropagation(); onDuplicate(language); }}
+                    title="Duplicate"
+                  >
+                    <Copy className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0 rounded-lg hover:bg-red-50 hover:text-red-600 transition-colors"
+                    onClick={(e) => { e.stopPropagation(); onDelete(language.id); }}
+                    title="Delete"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Animated Bottom Border on Hover */}
+          <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500 ease-out"></div>
+        </div>
+      ))}
     </div>
   )
 }

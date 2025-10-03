@@ -33,10 +33,12 @@ ON storage.objects FOR UPDATE
 USING (
   bucket_id = 'language-symbols' 
   AND auth.role() = 'authenticated'
-  AND (storage.foldername(name))[1] IN (
-    SELECT id::text FROM world_elements 
-    WHERE user_id = auth.uid() 
-    AND category = 'languages'
+  AND (storage.foldername(name))[1]::text IN (
+    SELECT we.id::text 
+    FROM public.world_elements we
+    JOIN public.projects p ON we.project_id = p.id
+    WHERE p.owner_id = auth.uid() 
+    AND we.category = 'languages'
   )
 );
 
@@ -46,10 +48,12 @@ ON storage.objects FOR DELETE
 USING (
   bucket_id = 'language-symbols' 
   AND auth.role() = 'authenticated'
-  AND (storage.foldername(name))[1] IN (
-    SELECT id::text FROM world_elements 
-    WHERE user_id = auth.uid() 
-    AND category = 'languages'
+  AND (storage.foldername(name))[1]::text IN (
+    SELECT we.id::text 
+    FROM public.world_elements we
+    JOIN public.projects p ON we.project_id = p.id
+    WHERE p.owner_id = auth.uid() 
+    AND we.category = 'languages'
   )
 );
 
@@ -82,10 +86,12 @@ ON storage.objects FOR UPDATE
 USING (
   bucket_id = 'language-images' 
   AND auth.role() = 'authenticated'
-  AND (storage.foldername(name))[1] IN (
-    SELECT id::text FROM world_elements 
-    WHERE user_id = auth.uid() 
-    AND category = 'languages'
+  AND (storage.foldername(name))[1]::text IN (
+    SELECT we.id::text 
+    FROM public.world_elements we
+    JOIN public.projects p ON we.project_id = p.id
+    WHERE p.owner_id = auth.uid() 
+    AND we.category = 'languages'
   )
 );
 
@@ -95,10 +101,12 @@ ON storage.objects FOR DELETE
 USING (
   bucket_id = 'language-images' 
   AND auth.role() = 'authenticated'
-  AND (storage.foldername(name))[1] IN (
-    SELECT id::text FROM world_elements 
-    WHERE user_id = auth.uid() 
-    AND category = 'languages'
+  AND (storage.foldername(name))[1]::text IN (
+    SELECT we.id::text 
+    FROM public.world_elements we
+    JOIN public.projects p ON we.project_id = p.id
+    WHERE p.owner_id = auth.uid() 
+    AND we.category = 'languages'
   )
 );
 

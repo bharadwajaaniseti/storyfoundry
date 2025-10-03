@@ -2,6 +2,14 @@
 // Usage: node create-language-storage.js
 
 import { createClient } from '@supabase/supabase-js'
+import { config } from 'dotenv'
+import { fileURLToPath } from 'url'
+import { dirname, join } from 'path'
+
+// Load environment variables
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
+config({ path: join(__dirname, '.env.local') })
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY // Service role key needed for admin operations
@@ -10,6 +18,7 @@ if (!supabaseUrl || !supabaseServiceKey) {
   console.error('❌ Missing environment variables:')
   console.error('   NEXT_PUBLIC_SUPABASE_URL:', supabaseUrl ? '✓' : '✗')
   console.error('   SUPABASE_SERVICE_ROLE_KEY:', supabaseServiceKey ? '✓' : '✗')
+  console.error('\n💡 Make sure .env.local exists with these variables')
   process.exit(1)
 }
 
