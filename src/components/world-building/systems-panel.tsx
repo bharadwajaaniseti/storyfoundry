@@ -1632,6 +1632,12 @@ function SystemEditorDialog({
   const [customKey, setCustomKey] = useState('')
   const [customValue, setCustomValue] = useState('')
   const [customType, setCustomType] = useState<'text' | 'number'>('text')
+  
+  // Link management state
+  const [showLinkModal, setShowLinkModal] = useState(false)
+  const [linkSearchTerm, setLinkSearchTerm] = useState('')
+  const [availableElements, setAvailableElements] = useState<LinkRef[]>([])
+  const [linkCategoryFilter, setLinkCategoryFilter] = useState<string>('all')
 
   // Preset state
   const [presetOpen, setPresetOpen] = useState(false)
@@ -1837,6 +1843,46 @@ function SystemEditorDialog({
     setCustomFields(newFields)
   }
 
+  // Link management functions
+  const loadAvailableElements = async () => {
+    const supabase = createSupabaseClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    const { data, error } = await supabase
+      .from('world_elements')
+      .select('id, name, category')
+      .eq('project_id', projectId)
+      .neq('category', 'systems') // Don't show other systems
+      .order('name')
+
+    if (!error && data) {
+      setAvailableElements(data.map((el: any) => ({ id: el.id, name: el.name, category: el.category })))
+    }
+  }
+
+  const handleOpenLinkModal = () => {
+    loadAvailableElements()
+    setShowLinkModal(true)
+  }
+
+  const handleCloseLinkModal = () => {
+    setShowLinkModal(false)
+    setLinkSearchTerm('')
+    setLinkCategoryFilter('all')
+  }
+
+  const handleAddLink = (element: LinkRef) => {
+    if (!links.find(l => l.id === element.id)) {
+      setLinks([...links, element])
+    }
+    handleCloseLinkModal()
+  }
+
+  const handleRemoveLink = (linkId: string) => {
+    setLinks(links.filter(l => l.id !== linkId))
+  }
+
   const applyPreset = (preset: SystemPreset) => {
     // Only fill empty fields, never override existing values
     if (!name.trim()) setName(preset.name)
@@ -1940,41 +1986,43 @@ function SystemEditorDialog({
               </div>
             </TabsList>
 
-            <div className="flex-1 overflow-y-auto px-6 py-6">
+            <div className="flex-1 overflow-y-auto px-6 py-8 bg-gradient-to-br from-gray-50/40 via-white to-gray-50/40">
               {/* BASICS TAB */}
-              <TabsContent value="basics" className="mt-0 space-y-4">
+              <TabsContent value="basics" className="mt-0 space-y-6">
                 {/* Preset Button */}
                 <div className="flex justify-end">
                   <Popover open={presetOpen} onOpenChange={setPresetOpen}>
                     <PopoverTrigger asChild>
-                      <Button variant="outline" size="sm" className="gap-2">
+                      <Button variant="outline" size="sm" className="gap-2 rounded-xl border-2 border-gray-300 hover:border-teal-400 hover:bg-teal-50 transition-all duration-200 shadow-sm hover:shadow">
                         <Settings className="w-4 h-4" />
                         Apply Preset
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-80 bg-white border border-gray-200 shadow-xl rounded-xl" align="end">
-                      <div className="space-y-2">
-                        <h4 className="font-semibold text-sm mb-3">System Presets</h4>
-                        <p className="text-xs text-gray-500 mb-3">
-                          Apply a preset to quickly fill in default values. Only empty fields will be filled.
-                        </p>
-                        <div className="space-y-1">
+                    <PopoverContent className="w-80 bg-white border border-gray-200 shadow-2xl rounded-2xl p-4" align="end">
+                      <div className="space-y-3">
+                        <div>
+                          <h4 className="font-bold text-base text-gray-900">System Presets</h4>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Apply a preset to quickly fill in default values. Only empty fields will be filled.
+                          </p>
+                        </div>
+                        <div className="space-y-2 max-h-96 overflow-y-auto">
                           {SYSTEM_PRESETS.map((preset) => (
                             <Button
                               key={preset.name}
                               variant="ghost"
-                              className="w-full justify-start text-left h-auto py-2"
+                              className="w-full justify-start text-left h-auto py-3 px-3 hover:bg-teal-50 rounded-xl transition-all duration-200 border border-transparent hover:border-teal-200"
                               onClick={() => applyPreset(preset)}
                             >
-                              <div className="flex-1">
-                                <div className="font-medium text-sm">{preset.name}</div>
-                                <div className="text-xs text-gray-500 line-clamp-1">
+                              <div className="flex-1 min-w-0">
+                                <div className="font-semibold text-sm text-gray-900">{preset.name}</div>
+                                <div className="text-xs text-gray-600 line-clamp-1 mt-0.5">
                                   {preset.description}
                                 </div>
                               </div>
                               <Badge 
                                 variant="secondary" 
-                                className={`text-xs ml-2 ${typeColor(preset.systemType)}`}
+                                className={`text-xs ml-2 shrink-0 ${typeColor(preset.systemType)}`}
                               >
                                 {preset.systemType}
                               </Badge>
@@ -1987,7 +2035,7 @@ function SystemEditorDialog({
                 </div>
 
                 <div>
-                  <Label htmlFor="name" className="text-sm font-semibold">
+                  <Label htmlFor="name" className="text-sm font-semibold text-gray-900 mb-2 block">
                     Name <span className="text-red-500">*</span>
                   </Label>
                   <Input
@@ -1995,15 +2043,15 @@ function SystemEditorDialog({
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="e.g., Imperial Senate, Trade Guild System"
-                    className="mt-1.5"
+                    className="rounded-xl border-2 border-gray-300 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 transition-all duration-200"
                   />
                 </div>
 
                 <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <Label htmlFor="type" className="text-sm font-semibold">System Type</Label>
+                    <Label htmlFor="type" className="text-sm font-semibold text-gray-900 mb-2 block">System Type</Label>
                     <Select value={systemType} onValueChange={(v) => setSystemType(v as SystemType)}>
-                      <SelectTrigger id="type" className="mt-1.5">
+                      <SelectTrigger id="type" className="rounded-xl border-2 border-gray-300 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20">
                         <SelectValue placeholder="Select type..." />
                       </SelectTrigger>
                       <SelectContent className="bg-white border border-gray-200 shadow-xl rounded-xl">
@@ -2020,16 +2068,16 @@ function SystemEditorDialog({
                       </SelectContent>
                     </Select>
                     {systemType && (
-                      <Badge className={`mt-2 ${typeColor(systemType)}`}>
+                      <Badge className={`mt-2 ${typeColor(systemType)} shadow-sm`}>
                         {systemType}
                       </Badge>
                     )}
                   </div>
 
                   <div>
-                    <Label htmlFor="scope" className="text-sm font-semibold">Scope</Label>
+                    <Label htmlFor="scope" className="text-sm font-semibold text-gray-900 mb-2 block">Scope</Label>
                     <Select value={scope} onValueChange={(v) => setScope(v as SystemScope)}>
-                      <SelectTrigger id="scope" className="mt-1.5">
+                      <SelectTrigger id="scope" className="rounded-xl border-2 border-gray-300 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20">
                         <SelectValue placeholder="Select scope..." />
                       </SelectTrigger>
                       <SelectContent className="bg-white border border-gray-200 shadow-xl rounded-xl">
@@ -2043,9 +2091,9 @@ function SystemEditorDialog({
                   </div>
 
                   <div>
-                    <Label htmlFor="status" className="text-sm font-semibold">Status</Label>
+                    <Label htmlFor="status" className="text-sm font-semibold text-gray-900 mb-2 block">Status</Label>
                     <Select value={status} onValueChange={(v) => setStatus(v as SystemStatus)}>
-                      <SelectTrigger id="status" className="mt-1.5">
+                      <SelectTrigger id="status" className="rounded-xl border-2 border-gray-300 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="bg-white border border-gray-200 shadow-xl rounded-xl">
@@ -2060,23 +2108,24 @@ function SystemEditorDialog({
                 </div>
 
                 <div>
-                  <Label className="text-sm font-semibold">Tags</Label>
-                  <div className="flex gap-2 mt-1.5">
+                  <Label className="text-sm font-semibold text-gray-900 mb-2 block">Tags</Label>
+                  <div className="flex gap-2">
                     <Input
                       value={tagInput}
                       onChange={(e) => setTagInput(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
                       placeholder="Add tag..."
-                      className="flex-1"
+                      className="flex-1 rounded-xl border-2 border-gray-300 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
                     />
-                    <Button type="button" onClick={addTag} variant="outline">
+                    <Button type="button" onClick={addTag} variant="outline" className="rounded-xl border-2 border-gray-300 hover:border-teal-400 hover:bg-teal-50 transition-all duration-200">
+                      <Plus className="w-4 h-4 mr-1" />
                       Add
                     </Button>
                   </div>
                   {tags.length > 0 && (
-                    <div className="flex gap-2 flex-wrap mt-2">
+                    <div className="flex gap-2 flex-wrap mt-3 p-4 bg-gradient-to-br from-gray-50 to-white rounded-xl border-2 border-gray-200/60">
                       {tags.map((tag) => (
-                        <Badge key={tag} variant="secondary" className="gap-1 pr-1">
+                        <Badge key={tag} variant="secondary" className="gap-1.5 pr-1.5 bg-white border-2 border-gray-300 hover:border-teal-300 transition-all duration-200 shadow-sm">
                           {tag}
                           <Button
                             type="button"
@@ -2095,21 +2144,21 @@ function SystemEditorDialog({
               </TabsContent>
 
               {/* OVERVIEW TAB */}
-              <TabsContent value="overview" className="mt-0 space-y-4">
+              <TabsContent value="overview" className="mt-0 space-y-6">
                 <div>
-                  <Label htmlFor="description" className="text-sm font-semibold">Description</Label>
+                  <Label htmlFor="description" className="text-sm font-semibold text-gray-900 mb-2 block">Description</Label>
                   <Textarea
                     id="description"
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     placeholder="Describe the purpose, function, and key characteristics of this system..."
                     rows={8}
-                    className="mt-1.5"
+                    className="rounded-xl border-2 border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all duration-200"
                   />
                 </div>
 
                 <div>
-                  <Label className="text-sm font-semibold">Symbols</Label>
+                  <Label className="text-sm font-semibold text-gray-900 mb-2 block">Symbols</Label>
                   <p className="text-xs text-gray-500 mb-2">Key symbols or emblems associated with this system</p>
                   <div className="flex gap-2">
                     <Input
@@ -2117,15 +2166,17 @@ function SystemEditorDialog({
                       onChange={(e) => setSymbolInput(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addSymbol())}
                       placeholder="e.g., Eagle, Crown, Scales..."
+                      className="flex-1 rounded-xl border-2 border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
                     />
-                    <Button type="button" onClick={addSymbol} variant="outline">
+                    <Button type="button" onClick={addSymbol} variant="outline" className="rounded-xl border-2 border-gray-300 hover:border-indigo-400 hover:bg-indigo-50 transition-all duration-200">
+                      <Plus className="w-4 h-4 mr-1" />
                       Add
                     </Button>
                   </div>
                   {symbols.length > 0 && (
-                    <div className="flex gap-2 flex-wrap mt-2">
+                    <div className="flex gap-2 flex-wrap mt-3 p-4 bg-gradient-to-br from-indigo-50/40 to-white rounded-xl border-2 border-gray-200/60">
                       {symbols.map((symbol) => (
-                        <Badge key={symbol} variant="outline" className="gap-1 pr-1">
+                        <Badge key={symbol} variant="secondary" className="gap-1.5 pr-1.5 bg-white border-2 border-gray-300 hover:border-indigo-300 transition-all duration-200 shadow-sm">
                           {symbol}
                           <Button
                             type="button"
@@ -2144,9 +2195,9 @@ function SystemEditorDialog({
               </TabsContent>
 
               {/* STRUCTURE TAB */}
-              <TabsContent value="structure" className="mt-0 space-y-4">
+              <TabsContent value="structure" className="mt-0 space-y-6">
                 <div>
-                  <Label htmlFor="governance" className="text-sm font-semibold">Governance</Label>
+                  <Label htmlFor="governance" className="text-sm font-semibold text-gray-900 mb-2 block">Governance</Label>
                   <p className="text-xs text-gray-500 mb-2">How is this system organized and governed?</p>
                   <Textarea
                     id="governance"
@@ -2154,11 +2205,12 @@ function SystemEditorDialog({
                     onChange={(e) => setGovernance(e.target.value)}
                     placeholder="Describe the governance structure, hierarchy, and decision-making processes..."
                     rows={5}
+                    className="rounded-xl border-2 border-gray-300 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all duration-200"
                   />
                 </div>
 
                 <div>
-                  <Label htmlFor="rules" className="text-sm font-semibold">Rules</Label>
+                  <Label htmlFor="rules" className="text-sm font-semibold text-gray-900 mb-2 block">Rules</Label>
                   <p className="text-xs text-gray-500 mb-2">Core rules and regulations that govern the system</p>
                   <Textarea
                     id="rules"
@@ -2166,11 +2218,12 @@ function SystemEditorDialog({
                     onChange={(e) => setRules(e.target.value)}
                     placeholder="List the key rules, laws, or principles..."
                     rows={5}
+                    className="rounded-xl border-2 border-gray-300 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all duration-200"
                   />
                 </div>
 
                 <div>
-                  <Label className="text-sm font-semibold">Mechanisms</Label>
+                  <Label className="text-sm font-semibold text-gray-900 mb-2 block">Mechanisms</Label>
                   <p className="text-xs text-gray-500 mb-2">How does this system operate?</p>
                   <div className="flex gap-2">
                     <Input
@@ -2178,15 +2231,17 @@ function SystemEditorDialog({
                       onChange={(e) => setMechanismInput(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addMechanism())}
                       placeholder="e.g., Voting, Taxation, Enforcement..."
+                      className="flex-1 rounded-xl border-2 border-gray-300 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20"
                     />
-                    <Button type="button" onClick={addMechanism} variant="outline">
+                    <Button type="button" onClick={addMechanism} variant="outline" className="rounded-xl border-2 border-gray-300 hover:border-violet-400 hover:bg-violet-50 transition-all duration-200">
+                      <Plus className="w-4 h-4 mr-1" />
                       Add
                     </Button>
                   </div>
                   {mechanisms.length > 0 && (
-                    <div className="flex gap-2 flex-wrap mt-2">
+                    <div className="flex gap-2 flex-wrap mt-3 p-4 bg-gradient-to-br from-purple-50 to-white rounded-xl border-2 border-gray-200/60">
                       {mechanisms.map((mechanism) => (
-                        <Badge key={mechanism} variant="secondary" className="bg-purple-50 text-purple-700 border-purple-200 gap-1 pr-1">
+                        <Badge key={mechanism} variant="secondary" className="bg-purple-100 text-purple-700 border-2 border-purple-200 hover:border-purple-300 gap-1.5 pr-1.5 shadow-sm transition-all duration-200">
                           {mechanism}
                           <Button
                             type="button"
@@ -2204,7 +2259,7 @@ function SystemEditorDialog({
                 </div>
 
                 <div>
-                  <Label className="text-sm font-semibold">Participants</Label>
+                  <Label className="text-sm font-semibold text-gray-900 mb-2 block">Participants</Label>
                   <p className="text-xs text-gray-500 mb-2">Who participates in or is affected by this system?</p>
                   <div className="flex gap-2">
                     <Input
@@ -2212,15 +2267,17 @@ function SystemEditorDialog({
                       onChange={(e) => setParticipantInput(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addParticipant())}
                       placeholder="e.g., Citizens, Nobles, Merchants..."
+                      className="flex-1 rounded-xl border-2 border-gray-300 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20"
                     />
-                    <Button type="button" onClick={addParticipant} variant="outline">
+                    <Button type="button" onClick={addParticipant} variant="outline" className="rounded-xl border-2 border-gray-300 hover:border-violet-400 hover:bg-violet-50 transition-all duration-200">
+                      <Plus className="w-4 h-4 mr-1" />
                       Add
                     </Button>
                   </div>
                   {participants.length > 0 && (
-                    <div className="flex gap-2 flex-wrap mt-2">
+                    <div className="flex gap-2 flex-wrap mt-3 p-4 bg-gradient-to-br from-violet-50/40 to-white rounded-xl border-2 border-gray-200/60">
                       {participants.map((participant) => (
-                        <Badge key={participant} variant="outline" className="gap-1 pr-1">
+                        <Badge key={participant} variant="secondary" className="gap-1.5 pr-1.5 bg-white border-2 border-gray-300 hover:border-violet-300 transition-all duration-200 shadow-sm">
                           {participant}
                           <Button
                             type="button"
@@ -2239,10 +2296,10 @@ function SystemEditorDialog({
               </TabsContent>
 
               {/* OPERATIONS TAB */}
-              <TabsContent value="operations" className="mt-0 space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+              <TabsContent value="operations" className="mt-0 space-y-6">
+                <div className="grid grid-cols-2 gap-6">
                   <div>
-                    <Label className="text-sm font-semibold">Inputs</Label>
+                    <Label className="text-sm font-semibold text-gray-900 mb-2 block">Inputs</Label>
                     <p className="text-xs text-gray-500 mb-2">What does this system require?</p>
                     <div className="flex gap-2">
                       <Input
@@ -2250,16 +2307,17 @@ function SystemEditorDialog({
                         onChange={(e) => setInputInput(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addInput())}
                         placeholder="e.g., Taxes, Labor..."
+                        className="flex-1 rounded-xl border-2 border-gray-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
                       />
-                      <Button type="button" onClick={addInput} variant="outline" size="sm">
-                        Add
+                      <Button type="button" onClick={addInput} variant="outline" size="sm" className="rounded-xl border-2 border-gray-300 hover:border-emerald-400 hover:bg-emerald-50">
+                        <Plus className="w-4 h-4" />
                       </Button>
                     </div>
                     {inputs.length > 0 && (
-                      <ul className="space-y-1 mt-2">
+                      <ul className="space-y-2 mt-3">
                         {inputs.map((input, idx) => (
-                          <li key={idx} className="flex items-center justify-between text-sm p-2 bg-gray-50 rounded">
-                            <span>{input}</span>
+                          <li key={idx} className="flex items-center justify-between text-sm p-3 bg-gradient-to-r from-emerald-50/50 to-white rounded-xl border-2 border-gray-200 shadow-sm">
+                            <span className="text-gray-700 font-medium">{input}</span>
                             <Button
                               type="button"
                               variant="ghost"
@@ -2276,7 +2334,7 @@ function SystemEditorDialog({
                   </div>
 
                   <div>
-                    <Label className="text-sm font-semibold">Outputs</Label>
+                    <Label className="text-sm font-semibold text-gray-900 mb-2 block">Outputs</Label>
                     <p className="text-xs text-gray-500 mb-2">What does this system produce?</p>
                     <div className="flex gap-2">
                       <Input
@@ -2284,16 +2342,17 @@ function SystemEditorDialog({
                         onChange={(e) => setOutputInput(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addOutput())}
                         placeholder="e.g., Services, Order..."
+                        className="flex-1 rounded-xl border-2 border-gray-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
                       />
-                      <Button type="button" onClick={addOutput} variant="outline" size="sm">
-                        Add
+                      <Button type="button" onClick={addOutput} variant="outline" size="sm" className="rounded-xl border-2 border-gray-300 hover:border-emerald-400 hover:bg-emerald-50">
+                        <Plus className="w-4 h-4" />
                       </Button>
                     </div>
                     {outputs.length > 0 && (
-                      <ul className="space-y-1 mt-2">
+                      <ul className="space-y-2 mt-3">
                         {outputs.map((output, idx) => (
-                          <li key={idx} className="flex items-center justify-between text-sm p-2 bg-gray-50 rounded">
-                            <span>{output}</span>
+                          <li key={idx} className="flex items-center justify-between text-sm p-3 bg-gradient-to-r from-emerald-50/50 to-white rounded-xl border-2 border-gray-200 shadow-sm">
+                            <span className="text-gray-700 font-medium">{output}</span>
                             <Button
                               type="button"
                               variant="ghost"
@@ -2313,33 +2372,34 @@ function SystemEditorDialog({
                 <Separator />
 
                 <div>
-                  <Label className="text-sm font-semibold">Statistics</Label>
+                  <Label className="text-sm font-semibold text-gray-900 mb-2 block">Statistics</Label>
                   <p className="text-xs text-gray-500 mb-2">Numerical metrics for this system</p>
                   <div className="flex gap-2">
                     <Input
                       value={statKey}
                       onChange={(e) => setStatKey(e.target.value)}
                       placeholder="Key (e.g., members)"
-                      className="flex-1"
+                      className="flex-1 rounded-xl border-2 border-gray-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
                     />
                     <Input
                       type="number"
                       value={statValue}
                       onChange={(e) => setStatValue(e.target.value)}
                       placeholder="Value"
-                      className="flex-1"
+                      className="flex-1 rounded-xl border-2 border-gray-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
                     />
-                    <Button type="button" onClick={addStat} variant="outline">
+                    <Button type="button" onClick={addStat} variant="outline" className="rounded-xl border-2 border-gray-300 hover:border-emerald-400 hover:bg-emerald-50">
+                      <Plus className="w-4 h-4 mr-1" />
                       Add
                     </Button>
                   </div>
                   {Object.keys(stats).length > 0 && (
-                    <div className="grid grid-cols-2 gap-2 mt-2">
+                    <div className="grid grid-cols-2 gap-3 mt-3">
                       {Object.entries(stats).map(([key, value]) => (
-                        <div key={key} className="flex items-center justify-between p-3 bg-gray-50 rounded">
+                        <div key={key} className="flex items-center justify-between p-4 bg-gradient-to-br from-emerald-50 to-white rounded-xl border-2 border-gray-200 shadow-sm">
                           <div>
-                            <div className="text-xs text-gray-500 capitalize">{key.replace(/_/g, ' ')}</div>
-                            <div className="text-lg font-semibold">{value.toLocaleString()}</div>
+                            <div className="text-xs text-gray-500 capitalize font-medium">{key.replace(/_/g, ' ')}</div>
+                            <div className="text-xl font-bold text-gray-900 mt-1">{value.toLocaleString()}</div>
                           </div>
                           <Button
                             type="button"
@@ -2358,9 +2418,9 @@ function SystemEditorDialog({
               </TabsContent>
 
               {/* HISTORY & MEDIA TAB */}
-              <TabsContent value="media" className="mt-0 space-y-4">
+              <TabsContent value="media" className="mt-0 space-y-6">
                 <div>
-                  <Label htmlFor="history" className="text-sm font-semibold">History</Label>
+                  <Label htmlFor="history" className="text-sm font-semibold text-gray-900 mb-2 block">History</Label>
                   <p className="text-xs text-gray-500 mb-2">Historical background and evolution of this system</p>
                   <Textarea
                     id="history"
@@ -2368,6 +2428,7 @@ function SystemEditorDialog({
                     onChange={(e) => setHistory(e.target.value)}
                     placeholder="Describe how this system came to be and how it has evolved..."
                     rows={6}
+                    className="rounded-xl border-2 border-gray-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-all duration-200"
                   />
                 </div>
 
@@ -2415,32 +2476,125 @@ function SystemEditorDialog({
               </TabsContent>
 
               {/* RELATIONSHIPS TAB */}
-              <TabsContent value="relationships" className="mt-0 space-y-4">
+              <TabsContent value="relationships" className="mt-0 space-y-6">
                 <div>
-                  <Label className="text-sm font-semibold">Linked Elements</Label>
-                  <p className="text-xs text-gray-500 mb-3">Connect to related characters, locations, factions, items, and other systems</p>
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <Label className="text-sm font-semibold text-gray-900 mb-1 block">Linked Elements</Label>
+                      <p className="text-xs text-gray-500">Connect to related characters, locations, factions, items, and other elements</p>
+                    </div>
+                    <Button
+                      type="button"
+                      onClick={handleOpenLinkModal}
+                      variant="outline"
+                      size="sm"
+                      className="rounded-xl border-2 border-gray-300 hover:border-blue-400 hover:bg-blue-50 transition-all duration-200"
+                    >
+                      <Plus className="w-4 h-4 mr-1.5" />
+                      Add Link
+                    </Button>
+                  </div>
                   
-                  <p className="text-sm text-gray-500 italic">
-                    Link management coming soon - use the full editor for now
-                  </p>
-                  
-                  {links.length > 0 && (
-                    <div className="flex gap-2 flex-wrap mt-3">
+                  {links.length > 0 ? (
+                    <div className="grid gap-3">
                       {links.map((link) => (
-                        <Badge key={link.id} variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200">
-                          <span className="text-xs text-indigo-500 mr-1">{link.category}</span>
-                          {link.name}
-                        </Badge>
+                        <div
+                          key={link.id}
+                          className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50/50 to-white rounded-xl border-2 border-gray-200 hover:border-blue-300 transition-all duration-200 shadow-sm"
+                        >
+                          <div className="flex items-center gap-3">
+                            <Badge variant="secondary" className="bg-blue-100 text-blue-700 border-2 border-blue-200 capitalize shadow-sm">
+                              {link.category}
+                            </Badge>
+                            <span className="font-medium text-gray-900">{link.name}</span>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleRemoveLink(link.id)}
+                            className="h-8 w-8 p-0 rounded-lg hover:bg-red-100"
+                          >
+                            <X className="w-4 h-4 text-gray-500 hover:text-red-600" />
+                          </Button>
+                        </div>
                       ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-12 px-4 bg-gradient-to-br from-gray-50 to-white rounded-xl border-2 border-dashed border-gray-300">
+                      <LinkIcon className="w-12 h-12 mx-auto text-gray-400 mb-3" />
+                      <p className="text-sm text-gray-600 font-medium">No linked elements yet</p>
+                      <p className="text-xs text-gray-500 mt-1">Click "Add Link" to connect related elements</p>
                     </div>
                   )}
                 </div>
+
+                {/* Link Selection Modal */}
+                <Dialog open={showLinkModal} onOpenChange={setShowLinkModal}>
+                  <DialogContent className="bg-white max-w-2xl">
+                    <DialogHeader>
+                      <DialogTitle>Add Linked Element</DialogTitle>
+                      <DialogDescription>
+                        Select an element to link to this system
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Search elements..."
+                          value={linkSearchTerm}
+                          onChange={(e) => setLinkSearchTerm(e.target.value)}
+                          className="flex-1 rounded-xl border-2 border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                        />
+                        <Select value={linkCategoryFilter} onValueChange={setLinkCategoryFilter}>
+                          <SelectTrigger className="w-40 rounded-xl border-2 border-gray-300">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-white border-2 border-gray-200 shadow-xl rounded-xl">
+                            <SelectItem value="all">All Types</SelectItem>
+                            <SelectItem value="characters">Characters</SelectItem>
+                            <SelectItem value="locations">Locations</SelectItem>
+                            <SelectItem value="factions">Factions</SelectItem>
+                            <SelectItem value="items">Items</SelectItem>
+                            <SelectItem value="cultures">Cultures</SelectItem>
+                            <SelectItem value="magic">Magic</SelectItem>
+                            <SelectItem value="species">Species</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="max-h-96 overflow-y-auto space-y-2">
+                        {availableElements
+                          .filter(el => {
+                            const matchesSearch = el.name.toLowerCase().includes(linkSearchTerm.toLowerCase())
+                            const matchesCategory = linkCategoryFilter === 'all' || el.category === linkCategoryFilter
+                            const notAlreadyLinked = !links.find(l => l.id === el.id)
+                            return matchesSearch && matchesCategory && notAlreadyLinked
+                          })
+                          .map(element => (
+                            <div
+                              key={element.id}
+                              onClick={() => handleAddLink(element)}
+                              className="flex items-center justify-between p-3 bg-gray-50 hover:bg-blue-50 rounded-xl border-2 border-gray-200 hover:border-blue-300 cursor-pointer transition-all duration-200"
+                            >
+                              <div className="flex items-center gap-3">
+                                <Badge variant="outline" className="capitalize">
+                                  {element.category}
+                                </Badge>
+                                <span className="font-medium text-gray-900">{element.name}</span>
+                              </div>
+                              <Plus className="w-4 h-4 text-gray-400" />
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
               </TabsContent>
 
               {/* CUSTOM TAB */}
-              <TabsContent value="custom" className="mt-0 space-y-4">
+              <TabsContent value="custom" className="mt-0 space-y-6">
                 <div>
-                  <Label className="text-sm font-semibold">Custom Fields</Label>
+                  <Label className="text-sm font-semibold text-gray-900 mb-2 block">Custom Fields</Label>
                   <p className="text-xs text-gray-500 mb-3">Add any custom attributes specific to this system</p>
                   
                   <div className="flex gap-2">
@@ -2448,13 +2602,13 @@ function SystemEditorDialog({
                       value={customKey}
                       onChange={(e) => setCustomKey(e.target.value)}
                       placeholder="Field name"
-                      className="flex-1"
+                      className="flex-1 rounded-xl border-2 border-gray-300 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
                     />
                     <Select value={customType} onValueChange={(v: 'text' | 'number') => setCustomType(v)}>
-                      <SelectTrigger className="w-32">
+                      <SelectTrigger className="w-32 rounded-xl border-2 border-gray-300 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="bg-white border border-gray-200 shadow-xl rounded-xl">
+                      <SelectContent className="bg-white border-2 border-gray-200 shadow-xl rounded-xl">
                         <SelectItem value="text">Text</SelectItem>
                         <SelectItem value="number">Number</SelectItem>
                       </SelectContent>
@@ -2464,29 +2618,30 @@ function SystemEditorDialog({
                       value={customValue}
                       onChange={(e) => setCustomValue(e.target.value)}
                       placeholder="Value"
-                      className="flex-1"
+                      className="flex-1 rounded-xl border-2 border-gray-300 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
                     />
-                    <Button type="button" onClick={addCustomField} variant="outline">
+                    <Button type="button" onClick={addCustomField} variant="outline" className="rounded-xl border-2 border-gray-300 hover:border-cyan-400 hover:bg-cyan-50 transition-all duration-200">
+                      <Plus className="w-4 h-4 mr-1" />
                       Add
                     </Button>
                   </div>
 
                   {Object.keys(customFields).length > 0 && (
-                    <div className="space-y-2 mt-3">
+                    <div className="space-y-3 mt-4">
                       {Object.entries(customFields).map(([key, value]) => (
-                        <div key={key} className="flex items-center justify-between p-3 bg-gray-50 rounded">
+                        <div key={key} className="flex items-center justify-between p-4 bg-gradient-to-r from-cyan-50/50 to-white rounded-xl border-2 border-gray-200 shadow-sm">
                           <div className="flex-1">
-                            <div className="text-sm font-medium">{key}</div>
-                            <div className="text-sm text-gray-600">{String(value)}</div>
+                            <div className="text-sm font-semibold text-gray-900">{key}</div>
+                            <div className="text-sm text-gray-600 mt-0.5">{String(value)}</div>
                           </div>
                           <Button
                             type="button"
                             variant="ghost"
                             size="sm"
                             onClick={() => removeCustomField(key)}
-                            className="h-6 w-6 p-0"
+                            className="h-7 w-7 p-0 rounded-lg hover:bg-red-100"
                           >
-                            <X className="w-3 h-3" />
+                            <X className="w-4 h-4 text-gray-500 hover:text-red-600" />
                           </Button>
                         </div>
                       ))}
@@ -2530,7 +2685,8 @@ function SystemEditorDialog({
   }, [activeTab, presetOpen, name, systemType, scope, status, tags, tagInput, description, symbols, symbolInput, 
       governance, rules, mechanisms, mechanismInput, participants, participantInput, inputs, inputInput,
       outputs, outputInput, stats, statKey, statValue, history, images, coverImage,
-      customKey, customValue, customFields, links, saving, initial, onSave, onOpenChange, onDuplicate, onDelete, deleteConfirm])
+      customKey, customValue, customType, customFields, links, showLinkModal, linkSearchTerm, availableElements, linkCategoryFilter,
+      saving, initial, onSave, onOpenChange, onDuplicate, onDelete, deleteConfirm])
 
   // Conditionally wrap in Dialog or render inline
   if (inline) {
