@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { Plus, Church, Search, Trash2, Edit3, Edit, Trash, BarChart, Grid3x3, List, SlidersHorizontal, X, Check, Copy, MoreVertical, BookOpen, Users, ScrollText, Sparkles, Building2, MapPin, Heart, Calendar, Globe, Link as LinkIcon, BarChart3, Image as ImageIcon, Download, Upload, GripVertical, Filter } from 'lucide-react'
+import { Plus, Church, Search, Trash2, Edit3, Edit, Trash, BarChart, Grid3x3, List, SlidersHorizontal, X, Check, Copy, MoreVertical, BookOpen, Users, ScrollText, Sparkles, Building2, MapPin, Heart, Calendar, Globe, Link as LinkIcon, BarChart3, Image as ImageIcon, Download, Upload, GripVertical, Filter, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -17,6 +17,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useToast } from '@/components/ui/toast'
 
 // ========== DATA MODEL ==========
 type Deity = {
@@ -232,71 +233,84 @@ function ReligionsGrid({ religions, onEdit, onDuplicate, onDelete }: ReligionsGr
       {religions.map(religion => (
         <Card
           key={religion.id}
-          className="group hover:shadow-lg transition-all duration-300 border-gray-200 hover:border-purple-300 bg-white overflow-hidden"
+          onClick={() => onEdit(religion)}
+          className="group relative rounded-xl border border-gray-200/80 bg-white shadow-sm hover:shadow-xl hover:border-purple-400/50 transition-all duration-300 cursor-pointer overflow-visible before:absolute before:inset-0 before:bg-gradient-to-br before:from-purple-500/0 before:via-purple-500/5 before:to-pink-500/0 before:opacity-0 hover:before:opacity-100 before:transition-opacity before:duration-300"
         >
-          <CardHeader className="pb-3">
+          <CardHeader className="pb-3 relative z-10">
             <div className="flex items-start justify-between mb-2">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center shadow-md">
-                <Church className="w-5 h-5 text-white" />
+              {/* Enhanced Icon with Gradient Background and Glow Effect */}
+              <div className="relative flex-shrink-0">
+                <div className="absolute inset-0 bg-gradient-to-br from-purple-400 to-pink-400 rounded-lg opacity-0 group-hover:opacity-20 blur-md transition-opacity duration-300"></div>
+                <div className="relative w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center shadow-md group-hover:shadow-lg group-hover:scale-110 transition-all duration-300">
+                  <Church className="w-5 h-5 text-white group-hover:scale-110 transition-transform duration-300" />
+                </div>
               </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="bg-background">
-                  <DropdownMenuItem onClick={() => onEdit(religion)} className="cursor-pointer">
-                    <Edit3 className="w-4 h-4 mr-2" />
-                    Edit
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => onDuplicate(religion)} className="cursor-pointer">
-                    <Copy className="w-4 h-4 mr-2" />
-                    Duplicate
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => onDelete(religion, false)} className="cursor-pointer text-amber-600">
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    Move to Trash
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => onDelete(religion, true)} className="cursor-pointer text-red-600">
-                    <Trash className="w-4 h-4 mr-2" />
-                    Delete Permanently
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              
+              {/* Action Buttons - Always Visible */}
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => { e.stopPropagation(); onEdit(religion); }}
+                  className="h-7 w-7 p-0 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-all duration-200"
+                  title="Edit"
+                >
+                  <Edit3 className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => { e.stopPropagation(); onDuplicate(religion); }}
+                  className="h-7 w-7 p-0 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all duration-200"
+                  title="Duplicate"
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => { e.stopPropagation(); onDelete(religion, true); }}
+                  className="h-7 w-7 p-0 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
+                  title="Delete"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
-            <CardTitle className="text-lg font-semibold text-gray-900 group-hover:text-purple-600 transition-colors line-clamp-1">
+            <CardTitle className="text-lg font-semibold text-gray-900 group-hover:text-purple-600 transition-colors duration-300 line-clamp-1">
               {religion.name}
             </CardTitle>
             <div className="flex items-center gap-2 flex-wrap mt-2">
               {religion.attributes?.type && (
-                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${pillColor('religion', religion.attributes.type)}`}>
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${pillColor('religion', religion.attributes.type)} group-hover:border-purple-300 transition-all duration-300`}>
                   {religion.attributes.type}
                 </span>
               )}
               {religion.attributes?.status && (
-                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${pillColor('status', religion.attributes.status)}`}>
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${pillColor('status', religion.attributes.status)} group-hover:border-purple-300 transition-all duration-300`}>
                   {religion.attributes.status}
                 </span>
               )}
             </div>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-3 relative z-10">
             {religion.description && (
-              <p className="text-sm text-gray-600 line-clamp-2">{religion.description}</p>
+              <p className="text-sm text-gray-600 line-clamp-2 group-hover:text-gray-700 transition-colors duration-300">{religion.description}</p>
             )}
             
             {/* Quick Facts */}
             <div className="flex items-center gap-2 text-xs text-gray-500 pt-2 border-t border-gray-100">
               {religion.attributes?.followers_estimate && (
-                <span>{religion.attributes.followers_estimate.toLocaleString()} followers</span>
+                <span className="flex items-center gap-1.5 group-hover:text-purple-600 transition-colors duration-300">
+                  <span className="w-1.5 h-1.5 rounded-full bg-purple-400 group-hover:bg-purple-500 group-hover:shadow-sm group-hover:shadow-purple-300 transition-all duration-300"></span>
+                  <span className="font-medium">{religion.attributes.followers_estimate.toLocaleString()}</span>
+                </span>
               )}
               {religion.attributes?.followers_estimate && religion.attributes?.origin_country && (
                 <span>•</span>
               )}
               {religion.attributes?.origin_country && (
-                <span>{religion.attributes.origin_country}</span>
+                <span className="group-hover:text-purple-600 transition-colors duration-300">{religion.attributes.origin_country}</span>
               )}
             </div>
 
@@ -304,7 +318,7 @@ function ReligionsGrid({ religions, onEdit, onDuplicate, onDelete }: ReligionsGr
             {religion.tags && religion.tags.length > 0 && (
               <div className="flex flex-wrap gap-1">
                 {religion.tags.slice(0, 2).map((tag: string, idx: number) => (
-                  <span key={idx} className="inline-flex items-center px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 text-xs">
+                  <span key={idx} className="inline-flex items-center px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 text-xs group-hover:bg-purple-100 transition-all duration-300">
                     {tag}
                   </span>
                 ))}
@@ -315,10 +329,13 @@ function ReligionsGrid({ religions, onEdit, onDuplicate, onDelete }: ReligionsGr
             )}
 
             {/* Footer */}
-            <div className="text-xs text-gray-400 pt-2 border-t border-gray-100">
+            <div className="text-xs text-gray-400 pt-2 border-t border-gray-100 group-hover:text-gray-500 transition-colors duration-300">
               Updated • {relativeTime(religion.updated_at)}
             </div>
           </CardContent>
+          
+          {/* Animated Bottom Border on Hover */}
+          <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-purple-500 via-pink-500 to-purple-500 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500 ease-out"></div>
         </Card>
       ))}
     </div>
@@ -349,73 +366,85 @@ function ReligionsTable({ religions, onEdit, onDuplicate, onDelete }: ReligionsT
         </TableHeader>
         <TableBody>
           {religions.map(religion => (
-            <TableRow key={religion.id} className="hover:bg-gray-50 transition-colors">
+            <TableRow 
+              key={religion.id} 
+              onClick={() => onEdit(religion)}
+              className="group relative hover:bg-purple-50/50 transition-all duration-300 cursor-pointer border-b border-gray-100 hover:border-purple-200 after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-gradient-to-r after:from-purple-500 after:via-pink-500 after:to-purple-500 after:transform after:scale-x-0 hover:after:scale-x-100 after:transition-transform after:duration-500 after:ease-out"
+            >
               <TableCell>
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center shadow-sm flex-shrink-0">
-                    <Church className="w-4 h-4 text-white" />
+                  {/* Enhanced Icon with Glow Effect */}
+                  <div className="relative flex-shrink-0">
+                    <div className="absolute inset-0 bg-gradient-to-br from-purple-400 to-pink-400 rounded-lg opacity-0 group-hover:opacity-20 blur-md transition-opacity duration-300"></div>
+                    <div className="relative w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center shadow-sm group-hover:shadow-md group-hover:scale-110 transition-all duration-300">
+                      <Church className="w-4 h-4 text-white group-hover:scale-110 transition-transform duration-300" />
+                    </div>
                   </div>
                   <div>
-                    <div className="font-semibold text-gray-900">{religion.name}</div>
+                    <div className="font-semibold text-gray-900 group-hover:text-purple-700 transition-colors duration-300">{religion.name}</div>
                     {religion.attributes?.origin_country && (
-                      <div className="text-xs text-gray-500">{religion.attributes.origin_country}</div>
+                      <div className="text-xs text-gray-500 group-hover:text-purple-600 transition-colors duration-300">{religion.attributes.origin_country}</div>
                     )}
                   </div>
                 </div>
               </TableCell>
               <TableCell>
                 {religion.attributes?.type && (
-                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${pillColor('religion', religion.attributes.type)}`}>
+                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${pillColor('religion', religion.attributes.type)} group-hover:border-purple-300 transition-all duration-300`}>
                     {religion.attributes.type}
                   </span>
                 )}
               </TableCell>
               <TableCell>
                 {religion.attributes?.status && (
-                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${pillColor('status', religion.attributes.status)}`}>
+                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${pillColor('status', religion.attributes.status)} group-hover:border-purple-300 transition-all duration-300`}>
                     {religion.attributes.status}
                   </span>
                 )}
               </TableCell>
               <TableCell>
                 {religion.attributes?.followers_estimate ? (
-                  <span className="text-sm text-gray-700">
-                    {religion.attributes.followers_estimate.toLocaleString()}
+                  <span className="flex items-center gap-1.5 text-sm text-gray-700 group-hover:text-purple-600 transition-colors duration-300">
+                    <span className="w-1.5 h-1.5 rounded-full bg-purple-400 group-hover:bg-purple-500 group-hover:shadow-sm group-hover:shadow-purple-300 transition-all duration-300"></span>
+                    <span className="font-medium">{religion.attributes.followers_estimate.toLocaleString()}</span>
                   </span>
                 ) : (
                   <span className="text-sm text-gray-400">—</span>
                 )}
               </TableCell>
               <TableCell>
-                <span className="text-sm text-gray-600">{relativeTime(religion.updated_at)}</span>
+                <span className="text-sm text-gray-600 group-hover:text-purple-600 transition-colors duration-300">{relativeTime(religion.updated_at)}</span>
               </TableCell>
               <TableCell>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="bg-background">
-                    <DropdownMenuItem onClick={() => onEdit(religion)} className="cursor-pointer">
-                      <Edit3 className="w-4 h-4 mr-2" />
-                      Edit
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => onDuplicate(religion)} className="cursor-pointer">
-                      <Copy className="w-4 h-4 mr-2" />
-                      Duplicate
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => onDelete(religion, false)} className="cursor-pointer text-amber-600">
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Move to Trash
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => onDelete(religion, true)} className="cursor-pointer text-red-600">
-                      <Trash className="w-4 h-4 mr-2" />
-                      Delete Permanently
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => { e.stopPropagation(); onEdit(religion); }}
+                    className="h-8 w-8 p-0 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-all duration-200"
+                    title="Edit"
+                  >
+                    <Edit3 className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => { e.stopPropagation(); onDuplicate(religion); }}
+                    className="h-8 w-8 p-0 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all duration-200"
+                    title="Duplicate"
+                  >
+                    <Copy className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => { e.stopPropagation(); onDelete(religion, true); }}
+                    className="h-8 w-8 p-0 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
+                    title="Delete"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
               </TableCell>
             </TableRow>
           ))}
@@ -435,9 +464,13 @@ interface ReligionWorkspaceProps {
   onDuplicate?: () => void
   onDelete?: () => void
   saving: boolean
+  worldElements: any[]
+  loadingWorldElements: boolean
+  onRefreshWorldElements: () => void
 }
 
-function ReligionWorkspace({ mode, form, onChange, onSave, onCancel, onDuplicate, onDelete, saving }: ReligionWorkspaceProps) {
+function ReligionWorkspace({ mode, form, onChange, onSave, onCancel, onDuplicate, onDelete, saving, worldElements, loadingWorldElements, onRefreshWorldElements }: ReligionWorkspaceProps) {
+  const { addToast } = useToast()
   const religionTypes = ['monotheistic', 'polytheistic', 'pantheistic', 'animistic', 'atheistic', 'philosophical', 'nature-based', 'ancestral']
   const [tagInput, setTagInput] = useState('')
   const [activeTab, setActiveTab] = useState('overview')
@@ -468,7 +501,8 @@ function ReligionWorkspace({ mode, form, onChange, onSave, onCancel, onDuplicate
 
   // Autosave with 600ms debounce (edit mode only)
   const debouncedSave = useCallback((patch: Partial<ReligionForm>) => {
-    if (mode !== 'edit') return
+    // Only autosave in edit mode and if we have an ID
+    if (mode !== 'edit' || !form.id) return
     
     if (autosaveTimerRef.current) {
       clearTimeout(autosaveTimerRef.current)
@@ -478,17 +512,41 @@ function ReligionWorkspace({ mode, form, onChange, onSave, onCancel, onDuplicate
       setIsSaving(true)
       try {
         const supabase = createSupabaseClient()
+        
+        // Merge current form with patch
+        const updatedAttributes = { ...form, ...patch }
+        
         const { error } = await supabase
-          .from('religions')
-          .update({ attributes: { ...form, ...patch } })
+          .from('world_elements')
+          .update({
+            name: updatedAttributes.name,
+            description: updatedAttributes.description,
+            tags: updatedAttributes.tags || [],
+            attributes: updatedAttributes,
+          })
           .eq('id', form.id)
         
         if (error) {
           console.error('Autosave failed:', error)
-          // Rollback on error - onChange will handle this
+          addToast({
+            title: 'Save Failed',
+            message: 'Failed to save changes. Please try again.',
+            type: 'error',
+          })
+        } else {
+          addToast({
+            title: 'Saved',
+            message: 'Changes saved successfully.',
+            type: 'success',
+          })
         }
       } catch (err) {
         console.error('Autosave error:', err)
+        addToast({
+          title: 'Error',
+          message: 'An unexpected error occurred.',
+          type: 'error',
+        })
       } finally {
         setIsSaving(false)
       }
@@ -497,8 +555,8 @@ function ReligionWorkspace({ mode, form, onChange, onSave, onCancel, onDuplicate
 
   // Handle change with autosave
   const handleChange = (patch: Partial<ReligionForm>) => {
-    onChange(patch) // Optimistic update
-    debouncedSave(patch) // Debounced save
+    onChange(patch) // Update parent form state
+    debouncedSave(patch) // Debounced save to database
   }
 
   // Helper: Get entity type color
@@ -516,18 +574,8 @@ function ReligionWorkspace({ mode, form, onChange, onSave, onCancel, onDuplicate
   }
 
   // Mock entities for picker (in production, fetch from Supabase)
-  const mockEntities = [
-    { id: '1', name: 'Prophet Elara', type: 'character' },
-    { id: '2', name: 'Sacred Temple of Light', type: 'location' },
-    { id: '3', name: 'Order of the Dawn', type: 'faction' },
-    { id: '4', name: 'Holy Relic', type: 'item' },
-    { id: '5', name: 'Magic System', type: 'system' },
-    { id: '6', name: 'Ancient Tongue', type: 'language' },
-    { id: '7', name: 'Rival Faith', type: 'religion' },
-  ]
-
-  // Filter entities by search
-  const filteredEntities = mockEntities.filter(entity =>
+  // Filter entities by search (using real world elements from database)
+  const filteredEntities = worldElements.filter(entity =>
     entity.name.toLowerCase().includes(relationshipSearch.toLowerCase()) ||
     entity.type.toLowerCase().includes(relationshipSearch.toLowerCase())
   )
@@ -590,23 +638,127 @@ function ReligionWorkspace({ mode, form, onChange, onSave, onCancel, onDuplicate
   }
 
   // Handle image upload for gallery
-  const handleGalleryImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleGalleryImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
 
-    const reader = new FileReader()
-    reader.onloadend = () => {
-      const base64 = reader.result as string
-      const newImages = [...(form.images || []), base64]
-      handleChange({ images: newImages })
+    // Validate file type
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp', 'image/svg+xml']
+    if (!allowedTypes.includes(file.type)) {
+      addToast({
+        title: 'Invalid File Type',
+        message: 'Please upload a PNG, JPEG, GIF, WEBP, or SVG image.',
+        type: 'error',
+      })
+      return
     }
-    reader.readAsDataURL(file)
+
+    // Validate file size (10MB)
+    if (file.size > 10485760) {
+      addToast({
+        title: 'File Too Large',
+        message: 'Image must be smaller than 10MB.',
+        type: 'error',
+      })
+      return
+    }
+
+    try {
+      setIsSaving(true)
+      const supabase = createSupabaseClient()
+      
+      // Generate unique filename
+      const timestamp = Date.now()
+      const randomId = Math.random().toString(36).substring(2, 9)
+      const fileExt = file.name.split('.').pop()
+      const fileName = `${form.id || 'temp'}_${timestamp}_${randomId}.${fileExt}`
+      const filePath = `${fileName}`
+
+      // Upload to Supabase Storage
+      const { data, error } = await supabase.storage
+        .from('religion-images')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        })
+
+      if (error) {
+        throw error
+      }
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('religion-images')
+        .getPublicUrl(filePath)
+
+      // Add URL to images array
+      const newImages = [...(form.images || []), publicUrl]
+      handleChange({ images: newImages })
+
+      addToast({
+        title: 'Upload Success',
+        message: 'Image uploaded successfully.',
+        type: 'success',
+      })
+
+    } catch (error: any) {
+      console.error('Image upload error:', error)
+      addToast({
+        title: 'Upload Failed',
+        message: error.message || 'Failed to upload image. Please try again.',
+        type: 'error',
+      })
+    } finally {
+      setIsSaving(false)
+      // Reset file input
+      e.target.value = ''
+    }
   }
 
   // Remove gallery image
-  const handleRemoveGalleryImage = (index: number) => {
-    const newImages = form.images?.filter((_, i) => i !== index)
-    handleChange({ images: newImages })
+  const handleRemoveGalleryImage = async (index: number) => {
+    const imageUrl = form.images?.[index]
+    if (!imageUrl) return
+
+    try {
+      // Only delete from storage if it's a Supabase storage URL (not base64)
+      if (imageUrl.includes('religion-images')) {
+        const supabase = createSupabaseClient()
+        
+        // Extract file path from URL
+        const urlParts = imageUrl.split('/religion-images/')
+        if (urlParts.length > 1) {
+          const filePath = urlParts[1].split('?')[0] // Remove query params if any
+          
+          const { error } = await supabase.storage
+            .from('religion-images')
+            .remove([filePath])
+
+          if (error) {
+            console.error('Error deleting image from storage:', error)
+            // Continue with removal from array even if storage delete fails
+          }
+        }
+      }
+
+      // Remove from images array
+      const newImages = form.images?.filter((_, i) => i !== index)
+      handleChange({ images: newImages })
+
+      addToast({
+        title: 'Image Removed',
+        message: 'Image has been deleted.',
+        type: 'success',
+      })
+
+    } catch (error: any) {
+      console.error('Error removing image:', error)
+      addToast({
+        title: 'Delete Failed',
+        message: 'Failed to delete image. Please try again.',
+        type: 'error',
+      })
+    }
   }
 
   // Set cover image
@@ -879,7 +1031,7 @@ function ReligionWorkspace({ mode, form, onChange, onSave, onCancel, onDuplicate
   // CREATE MODE - Simple form without tabs
   if (mode === 'create') {
     return (
-      <div className="h-full bg-gradient-to-br from-gray-50 to-white overflow-y-auto">
+      <div className="h-full w-full max-w-full bg-gradient-to-br from-gray-50 to-white overflow-y-auto overflow-x-hidden">
         {/* Header with Back button */}
         <div className="sticky top-0 z-10 bg-white/90 backdrop-blur-sm border-b border-gray-100">
           <div className="px-6 py-4">
@@ -963,10 +1115,10 @@ function ReligionWorkspace({ mode, form, onChange, onSave, onCancel, onDuplicate
                   Type
                 </Label>
                 <Select value={form.type} onValueChange={(value) => onChange({ type: value })}>
-                  <SelectTrigger className="bg-background border-gray-300 focus:border-purple-500 focus:ring-purple-500/20">
+                  <SelectTrigger className="bg-white border-gray-300 focus:border-purple-500 focus:ring-purple-500/20">
                     <SelectValue placeholder="Select type" />
                   </SelectTrigger>
-                  <SelectContent className="bg-background">
+                  <SelectContent className="bg-white">
                     {religionTypes.map(type => (
                       <SelectItem key={type} value={type}>
                         {type.charAt(0).toUpperCase() + type.slice(1)}
@@ -984,10 +1136,10 @@ function ReligionWorkspace({ mode, form, onChange, onSave, onCancel, onDuplicate
                   Status
                 </Label>
                 <Select value={form.status} onValueChange={(value: any) => onChange({ status: value })}>
-                  <SelectTrigger className="bg-background border-gray-300 focus:border-purple-500 focus:ring-purple-500/20">
+                  <SelectTrigger className="bg-white border-gray-300 focus:border-purple-500 focus:ring-purple-500/20">
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
-                  <SelectContent className="bg-background">
+                  <SelectContent className="bg-white">
                     <SelectItem value="active">Active</SelectItem>
                     <SelectItem value="defunct">Defunct</SelectItem>
                     <SelectItem value="underground">Underground</SelectItem>
@@ -1137,13 +1289,13 @@ function ReligionWorkspace({ mode, form, onChange, onSave, onCancel, onDuplicate
 
   // EDIT MODE - Full tabbed workspace
   return (
-    <div className="flex flex-col h-full bg-white">
+    <div className="flex flex-col h-full bg-white max-w-full overflow-hidden">
       {/* Header Bar */}
       <div className="border-b border-gray-200 bg-white">
         <div className="px-6 py-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-4">
             {/* Left: Editable name + pills */}
-            <div className="flex items-center gap-3 flex-1">
+            <div className="flex items-center gap-3 flex-1 min-w-0">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center shadow-lg flex-shrink-0">
                 <Church className="w-5 h-5 text-white" />
               </div>
@@ -1192,7 +1344,7 @@ function ReligionWorkspace({ mode, form, onChange, onSave, onCancel, onDuplicate
             </div>
 
             {/* Right: Action buttons */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-shrink-0">
               {onDuplicate && (
                 <Button
                   variant="outline"
@@ -1229,75 +1381,108 @@ function ReligionWorkspace({ mode, form, onChange, onSave, onCancel, onDuplicate
         </div>
 
         {/* Tabs */}
-        <div className="border-b border-gray-200 bg-white/95 backdrop-blur-sm">
-          <div className="px-6">
+        <div className="border-b border-gray-200 bg-gradient-to-b from-white to-gray-50/30 backdrop-blur-sm">
+          <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="w-full justify-start h-auto p-0 bg-transparent border-0 overflow-x-auto scrollbar-hide">
-                <div className="flex items-center gap-0">
-                  <TabsTrigger value="overview" className="relative rounded-none border-b-2 border-transparent data-[state=active]:border-purple-500 hover:bg-gray-50 data-[state=active]:bg-purple-50/50 transition-all duration-200 gap-2 px-4 py-3 font-medium text-sm whitespace-nowrap group">
-                    <BookOpen className="w-4 h-4 text-gray-500 group-data-[state=active]:text-purple-600" />
-                    <span className="text-gray-600 group-data-[state=active]:text-purple-900">Overview</span>
-                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-purple-500 to-pink-500 transform scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-300 rounded-full" />
+              <TabsList className="w-full justify-center h-auto p-0 bg-transparent border-0 px-5">
+                <div className="flex items-center gap-1">
+                  <TabsTrigger 
+                    value="overview" 
+                    className="relative rounded-t-lg border-b-3 border-transparent data-[state=active]:border-purple-500 hover:bg-purple-50/50 data-[state=active]:bg-gradient-to-b data-[state=active]:from-purple-50 data-[state=active]:to-transparent transition-all duration-300 gap-2 px-3 py-2.5 font-semibold text-sm whitespace-nowrap group shadow-sm data-[state=active]:shadow-md"
+                  >
+                    <BookOpen className="w-4 h-4 text-gray-400 group-data-[state=active]:text-purple-600 group-hover:text-purple-500 transition-colors duration-200" />
+                    <span className="text-gray-600 group-data-[state=active]:text-purple-900 group-hover:text-gray-900 transition-colors duration-200">Overview</span>
+                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 via-purple-600 to-pink-500 transform scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-300 rounded-full shadow-lg shadow-purple-500/50" />
                   </TabsTrigger>
                   
-                  <TabsTrigger value="pantheon" className="relative rounded-none border-b-2 border-transparent data-[state=active]:border-amber-500 hover:bg-gray-50 data-[state=active]:bg-amber-50/50 transition-all duration-200 gap-2 px-4 py-3 font-medium text-sm whitespace-nowrap group">
-                    <Users className="w-4 h-4 text-gray-500 group-data-[state=active]:text-amber-600" />
-                    <span className="text-gray-600 group-data-[state=active]:text-amber-900">Pantheon</span>
-                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-amber-500 to-orange-500 transform scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-300 rounded-full" />
+                  <TabsTrigger 
+                    value="pantheon" 
+                    className="relative rounded-t-lg border-b-3 border-transparent data-[state=active]:border-amber-500 hover:bg-amber-50/50 data-[state=active]:bg-gradient-to-b data-[state=active]:from-amber-50 data-[state=active]:to-transparent transition-all duration-300 gap-2 px-3 py-2.5 font-semibold text-sm whitespace-nowrap group shadow-sm data-[state=active]:shadow-md"
+                  >
+                    <Users className="w-4 h-4 text-gray-400 group-data-[state=active]:text-amber-600 group-hover:text-amber-500 transition-colors duration-200" />
+                    <span className="text-gray-600 group-data-[state=active]:text-amber-900 group-hover:text-gray-900 transition-colors duration-200">Pantheon</span>
+                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 via-amber-600 to-orange-500 transform scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-300 rounded-full shadow-lg shadow-amber-500/50" />
                   </TabsTrigger>
                   
-                  <TabsTrigger value="scriptures" className="relative rounded-none border-b-2 border-transparent data-[state=active]:border-blue-500 hover:bg-gray-50 data-[state=active]:bg-blue-50/50 transition-all duration-200 gap-2 px-4 py-3 font-medium text-sm whitespace-nowrap group">
-                    <ScrollText className="w-4 h-4 text-gray-500 group-data-[state=active]:text-blue-600" />
-                    <span className="text-gray-600 group-data-[state=active]:text-blue-900">Scriptures</span>
-                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 to-cyan-500 transform scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-300 rounded-full" />
+                  <TabsTrigger 
+                    value="scriptures" 
+                    className="relative rounded-t-lg border-b-3 border-transparent data-[state=active]:border-blue-500 hover:bg-blue-50/50 data-[state=active]:bg-gradient-to-b data-[state=active]:from-blue-50 data-[state=active]:to-transparent transition-all duration-300 gap-2 px-3 py-2.5 font-semibold text-sm whitespace-nowrap group shadow-sm data-[state=active]:shadow-md"
+                  >
+                    <ScrollText className="w-4 h-4 text-gray-400 group-data-[state=active]:text-blue-600 group-hover:text-blue-500 transition-colors duration-200" />
+                    <span className="text-gray-600 group-data-[state=active]:text-blue-900 group-hover:text-gray-900 transition-colors duration-200">Scriptures</span>
+                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-blue-600 to-cyan-500 transform scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-300 rounded-full shadow-lg shadow-blue-500/50" />
                   </TabsTrigger>
                   
-                  <TabsTrigger value="practices" className="relative rounded-none border-b-2 border-transparent data-[state=active]:border-emerald-500 hover:bg-gray-50 data-[state=active]:bg-emerald-50/50 transition-all duration-200 gap-2 px-4 py-3 font-medium text-sm whitespace-nowrap group">
-                    <Sparkles className="w-4 h-4 text-gray-500 group-data-[state=active]:text-emerald-600" />
-                    <span className="text-gray-600 group-data-[state=active]:text-emerald-900">Practices</span>
-                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-emerald-500 to-teal-500 transform scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-300 rounded-full" />
+                  <TabsTrigger 
+                    value="practices" 
+                    className="relative rounded-t-lg border-b-3 border-transparent data-[state=active]:border-emerald-500 hover:bg-emerald-50/50 data-[state=active]:bg-gradient-to-b data-[state=active]:from-emerald-50 data-[state=active]:to-transparent transition-all duration-300 gap-2 px-3 py-2.5 font-semibold text-sm whitespace-nowrap group shadow-sm data-[state=active]:shadow-md"
+                  >
+                    <Sparkles className="w-4 h-4 text-gray-400 group-data-[state=active]:text-emerald-600 group-hover:text-emerald-500 transition-colors duration-200" />
+                    <span className="text-gray-600 group-data-[state=active]:text-emerald-900 group-hover:text-gray-900 transition-colors duration-200">Practices</span>
+                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-500 transform scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-300 rounded-full shadow-lg shadow-emerald-500/50" />
                   </TabsTrigger>
                   
-                  <TabsTrigger value="organization" className="relative rounded-none border-b-2 border-transparent data-[state=active]:border-indigo-500 hover:bg-gray-50 data-[state=active]:bg-indigo-50/50 transition-all duration-200 gap-2 px-4 py-3 font-medium text-sm whitespace-nowrap group">
-                    <Building2 className="w-4 h-4 text-gray-500 group-data-[state=active]:text-indigo-600" />
-                    <span className="text-gray-600 group-data-[state=active]:text-indigo-900">Organization</span>
-                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-indigo-500 to-purple-500 transform scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-300 rounded-full" />
+                  <TabsTrigger 
+                    value="organization" 
+                    className="relative rounded-t-lg border-b-3 border-transparent data-[state=active]:border-indigo-500 hover:bg-indigo-50/50 data-[state=active]:bg-gradient-to-b data-[state=active]:from-indigo-50 data-[state=active]:to-transparent transition-all duration-300 gap-2 px-3 py-2.5 font-semibold text-sm whitespace-nowrap group shadow-sm data-[state=active]:shadow-md"
+                  >
+                    <Building2 className="w-4 h-4 text-gray-400 group-data-[state=active]:text-indigo-600 group-hover:text-indigo-500 transition-colors duration-200" />
+                    <span className="text-gray-600 group-data-[state=active]:text-indigo-900 group-hover:text-gray-900 transition-colors duration-200">Organization</span>
+                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 via-indigo-600 to-purple-500 transform scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-300 rounded-full shadow-lg shadow-indigo-500/50" />
                   </TabsTrigger>
                   
-                  <TabsTrigger value="places" className="relative rounded-none border-b-2 border-transparent data-[state=active]:border-rose-500 hover:bg-gray-50 data-[state=active]:bg-rose-50/50 transition-all duration-200 gap-2 px-4 py-3 font-medium text-sm whitespace-nowrap group">
-                    <MapPin className="w-4 h-4 text-gray-500 group-data-[state=active]:text-rose-600" />
-                    <span className="text-gray-600 group-data-[state=active]:text-rose-900">Worship & Places</span>
-                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-rose-500 to-pink-500 transform scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-300 rounded-full" />
+                  <TabsTrigger 
+                    value="places" 
+                    className="relative rounded-t-lg border-b-3 border-transparent data-[state=active]:border-rose-500 hover:bg-rose-50/50 data-[state=active]:bg-gradient-to-b data-[state=active]:from-rose-50 data-[state=active]:to-transparent transition-all duration-300 gap-2 px-3 py-2.5 font-semibold text-sm whitespace-nowrap group shadow-sm data-[state=active]:shadow-md"
+                  >
+                    <MapPin className="w-4 h-4 text-gray-400 group-data-[state=active]:text-rose-600 group-hover:text-rose-500 transition-colors duration-200" />
+                    <span className="text-gray-600 group-data-[state=active]:text-rose-900 group-hover:text-gray-900 transition-colors duration-200">Worship</span>
+                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-rose-500 via-rose-600 to-pink-500 transform scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-300 rounded-full shadow-lg shadow-rose-500/50" />
                   </TabsTrigger>
                   
-                  <TabsTrigger value="theology" className="relative rounded-none border-b-2 border-transparent data-[state=active]:border-violet-500 hover:bg-gray-50 data-[state=active]:bg-violet-50/50 transition-all duration-200 gap-2 px-4 py-3 font-medium text-sm whitespace-nowrap group">
-                    <Heart className="w-4 h-4 text-gray-500 group-data-[state=active]:text-violet-600" />
-                    <span className="text-gray-600 group-data-[state=active]:text-violet-900">Theology & Values</span>
-                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-violet-500 to-purple-500 transform scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-300 rounded-full" />
+                  <TabsTrigger 
+                    value="theology" 
+                    className="relative rounded-t-lg border-b-3 border-transparent data-[state=active]:border-violet-500 hover:bg-violet-50/50 data-[state=active]:bg-gradient-to-b data-[state=active]:from-violet-50 data-[state=active]:to-transparent transition-all duration-300 gap-2 px-3 py-2.5 font-semibold text-sm whitespace-nowrap group shadow-sm data-[state=active]:shadow-md"
+                  >
+                    <Heart className="w-4 h-4 text-gray-400 group-data-[state=active]:text-violet-600 group-hover:text-violet-500 transition-colors duration-200" />
+                    <span className="text-gray-600 group-data-[state=active]:text-violet-900 group-hover:text-gray-900 transition-colors duration-200">Theology</span>
+                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-violet-500 via-violet-600 to-purple-500 transform scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-300 rounded-full shadow-lg shadow-violet-500/50" />
                   </TabsTrigger>
                   
-                  <TabsTrigger value="culture" className="relative rounded-none border-b-2 border-transparent data-[state=active]:border-cyan-500 hover:bg-gray-50 data-[state=active]:bg-cyan-50/50 transition-all duration-200 gap-2 px-4 py-3 font-medium text-sm whitespace-nowrap group">
-                    <Globe className="w-4 h-4 text-gray-500 group-data-[state=active]:text-cyan-600" />
-                    <span className="text-gray-600 group-data-[state=active]:text-cyan-900">Culture & Daily Life</span>
-                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-cyan-500 to-blue-500 transform scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-300 rounded-full" />
+                  <TabsTrigger 
+                    value="culture" 
+                    className="relative rounded-t-lg border-b-3 border-transparent data-[state=active]:border-cyan-500 hover:bg-cyan-50/50 data-[state=active]:bg-gradient-to-b data-[state=active]:from-cyan-50 data-[state=active]:to-transparent transition-all duration-300 gap-2 px-3 py-2.5 font-semibold text-sm whitespace-nowrap group shadow-sm data-[state=active]:shadow-md"
+                  >
+                    <Globe className="w-4 h-4 text-gray-400 group-data-[state=active]:text-cyan-600 group-hover:text-cyan-500 transition-colors duration-200" />
+                    <span className="text-gray-600 group-data-[state=active]:text-cyan-900 group-hover:text-gray-900 transition-colors duration-200">Culture</span>
+                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-500 via-cyan-600 to-blue-500 transform scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-300 rounded-full shadow-lg shadow-cyan-500/50" />
                   </TabsTrigger>
                   
-                  <TabsTrigger value="history" className="relative rounded-none border-b-2 border-transparent data-[state=active]:border-orange-500 hover:bg-gray-50 data-[state=active]:bg-orange-50/50 transition-all duration-200 gap-2 px-4 py-3 font-medium text-sm whitespace-nowrap group">
-                    <Calendar className="w-4 h-4 text-gray-500 group-data-[state=active]:text-orange-600" />
-                    <span className="text-gray-600 group-data-[state=active]:text-orange-900">History & Demographics</span>
-                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-orange-500 to-red-500 transform scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-300 rounded-full" />
+                  <TabsTrigger 
+                    value="history" 
+                    className="relative rounded-t-lg border-b-3 border-transparent data-[state=active]:border-orange-500 hover:bg-orange-50/50 data-[state=active]:bg-gradient-to-b data-[state=active]:from-orange-50 data-[state=active]:to-transparent transition-all duration-300 gap-2 px-3 py-2.5 font-semibold text-sm whitespace-nowrap group shadow-sm data-[state=active]:shadow-md"
+                  >
+                    <Calendar className="w-4 h-4 text-gray-400 group-data-[state=active]:text-orange-600 group-hover:text-orange-500 transition-colors duration-200" />
+                    <span className="text-gray-600 group-data-[state=active]:text-orange-900 group-hover:text-gray-900 transition-colors duration-200">History</span>
+                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-orange-500 via-orange-600 to-red-500 transform scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-300 rounded-full shadow-lg shadow-orange-500/50" />
                   </TabsTrigger>
                   
-                  <TabsTrigger value="relationships" className="relative rounded-none border-b-2 border-transparent data-[state=active]:border-pink-500 hover:bg-gray-50 data-[state=active]:bg-pink-50/50 transition-all duration-200 gap-2 px-4 py-3 font-medium text-sm whitespace-nowrap group">
-                    <LinkIcon className="w-4 h-4 text-gray-500 group-data-[state=active]:text-pink-600" />
-                    <span className="text-gray-600 group-data-[state=active]:text-pink-900">Relationships</span>
-                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-pink-500 to-rose-500 transform scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-300 rounded-full" />
+                  <TabsTrigger 
+                    value="relationships" 
+                    className="relative rounded-t-lg border-b-3 border-transparent data-[state=active]:border-pink-500 hover:bg-pink-50/50 data-[state=active]:bg-gradient-to-b data-[state=active]:from-pink-50 data-[state=active]:to-transparent transition-all duration-300 gap-2 px-3 py-2.5 font-semibold text-sm whitespace-nowrap group shadow-sm data-[state=active]:shadow-md"
+                  >
+                    <LinkIcon className="w-4 h-4 text-gray-400 group-data-[state=active]:text-pink-600 group-hover:text-pink-500 transition-colors duration-200" />
+                    <span className="text-gray-600 group-data-[state=active]:text-pink-900 group-hover:text-gray-900 transition-colors duration-200">Links</span>
+                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-pink-500 via-pink-600 to-rose-500 transform scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-300 rounded-full shadow-lg shadow-pink-500/50" />
                   </TabsTrigger>
                   
-                  <TabsTrigger value="stats" className="relative rounded-none border-b-2 border-transparent data-[state=active]:border-teal-500 hover:bg-gray-50 data-[state=active]:bg-teal-50/50 transition-all duration-200 gap-2 px-4 py-3 font-medium text-sm whitespace-nowrap group">
-                    <BarChart3 className="w-4 h-4 text-gray-500 group-data-[state=active]:text-teal-600" />
-                    <span className="text-gray-600 group-data-[state=active]:text-teal-900">Stats & Media</span>
-                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-teal-500 to-cyan-500 transform scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-300 rounded-full" />
+                  <TabsTrigger 
+                    value="stats" 
+                    className="relative rounded-t-lg border-b-3 border-transparent data-[state=active]:border-teal-500 hover:bg-teal-50/50 data-[state=active]:bg-gradient-to-b data-[state=active]:from-teal-50 data-[state=active]:to-transparent transition-all duration-300 gap-2 px-3 py-2.5 font-semibold text-sm whitespace-nowrap group shadow-sm data-[state=active]:shadow-md"
+                  >
+                    <BarChart3 className="w-4 h-4 text-gray-400 group-data-[state=active]:text-teal-600 group-hover:text-teal-500 transition-colors duration-200" />
+                    <span className="text-gray-600 group-data-[state=active]:text-teal-900 group-hover:text-gray-900 transition-colors duration-200">Stats</span>
+                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-teal-500 via-teal-600 to-cyan-500 transform scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-300 rounded-full shadow-lg shadow-teal-500/50" />
                   </TabsTrigger>
                 </div>
               </TabsList>
@@ -1307,11 +1492,11 @@ function ReligionWorkspace({ mode, form, onChange, onSave, onCancel, onDuplicate
       </div>
 
       {/* Tab Content - Scrollable */}
-      <div className="flex-1 overflow-y-auto bg-gray-50 px-6 py-6">
-        <div className="max-w-5xl mx-auto">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden bg-gray-50 px-6 py-6">
+        <div className="max-w-5xl mx-auto w-full">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full max-w-full">
             {/* OVERVIEW TAB */}
-            <TabsContent value="overview" className="mt-0 space-y-6">
+            <TabsContent value="overview" className="mt-0 space-y-6 max-w-full">
               <Card className="rounded-xl border-gray-200">
                 <CardHeader className="border-b border-gray-100">
                   <CardTitle>Basic Information</CardTitle>
@@ -1321,10 +1506,10 @@ function ReligionWorkspace({ mode, form, onChange, onSave, onCancel, onDuplicate
                     <div className="space-y-2">
                       <Label>Type</Label>
                       <Select value={form.type} onValueChange={(value) => handleChange({ type: value })}>
-                        <SelectTrigger className="bg-background">
+                        <SelectTrigger className="bg-white">
                           <SelectValue placeholder="Select type" />
                         </SelectTrigger>
-                        <SelectContent className="bg-background">
+                        <SelectContent className="bg-white">
                           {religionTypes.map(type => (
                             <SelectItem key={type} value={type}>{type.charAt(0).toUpperCase() + type.slice(1)}</SelectItem>
                           ))}
@@ -1334,10 +1519,10 @@ function ReligionWorkspace({ mode, form, onChange, onSave, onCancel, onDuplicate
                     <div className="space-y-2">
                       <Label>Status</Label>
                       <Select value={form.status} onValueChange={(value: any) => handleChange({ status: value })}>
-                        <SelectTrigger className="bg-background">
+                        <SelectTrigger className="bg-white">
                           <SelectValue placeholder="Select status" />
                         </SelectTrigger>
-                        <SelectContent className="bg-background">
+                        <SelectContent className="bg-white">
                           <SelectItem value="active">Active</SelectItem>
                           <SelectItem value="defunct">Defunct</SelectItem>
                           <SelectItem value="underground">Underground</SelectItem>
@@ -1532,44 +1717,38 @@ function ReligionWorkspace({ mode, form, onChange, onSave, onCancel, onDuplicate
                         <GripVertical className="w-5 h-5 text-gray-400" />
                       </div>
 
-                      {/* Card Actions Dropdown */}
-                      <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-white/80">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="bg-background">
-                            <DropdownMenuItem
-                              onClick={() => {
-                                const duplicatedDeity: Deity = {
-                                  ...deity,
-                                  id: `deity-${Date.now()}`,
-                                  name: `${deity.name} (Copy)`
-                                }
-                                const newPantheon = [...form.pantheon]
-                                newPantheon.splice(actualIndex + 1, 0, duplicatedDeity)
-                                handleChange({ pantheon: newPantheon })
-                              }}
-                              className="cursor-pointer"
-                            >
-                              <Copy className="w-4 h-4 mr-2" />
-                              Duplicate
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              onClick={() => {
-                                const newPantheon = form.pantheon.filter((_, i) => i !== actualIndex)
-                                handleChange({ pantheon: newPantheon })
-                              }}
-                              className="cursor-pointer text-red-600"
-                            >
-                              <Trash2 className="w-4 h-4 mr-2" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                      {/* Card Action Buttons */}
+                      <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            const duplicatedDeity: Deity = {
+                              ...deity,
+                              id: `deity-${Date.now()}`,
+                              name: `${deity.name} (Copy)`
+                            }
+                            const newPantheon = [...form.pantheon]
+                            newPantheon.splice(actualIndex + 1, 0, duplicatedDeity)
+                            handleChange({ pantheon: newPantheon })
+                          }}
+                          className="h-8 w-8 p-0 hover:bg-green-50 hover:text-green-600 transition-colors"
+                          title="Duplicate"
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            const newPantheon = form.pantheon.filter((_, i) => i !== actualIndex)
+                            handleChange({ pantheon: newPantheon })
+                          }}
+                          className="h-8 w-8 p-0 hover:bg-red-50 hover:text-red-600 transition-colors"
+                          title="Delete"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
 
                       <CardContent className="pt-6 space-y-4">
@@ -1678,12 +1857,12 @@ function ReligionWorkspace({ mode, form, onChange, onSave, onCancel, onDuplicate
                                   Add
                                 </Button>
                               </PopoverTrigger>
-                              <PopoverContent className="w-64 p-2 bg-background" align="start">
-                                <Command className="bg-background">
-                                  <CommandInput placeholder="Search deities..." className="bg-background" />
-                                  <CommandList className="bg-background">
+                              <PopoverContent className="w-64 p-2 bg-white" align="start">
+                                <Command className="bg-white">
+                                  <CommandInput placeholder="Search deities..." className="bg-white" />
+                                  <CommandList className="bg-white">
                                     <CommandEmpty>No deities found.</CommandEmpty>
-                                    <CommandGroup className="bg-background">
+                                    <CommandGroup className="bg-white">
                                       {form.pantheon
                                         .filter(d => d.id !== deity.id && !deity.relationships?.includes(d.id))
                                         .map(otherDeity => (
@@ -1697,7 +1876,7 @@ function ReligionWorkspace({ mode, form, onChange, onSave, onCancel, onDuplicate
                                               }
                                               handleChange({ pantheon: newPantheon })
                                             }}
-                                            className="bg-background cursor-pointer"
+                                            className="bg-white cursor-pointer"
                                           >
                                             <Check className="mr-2 h-4 w-4 opacity-0" />
                                             <span>{otherDeity.name || 'Unnamed Deity'}</span>
@@ -1784,7 +1963,7 @@ function ReligionWorkspace({ mode, form, onChange, onSave, onCancel, onDuplicate
                         Export
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent className="bg-background">
+                    <DropdownMenuContent className="bg-white">
                       <DropdownMenuItem onClick={() => handleExportScriptures('json')} className="cursor-pointer">
                         Export as JSON
                       </DropdownMenuItem>
@@ -2076,7 +2255,7 @@ function ReligionWorkspace({ mode, form, onChange, onSave, onCancel, onDuplicate
                         Export
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent className="bg-background">
+                    <DropdownMenuContent className="bg-white">
                       <DropdownMenuItem onClick={() => handleExportPractices('json')} className="cursor-pointer">
                         Export as JSON
                       </DropdownMenuItem>
@@ -2197,10 +2376,10 @@ function ReligionWorkspace({ mode, form, onChange, onSave, onCancel, onDuplicate
                                   handleChange({ practices: newPractices })
                                 }}
                               >
-                                <SelectTrigger className="bg-background border-0 focus:ring-1 focus:ring-emerald-500">
+                                <SelectTrigger className="bg-white border-0 focus:ring-1 focus:ring-emerald-500">
                                   <SelectValue placeholder="Select cadence" />
                                 </SelectTrigger>
-                                <SelectContent className="bg-background">
+                                <SelectContent className="bg-white">
                                   <SelectItem value="daily">Daily</SelectItem>
                                   <SelectItem value="weekly">Weekly</SelectItem>
                                   <SelectItem value="seasonal">Seasonal</SelectItem>
@@ -3155,13 +3334,27 @@ function ReligionWorkspace({ mode, form, onChange, onSave, onCancel, onDuplicate
               {/* Entity Picker */}
               <Card className="rounded-xl border-gray-200">
                 <CardHeader className="border-b border-gray-100">
-                  <CardTitle className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
-                      <LinkIcon className="w-4 h-4 text-indigo-600" />
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
+                          <LinkIcon className="w-4 h-4 text-indigo-600" />
+                        </div>
+                        Link to World Elements
+                      </CardTitle>
+                      <p className="text-xs text-gray-500 mt-1">Connect this religion to characters, locations, factions, and more</p>
                     </div>
-                    Link to World Elements
-                  </CardTitle>
-                  <p className="text-xs text-gray-500">Connect this religion to characters, locations, factions, and more</p>
+                    <Button
+                      onClick={() => onRefreshWorldElements()}
+                      disabled={loadingWorldElements}
+                      variant="outline"
+                      size="sm"
+                      className="h-8 gap-2"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${loadingWorldElements ? 'animate-spin' : ''}`} />
+                      Refresh
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent className="pt-6 space-y-4">
                   {/* Search Input */}
@@ -3172,40 +3365,88 @@ function ReligionWorkspace({ mode, form, onChange, onSave, onCancel, onDuplicate
                         value={relationshipSearch}
                         onChange={(e) => {
                           setRelationshipSearch(e.target.value)
-                          setShowRelationshipPicker(e.target.value.length > 0)
+                          setShowRelationshipPicker(true)
                         }}
-                        onFocus={() => setShowRelationshipPicker(relationshipSearch.length > 0)}
-                        placeholder="Search characters, locations, factions, items..."
+                        onFocus={() => setShowRelationshipPicker(true)}
+                        onBlur={() => setTimeout(() => setShowRelationshipPicker(false), 200)}
+                        placeholder="Type to search or click to see all elements..."
                         className="pl-10 bg-white border-gray-300 focus:border-indigo-500 focus:ring-indigo-500/20"
                       />
+                      {worldElements.length > 0 && !showRelationshipPicker && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                          <span className="text-xs text-gray-400">{worldElements.length} available</span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Entity Picker Dropdown */}
-                    {showRelationshipPicker && filteredEntities.length > 0 && (
-                      <div className="absolute z-50 w-full mt-2 bg-background border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
-                        {filteredEntities.map((entity) => {
-                          const colors = getEntityTypeColor(entity.type)
-                          const isAlreadyLinked = form.links?.some(link => link.id === entity.id)
-                          
-                          return (
-                            <button
-                              key={entity.id}
-                              onClick={() => !isAlreadyLinked && handleAddRelationship(entity)}
-                              disabled={isAlreadyLinked}
-                              className={`w-full px-4 py-2.5 flex items-center gap-3 hover:bg-gray-50 transition-colors text-left border-b border-gray-100 last:border-0 ${
-                                isAlreadyLinked ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
-                              }`}
+                    {showRelationshipPicker && (
+                      <div className="absolute z-50 w-full mt-2 bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+                        {loadingWorldElements ? (
+                          <div className="px-4 py-8 text-center text-sm text-gray-500">
+                            <div className="animate-spin w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full mx-auto mb-2"></div>
+                            Loading world elements...
+                          </div>
+                        ) : filteredEntities.length > 0 ? (
+                          <>
+                            <div className="sticky top-0 bg-gradient-to-b from-indigo-50 to-white px-4 py-2 border-b border-indigo-100">
+                              <p className="text-xs text-indigo-600 font-medium">
+                                💡 Click on any element below to add it as a link
+                              </p>
+                            </div>
+                            {filteredEntities.map((entity) => {
+                              const colors = getEntityTypeColor(entity.type)
+                              const isAlreadyLinked = form.links?.some(link => link.id === entity.id)
+                              
+                              return (
+                                <button
+                                  key={entity.id}
+                                  onClick={() => !isAlreadyLinked && handleAddRelationship(entity)}
+                                  disabled={isAlreadyLinked}
+                                  className={`w-full px-4 py-2.5 flex items-center gap-3 hover:bg-indigo-50 transition-colors text-left border-b border-gray-100 last:border-0 ${
+                                    isAlreadyLinked ? 'opacity-50 cursor-not-allowed bg-gray-50' : 'cursor-pointer'
+                                  }`}
+                                >
+                                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${colors.bg} ${colors.text} border ${colors.border}`}>
+                                    {entity.type}
+                                  </span>
+                                  <span className="text-sm text-gray-900">{entity.name}</span>
+                                  {isAlreadyLinked && (
+                                    <span className="ml-auto text-xs text-green-600 flex items-center gap-1">
+                                      <Check className="w-3 h-3" />
+                                      Linked
+                                    </span>
+                                  )}
+                                </button>
+                              )
+                            })
+                          }
+                          </>
+                        ) : worldElements.length === 0 ? (
+                          <div className="px-4 py-8 text-center text-sm text-gray-500">
+                            <LinkIcon className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                            <p className="font-medium">No world elements found</p>
+                            <p className="text-xs mt-1 text-gray-400">Create characters, locations, or other elements first</p>
+                            <Button
+                              onClick={() => {
+                                setShowRelationshipPicker(false)
+                                onRefreshWorldElements()
+                              }}
+                              variant="outline"
+                              size="sm"
+                              className="mt-3"
                             >
-                              <span className={`px-2 py-0.5 rounded text-xs font-medium ${colors.bg} ${colors.text} border ${colors.border}`}>
-                                {entity.type}
-                              </span>
-                              <span className="text-sm text-gray-900">{entity.name}</span>
-                              {isAlreadyLinked && (
-                                <span className="ml-auto text-xs text-gray-500">Already linked</span>
-                              )}
-                            </button>
-                          )
-                        })}
+                              <RefreshCw className="w-3 h-3 mr-2" />
+                              Refresh List
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="px-4 py-8 text-center text-sm text-gray-500">
+                            <Search className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                            <p>No results found for "{relationshipSearch}"</p>
+                            <p className="text-xs mt-1 text-gray-400">Try a different search term</p>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -3580,10 +3821,10 @@ function ReligionsToolbar({
 
         {/* Sort */}
         <Select value={sort} onValueChange={onSort}>
-          <SelectTrigger className="w-[180px] bg-background border-gray-200">
+          <SelectTrigger className="w-[180px] bg-white border-gray-200">
             <SelectValue placeholder="Sort by..." />
           </SelectTrigger>
-          <SelectContent className="bg-background">
+          <SelectContent className="bg-white">
             <SelectItem value="name-asc">Name A→Z</SelectItem>
             <SelectItem value="name-desc">Name Z→A</SelectItem>
             <SelectItem value="newest">Newest First</SelectItem>
@@ -3768,9 +4009,12 @@ export default function ReligionsPanel({ projectId, selectedElement, onReligions
   const [religionToDelete, setReligionToDelete] = useState<any | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [hardDelete, setHardDelete] = useState(false)
+  const [worldElements, setWorldElements] = useState<any[]>([])
+  const [loadingWorldElements, setLoadingWorldElements] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   const supabase = createSupabaseClient()
+  const { addToast } = useToast()
 
   const religionTypes = ['monotheistic', 'polytheistic', 'pantheistic', 'animistic', 'atheistic', 'philosophical', 'nature-based', 'ancestral']
 
@@ -3782,6 +4026,13 @@ export default function ReligionsPanel({ projectId, selectedElement, onReligions
   )) as string[]
 
   useEffect(() => { loadReligions() }, [projectId])
+
+  // Load world elements for Links tab
+  useEffect(() => {
+    if (projectId) {
+      loadWorldElements()
+    }
+  }, [projectId])
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -3813,6 +4064,57 @@ export default function ReligionsPanel({ projectId, selectedElement, onReligions
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [mode])
+
+  // Listen for world element changes to refresh the Links tab
+  useEffect(() => {
+    const handleElementCreated = () => {
+      console.log('World element created, refreshing list...')
+      loadWorldElements()
+    }
+
+    const handleElementUpdated = () => {
+      console.log('World element updated, refreshing list...')
+      loadWorldElements()
+    }
+
+    const handleElementDeleted = () => {
+      console.log('World element deleted, refreshing list...')
+      loadWorldElements()
+    }
+
+    // Listen for various world element events
+    const events = [
+      'characterCreated', 'characterUpdated', 'characterDeleted',
+      'locationCreated', 'locationUpdated', 'locationDeleted',
+      'factionCreated', 'factionUpdated', 'factionDeleted',
+      'itemCreated', 'itemUpdated', 'itemDeleted',
+      'systemCreated', 'systemUpdated', 'systemDeleted',
+      'languageCreated', 'languageUpdated', 'languageDeleted',
+      'religionCreated', 'religionUpdated', 'religionDeleted'
+    ]
+
+    events.forEach(event => {
+      if (event.includes('Created')) {
+        window.addEventListener(event, handleElementCreated)
+      } else if (event.includes('Updated')) {
+        window.addEventListener(event, handleElementUpdated)
+      } else if (event.includes('Deleted')) {
+        window.addEventListener(event, handleElementDeleted)
+      }
+    })
+
+    return () => {
+      events.forEach(event => {
+        if (event.includes('Created')) {
+          window.removeEventListener(event, handleElementCreated)
+        } else if (event.includes('Updated')) {
+          window.removeEventListener(event, handleElementUpdated)
+        } else if (event.includes('Deleted')) {
+          window.removeEventListener(event, handleElementDeleted)
+        }
+      })
+    }
+  }, [projectId])
 
   useEffect(() => {
     if (selectedElement && selectedElement.category === 'religions') {
@@ -3864,6 +4166,47 @@ export default function ReligionsPanel({ projectId, selectedElement, onReligions
     }
   }
 
+  const loadWorldElements = async () => {
+    setLoadingWorldElements(true)
+    try {
+      const { data, error } = await supabase
+        .from('world_elements')
+        .select('id, name, category')
+        .eq('project_id', projectId)
+        .in('category', ['characters', 'locations', 'factions', 'items', 'systems', 'languages', 'religions'])
+        .or('attributes->>__deleted.is.null,attributes->>__deleted.eq.false')
+        .order('name', { ascending: true })
+      
+      if (error) {
+        console.error('Error loading world elements:', error)
+        addToast({
+          title: 'Error loading world elements',
+          description: error.message,
+          variant: 'destructive'
+        })
+        return
+      }
+
+      // Transform data to match the expected format
+      const elements = (data || []).map(item => ({
+        id: item.id,
+        name: item.name,
+        type: item.category.slice(0, -1) // Remove the 's' from category name
+      }))
+
+      setWorldElements(elements)
+    } catch (error: any) {
+      console.error('Error loading world elements:', error)
+      addToast({
+        title: 'Error',
+        description: 'Failed to load world elements',
+        variant: 'destructive'
+      })
+    } finally {
+      setLoadingWorldElements(false)
+    }
+  }
+
   const handleCreateNew = () => {
     setMode('create')
     setSelectedId(null)
@@ -3912,6 +4255,8 @@ export default function ReligionsPanel({ projectId, selectedElement, onReligions
     if (!form.name.trim()) return
 
     setSaving(true)
+    const isNewReligion = !form.id
+    
     try {
       const religionData = {
         project_id: projectId,
@@ -3945,11 +4290,47 @@ export default function ReligionsPanel({ projectId, selectedElement, onReligions
 
       let result: any
       if (form.id) {
-        // Update existing
-        const { data, error } = await supabase.from('world_elements').update({ ...religionData, updated_at: new Date().toISOString() }).eq('id', form.id).select().single()
+        // Update existing - optimistic update
+        const updatedData = { 
+          ...religionData, 
+          id: form.id,
+          updated_at: new Date().toISOString() 
+        }
+        
+        // Update UI immediately
+        setReligions(prev => prev.map(r => r.id === form.id ? updatedData : r))
+        
+        // Then save to database
+        const { data, error } = await supabase
+          .from('world_elements')
+          .update({ ...religionData, updated_at: updatedData.updated_at })
+          .eq('id', form.id)
+          .select()
+          .single()
+          
         if (error) throw error
         result = data
+        
+        // Update with real database data
         setReligions(prev => prev.map(r => r.id === form.id ? result : r))
+        
+        console.log('Dispatching religionUpdated event:', {
+          religionId: result.id,
+          religionName: result.name,
+          projectId: projectId,
+          eventDetail: { religion: result, projectId }
+        })
+        
+        // Dispatch event for sidebar update
+        window.dispatchEvent(new CustomEvent('religionUpdated', {
+          detail: { religion: result, projectId }
+        }))
+        
+        addToast({
+          title: 'Religion Updated',
+          message: `"${result.name}" has been updated successfully.`,
+          type: 'success'
+        })
       } else {
         // Create new - optimistic insert
         const tempId = `temp-${Date.now()}`
@@ -3975,21 +4356,42 @@ export default function ReligionsPanel({ projectId, selectedElement, onReligions
         setMode('edit')
         setSelectedId(result.id)
         setForm({ ...form, id: result.id })
+        
+        console.log('Dispatching religionCreated event (new):', {
+          religionId: result.id,
+          religionName: result.name,
+          projectId: projectId,
+          eventDetail: { religion: result, projectId }
+        })
+        
+        // Dispatch event for sidebar update
+        window.dispatchEvent(new CustomEvent('religionCreated', {
+          detail: { religion: result, projectId }
+        }))
+        
+        addToast({
+          title: 'Religion Created',
+          message: `"${result.name}" has been created successfully.`,
+          type: 'success'
+        })
       }
 
-      // Dispatch custom event for sidebar refresh
-      window.dispatchEvent(new CustomEvent('religionCreated', {
-        detail: { religion: result, projectId }
-      }))
-
-      onClearSelection?.()
-      onReligionsChange?.()
+      // Only clear selection if creating new, not updating
+      if (isNewReligion) {
+        onClearSelection?.()
+      }
     } catch (error) {
       console.error('Error saving religion:', error)
       // Rollback optimistic update on error
       if (!form.id) {
-        setReligions(prev => prev.filter(r => !r.id.startsWith('temp-')))
+        setReligions(prev => prev.filter(r => !r.id.toString().startsWith('temp-')))
       }
+      
+      addToast({
+        title: 'Save Failed',
+        message: 'Failed to save religion. Please try again.',
+        type: 'error'
+      })
     } finally {
       setSaving(false)
     }
@@ -4021,14 +4423,49 @@ export default function ReligionsPanel({ projectId, selectedElement, onReligions
         tags: religion.tags || []
       }
 
+      // Optimistic update - add to UI immediately with temporary ID
+      const tempId = `temp-${Date.now()}`
+      const optimisticReligion = {
+        ...duplicateData,
+        id: tempId,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }
+      
+      setReligions(prev => [optimisticReligion, ...prev])
+
+      // Then save to database in background
       const { data, error } = await supabase.from('world_elements').insert(duplicateData).select().single()
+      
       if (error) throw error
 
-      setReligions(prev => [data, ...prev])
+      // Replace temporary item with real data from database
+      setReligions(prev => prev.map(r => r.id === tempId ? data : r))
+      
+      console.log('Dispatching religionCreated event:', {
+        religionId: data.id,
+        religionName: data.name,
+        projectId: projectId,
+        eventDetail: { religion: data, projectId }
+      })
+      
       window.dispatchEvent(new CustomEvent('religionCreated', { detail: { religion: data, projectId } }))
-      onReligionsChange?.()
+      
+      addToast({
+        title: 'Religion Duplicated',
+        message: `"${data.name}" has been created successfully.`,
+        type: 'success'
+      })
     } catch (error) {
       console.error('Error duplicating religion:', error)
+      // Remove optimistic update on error
+      setReligions(prev => prev.filter(r => !r.id.toString().startsWith('temp-')))
+      
+      addToast({
+        title: 'Duplication Failed',
+        message: 'Failed to duplicate religion. Please try again.',
+        type: 'error'
+      })
     }
   }
 
@@ -4042,38 +4479,96 @@ export default function ReligionsPanel({ projectId, selectedElement, onReligions
     if (!religionToDelete) return
 
     setDeleting(true)
+    const religionName = religionToDelete.name
+    const deletedReligion = religionToDelete // Store for potential restore
+    
     try {
+      // Optimistic update - remove from UI immediately
+      setReligions(prev => prev.filter(r => r.id !== religionToDelete.id))
+      setDeleteDialogOpen(false)
+      setReligionToDelete(null)
+      
+      let deleteError = null
+      
       if (hardDelete) {
         // Hard delete - remove from database
-        const { error } = await supabase
+        const { error, data } = await supabase
           .from('world_elements')
           .delete()
-          .eq('id', religionToDelete.id)
+          .eq('id', deletedReligion.id)
+          .select()
 
-        if (error) throw error
+        deleteError = error
+        
+        // Log the response for debugging
+        if (error) {
+          console.error('Delete error details:', {
+            error,
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code
+          })
+        }
       } else {
         // Soft delete - set __deleted flag
         const { error } = await supabase
           .from('world_elements')
           .update({
             attributes: {
-              ...religionToDelete.attributes,
+              ...deletedReligion.attributes,
               __deleted: true,
               __deleted_at: new Date().toISOString(),
             },
           })
-          .eq('id', religionToDelete.id)
+          .eq('id', deletedReligion.id)
+          .select()
 
-        if (error) throw error
+        deleteError = error
+        
+        if (error) {
+          console.error('Soft delete error details:', {
+            error,
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code
+          })
+        }
       }
 
-      // Remove from local state
-      setReligions(prev => prev.filter(r => r.id !== religionToDelete.id))
-      setDeleteDialogOpen(false)
-      setReligionToDelete(null)
-    } catch (error) {
+      if (deleteError) throw deleteError
+
+      console.log('Dispatching religionDeleted event:', {
+        religionId: deletedReligion.id,
+        religionName: religionName,
+        projectId: projectId,
+        eventDetail: { religionId: deletedReligion.id, projectId }
+      })
+
+      // Dispatch event to update sidebar
+      window.dispatchEvent(new CustomEvent('religionDeleted', {
+        detail: { religionId: deletedReligion.id, projectId }
+      }))
+
+      addToast({
+        title: 'Religion Deleted',
+        message: `"${religionName}" has been deleted successfully.`,
+        type: 'success'
+      })
+    } catch (error: any) {
       console.error('Error in confirmDelete:', error)
-      alert('Failed to delete religion')
+      
+      // Restore the deleted item on error
+      setReligions(prev => [deletedReligion, ...prev])
+      
+      const errorMessage = error?.message || error?.details || 'Failed to delete religion. Please try again.'
+      
+      addToast({
+        title: 'Delete Failed',
+        message: errorMessage,
+        type: 'error'
+      })
     } finally {
       setDeleting(false)
     }
@@ -4153,6 +4648,9 @@ export default function ReligionsPanel({ projectId, selectedElement, onReligions
         onDuplicate={mode === 'edit' && currentReligion ? () => handleDuplicate(currentReligion) : undefined}
         onDelete={mode === 'edit' && currentReligion ? () => handleDeleteClick(currentReligion) : undefined}
         saving={saving}
+        worldElements={worldElements}
+        loadingWorldElements={loadingWorldElements}
+        onRefreshWorldElements={loadWorldElements}
       />
     )
   }
@@ -4239,33 +4737,51 @@ export default function ReligionsPanel({ projectId, selectedElement, onReligions
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent className="bg-background">
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {hardDelete ? 'Permanently Delete Religion?' : 'Delete Religion?'}
+        <AlertDialogContent className="bg-white border-0 shadow-2xl max-w-md">
+          <AlertDialogHeader className="space-y-4">
+            <div className="mx-auto w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+              <svg className="w-6 h-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <AlertDialogTitle className="text-2xl font-bold text-center text-gray-900">
+              Delete Religion?
             </AlertDialogTitle>
-            <AlertDialogDescription>
-              {hardDelete ? (
-                <>
-                  This will <strong>permanently delete</strong> &quot;{religionToDelete?.name}&quot; from the database.
-                  <br />
-                  <strong className="text-red-600">This action cannot be undone.</strong>
-                </>
-              ) : (
-                <>
-                  This will move &quot;{religionToDelete?.name}&quot; to trash. You can restore it later or permanently delete it.
-                </>
-              )}
+            <AlertDialogDescription className="text-center text-gray-600">
+              You are about to permanently delete <span className="font-semibold text-gray-900">&quot;{religionToDelete?.name}&quot;</span> from the database.
             </AlertDialogDescription>
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <p className="text-sm font-semibold text-red-800 flex items-center justify-center gap-2">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+                This action cannot be undone
+              </p>
+            </div>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+          <AlertDialogFooter className="gap-3 sm:gap-3">
+            <AlertDialogCancel 
+              disabled={deleting}
+              className="flex-1 bg-white hover:bg-gray-50 border-gray-300 text-gray-700 font-medium"
+            >
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDelete}
               disabled={deleting}
-              className={hardDelete ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-900 hover:bg-gray-800'}
+              className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium shadow-lg shadow-red-600/30 transition-all duration-200 hover:shadow-xl hover:shadow-red-600/40 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {deleting ? 'Deleting...' : hardDelete ? 'Delete Permanently' : 'Move to Trash'}
+              {deleting ? (
+                <span className="flex items-center gap-2">
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  Deleting...
+                </span>
+              ) : (
+                'Delete Permanently'
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

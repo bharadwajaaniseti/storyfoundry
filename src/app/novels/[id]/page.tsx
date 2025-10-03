@@ -593,13 +593,59 @@ function NovelPageInner() {
     }
 
     const handleReligionCreated = (e: CustomEvent) => {
-      if (e.detail?.projectId !== params.id) return
+      console.log('religionCreated event received:', {
+        eventProjectId: e.detail?.projectId,
+        currentProjectId: params.id,
+        match: String(e.detail?.projectId) === String(params.id),
+        religion: e.detail?.religion
+      })
+      
+      if (String(e.detail?.projectId) !== String(params.id)) return
       const religion = e.detail?.religion
       if (religion) {
         setWorldElements(prev => {
           const exists = prev.some(el => el.id === religion.id)
-          if (exists) return prev
+          if (exists) {
+            console.log('Religion already exists in sidebar, skipping')
+            return prev
+          }
+          console.log('Adding religion to sidebar:', religion.name)
           return [...prev, religion]
+        })
+      }
+    }
+
+    const handleReligionUpdated = (e: CustomEvent) => {
+      console.log('religionUpdated event received:', {
+        eventProjectId: e.detail?.projectId,
+        currentProjectId: params.id,
+        match: String(e.detail?.projectId) === String(params.id)
+      })
+      
+      if (String(e.detail?.projectId) !== String(params.id)) return
+      const religion = e.detail?.religion
+      if (religion) {
+        setWorldElements(prev => {
+          console.log('Updating religion in sidebar:', religion.name)
+          return prev.map(el => el.id === religion.id ? religion : el)
+        })
+      }
+    }
+
+    const handleReligionDeleted = (e: CustomEvent) => {
+      console.log('religionDeleted event received:', {
+        eventProjectId: e.detail?.projectId,
+        currentProjectId: params.id,
+        match: String(e.detail?.projectId) === String(params.id),
+        religionId: e.detail?.religionId
+      })
+      
+      if (String(e.detail?.projectId) !== String(params.id)) return
+      const religionId = e.detail?.religionId
+      if (religionId) {
+        setWorldElements(prev => {
+          console.log('Removing religion from sidebar:', religionId)
+          return prev.filter(el => el.id !== religionId)
         })
       }
     }
@@ -629,6 +675,8 @@ function NovelPageInner() {
     window.addEventListener('systemCreated', handleSystemCreated as EventListener)
     window.addEventListener('languageCreated', handleLanguageCreated as EventListener)
     window.addEventListener('religionCreated', handleReligionCreated as EventListener)
+    window.addEventListener('religionUpdated', handleReligionUpdated as EventListener)
+    window.addEventListener('religionDeleted', handleReligionDeleted as EventListener)
     window.addEventListener('philosophyCreated', handlePhilosophyCreated as EventListener)
     
     console.log('Main page event listeners registered for project:', params.id)
@@ -648,6 +696,8 @@ function NovelPageInner() {
       window.removeEventListener('systemCreated', handleSystemCreated as EventListener)
       window.removeEventListener('languageCreated', handleLanguageCreated as EventListener)
       window.removeEventListener('religionCreated', handleReligionCreated as EventListener)
+      window.removeEventListener('religionUpdated', handleReligionUpdated as EventListener)
+      window.removeEventListener('religionDeleted', handleReligionDeleted as EventListener)
       window.removeEventListener('philosophyCreated', handlePhilosophyCreated as EventListener)
     }
   }, [params])
