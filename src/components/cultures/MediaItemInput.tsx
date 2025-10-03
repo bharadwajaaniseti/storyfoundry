@@ -129,10 +129,72 @@ export default function MediaItemInput({
     await uploadMultipleFiles(Array.from(files))
   }
 
-  const handleRemoveImage = (imageUrl: string) => {
+  const handleRemoveImage = async (imageUrl: string) => {
     const currentImages = item.imageUrls || []
     const updatedImages = currentImages.filter(url => url !== imageUrl)
+    
+    // Delete the image from Supabase Storage
+    try {
+      // Extract the file path from the URL
+      // URL format: https://{project}.supabase.co/storage/v1/object/public/{bucket}/{path}
+      const urlParts = imageUrl.split(`/${storageBucket}/`)
+      if (urlParts.length === 2) {
+        const filePath = urlParts[1]
+        
+        const supabase = createSupabaseClient()
+        const { error } = await supabase.storage
+          .from(storageBucket)
+          .remove([filePath])
+        
+        if (error) {
+          console.error('Error deleting image from storage:', error)
+          // Continue anyway to remove from UI - file might already be deleted
+        } else {
+          console.log('✓ Image deleted from storage:', filePath)
+        }
+      }
+    } catch (error) {
+      console.error('Error parsing image URL for deletion:', error)
+      // Continue anyway to remove from UI
+    }
+    
     onUpdate(index, { ...item, imageUrls: updatedImages.length > 0 ? updatedImages : undefined })
+  }
+
+  const handleRemoveEntireItem = async () => {
+    // Delete all images from storage before removing the item
+    if (item.imageUrls && item.imageUrls.length > 0) {
+      try {
+        const filePaths: string[] = []
+        
+        // Extract file paths from all image URLs
+        for (const imageUrl of item.imageUrls) {
+          const urlParts = imageUrl.split(`/${storageBucket}/`)
+          if (urlParts.length === 2) {
+            filePaths.push(urlParts[1])
+          }
+        }
+        
+        // Delete all files at once
+        if (filePaths.length > 0) {
+          const supabase = createSupabaseClient()
+          const { error } = await supabase.storage
+            .from(storageBucket)
+            .remove(filePaths)
+          
+          if (error) {
+            console.error('Error deleting images from storage:', error)
+          } else {
+            console.log(`✓ Deleted ${filePaths.length} image(s) from storage`)
+          }
+        }
+      } catch (error) {
+        console.error('Error during bulk image deletion:', error)
+      }
+    }
+    
+    // Remove the item from the list
+    onRemove(index)
   }
 
   return (
@@ -143,7 +205,7 @@ export default function MediaItemInput({
           type="button"
           variant="ghost"
           size="sm"
-          onClick={() => onRemove(index)}
+          onClick={handleRemoveEntireItem}
           className="absolute top-2 right-2 h-7 w-7 p-0 text-gray-400 hover:text-red-600 hover:bg-red-50 z-10"
           title="Remove item"
         >

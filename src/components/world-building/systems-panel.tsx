@@ -19,7 +19,11 @@ import {
   Download,
   Tag,
   Undo2,
-  ArrowLeft
+  ArrowLeft,
+  AlertCircle,
+  MoreVertical,
+  Package,
+  Clock
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -85,6 +89,7 @@ import {
   Link as LinkIcon, 
   Sliders 
 } from 'lucide-react'
+import MediaItemInput, { MediaItem } from '@/components/cultures/MediaItemInput'
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -134,6 +139,7 @@ export interface SystemElement {
     status?: SystemStatus
     rules?: string
     participants?: string
+    images?: MediaItem[] | string[]  // Support both formats for backward compatibility
     [key: string]: any
   }
   tags?: string[]
@@ -284,6 +290,90 @@ export function statusBadge(status: SystemStatus | string | undefined): {
   }
 }
 
+/**
+ * Extract the first image URL from either MediaItem[] or string[] format
+ */
+function getFirstImageUrl(images: MediaItem[] | string[] | undefined): string | undefined {
+  if (!images || images.length === 0) return undefined
+  
+  // Check if it's the new MediaItem[] format
+  if (typeof images[0] === 'object' && 'imageUrls' in images[0]) {
+    const firstItem = images[0] as MediaItem
+    return firstItem.imageUrls?.[0]
+  }
+  
+  // Old string[] format
+  return images[0] as string
+}
+
+/**
+ * Extract all image URLs from either MediaItem[] or string[] format
+ */
+function getAllImageUrls(images: MediaItem[] | string[] | undefined): string[] {
+  if (!images || images.length === 0) return []
+  
+  // Check if it's the new MediaItem[] format
+  if (typeof images[0] === 'object' && 'imageUrls' in images[0]) {
+    return (images as MediaItem[]).flatMap(item => item.imageUrls || [])
+  }
+  
+  // Old string[] format
+  return images as string[]
+}
+
+/**
+ * Delete all images from storage for a system
+ */
+async function deleteSystemImages(system: SystemElement, storageBucket: string = 'system-images') {
+  const images = system.attributes?.images
+  if (!images || !Array.isArray(images) || images.length === 0) {
+    return // No images to delete
+  }
+
+  try {
+    const supabase = createSupabaseClient()
+    const filePaths: string[] = []
+
+    // Handle both old string[] and new MediaItem[] formats
+    if (typeof images[0] === 'string') {
+      // Old format: array of URL strings
+      for (const imageUrl of images as string[]) {
+        const urlParts = imageUrl.split(`/${storageBucket}/`)
+        if (urlParts.length === 2) {
+          filePaths.push(urlParts[1])
+        }
+      }
+    } else if (typeof images[0] === 'object' && 'imageUrls' in images[0]) {
+      // New format: MediaItem[]
+      for (const item of images as MediaItem[]) {
+        if (item.imageUrls) {
+          for (const imageUrl of item.imageUrls) {
+            const urlParts = imageUrl.split(`/${storageBucket}/`)
+            if (urlParts.length === 2) {
+              filePaths.push(urlParts[1])
+            }
+          }
+        }
+      }
+    }
+
+    // Delete all files from storage
+    if (filePaths.length > 0) {
+      const { error } = await supabase.storage
+        .from(storageBucket)
+        .remove(filePaths)
+
+      if (error) {
+        console.error('Error deleting system images from storage:', error)
+      } else {
+        console.log(`✓ Deleted ${filePaths.length} image(s) from storage for system: ${system.name}`)
+      }
+    }
+  } catch (error) {
+    console.error('Error during system image deletion:', error)
+  }
+}
+
 // ============================================================================
 // GRID VIEW COMPONENT
 // ============================================================================
@@ -298,6 +388,7 @@ interface SystemsGridProps {
   onDuplicate: (system: SystemElement) => void
   onDelete: (system: SystemElement) => void
   onCreateFirst: () => void
+  viewMode?: 'grid' | 'list'
 }
 
 function SystemsGrid({
@@ -309,24 +400,25 @@ function SystemsGrid({
   onEdit,
   onDuplicate,
   onDelete,
-  onCreateFirst
+  onCreateFirst,
+  viewMode = 'grid'
 }: SystemsGridProps) {
   const [deleteConfirm, setDeleteConfirm] = useState<SystemElement | null>(null)
 
   // Empty state
   if (systems.length === 0) {
     return (
-      <div className="text-center py-12">
-        <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-teal-50 mb-4">
+      <div className="text-center py-16">
+        <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-teal-50 via-emerald-50 to-teal-50 mb-6 shadow-sm">
           <Globe className="w-10 h-10 text-teal-500" />
         </div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">No systems yet</h3>
-        <p className="text-gray-500 text-sm mb-6 max-w-md mx-auto">
+        <h3 className="text-xl font-bold text-gray-900 mb-2">No systems yet</h3>
+        <p className="text-gray-500 text-sm mb-8 max-w-md mx-auto leading-relaxed">
           Define political, economic, and social structures that shape your world
         </p>
         <Button 
           onClick={onCreateFirst} 
-          className="bg-teal-500 hover:bg-teal-600 text-white"
+          className="bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white shadow-lg hover:shadow-xl transition-all duration-200 rounded-xl px-6 py-2.5 font-medium"
         >
           <Plus className="w-4 h-4 mr-2" />
           Create First System
@@ -337,101 +429,246 @@ function SystemsGrid({
 
   return (
     <>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className={viewMode === 'grid' 
+        ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5' 
+        : 'flex flex-col gap-3'
+      }>
         {systems.map(system => {
           const isSelected = selectedIds.has(system.id)
           const systemType = system.attributes?.type
           const status = system.attributes?.status
           const scope = system.attributes?.scope
-          const imageUrl = system.attributes?.images?.[0]
+          const imageUrl = getFirstImageUrl(system.attributes?.images)
+          const statusInfo = statusBadge(status)
 
-          return (
-            <Card 
-              key={system.id} 
-              className={`group relative hover:shadow-lg transition-all duration-200 ${
-                isSelected ? 'ring-2 ring-teal-500 shadow-md' : ''
-              }`}
-            >
-              {/* Bulk mode checkbox */}
-              {bulkMode && (
-                <div className="absolute top-3 left-3 z-10">
-                  <Checkbox
-                    checked={isSelected}
-                    onCheckedChange={() => onToggleSelection(system.id)}
-                    className="bg-background border-2 data-[state=checked]:bg-teal-500 data-[state=checked]:border-teal-500"
-                  />
-                </div>
-              )}
-
-              {/* Hover action buttons */}
-              {!bulkMode && (
-                <div className="absolute top-3 right-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        className="h-8 w-8 p-0 bg-background/95 backdrop-blur-sm shadow-md"
-                        aria-label="System actions"
-                      >
-                        <MoreHorizontal className="w-4 h-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="bg-background">
-                      <DropdownMenuItem onClick={() => onQuickView(system)}>
-                        <Eye className="w-4 h-4 mr-2" />
-                        Quick View
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => onEdit(system)}>
-                        <Edit3 className="w-4 h-4 mr-2" />
-                        Edit
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => onDuplicate(system)}>
-                        <Copy className="w-4 h-4 mr-2" />
-                        Duplicate
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem 
-                        onClick={() => setDeleteConfirm(system)}
-                        className="text-red-600 focus:text-red-600"
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              )}
-
-              <CardHeader className={bulkMode ? 'pt-12' : 'pt-4'}>
-                {/* Icon/Image & Name */}
-                <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0">
-                    {imageUrl ? (
-                      <img 
-                        src={imageUrl} 
-                        alt={system.name}
-                        loading="lazy"
-                        className="w-12 h-12 rounded-lg object-cover"
-                      />
-                    ) : (
-                      <div className="w-12 h-12 rounded-lg bg-teal-50 flex items-center justify-center">
-                        <Globe className="w-6 h-6 text-teal-500" />
+          // List View Rendering
+          if (viewMode === 'list') {
+            return (
+              <Card 
+                key={system.id} 
+                className={`group relative rounded-xl border border-gray-200/80 bg-white shadow-sm hover:shadow-xl hover:border-teal-400/50 transition-all duration-300 cursor-pointer overflow-hidden before:absolute before:inset-0 before:bg-gradient-to-r before:from-teal-500/0 before:via-teal-500/5 before:to-emerald-500/0 before:opacity-0 hover:before:opacity-100 before:transition-opacity before:duration-300 ${
+                  isSelected ? 'ring-2 ring-teal-500 shadow-md' : ''
+                }`}
+                onClick={(e) => {
+                  if ((e.target as HTMLElement).closest('.dropdown-trigger')) return;
+                  if (!bulkMode) onQuickView(system);
+                }}
+              >
+                <CardContent className="p-3.5 relative z-10">
+                  <div className="flex items-center gap-4">
+                    {/* Icon Column */}
+                    <div className="relative flex-shrink-0">
+                      <div className="absolute inset-0 bg-gradient-to-br from-teal-400 to-emerald-400 rounded-lg opacity-0 group-hover:opacity-20 blur-md transition-opacity duration-300"></div>
+                      {imageUrl ? (
+                        <div className="relative w-11 h-11 rounded-lg overflow-hidden border border-teal-200/60 group-hover:border-teal-300 group-hover:shadow-lg group-hover:scale-105 transition-all duration-300">
+                          <img 
+                            src={imageUrl} 
+                            alt={system.name}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      ) : (
+                        <div className="relative w-11 h-11 rounded-lg bg-gradient-to-br from-teal-50 via-teal-50 to-emerald-50 flex items-center justify-center border border-teal-200/60 group-hover:border-teal-300 group-hover:shadow-lg group-hover:scale-105 transition-all duration-300">
+                          <Globe className="w-5 h-5 text-teal-600 group-hover:scale-110 transition-transform duration-300" />
+                        </div>
+                      )}
+                      {bulkMode && (
+                        <div className="absolute -top-1 -left-1 z-10">
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => onToggleSelection(system.id)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="bg-white shadow-md border-2"
+                          />
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Name & Description Column */}
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-gray-900 text-base truncate group-hover:text-teal-700 transition-colors duration-300">
+                        {system.name}
+                      </h3>
+                      <p className="text-xs text-gray-600 line-clamp-1 leading-snug group-hover:text-gray-700 transition-colors duration-300">
+                        {system.description || 'No description provided'}
+                      </p>
+                    </div>
+                    
+                    {/* Type Column */}
+                    <div className="hidden md:flex items-center justify-center min-w-[120px]">
+                      {systemType ? (
+                        <Badge 
+                          variant="secondary" 
+                          className="bg-gradient-to-r from-gray-100 to-gray-50 text-gray-700 border border-gray-200/80 text-xs font-medium px-2.5 py-1 group-hover:border-teal-200 group-hover:from-teal-50 group-hover:to-teal-50/50 transition-all duration-300 capitalize"
+                        >
+                          {systemType}
+                        </Badge>
+                      ) : (
+                        <span className="text-xs text-gray-400">—</span>
+                      )}
+                    </div>
+                    
+                    {/* Scope Column */}
+                    <div className="hidden lg:flex items-center justify-center min-w-[100px]">
+                      {scope ? (
+                        <Badge 
+                          variant="outline"
+                          className="bg-blue-50 text-blue-700 border-blue-300 text-xs font-medium px-2.5 py-1 transition-all duration-300 capitalize"
+                        >
+                          {scope}
+                        </Badge>
+                      ) : (
+                        <span className="text-xs text-gray-400">—</span>
+                      )}
+                    </div>
+                    
+                    {/* Status Column */}
+                    <div className="hidden lg:flex items-center justify-center min-w-[100px]">
+                      {status ? (
+                        <Badge 
+                          className={`${statusInfo.className} text-xs font-medium px-2.5 py-1 transition-all duration-300`}
+                        >
+                          {statusInfo.label}
+                        </Badge>
+                      ) : (
+                        <span className="text-xs text-gray-400">—</span>
+                      )}
+                    </div>
+                    
+                    {/* Tags Column */}
+                    <div className="hidden xl:flex items-center gap-1 min-w-[120px]">
+                      {system.tags && system.tags.length > 0 ? (
+                        <>
+                          <Tag className="w-3 h-3 text-gray-400 group-hover:text-teal-500 transition-colors duration-300" />
+                          <span className="text-xs text-gray-600 font-medium">{system.tags.length}</span>
+                        </>
+                      ) : (
+                        <span className="text-xs text-gray-400">—</span>
+                      )}
+                    </div>
+                    
+                    {/* Actions Column */}
+                    {!bulkMode && (
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => { e.stopPropagation(); onDuplicate(system); }}
+                          className="h-7 w-7 p-0 text-gray-400 hover:text-green-600 hover:bg-white/90 hover:shadow-md rounded-lg transition-all duration-200 backdrop-blur-sm dropdown-trigger"
+                          title="Duplicate"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => { e.stopPropagation(); setDeleteConfirm(system); }}
+                          className="h-7 w-7 p-0 text-gray-400 hover:text-red-600 hover:bg-white/90 hover:shadow-md rounded-lg transition-all duration-200 backdrop-blur-sm dropdown-trigger"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
                       </div>
                     )}
                   </div>
                   
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg font-semibold text-gray-900 mb-2 line-clamp-1">
-                      {system.name}
-                    </CardTitle>
-                    
-                    {/* Type & Status badges */}
-                    <div className="flex gap-2 flex-wrap">
+                  {/* Animated Bottom Border on Hover */}
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-teal-500 via-emerald-500 to-teal-500 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500 ease-out"></div>
+                </CardContent>
+              </Card>
+            )
+          }
+
+          // Grid View Rendering (existing code)
+          return (
+            <Card 
+              key={system.id} 
+              className={`group relative rounded-2xl border-2 border-gray-200/60 bg-white shadow-md hover:shadow-2xl hover:border-teal-400/60 transition-all duration-500 cursor-pointer overflow-hidden hover:-translate-y-1 before:absolute before:inset-0 before:bg-gradient-to-br before:from-teal-500/0 before:via-teal-500/5 before:to-emerald-500/0 before:opacity-0 hover:before:opacity-100 before:transition-opacity before:duration-500 ${
+                isSelected ? 'ring-4 ring-teal-500/50 ring-offset-2 shadow-xl border-teal-400' : ''
+              }`}
+              onClick={(e) => {
+                if ((e.target as HTMLElement).closest('.dropdown-trigger')) return;
+                if (!bulkMode) onQuickView(system);
+              }}
+            >
+              <CardContent className="p-5 relative z-10">
+                {/* Action buttons - positioned absolute top-right */}
+                {!bulkMode && (
+                  <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-20">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => { e.stopPropagation(); onDuplicate(system); }}
+                      className="h-8 w-8 p-0 text-gray-400 hover:text-green-600 hover:bg-white/95 hover:shadow-lg rounded-lg transition-all duration-200 backdrop-blur-sm border border-gray-200/50 hover:border-green-300"
+                      title="Duplicate"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => { e.stopPropagation(); setDeleteConfirm(system); }}
+                      className="h-8 w-8 p-0 text-gray-400 hover:text-red-600 hover:bg-white/95 hover:shadow-lg rounded-lg transition-all duration-200 backdrop-blur-sm border border-gray-200/50 hover:border-red-300"
+                      title="Delete"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                )}
+
+                {/* Bulk mode checkbox */}
+                {bulkMode && (
+                  <div className="absolute top-3 left-3 z-20">
+                    <Checkbox
+                      checked={isSelected}
+                      onCheckedChange={() => onToggleSelection(system.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="bg-white shadow-md border-2"
+                    />
+                  </div>
+                )}
+
+                {/* Content Section with Image */}
+                <div className="flex items-start gap-4">
+                  {/* Small Image/Icon Thumbnail */}
+                  <div className="relative flex-shrink-0">
+                    <div className="absolute inset-0 bg-gradient-to-br from-teal-400 to-emerald-400 rounded-xl opacity-0 group-hover:opacity-20 blur-md transition-opacity duration-300"></div>
+                    {imageUrl ? (
+                      <div className="relative w-16 h-16 rounded-xl overflow-hidden border-2 border-teal-200/60 group-hover:border-teal-300 group-hover:shadow-lg transition-all duration-300">
+                        <img 
+                          src={imageUrl} 
+                          alt={system.name}
+                          loading="lazy"
+                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500 ease-out"
+                        />
+                      </div>
+                    ) : (
+                      <div className="relative w-16 h-16 rounded-xl bg-gradient-to-br from-teal-50 via-emerald-50 to-teal-50 flex items-center justify-center border-2 border-teal-200/60 group-hover:border-teal-300 group-hover:shadow-lg transition-all duration-300">
+                        <Globe className="w-8 h-8 text-teal-600/70 group-hover:text-teal-600 group-hover:scale-110 transition-all duration-500" />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Text Content */}
+                  <div className="flex-1 min-w-0 space-y-3.5">
+                    {/* Name & Description */}
+                    <div className="space-y-2">
+                      <h3 className="font-bold text-gray-900 text-lg line-clamp-1 group-hover:text-teal-700 transition-colors duration-300">
+                        {system.name}
+                      </h3>
+                      {system.description && (
+                        <p className="text-sm text-gray-600 line-clamp-2 leading-relaxed group-hover:text-gray-700 transition-colors duration-300">
+                          {system.description}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Badges Row */}
+                    <div className="flex gap-1.5 flex-wrap min-h-[24px]">
                       {systemType && (
                         <Badge 
                           variant="secondary" 
-                          className={`text-xs font-medium ${typeColor(systemType)}`}
+                          className={`text-xs font-medium px-2.5 py-0.5 ${typeColor(systemType)} group-hover:scale-105 transition-transform duration-200 shadow-sm`}
                         >
                           {systemType}
                         </Badge>
@@ -439,72 +676,54 @@ function SystemsGrid({
                       {status && (
                         <Badge 
                           variant="secondary" 
-                          className={`text-xs font-medium ${statusBadge(status).className}`}
+                          className={`text-xs font-medium px-2.5 py-0.5 ${statusBadge(status).className} group-hover:scale-105 transition-transform duration-200 shadow-sm`}
                         >
                           {statusBadge(status).label}
                         </Badge>
                       )}
+                      {scope && (
+                        <Badge 
+                          variant="outline" 
+                          className="text-xs font-medium px-2.5 py-0.5 capitalize bg-blue-50 text-blue-700 border-blue-300/60 group-hover:border-blue-400 group-hover:bg-blue-100 group-hover:shadow-sm transition-all duration-200"
+                        >
+                          {scope}
+                        </Badge>
+                      )}
+                    </div>
+
+                    {/* Footer Info Row */}
+                    <div className="flex items-center justify-between pt-3 border-t border-gray-200/80">
+                      {/* Tags Count */}
+                      <div className="flex items-center gap-2">
+                        {system.tags && system.tags.length > 0 ? (
+                          <>
+                            <div className="p-1 rounded-md bg-teal-50 group-hover:bg-teal-100 transition-colors duration-300">
+                              <Tag className="w-3.5 h-3.5 text-teal-600 group-hover:text-teal-700 transition-colors duration-300" />
+                            </div>
+                            <span className="text-xs text-gray-600 font-semibold group-hover:text-teal-700 transition-colors duration-300">
+                              {system.tags.length} {system.tags.length === 1 ? 'tag' : 'tags'}
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-xs text-gray-400 italic">No tags</span>
+                        )}
+                      </div>
+
+                      {/* Updated Date */}
+                      <div className="flex items-center gap-2">
+                        <div className="p-1 rounded-md bg-gray-50 group-hover:bg-gray-100 transition-colors duration-300">
+                          <Clock className="w-3.5 h-3.5 text-gray-500 group-hover:text-gray-600 transition-colors duration-300" />
+                        </div>
+                        <span className="text-xs text-gray-500 font-medium group-hover:text-gray-700 transition-colors duration-300">
+                          {relativeDate(system.updated_at)}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </CardHeader>
 
-              <CardContent className="space-y-4">
-                {/* Description */}
-                {system.description && (
-                  <p className="text-sm text-gray-600 line-clamp-2">
-                    {system.description}
-                  </p>
-                )}
-
-                {/* Quick facts row */}
-                {(scope || system.attributes?.rules) && (
-                  <div className="flex items-center gap-4 text-xs text-gray-500">
-                    {scope && (
-                      <div className="flex items-center gap-1">
-                        <span className="font-medium text-gray-700">Scope:</span>
-                        <span className="capitalize">{scope}</span>
-                      </div>
-                    )}
-                    {system.attributes?.rules && (
-                      <div className="flex items-center gap-1 flex-1 min-w-0">
-                        <span className="font-medium text-gray-700">Rules:</span>
-                        <span className="truncate">{system.attributes.rules}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Tags */}
-                {system.tags && system.tags.length > 0 && (
-                  <div className="flex gap-1.5 flex-wrap">
-                    {system.tags.slice(0, 3).map((tag, idx) => (
-                      <Badge 
-                        key={idx} 
-                        variant="outline" 
-                        className="text-xs bg-gray-50 text-gray-600 border-gray-200"
-                      >
-                        {tag}
-                      </Badge>
-                    ))}
-                    {system.tags.length > 3 && (
-                      <Badge 
-                        variant="outline" 
-                        className="text-xs bg-gray-50 text-gray-500 border-gray-200"
-                      >
-                        +{system.tags.length - 3}
-                      </Badge>
-                    )}
-                  </div>
-                )}
-
-                {/* Footer */}
-                <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500">
-                  <span>Updated</span>
-                  <span className="font-medium" title={new Date(system.updated_at).toLocaleString()}>
-                    {relativeDate(system.updated_at)}
-                  </span>
-                </div>
+                {/* Animated Bottom Border on Hover */}
+                <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-gradient-to-r from-teal-400 via-emerald-400 to-teal-400 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500 ease-out shadow-lg shadow-teal-500/50"></div>
               </CardContent>
             </Card>
           )
@@ -575,17 +794,17 @@ function SystemsTable({
   // Empty state
   if (systems.length === 0) {
     return (
-      <div className="text-center py-12">
-        <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-teal-50 mb-4">
+      <div className="text-center py-16">
+        <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-teal-50 via-emerald-50 to-teal-50 mb-6 shadow-sm">
           <Globe className="w-10 h-10 text-teal-500" />
         </div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">No systems yet</h3>
-        <p className="text-gray-500 text-sm mb-6 max-w-md mx-auto">
+        <h3 className="text-xl font-bold text-gray-900 mb-2">No systems yet</h3>
+        <p className="text-gray-500 text-sm mb-8 max-w-md mx-auto leading-relaxed">
           Define political, economic, and social structures that shape your world
         </p>
         <Button 
           onClick={onCreateFirst} 
-          className="bg-teal-500 hover:bg-teal-600 text-white"
+          className="bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white shadow-lg hover:shadow-xl transition-all duration-200 rounded-xl px-6 py-2.5 font-medium"
         >
           <Plus className="w-4 h-4 mr-2" />
           Create First System
@@ -604,31 +823,34 @@ function SystemsTable({
 
   return (
     <>
-      <div className="border border-gray-200 rounded-lg overflow-hidden bg-background">
+      <div className="border rounded-lg overflow-hidden bg-background shadow-sm">
         {shouldVirtualize && (
-          <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-2 text-sm text-yellow-800">
-            Showing first 100 of {systems.length} systems. Use filters to narrow down results.
+          <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border-b border-amber-200/50 px-4 py-2.5 text-sm text-amber-800 flex items-center gap-2">
+            <AlertCircle className="w-4 h-4" />
+            <span className="font-medium">Showing first 100 of {systems.length} systems. Use filters to narrow down results.</span>
           </div>
         )}
         <Table>
           <TableHeader>
-            <TableRow className="bg-gray-50 hover:bg-gray-50">
+            <TableRow className="bg-muted/50 hover:bg-muted/50">
               {bulkMode && (
                 <TableHead className="w-12">
                   <Checkbox
-                    checked={allSelected}
+                    checked={someSelected ? 'indeterminate' : allSelected}
                     onCheckedChange={onToggleAll}
                     className="data-[state=checked]:bg-teal-500 data-[state=checked]:border-teal-500"
                     aria-label="Select all on page"
                   />
                 </TableHead>
               )}
-              <TableHead className="font-semibold text-gray-700">Name</TableHead>
-              <TableHead className="font-semibold text-gray-700">Type</TableHead>
-              <TableHead className="font-semibold text-gray-700">Scope</TableHead>
-              <TableHead className="font-semibold text-gray-700">Status</TableHead>
-              <TableHead className="font-semibold text-gray-700">Updated</TableHead>
-              <TableHead className="w-12"></TableHead>
+              <TableHead className="w-16">Icon</TableHead>
+              <TableHead className="font-semibold">Name</TableHead>
+              <TableHead className="hidden md:table-cell font-semibold">Type</TableHead>
+              <TableHead className="hidden lg:table-cell font-semibold">Scope</TableHead>
+              <TableHead className="hidden lg:table-cell font-semibold">Status</TableHead>
+              <TableHead className="hidden xl:table-cell font-semibold">Tags</TableHead>
+              <TableHead className="hidden sm:table-cell font-semibold">Updated</TableHead>
+              <TableHead className="w-12 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -638,16 +860,19 @@ function SystemsTable({
               const scope = system.attributes?.scope
               const status = system.attributes?.status
               const statusInfo = statusBadge(status)
+              const imageUrl = getFirstImageUrl(system.attributes?.images)
 
               return (
                 <TableRow 
                   key={system.id}
-                  className={`group hover:bg-gray-50 ${
-                    isSelected ? 'bg-teal-50/50 hover:bg-teal-50' : ''
+                  className={`group transition-colors ${
+                    isSelected 
+                      ? 'bg-teal-50 hover:bg-teal-100/70' 
+                      : 'hover:bg-muted/50'
                   }`}
                 >
                   {bulkMode && (
-                    <TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
                       <Checkbox
                         checked={isSelected}
                         onCheckedChange={() => onToggleSelection(system.id)}
@@ -657,112 +882,149 @@ function SystemsTable({
                     </TableCell>
                   )}
                   
-                  <TableCell className="font-medium">
-                    <div className="flex items-center gap-3">
-                      <div className="flex-shrink-0">
-                        {system.attributes?.images?.[0] ? (
-                          <img 
-                            src={system.attributes.images[0]} 
-                            alt={system.name}
-                            loading="lazy"
-                            className="w-8 h-8 rounded object-cover"
-                          />
-                        ) : (
-                          <div className="w-8 h-8 rounded bg-teal-50 flex items-center justify-center">
-                            <Globe className="w-4 h-4 text-teal-500" />
-                          </div>
-                        )}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="font-semibold text-gray-900 truncate">
-                          {system.name}
-                        </div>
-                        {system.description && (
-                          <div className="text-xs text-gray-500 truncate max-w-md">
-                            {system.description}
-                          </div>
-                        )}
-                      </div>
+                  {/* Icon/Image */}
+                  <TableCell>
+                    <button 
+                      className="w-10 h-10 rounded-md overflow-hidden bg-gradient-to-br from-teal-50 to-emerald-50 flex items-center justify-center cursor-pointer hover:ring-2 hover:ring-teal-300 transition-all focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
+                      onClick={() => onQuickView(system)}
+                      aria-label={`View ${system.name}`}
+                    >
+                      {imageUrl ? (
+                        <img 
+                          src={imageUrl} 
+                          alt={system.name}
+                          loading="lazy"
+                          className="w-full h-full object-cover"
+                          style={{ backgroundColor: '#ccfbf1' }}
+                        />
+                      ) : (
+                        <Globe className="w-5 h-5 text-teal-400" />
+                      )}
+                    </button>
+                  </TableCell>
+                  
+                  {/* Name & Description */}
+                  <TableCell 
+                    className="cursor-pointer"
+                    onClick={() => onQuickView(system)}
+                  >
+                    <div className="flex flex-col gap-1 min-w-[150px]">
+                      <span className="font-semibold text-sm group-hover:text-teal-600 transition-colors line-clamp-1">
+                        {system.name}
+                      </span>
+                      {system.description && (
+                        <span className="text-xs text-muted-foreground line-clamp-1">
+                          {system.description}
+                        </span>
+                      )}
                     </div>
                   </TableCell>
                   
-                  <TableCell>
+                  {/* Type */}
+                  <TableCell className="hidden md:table-cell">
                     {systemType ? (
-                      <Badge 
-                        variant="secondary" 
-                        className={`text-xs ${typeColor(systemType)}`}
-                      >
-                        {systemType}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded bg-muted flex items-center justify-center">
+                          <FileText className="w-3.5 h-3.5 text-muted-foreground" />
+                        </div>
+                        <span className="text-sm capitalize">{systemType}</span>
+                      </div>
                     ) : (
-                      <span className="text-xs text-gray-400">—</span>
+                      <span className="text-xs text-muted-foreground">—</span>
                     )}
                   </TableCell>
                   
-                  <TableCell>
+                  {/* Scope */}
+                  <TableCell className="hidden lg:table-cell">
                     {scope ? (
                       <Badge 
                         variant="outline" 
-                        className="text-xs capitalize bg-blue-50 text-blue-700 border-blue-200"
+                        className="text-xs capitalize font-medium bg-blue-50 text-blue-700 border-blue-300"
                       >
                         {scope}
                       </Badge>
                     ) : (
-                      <span className="text-xs text-gray-400">—</span>
+                      <span className="text-xs text-muted-foreground">—</span>
                     )}
                   </TableCell>
                   
-                  <TableCell>
+                  {/* Status */}
+                  <TableCell className="hidden lg:table-cell">
                     {status ? (
                       <Badge 
-                        variant="secondary" 
-                        className={`text-xs ${statusInfo.className}`}
+                        className={`${statusInfo.className} font-medium`}
                       >
                         {statusInfo.label}
                       </Badge>
                     ) : (
-                      <span className="text-xs text-gray-400">—</span>
+                      <span className="text-xs text-muted-foreground">—</span>
                     )}
                   </TableCell>
                   
-                  <TableCell>
-                    <span 
-                      className="text-sm text-gray-600"
-                      title={new Date(system.updated_at).toLocaleString()}
-                    >
-                      {relativeDate(system.updated_at)}
-                    </span>
+                  {/* Tags */}
+                  <TableCell className="hidden xl:table-cell">
+                    {system.tags && system.tags.length > 0 ? (
+                      <div className="flex flex-wrap gap-1 max-w-[200px]">
+                        {system.tags.slice(0, 2).map(tag => (
+                          <Badge 
+                            key={tag} 
+                            variant="outline" 
+                            className="text-xs font-normal"
+                          >
+                            <Tag className="w-2.5 h-2.5 mr-1" />
+                            {tag}
+                          </Badge>
+                        ))}
+                        {system.tags.length > 2 && (
+                          <Badge variant="outline" className="text-xs">
+                            +{system.tags.length - 2}
+                          </Badge>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
                   </TableCell>
                   
-                  <TableCell>
+                  {/* Updated */}
+                  <TableCell className="hidden sm:table-cell">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-xs text-muted-foreground">
+                        {relativeDate(system.updated_at)}
+                      </span>
+                    </div>
+                  </TableCell>
+                  
+                  {/* Actions */}
+                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-8 w-8 p-0 data-[state=open]:bg-muted focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
+                          aria-label={`Actions for ${system.name}`}
                         >
-                          <MoreHorizontal className="w-4 h-4" />
-                          <span className="sr-only">Open menu</span>
+                          <MoreVertical className="w-4 h-4" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="bg-background">
-                        <DropdownMenuItem onClick={() => onQuickView(system)}>
+                      <DropdownMenuContent align="end" className="bg-white border border-gray-200 w-48 rounded-2xl shadow-xl">
+                        <DropdownMenuItem onClick={() => onQuickView(system)} className="cursor-pointer">
                           <Eye className="w-4 h-4 mr-2" />
                           Quick View
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onEdit(system)}>
+                        <DropdownMenuItem onClick={() => onEdit(system)} className="cursor-pointer">
                           <Edit3 className="w-4 h-4 mr-2" />
                           Edit
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onDuplicate(system)}>
+                        <DropdownMenuItem onClick={() => onDuplicate(system)} className="cursor-pointer">
                           <Copy className="w-4 h-4 mr-2" />
                           Duplicate
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem 
                           onClick={() => setDeleteConfirm(system)}
-                          className="text-red-600 focus:text-red-600"
+                          className="text-red-600 focus:text-red-600 focus:bg-red-50 cursor-pointer"
                         >
                           <Trash2 className="w-4 h-4 mr-2" />
                           Delete
@@ -848,47 +1110,50 @@ function SystemQuickView({
   return (
     <>
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className="bg-background max-w-2xl mx-auto max-h-[90vh]">
-          <DrawerHeader className="border-b">
+        <DrawerContent className="bg-white max-w-2xl mx-auto max-h-[90vh] rounded-t-2xl shadow-2xl">
+          <DrawerHeader className="border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white px-6 py-5">
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-2">
-                  {item.attributes?.images?.[0] ? (
-                    <img 
-                      src={item.attributes.images[0]} 
-                      alt={item.name}
-                      loading="lazy"
-                      className="w-12 h-12 rounded-lg object-cover"
-                    />
+                <div className="flex items-center gap-3 mb-2">
+                  {getFirstImageUrl(item.attributes?.images) ? (
+                    <div className="relative">
+                      <div className="absolute inset-0 bg-gradient-to-br from-teal-400 to-emerald-400 rounded-xl opacity-20 blur-md"></div>
+                      <img 
+                        src={getFirstImageUrl(item.attributes?.images)} 
+                        alt={item.name}
+                        loading="lazy"
+                        className="relative w-14 h-14 rounded-xl object-cover border-2 border-white shadow-lg"
+                      />
+                    </div>
                   ) : (
-                    <div className="w-12 h-12 rounded-lg bg-teal-50 flex items-center justify-center">
-                      <Globe className="w-6 h-6 text-teal-500" />
+                    <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-teal-50 via-teal-50 to-emerald-50 flex items-center justify-center border-2 border-teal-200/40 shadow-md">
+                      <Globe className="w-7 h-7 text-teal-600" />
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <DrawerTitle className="text-xl font-bold text-gray-900 truncate">
+                    <DrawerTitle className="text-xl font-bold text-gray-900 truncate mb-1.5">
                       {item.name}
                     </DrawerTitle>
-                    <div className="flex gap-2 flex-wrap mt-1">
+                    <div className="flex gap-1.5 flex-wrap">
                       {systemType && (
-                        <Badge variant="secondary" className={`text-xs ${typeColor(systemType)}`}>
+                        <Badge variant="secondary" className={`text-xs font-medium ${typeColor(systemType)}`}>
                           {systemType}
                         </Badge>
                       )}
                       {status && (
-                        <Badge variant="secondary" className={`text-xs ${statusInfo.className}`}>
+                        <Badge variant="secondary" className={`text-xs font-medium ${statusInfo.className}`}>
                           {statusInfo.label}
                         </Badge>
                       )}
                       {scope && (
-                        <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                        <Badge variant="outline" className="text-xs font-medium bg-blue-50 text-blue-700 border-blue-300">
                           {scope}
                         </Badge>
                       )}
                     </div>
                   </div>
                 </div>
-                <DrawerDescription className="text-sm text-gray-500">
+                <DrawerDescription className="text-sm text-gray-500 font-medium">
                   Last updated {relativeDate(item.updated_at)}
                 </DrawerDescription>
               </div>
@@ -902,17 +1167,18 @@ function SystemQuickView({
                     onEdit(item)
                     onOpenChange(false)
                   }}
+                  className="hover:bg-teal-50 hover:text-teal-700 hover:border-teal-300 transition-all duration-200"
                 >
                   <Edit3 className="w-4 h-4 mr-2" />
                   Edit
                 </Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" className="hover:bg-gray-50 transition-all duration-200">
                       <MoreHorizontal className="w-4 h-4" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="bg-background">
+                  <DropdownMenuContent align="end" className="bg-white border border-gray-200 rounded-xl shadow-xl">
                     <DropdownMenuItem onClick={() => {
                       onDuplicate(item)
                       onOpenChange(false)
@@ -923,7 +1189,7 @@ function SystemQuickView({
                     <DropdownMenuSeparator />
                     <DropdownMenuItem 
                       onClick={() => setDeleteConfirm(true)}
-                      className="text-red-600 focus:text-red-600"
+                      className="text-red-600 focus:text-red-600 focus:bg-red-50"
                     >
                       <Trash2 className="w-4 h-4 mr-2" />
                       Delete
@@ -935,21 +1201,51 @@ function SystemQuickView({
           </DrawerHeader>
 
           {/* Scrollable content */}
-          <div className="overflow-y-auto flex-1 p-6 space-y-6">
+          <div className="overflow-y-auto flex-1 px-6 py-6 space-y-6 bg-gray-50/30">
             {/* Overview */}
             {item.description && (
-              <section>
-                <h3 className="text-sm font-semibold text-gray-900 mb-2">Overview</h3>
+              <section className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <Eye className="w-4 h-4 text-teal-600" />
+                  Overview
+                </h3>
                 <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
                   {item.description}
                 </p>
               </section>
             )}
 
+            {/* Images */}
+            {item.attributes?.images && getAllImageUrls(item.attributes.images).length > 0 && (
+              <section className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <ImageIcon className="w-4 h-4 text-teal-600" />
+                  Images
+                </h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {getAllImageUrls(item.attributes.images).map((url, idx) => (
+                    <div
+                      key={idx}
+                      className="relative aspect-square rounded-lg overflow-hidden bg-gray-100 hover:ring-2 hover:ring-teal-500 hover:shadow-lg transition-all duration-200 cursor-pointer group"
+                    >
+                      <img
+                        src={url}
+                        alt={`${item.name} ${idx + 1}`}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
             {/* Governance */}
             {item.attributes?.governance && (
-              <section>
-                <h3 className="text-sm font-semibold text-gray-900 mb-2">Governance</h3>
+              <section className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <Settings className="w-4 h-4 text-teal-600" />
+                  Governance
+                </h3>
                 <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
                   {item.attributes.governance}
                 </p>
@@ -958,8 +1254,11 @@ function SystemQuickView({
 
             {/* Rules */}
             {item.attributes?.rules && (
-              <section>
-                <h3 className="text-sm font-semibold text-gray-900 mb-2">Rules</h3>
+              <section className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-teal-600" />
+                  Rules
+                </h3>
                 <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
                   {item.attributes.rules}
                 </p>
@@ -968,11 +1267,14 @@ function SystemQuickView({
 
             {/* Mechanisms */}
             {mechanisms.length > 0 && (
-              <section>
-                <h3 className="text-sm font-semibold text-gray-900 mb-2">Mechanisms</h3>
+              <section className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <Network className="w-4 h-4 text-teal-600" />
+                  Mechanisms
+                </h3>
                 <div className="flex gap-2 flex-wrap">
                   {mechanisms.map((mechanism: string, idx: number) => (
-                    <Badge key={idx} variant="secondary" className="bg-purple-50 text-purple-700 border-purple-200">
+                    <Badge key={idx} variant="secondary" className="bg-purple-50 text-purple-700 border-purple-200/60 font-medium hover:bg-purple-100 transition-colors duration-200">
                       {mechanism}
                     </Badge>
                   ))}
@@ -982,11 +1284,14 @@ function SystemQuickView({
 
             {/* Participants */}
             {participants.length > 0 && (
-              <section>
-                <h3 className="text-sm font-semibold text-gray-900 mb-2">Participants</h3>
+              <section className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-teal-600" />
+                  Participants
+                </h3>
                 <div className="flex gap-2 flex-wrap">
                   {participants.map((participant: string, idx: number) => (
-                    <Badge key={idx} variant="outline" className="bg-gray-50 text-gray-700 border-gray-300">
+                    <Badge key={idx} variant="outline" className="bg-gray-50 text-gray-700 border-gray-300 font-medium hover:bg-gray-100 hover:border-gray-400 transition-all duration-200">
                       {participant}
                     </Badge>
                   ))}
@@ -996,17 +1301,20 @@ function SystemQuickView({
 
             {/* Inputs/Outputs */}
             {(inputs.length > 0 || outputs.length > 0) && (
-              <section>
-                <h3 className="text-sm font-semibold text-gray-900 mb-3">Inputs & Outputs</h3>
+              <section className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                  <Sliders className="w-4 h-4 text-teal-600" />
+                  Inputs & Outputs
+                </h3>
                 <div className="grid grid-cols-2 gap-4">
                   {/* Inputs */}
-                  <div>
-                    <h4 className="text-xs font-medium text-gray-600 mb-2">Inputs</h4>
+                  <div className="bg-blue-50/50 rounded-lg p-3 border border-blue-100">
+                    <h4 className="text-xs font-semibold text-blue-900 mb-2">Inputs</h4>
                     {inputs.length > 0 ? (
-                      <ul className="space-y-1">
+                      <ul className="space-y-1.5">
                         {inputs.map((input: string, idx: number) => (
                           <li key={idx} className="text-sm text-gray-700 flex items-start gap-2">
-                            <span className="text-teal-500 mt-1">•</span>
+                            <span className="text-teal-500 mt-0.5 font-bold">•</span>
                             <span>{input}</span>
                           </li>
                         ))}
@@ -1017,13 +1325,13 @@ function SystemQuickView({
                   </div>
 
                   {/* Outputs */}
-                  <div>
-                    <h4 className="text-xs font-medium text-gray-600 mb-2">Outputs</h4>
+                  <div className="bg-emerald-50/50 rounded-lg p-3 border border-emerald-100">
+                    <h4 className="text-xs font-semibold text-emerald-900 mb-2">Outputs</h4>
                     {outputs.length > 0 ? (
-                      <ul className="space-y-1">
+                      <ul className="space-y-1.5">
                         {outputs.map((output: string, idx: number) => (
                           <li key={idx} className="text-sm text-gray-700 flex items-start gap-2">
-                            <span className="text-teal-500 mt-1">•</span>
+                            <span className="text-teal-500 mt-0.5 font-bold">•</span>
                             <span>{output}</span>
                           </li>
                         ))}
@@ -1038,16 +1346,19 @@ function SystemQuickView({
 
             {/* Links */}
             {item.links && item.links.length > 0 && (
-              <section>
-                <h3 className="text-sm font-semibold text-gray-900 mb-2">Related Elements</h3>
+              <section className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <LinkIcon className="w-4 h-4 text-teal-600" />
+                  Related Elements
+                </h3>
                 <div className="flex gap-2 flex-wrap">
                   {item.links.map((link: LinkRef) => (
                     <Badge 
                       key={link.id} 
                       variant="outline" 
-                      className="bg-indigo-50 text-indigo-700 border-indigo-200"
+                      className="bg-indigo-50 text-indigo-700 border-indigo-200/60 font-medium hover:bg-indigo-100 hover:border-indigo-300 transition-all duration-200"
                     >
-                      <span className="text-xs text-indigo-500 mr-1">{link.category}</span>
+                      <span className="text-xs text-indigo-500 mr-1.5 font-semibold">{link.category}</span>
                       {link.name}
                     </Badge>
                   ))}
@@ -1075,11 +1386,11 @@ function SystemQuickView({
             )}
 
             {/* Images */}
-            {images.length > 1 && (
+            {item.attributes?.images && getAllImageUrls(item.attributes.images).length > 1 && (
               <section>
                 <h3 className="text-sm font-semibold text-gray-900 mb-3">Images</h3>
                 <div className="grid grid-cols-3 gap-3">
-                  {images.map((imageUrl: string, idx: number) => (
+                  {getAllImageUrls(item.attributes.images).map((imageUrl, idx) => (
                     <div 
                       key={idx} 
                       className="aspect-square rounded-lg overflow-hidden bg-gray-100 border border-gray-200"
@@ -1250,6 +1561,7 @@ interface SystemEditorDialogProps {
   onSave: (data: Partial<SystemElement>) => Promise<void>
   onDuplicate?: (system: SystemElement) => void
   onDelete?: (system: SystemElement) => void
+  projectId: string
   inline?: boolean
 }
 
@@ -1260,6 +1572,7 @@ function SystemEditorDialog({
   onSave,
   onDuplicate,
   onDelete,
+  projectId,
   inline = false
 }: SystemEditorDialogProps) {
   const [activeTab, setActiveTab] = useState('basics')
@@ -1294,9 +1607,25 @@ function SystemEditorDialog({
   const [statValue, setStatValue] = useState('')
 
   const [history, setHistory] = useState('')
-  const [images, setImages] = useState<string[]>([])
-  const [imageInput, setImageInput] = useState('')
-  const [coverImage, setCoverImage] = useState(0)
+  const [images, setImages] = useState<MediaItem[]>([])
+  const [coverImage, setCoverImage] = useState<number | null>(null)
+
+  // Helper function to migrate old string[] format to MediaItem[]
+  const migrateImagesToMediaItems = (images: string[] | MediaItem[] | undefined): MediaItem[] => {
+    if (!images || images.length === 0) return []
+    
+    // Check if already in new format
+    if (typeof images[0] === 'object' && 'name' in images[0]) {
+      return images as MediaItem[]
+    }
+    
+    // Migrate old format: convert string URLs to MediaItem objects
+    return (images as string[]).map(url => ({
+      name: '',
+      imageUrls: [url],
+      link: undefined
+    }))
+  }
 
   const [links, setLinks] = useState<LinkRef[]>([])
   const [customFields, setCustomFields] = useState<Record<string, any>>({})
@@ -1325,8 +1654,8 @@ function SystemEditorDialog({
       setOutputs(initial.attributes?.outputs || [])
       setStats(initial.attributes?.stats || {})
       setHistory(initial.attributes?.history || '')
-      setImages(initial.attributes?.images || [])
-      setCoverImage(0)
+      setImages(migrateImagesToMediaItems(initial.attributes?.images))
+      setCoverImage(initial.attributes?.coverImage ?? null)
       setLinks(initial.links || [])
       setCustomFields(initial.attributes?.custom || {})
     } else if (open && !initial) {
@@ -1352,7 +1681,7 @@ function SystemEditorDialog({
     setStats({})
     setHistory('')
     setImages([])
-    setCoverImage(0)
+    setCoverImage(null)
     setLinks([])
     setCustomFields({})
     setActiveTab('basics')
@@ -1385,7 +1714,8 @@ function SystemEditorDialog({
           outputs,
           stats,
           history: history.trim() || undefined,
-          images: coverImage > 0 ? [images[coverImage], ...images.filter((_, i) => i !== coverImage)] : images,
+          images: coverImage !== null && coverImage > 0 ? [images[coverImage], ...images.filter((_, i) => i !== coverImage)] : images,
+          coverImage: coverImage ?? null,
           custom: customFields,
           links // Move links into attributes
         }
@@ -1492,19 +1822,6 @@ function SystemEditorDialog({
     setStats(newStats)
   }
 
-  const addImage = () => {
-    if (imageInput.trim() && !images.includes(imageInput.trim())) {
-      setImages([...images, imageInput.trim()])
-      setImageInput('')
-    }
-  }
-
-  const removeImage = (index: number) => {
-    setImages(images.filter((_, i) => i !== index))
-    if (coverImage === index) setCoverImage(0)
-    else if (coverImage > index) setCoverImage(coverImage - 1)
-  }
-
   const addCustomField = () => {
     if (customKey.trim()) {
       const value = customType === 'number' ? parseFloat(customValue) : customValue
@@ -1542,35 +1859,85 @@ function SystemEditorDialog({
     return (
       <>
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
-            <TabsList className="px-6 pt-2 pb-0 bg-transparent border-b justify-start rounded-none h-auto">
-              <TabsTrigger value="basics" className="gap-2">
-                <Settings className="w-4 h-4" />
-                Basics
-              </TabsTrigger>
-              <TabsTrigger value="overview" className="gap-2">
-                <FileText className="w-4 h-4" />
-                Overview
-              </TabsTrigger>
-              <TabsTrigger value="structure" className="gap-2">
-                <Network className="w-4 h-4" />
-                Structure
-              </TabsTrigger>
-              <TabsTrigger value="operations" className="gap-2">
-                <Activity className="w-4 h-4" />
-                Operations
-              </TabsTrigger>
-              <TabsTrigger value="media" className="gap-2">
-                <ImageIcon className="w-4 h-4" />
-                History & Media
-              </TabsTrigger>
-              <TabsTrigger value="relationships" className="gap-2">
-                <LinkIcon className="w-4 h-4" />
-                Relationships
-              </TabsTrigger>
-              <TabsTrigger value="custom" className="gap-2">
-                <Sliders className="w-4 h-4" />
-                Custom
-              </TabsTrigger>
+            <TabsList className="w-full justify-start rounded-none border-b bg-white shadow-sm px-0 h-auto py-0 sticky top-0 z-10 backdrop-blur-sm bg-white/95">
+              <div className="w-full max-w-7xl mx-auto px-6 flex items-center overflow-x-auto scrollbar-hide">
+                <TabsTrigger 
+                  value="basics" 
+                  className="relative rounded-none border-b-2 border-transparent data-[state=active]:border-teal-500 hover:bg-gray-50 data-[state=active]:bg-teal-50/50 transition-all duration-200 gap-2 px-4 py-3 font-medium text-sm whitespace-nowrap group"
+                >
+                  <div className="flex items-center gap-2">
+                    <Settings className="w-4 h-4 text-gray-500 group-data-[state=active]:text-teal-600 transition-colors" />
+                    <span className="text-gray-600 group-data-[state=active]:text-teal-900 transition-colors">Basics</span>
+                  </div>
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-teal-500 to-emerald-500 transform scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-300 rounded-full" />
+                </TabsTrigger>
+                
+                <TabsTrigger 
+                  value="overview" 
+                  className="relative rounded-none border-b-2 border-transparent data-[state=active]:border-blue-500 hover:bg-gray-50 data-[state=active]:bg-blue-50/50 transition-all duration-200 gap-2 px-4 py-3 font-medium text-sm whitespace-nowrap group"
+                >
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-gray-500 group-data-[state=active]:text-blue-600 transition-colors" />
+                    <span className="text-gray-600 group-data-[state=active]:text-blue-900 transition-colors">Overview</span>
+                  </div>
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 to-cyan-500 transform scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-300 rounded-full" />
+                </TabsTrigger>
+                
+                <TabsTrigger 
+                  value="structure" 
+                  className="relative rounded-none border-b-2 border-transparent data-[state=active]:border-purple-500 hover:bg-gray-50 data-[state=active]:bg-purple-50/50 transition-all duration-200 gap-2 px-4 py-3 font-medium text-sm whitespace-nowrap group"
+                >
+                  <div className="flex items-center gap-2">
+                    <Network className="w-4 h-4 text-gray-500 group-data-[state=active]:text-purple-600 transition-colors" />
+                    <span className="text-gray-600 group-data-[state=active]:text-purple-900 transition-colors">Structure</span>
+                  </div>
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-purple-500 to-pink-500 transform scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-300 rounded-full" />
+                </TabsTrigger>
+                
+                <TabsTrigger 
+                  value="operations" 
+                  className="relative rounded-none border-b-2 border-transparent data-[state=active]:border-amber-500 hover:bg-gray-50 data-[state=active]:bg-amber-50/50 transition-all duration-200 gap-2 px-4 py-3 font-medium text-sm whitespace-nowrap group"
+                >
+                  <div className="flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-gray-500 group-data-[state=active]:text-amber-600 transition-colors" />
+                    <span className="text-gray-600 group-data-[state=active]:text-amber-900 transition-colors">Operations</span>
+                  </div>
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-amber-500 to-orange-500 transform scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-300 rounded-full" />
+                </TabsTrigger>
+                
+                <TabsTrigger 
+                  value="media" 
+                  className="relative rounded-none border-b-2 border-transparent data-[state=active]:border-emerald-500 hover:bg-gray-50 data-[state=active]:bg-emerald-50/50 transition-all duration-200 gap-2 px-4 py-3 font-medium text-sm whitespace-nowrap group"
+                >
+                  <div className="flex items-center gap-2">
+                    <ImageIcon className="w-4 h-4 text-gray-500 group-data-[state=active]:text-emerald-600 transition-colors" />
+                    <span className="text-gray-600 group-data-[state=active]:text-emerald-900 transition-colors">History & Media</span>
+                  </div>
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-emerald-500 to-teal-500 transform scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-300 rounded-full" />
+                </TabsTrigger>
+                
+                <TabsTrigger 
+                  value="relationships" 
+                  className="relative rounded-none border-b-2 border-transparent data-[state=active]:border-rose-500 hover:bg-gray-50 data-[state=active]:bg-rose-50/50 transition-all duration-200 gap-2 px-4 py-3 font-medium text-sm whitespace-nowrap group"
+                >
+                  <div className="flex items-center gap-2">
+                    <LinkIcon className="w-4 h-4 text-gray-500 group-data-[state=active]:text-rose-600 transition-colors" />
+                    <span className="text-gray-600 group-data-[state=active]:text-rose-900 transition-colors">Relationships</span>
+                  </div>
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-rose-500 to-pink-500 transform scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-300 rounded-full" />
+                </TabsTrigger>
+                
+                <TabsTrigger 
+                  value="custom" 
+                  className="relative rounded-none border-b-2 border-transparent data-[state=active]:border-violet-500 hover:bg-gray-50 data-[state=active]:bg-violet-50/50 transition-all duration-200 gap-2 px-4 py-3 font-medium text-sm whitespace-nowrap group"
+                >
+                  <div className="flex items-center gap-2">
+                    <Sliders className="w-4 h-4 text-gray-500 group-data-[state=active]:text-violet-600 transition-colors" />
+                    <span className="text-gray-600 group-data-[state=active]:text-violet-900 transition-colors">Custom</span>
+                  </div>
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-violet-500 to-purple-500 transform scale-x-0 group-data-[state=active]:scale-x-100 transition-transform duration-300 rounded-full" />
+                </TabsTrigger>
+              </div>
             </TabsList>
 
             <div className="flex-1 overflow-y-auto px-6 py-6">
@@ -1585,7 +1952,7 @@ function SystemEditorDialog({
                         Apply Preset
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-80 bg-background" align="end">
+                    <PopoverContent className="w-80 bg-white border border-gray-200 shadow-xl rounded-xl" align="end">
                       <div className="space-y-2">
                         <h4 className="font-semibold text-sm mb-3">System Presets</h4>
                         <p className="text-xs text-gray-500 mb-3">
@@ -1639,7 +2006,7 @@ function SystemEditorDialog({
                       <SelectTrigger id="type" className="mt-1.5">
                         <SelectValue placeholder="Select type..." />
                       </SelectTrigger>
-                      <SelectContent className="bg-background">
+                      <SelectContent className="bg-white border border-gray-200 shadow-xl rounded-xl">
                         <SelectItem value="political">Political</SelectItem>
                         <SelectItem value="economic">Economic</SelectItem>
                         <SelectItem value="social">Social</SelectItem>
@@ -1665,7 +2032,7 @@ function SystemEditorDialog({
                       <SelectTrigger id="scope" className="mt-1.5">
                         <SelectValue placeholder="Select scope..." />
                       </SelectTrigger>
-                      <SelectContent className="bg-background">
+                      <SelectContent className="bg-white border border-gray-200 shadow-xl rounded-xl">
                         <SelectItem value="global">Global</SelectItem>
                         <SelectItem value="regional">Regional</SelectItem>
                         <SelectItem value="local">Local</SelectItem>
@@ -1681,7 +2048,7 @@ function SystemEditorDialog({
                       <SelectTrigger id="status" className="mt-1.5">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="bg-background">
+                      <SelectContent className="bg-white border border-gray-200 shadow-xl rounded-xl">
                         <SelectItem value="active">Active</SelectItem>
                         <SelectItem value="historical">Historical</SelectItem>
                         <SelectItem value="proposed">Proposed</SelectItem>
@@ -2007,50 +2374,43 @@ function SystemEditorDialog({
                 <Separator />
 
                 <div>
-                  <Label className="text-sm font-semibold">Images</Label>
-                  <p className="text-xs text-gray-500 mb-2">Add image URLs</p>
-                  <div className="flex gap-2">
-                    <Input
-                      value={imageInput}
-                      onChange={(e) => setImageInput(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addImage())}
-                      placeholder="https://..."
-                    />
-                    <Button type="button" onClick={addImage} variant="outline">
-                      Add
+                  <Label className="text-sm font-semibold flex items-center gap-2">
+                    <ImageIcon className="w-4 h-4 text-teal-500" />
+                    Images
+                  </Label>
+                  <p className="text-xs text-gray-500 mt-1 mb-3">Add images of this system. You can include multiple images with names, descriptions, and reference links.</p>
+                  <div className="space-y-3 mt-2">
+                    {images.map((image, idx) => (
+                      <MediaItemInput
+                        key={idx}
+                        item={image}
+                        index={idx}
+                        placeholder="e.g., Structure diagram, Historical document, Symbol..."
+                        onUpdate={(index, updatedItem) => {
+                          const updatedImages = [...images]
+                          updatedImages[index] = updatedItem
+                          setImages(updatedImages)
+                        }}
+                        onRemove={(index) => {
+                          const updatedImages = [...images]
+                          updatedImages.splice(index, 1)
+                          setImages(updatedImages)
+                        }}
+                        projectId={projectId}
+                        storageBucket="system-images"
+                      />
+                    ))}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setImages([...images, { name: '', imageUrls: undefined, link: undefined }])}
+                      className="w-full border-2 border-teal-200 hover:border-teal-300 hover:bg-teal-50 rounded-lg transition-all duration-200"
+                    >
+                      <Plus className="w-4 h-4 mr-1" />
+                      Add Image
                     </Button>
                   </div>
-                  {images.length > 0 && (
-                    <div className="grid grid-cols-4 gap-3 mt-3">
-                      {images.map((img, idx) => (
-                        <div key={idx} className="relative group">
-                          <div className="aspect-square rounded-lg overflow-hidden bg-gray-100 border-2 border-gray-200">
-                            <img src={img} alt="" loading="lazy" className="w-full h-full object-cover" />
-                          </div>
-                          <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant={coverImage === idx ? 'default' : 'secondary'}
-                              onClick={() => setCoverImage(idx)}
-                              className="h-6 text-xs"
-                            >
-                              Cover
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => removeImage(idx)}
-                              className="h-6 w-6 p-0"
-                            >
-                              <X className="w-3 h-3" />
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </div>
               </TabsContent>
 
@@ -2094,7 +2454,7 @@ function SystemEditorDialog({
                       <SelectTrigger className="w-32">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="bg-background">
+                      <SelectContent className="bg-white border border-gray-200 shadow-xl rounded-xl">
                         <SelectItem value="text">Text</SelectItem>
                         <SelectItem value="number">Number</SelectItem>
                       </SelectContent>
@@ -2169,7 +2529,7 @@ function SystemEditorDialog({
       )
   }, [activeTab, presetOpen, name, systemType, scope, status, tags, tagInput, description, symbols, symbolInput, 
       governance, rules, mechanisms, mechanismInput, participants, participantInput, inputs, inputInput,
-      outputs, outputInput, stats, statKey, statValue, history, images, imageInput, coverImage,
+      outputs, outputInput, stats, statKey, statValue, history, images, coverImage,
       customKey, customValue, customFields, links, saving, initial, onSave, onOpenChange, onDuplicate, onDelete, deleteConfirm])
 
   // Conditionally wrap in Dialog or render inline
@@ -2211,14 +2571,14 @@ function SystemEditorDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="bg-background max-w-5xl max-h-[90vh] overflow-hidden flex flex-col p-0">
-          <DialogHeader className="px-6 pt-6 pb-4 border-b">
+        <DialogContent className="bg-white max-w-5xl max-h-[90vh] overflow-hidden flex flex-col p-0">
+          <DialogHeader className="px-6 pt-6 pb-5 border-b border-gray-100 bg-gradient-to-r from-teal-50/50 via-white to-emerald-50/30 sticky top-0 z-20 backdrop-blur-sm">
             <div className="flex items-start justify-between">
               <div>
-                <DialogTitle className="text-2xl">
+                <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-teal-600 to-emerald-600 bg-clip-text text-transparent">
                   {initial ? 'Edit System' : 'Create New System'}
                 </DialogTitle>
-                <DialogDescription className="mt-1">
+                <DialogDescription className="mt-1.5 text-gray-600 font-medium">
                   Define the political, economic, or social structures of your world
                 </DialogDescription>
               </div>
@@ -2229,7 +2589,7 @@ function SystemEditorDialog({
                       <MoreHorizontal className="w-4 h-4" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="bg-background">
+                  <DropdownMenuContent align="end" className="bg-white border border-gray-200 shadow-xl rounded-xl">
                     <DropdownMenuItem onClick={() => {
                       onDuplicate(initial)
                       onOpenChange(false)
@@ -2327,10 +2687,10 @@ function BulkActionsBar({
 
         {/* Set Status */}
         <Select onValueChange={(value) => onSetStatus(value as SystemStatus)}>
-          <SelectTrigger className="w-[160px] h-9 bg-background">
+          <SelectTrigger className="w-[160px] h-9 bg-white">
             <SelectValue placeholder="Set Status..." />
           </SelectTrigger>
-          <SelectContent className="bg-background">
+          <SelectContent className="bg-white border border-gray-200 shadow-xl rounded-xl">
             <SelectItem value="active">Active</SelectItem>
             <SelectItem value="historical">Historical</SelectItem>
             <SelectItem value="proposed">Proposed</SelectItem>
@@ -2344,7 +2704,7 @@ function BulkActionsBar({
           variant="outline"
           size="sm"
           onClick={onAddTag}
-          className="bg-background h-9"
+          className="bg-white h-9"
         >
           <Tag className="w-4 h-4 mr-2" />
           Add Tag
@@ -2501,260 +2861,224 @@ function SystemsToolbar({
   }
 
   return (
-    <div className="sticky top-0 z-10 bg-background border-b border-gray-200 px-6 py-4">
-      <div className="max-w-5xl mx-auto space-y-4">
-        {/* Primary toolbar row */}
-        <div className="flex items-center gap-3 flex-wrap">
-          {/* Search */}
-          <div className="relative flex-1 min-w-[240px] max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <Input
-              ref={searchInputRef}
-              placeholder="Search systems... (press / to focus)"
-              value={query}
-              onChange={(e) => onQuery(e.target.value)}
-              className="pl-9 pr-4 bg-background"
-            />
-            {query && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onQuery('')}
-                className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
-              >
-                <X className="w-3 h-3" />
-              </Button>
-            )}
-          </div>
-
-          {/* Sort */}
-          <Select value={sort} onValueChange={(value) => onSort(value as SortOption)}>
-            <SelectTrigger className="w-[180px] bg-background">
-              <ArrowUpDown className="w-4 h-4 mr-2" />
-              <SelectValue placeholder="Sort by..." />
-            </SelectTrigger>
-            <SelectContent className="bg-background">
-              <SelectItem value="name_asc">Name A→Z</SelectItem>
-              <SelectItem value="name_desc">Name Z→A</SelectItem>
-              <SelectItem value="newest">Newest First</SelectItem>
-              <SelectItem value="oldest">Oldest First</SelectItem>
-              <SelectItem value="type_asc">Type</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {/* Filters */}
-          <Popover open={filterOpen} onOpenChange={setFilterOpen}>
-            <PopoverTrigger asChild>
-              <Button variant="outline" className="bg-background">
-                <Filter className="w-4 h-4 mr-2" />
-                Filters
-                {activeFilterCount > 0 && (
-                  <Badge variant="secondary" className="ml-2 rounded-full px-2 py-0 text-xs">
-                    {activeFilterCount}
-                  </Badge>
-                )}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-[320px] p-0 bg-background" align="start">
-              <Command className="bg-background">
-                <CommandInput placeholder="Search filters..." className="bg-background" />
-                <CommandList>
-                  <CommandEmpty>No filters found.</CommandEmpty>
-                  
-                  {/* Type Filters */}
-                  <CommandGroup heading="Type">
-                    {typeOptions.map((type) => (
-                      <CommandItem
-                        key={type}
-                        onSelect={() => toggleFilter('types', type)}
-                        className="cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2 flex-1">
-                          <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
-                            filters.types.includes(type) ? 'bg-teal-500 border-teal-500' : 'border-gray-300'
-                          }`}>
-                            {filters.types.includes(type) && (
-                              <div className="w-2 h-2 bg-white rounded-sm" />
-                            )}
-                          </div>
-                          <span className="capitalize">{type}</span>
-                        </div>
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-
-                  <CommandSeparator />
-
-                  {/* Scope Filters */}
-                  <CommandGroup heading="Scope">
-                    {scopeOptions.map((scope) => (
-                      <CommandItem
-                        key={scope}
-                        onSelect={() => toggleFilter('scopes', scope)}
-                        className="cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2 flex-1">
-                          <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
-                            filters.scopes.includes(scope) ? 'bg-teal-500 border-teal-500' : 'border-gray-300'
-                          }`}>
-                            {filters.scopes.includes(scope) && (
-                              <div className="w-2 h-2 bg-white rounded-sm" />
-                            )}
-                          </div>
-                          <span className="capitalize">{scope}</span>
-                        </div>
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-
-                  <CommandSeparator />
-
-                  {/* Status Filters */}
-                  <CommandGroup heading="Status">
-                    {statusOptions.map((status) => (
-                      <CommandItem
-                        key={status}
-                        onSelect={() => toggleFilter('status', status)}
-                        className="cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2 flex-1">
-                          <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
-                            filters.status.includes(status) ? 'bg-teal-500 border-teal-500' : 'border-gray-300'
-                          }`}>
-                            {filters.status.includes(status) && (
-                              <div className="w-2 h-2 bg-white rounded-sm" />
-                            )}
-                          </div>
-                          <span className="capitalize">{status}</span>
-                        </div>
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
-
-          {/* View Toggle */}
-          <ToggleGroup type="single" value={view} onValueChange={(value) => value && onView(value as ViewMode)}>
-            <ToggleGroupItem value="grid" aria-label="Grid view" className="bg-background">
-              <Grid3x3 className="w-4 h-4" />
-            </ToggleGroupItem>
-            <ToggleGroupItem value="list" aria-label="List view" className="bg-background">
-              <List className="w-4 h-4" />
-            </ToggleGroupItem>
-          </ToggleGroup>
-
-          {/* Spacer */}
-          <div className="flex-1 min-w-0" />
-
-          {/* Bulk Mode */}
-          <Button
-            variant={bulkMode ? 'default' : 'outline'}
-            onClick={() => onBulkMode(!bulkMode)}
-            className={bulkMode ? 'bg-teal-500 hover:bg-teal-600' : 'bg-background'}
-          >
-            <CheckSquare className="w-4 h-4 mr-2" />
-            Bulk
-            {selectionCount > 0 && (
-              <Badge variant="secondary" className="ml-2 rounded-full px-2 py-0 text-xs bg-white text-teal-700">
-                {selectionCount}
-              </Badge>
-            )}
-          </Button>
-
-          {/* Bulk Delete - appears when items are selected */}
-          {bulkMode && selectionCount > 0 && onBulkDelete && (
-            <Button
-              variant="outline"
-              onClick={onBulkDelete}
-              className="bg-background border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
-            >
-              <Trash2 className="w-4 h-4 mr-2" />
-              Delete {selectionCount}
-            </Button>
-          )}
-
-          {/* New System */}
-          <Button onClick={onNew} className="bg-teal-500 hover:bg-teal-600 text-white">
-            <Plus className="w-4 h-4 mr-2" />
-            New System
-          </Button>
-        </div>
-
-        {/* Active filters row */}
-        {activeFilterCount > 0 && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm text-gray-600">Active filters:</span>
-            
-            {filters.types.map((type) => (
-              <Badge 
-                key={`type-${type}`} 
-                variant="secondary" 
-                className={`${typeColor(type)} border pl-2 pr-1 gap-1`}
-              >
-                <span className="capitalize">{type}</span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => removeFilter('types', type)}
-                  className="h-4 w-4 p-0 hover:bg-transparent"
-                >
-                  <X className="w-3 h-3" />
-                </Button>
-              </Badge>
-            ))}
-
-            {filters.scopes.map((scope) => (
-              <Badge 
-                key={`scope-${scope}`} 
-                variant="secondary" 
-                className="bg-blue-100 text-blue-700 border-blue-200 border pl-2 pr-1 gap-1"
-              >
-                <span className="capitalize">{scope}</span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => removeFilter('scopes', scope)}
-                  className="h-4 w-4 p-0 hover:bg-transparent"
-                >
-                  <X className="w-3 h-3" />
-                </Button>
-              </Badge>
-            ))}
-
-            {filters.status.map((status) => {
-              const badge = statusBadge(status)
-              return (
-                <Badge 
-                  key={`status-${status}`} 
-                  variant="secondary" 
-                  className={`${badge.className} border pl-2 pr-1 gap-1`}
-                >
-                  <span>{badge.label}</span>
+    <div className="px-6 py-6">
+      <Card className="rounded-xl border border-gray-200 shadow-sm bg-white mb-6">
+        <CardContent className="p-4">
+          <div className="flex flex-col lg:flex-row gap-4">
+            {/* Search */}
+            <div className="flex-1 max-w-md">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  ref={searchInputRef}
+                  placeholder="Search systems... (press / to focus)"
+                  value={query}
+                  onChange={(e) => onQuery(e.target.value)}
+                  className="pl-10 rounded-xl border-gray-200 focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all duration-200"
+                />
+                {query && (
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => removeFilter('status', status)}
-                    className="h-4 w-4 p-0 hover:bg-transparent"
+                    onClick={() => onQuery('')}
+                    className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0 hover:bg-gray-100 rounded-lg"
                   >
                     <X className="w-3 h-3" />
                   </Button>
-                </Badge>
-              )
-            })}
+                )}
+              </div>
+            </div>
 
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onClearFilters}
-              className="h-7 text-xs text-gray-600 hover:text-gray-900"
-            >
-              Clear all
-            </Button>
+            <div className="flex items-center gap-3 flex-wrap">
+              {/* Sort */}
+              <Select value={sort} onValueChange={(value) => onSort(value as SortOption)}>
+                <SelectTrigger className="w-[140px] rounded-xl px-4 py-3 border-gray-200 focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all duration-200">
+                  <SelectValue placeholder="Sort by..." />
+                </SelectTrigger>
+                <SelectContent className="bg-white border border-gray-200 shadow-xl rounded-xl z-50">
+                  <SelectItem value="name_asc">Name A→Z</SelectItem>
+                  <SelectItem value="name_desc">Name Z→A</SelectItem>
+                  <SelectItem value="newest">Newest First</SelectItem>
+                  <SelectItem value="oldest">Oldest First</SelectItem>
+                  <SelectItem value="type_asc">Type</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Filters */}
+              <Popover open={filterOpen} onOpenChange={setFilterOpen}>
+                <PopoverTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    className="rounded-xl px-4 py-3 border-gray-200 focus:ring-2 focus:ring-teal-500 transition-all duration-200"
+                    aria-label={`Filters${activeFilterCount > 0 ? ` (${activeFilterCount} active)` : ''}`}
+                  >
+                    <Filter className="w-4 h-4 mr-2" />
+                    Filters
+                    {activeFilterCount > 0 && (
+                      <Badge variant="secondary" className="ml-2 h-5 px-1.5 rounded-full">
+                        {activeFilterCount}
+                      </Badge>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[320px] p-0 bg-white rounded-xl shadow-lg" align="start">
+                  <Command className="bg-white">
+                    <CommandInput placeholder="Search filters..." className="bg-white" />
+                    <CommandList>
+                      <CommandEmpty>No filters found.</CommandEmpty>
+                      
+                      {/* Type Filters */}
+                      <CommandGroup heading="Type">
+                        {typeOptions.map((type) => (
+                          <CommandItem
+                            key={type}
+                            onSelect={() => toggleFilter('types', type)}
+                            className="cursor-pointer"
+                          >
+                            <div className="flex items-center gap-2 flex-1">
+                              <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
+                                filters.types.includes(type) ? 'bg-teal-500 border-teal-500' : 'border-gray-300'
+                              }`}>
+                                {filters.types.includes(type) && (
+                                  <div className="w-2 h-2 bg-white rounded-sm" />
+                                )}
+                              </div>
+                              <span className="capitalize">{type}</span>
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+
+                      <CommandSeparator />
+
+                      {/* Scope Filters */}
+                      <CommandGroup heading="Scope">
+                        {scopeOptions.map((scope) => (
+                          <CommandItem
+                            key={scope}
+                            onSelect={() => toggleFilter('scopes', scope)}
+                            className="cursor-pointer"
+                          >
+                            <div className="flex items-center gap-2 flex-1">
+                              <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
+                                filters.scopes.includes(scope) ? 'bg-teal-500 border-teal-500' : 'border-gray-300'
+                              }`}>
+                                {filters.scopes.includes(scope) && (
+                                  <div className="w-2 h-2 bg-white rounded-sm" />
+                                )}
+                              </div>
+                              <span className="capitalize">{scope}</span>
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+
+                      <CommandSeparator />
+
+                      {/* Status Filters */}
+                      <CommandGroup heading="Status">
+                        {statusOptions.map((status) => (
+                          <CommandItem
+                            key={status}
+                            onSelect={() => toggleFilter('status', status)}
+                            className="cursor-pointer"
+                          >
+                            <div className="flex items-center gap-2 flex-1">
+                              <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
+                                filters.status.includes(status) ? 'bg-teal-500 border-teal-500' : 'border-gray-300'
+                              }`}>
+                                {filters.status.includes(status) && (
+                                  <div className="w-2 h-2 bg-white rounded-sm" />
+                                )}
+                              </div>
+                              <span className="capitalize">{status}</span>
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+
+              {/* View Toggle */}
+              <ToggleGroup type="single" value={view} onValueChange={(value) => value && onView(value as ViewMode)}>
+                <ToggleGroupItem value="grid" aria-label="Grid view" className="rounded-l-xl data-[state=on]:bg-teal-100 data-[state=on]:text-teal-900 transition-all duration-200">
+                  <Grid3x3 className="w-4 h-4" />
+                </ToggleGroupItem>
+                <ToggleGroupItem value="list" aria-label="List view" className="rounded-r-xl data-[state=on]:bg-teal-100 data-[state=on]:text-teal-900 transition-all duration-200">
+                  <List className="w-4 h-4" />
+                </ToggleGroupItem>
+              </ToggleGroup>
+
+              {/* Bulk Mode Toggle */}
+              <Button
+                variant={bulkMode ? 'default' : 'outline'}
+                onClick={() => onBulkMode(!bulkMode)}
+                className={`rounded-xl px-4 py-3 transition-all duration-200 ${
+                  bulkMode 
+                    ? 'bg-teal-600 hover:bg-teal-700 text-white shadow-md' 
+                    : 'border-gray-200 hover:bg-gray-50'
+                }`}
+                aria-label={bulkMode ? 'Exit bulk selection mode' : 'Enter bulk selection mode'}
+              >
+                <CheckSquare className="w-4 h-4 mr-2" />
+                Bulk
+              </Button>
+            </div>
           </div>
-        )}
-      </div>
+
+          {/* Active Filters Display */}
+          {activeFilterCount > 0 && (
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-medium text-gray-700">Active filters:</span>
+                {filters.types.map(type => (
+                  <Badge 
+                    key={`type-${type}`} 
+                    variant="secondary" 
+                    className="bg-teal-100 text-teal-800 hover:bg-teal-200 cursor-pointer transition-colors duration-200"
+                    onClick={() => removeFilter('types', type)}
+                  >
+                    {type}
+                    <X className="w-3 h-3 ml-1" />
+                  </Badge>
+                ))}
+                {filters.scopes.map(scope => (
+                  <Badge 
+                    key={`scope-${scope}`} 
+                    variant="secondary" 
+                    className="bg-blue-100 text-blue-800 hover:bg-blue-200 cursor-pointer transition-colors duration-200"
+                    onClick={() => removeFilter('scopes', scope)}
+                  >
+                    {scope}
+                    <X className="w-3 h-3 ml-1" />
+                  </Badge>
+                ))}
+                {filters.status.map(status => (
+                  <Badge 
+                    key={`status-${status}`} 
+                    variant="secondary" 
+                    className="bg-purple-100 text-purple-800 hover:bg-purple-200 cursor-pointer transition-colors duration-200"
+                    onClick={() => removeFilter('status', status)}
+                  >
+                    {status}
+                    <X className="w-3 h-3 ml-1" />
+                  </Badge>
+                ))}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onClearFilters}
+                  className="text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-all duration-200"
+                >
+                  Clear all
+                </Button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }
@@ -2978,7 +3302,11 @@ export default function SystemsPanel({ projectId, selectedElement, onSystemsChan
   }, [])
 
   const handleQuickView = useCallback((system: SystemElement) => {
-    setQuickItem(system)
+    // Open inline editor instead of quick view drawer
+    setEditingSystem(system)
+    setEditing(system)
+    setIsCreating(false)
+    setEditorOpen(false)
   }, [])
 
   const handleEdit = useCallback((system: SystemElement) => {
@@ -3171,7 +3499,10 @@ export default function SystemsPanel({ projectId, selectedElement, onSystemsChan
         return next
       })
 
-      // Actual hard delete
+      // Delete images from storage first
+      await deleteSystemImages(system)
+
+      // Actual hard delete from database
       const { error } = await supabase
         .from('world_elements')
         .delete()
@@ -3206,8 +3537,17 @@ export default function SystemsPanel({ projectId, selectedElement, onSystemsChan
       setSystems(prev => prev.filter(s => !selectedIds.has(s.id)))
       setSelectedIds(new Set())
 
-      // Hard delete all selected
+      // Delete images from storage and hard delete from database
       for (const id of idsToDelete) {
+        // Find the system to get its images
+        const systemToDelete = previousSystems.find(s => s.id === id)
+        
+        // Delete images from storage first
+        if (systemToDelete) {
+          await deleteSystemImages(systemToDelete)
+        }
+        
+        // Delete from database
         const { error } = await supabase
           .from('world_elements')
           .delete()
@@ -3545,6 +3885,7 @@ export default function SystemsPanel({ projectId, selectedElement, onSystemsChan
             onSave={handleCreateSystem}
             onDelete={handleDelete}
             onDuplicate={handleDuplicate}
+            projectId={projectId}
             inline={true}
           />
         </div>
@@ -3553,7 +3894,32 @@ export default function SystemsPanel({ projectId, selectedElement, onSystemsChan
   }
 
   return (
-    <div className="h-full bg-white overflow-y-auto">
+    <div className="h-full bg-white flex flex-col overflow-hidden">
+      {/* Page Header */}
+      <div className="sticky top-0 z-10 bg-white/90 backdrop-blur-sm border-b border-gray-100">
+        <div className="px-6 py-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="p-2.5 bg-gradient-to-r from-teal-500 to-emerald-500 rounded-xl shadow-lg">
+                <Globe className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Systems</h1>
+                <p className="text-sm text-gray-500">Define political, economic, and social structures that govern your world</p>
+              </div>
+            </div>
+            <Button 
+              onClick={handleNewSystem}
+              className="bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white shadow-lg hover:shadow-xl transition-all duration-200 rounded-xl px-6 py-2.5 font-medium flex items-center gap-2"
+              aria-label="Create new system (Press N)"
+            >
+              <Plus className="w-4 h-4" />
+              New System
+            </Button>
+          </div>
+        </div>
+      </div>
+
       {/* Toolbar */}
       <SystemsToolbar
         query={query}
@@ -3572,7 +3938,7 @@ export default function SystemsPanel({ projectId, selectedElement, onSystemsChan
         onBulkDelete={handleBulkDelete}
       />
 
-      {/* Bulk Actions Bar - visible when bulk mode is on and items are selected */}
+      {/* Bulk Actions Bar - Shown when systems are selected */}
       {bulkMode && selectedIds.size > 0 && (
         <BulkActionsBar
           selectionCount={selectedIds.size}
@@ -3588,11 +3954,11 @@ export default function SystemsPanel({ projectId, selectedElement, onSystemsChan
       )}
 
       {/* Content */}
-      <div className="p-6">
-        <div className="max-w-5xl mx-auto">
+      <div className="flex-1 overflow-y-auto">
+        <div className="px-6">
           {/* Results summary */}
           {hasActiveFilters && (
-            <div className="mb-4 text-sm text-gray-600">
+            <div className="mb-4 text-sm text-gray-600 pt-6">
               Showing <span className="font-semibold text-gray-900">{filteredCount}</span> of{' '}
               <span className="font-semibold text-gray-900">{totalSystems}</span> systems
             </div>
@@ -3634,7 +4000,7 @@ export default function SystemsPanel({ projectId, selectedElement, onSystemsChan
             </div>
           ) : (
             /* Systems Grid/List - using visibleSystems (filtered, sorted) */
-            view === 'grid' ? (
+            <div className="pb-6">
               <SystemsGrid
                 systems={visibleSystems}
                 bulkMode={bulkMode}
@@ -3645,32 +4011,10 @@ export default function SystemsPanel({ projectId, selectedElement, onSystemsChan
                 onDuplicate={handleDuplicate}
                 onDelete={handleDelete}
                 onCreateFirst={handleNewSystem}
+                viewMode={view}
               />
-            ) : (
-              <SystemsTable
-                systems={visibleSystems}
-                bulkMode={bulkMode}
-                selectedIds={selectedIds}
-                onToggleSelection={handleToggleSelection}
-                onToggleAll={handleToggleAll}
-                onQuickView={handleQuickView}
-                onEdit={handleEdit}
-                onDuplicate={handleDuplicate}
-                onDelete={handleDelete}
-                onCreateFirst={handleNewSystem}
-              />
-            )
+            </div>
           )}
-
-          {/* Quick View Drawer */}
-          <SystemQuickView
-            item={quickItem}
-            open={!!quickItem}
-            onOpenChange={(open) => !open && setQuickItem(null)}
-            onEdit={handleEdit}
-            onDuplicate={handleDuplicate}
-            onDelete={handleDelete}
-          />
 
           {/* Add Tag Dialog */}
           <Dialog open={showAddTagDialog} onOpenChange={setShowAddTagDialog}>
