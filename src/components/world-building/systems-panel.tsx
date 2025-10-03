@@ -4174,16 +4174,16 @@ export default function SystemsPanel({ projectId, selectedElement, onSystemsChan
 
           {/* Add Tag Dialog */}
           <Dialog open={showAddTagDialog} onOpenChange={setShowAddTagDialog}>
-            <DialogContent className="bg-background">
-              <DialogHeader>
-                <DialogTitle>Add Tag to {selectedIds.size} Systems</DialogTitle>
-                <DialogDescription>
+            <DialogContent className="bg-white border-2 border-gray-200 shadow-2xl max-w-md">
+              <DialogHeader className="pb-4 border-b border-gray-100">
+                <DialogTitle className="text-xl font-bold text-gray-900">Add Tag to {selectedIds.size} System{selectedIds.size !== 1 ? 's' : ''}</DialogTitle>
+                <DialogDescription className="text-sm text-gray-600 mt-2">
                   Enter a tag to add to all selected systems. The tag will only be added if it doesn't already exist on a system.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label htmlFor="new-tag">Tag Name</Label>
+                  <Label htmlFor="new-tag" className="text-sm font-semibold text-gray-900">Tag Name</Label>
                   <Input
                     id="new-tag"
                     placeholder="e.g., important, reviewed, legacy..."
@@ -4194,43 +4194,46 @@ export default function SystemsPanel({ projectId, selectedElement, onSystemsChan
                         handleBulkAddTag(newTag)
                       }
                     }}
-                    className="bg-background"
+                    className="bg-white border-2 border-gray-300 rounded-xl focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
+                    autoFocus
                   />
                 </div>
 
                 {/* Show existing tags from selection */}
                 {getSelectedTags().length > 0 && (
-                  <div className="space-y-2">
-                    <Label className="text-sm text-gray-600">Existing tags on selected systems:</Label>
+                  <div className="space-y-2 pt-2 border-t border-gray-100">
+                    <Label className="text-sm font-medium text-gray-700">Existing tags on selected systems:</Label>
                     <div className="flex flex-wrap gap-2">
                       {getSelectedTags().map(tag => (
                         <Badge 
                           key={tag} 
                           variant="secondary"
-                          className="cursor-pointer hover:bg-teal-100"
+                          className="cursor-pointer bg-gray-100 hover:bg-teal-100 border-2 border-gray-300 hover:border-teal-400 text-gray-700 hover:text-teal-700 transition-all duration-200"
                           onClick={() => setNewTag(tag)}
                         >
                           {tag}
                         </Badge>
                       ))}
                     </div>
+                    <p className="text-xs text-gray-500 mt-1">Click a tag to use it</p>
                   </div>
                 )}
               </div>
-              <div className="flex justify-end gap-2">
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
                 <Button
                   variant="outline"
                   onClick={() => {
                     setShowAddTagDialog(false)
                     setNewTag('')
                   }}
+                  className="rounded-xl border-2 border-gray-300 hover:bg-gray-50"
                 >
                   Cancel
                 </Button>
                 <Button
                   onClick={() => handleBulkAddTag(newTag)}
                   disabled={!newTag.trim()}
-                  className="bg-teal-500 hover:bg-teal-600 text-white"
+                  className="bg-teal-500 hover:bg-teal-600 text-white rounded-xl shadow-sm hover:shadow disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Add Tag
                 </Button>
