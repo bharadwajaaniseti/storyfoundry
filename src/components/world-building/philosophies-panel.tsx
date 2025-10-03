@@ -19,6 +19,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Slider } from '@/components/ui/slider'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useToast } from '@/components/ui/toast'
 
 // ========================
 // Types & Schema
@@ -75,15 +76,19 @@ type PhilosophyForm = {
     education?: number
     politics?: number
     art?: number
+    science?: number
+    social?: number
+    economics?: number
   }
   similar_philosophies?: string[]
   tags?: string[]
   status?: 'active' | 'historic' | 'revival'
   images?: string[]
   links?: {
-    type: 'character' | 'location' | 'faction' | 'item' | 'system' | 'language' | 'religion' | 'philosophy'
+    type: 'character' | 'location' | 'faction' | 'item' | 'system' | 'language' | 'religion' | 'philosophy' | 'culture' | 'species'
     id: string
     name: string
+    relationship?: string  // Description of the relationship
   }[]
 }
 
@@ -469,21 +474,24 @@ interface PhilosophiesGridProps {
   philosophies: any[]
   onEdit: (philosophy: any) => void
   onDuplicate: (philosophy: any) => void
-  onDelete: (id: string) => void
+  onDelete: (id: string) => Promise<void>
 }
 
 function PhilosophiesGrid({ philosophies, onEdit, onDuplicate, onDelete }: PhilosophiesGridProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [philosophyToDelete, setPhilosophyToDelete] = useState<any>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const handleDeleteClick = (philosophy: any) => {
     setPhilosophyToDelete(philosophy)
     setDeleteDialogOpen(true)
   }
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (philosophyToDelete) {
-      onDelete(philosophyToDelete.id)
+      setDeleting(true)
+      await onDelete(philosophyToDelete.id)
+      setDeleting(false)
       setDeleteDialogOpen(false)
       setPhilosophyToDelete(null)
     }
@@ -491,180 +499,173 @@ function PhilosophiesGrid({ philosophies, onEdit, onDuplicate, onDelete }: Philo
 
   return (
     <>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
         {philosophies.map(philosophy => (
-          <Card 
-            key={philosophy.id} 
-            className="group hover:shadow-xl hover:scale-[1.02] transition-all duration-300 cursor-pointer border-gray-200 bg-white overflow-hidden"
+          <Card
+            key={philosophy.id}
             onClick={() => onEdit(philosophy)}
+            className="group relative rounded-xl border border-gray-200/80 bg-white shadow-sm hover:shadow-xl hover:border-indigo-400/50 transition-all duration-300 cursor-pointer overflow-visible before:absolute before:inset-0 before:bg-gradient-to-br before:from-indigo-500/0 before:via-indigo-500/5 before:to-purple-500/0 before:opacity-0 hover:before:opacity-100 before:transition-opacity before:duration-300"
           >
-            {/* Cover Image or Icon */}
-            <div className="relative h-32 bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center overflow-hidden">
-              {philosophy.attributes?.images?.[0] ? (
-                <img 
-                  src={philosophy.attributes.images[0]} 
-                  alt={philosophy.name}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <Brain className="w-12 h-12 text-white/90" />
-              )}
-              
-              {/* Quick Actions Overlay */}
-              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center gap-2">
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  className="bg-white/90 hover:bg-white text-gray-900"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onEdit(philosophy)
-                  }}
-                >
-                  <Edit3 className="w-3 h-3 mr-1" />
-                  Edit
-                </Button>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      className="bg-white/90 hover:bg-white text-gray-900"
-                    >
-                      <MoreVertical className="w-3 h-3" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent className="bg-white border border-gray-200 shadow-lg" align="end">
-                    <DropdownMenuItem 
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onDuplicate(philosophy)
-                      }}
-                      className="cursor-pointer"
-                    >
-                      <Copy className="w-4 h-4 mr-2" />
-                      Duplicate
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem 
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleDeleteClick(philosophy)
-                      }}
-                      className="cursor-pointer text-red-600 focus:text-red-600"
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+            <CardHeader className="pb-3 relative z-10">
+              <div className="flex items-start justify-between mb-2">
+                {/* Enhanced Icon with Gradient Background and Glow Effect */}
+                <div className="relative flex-shrink-0">
+                  <div className="absolute inset-0 bg-gradient-to-br from-indigo-400 to-purple-400 rounded-lg opacity-0 group-hover:opacity-20 blur-md transition-opacity duration-300"></div>
+                  <div className="relative w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center shadow-md group-hover:shadow-lg group-hover:scale-110 transition-all duration-300">
+                    <Brain className="w-5 h-5 text-white group-hover:scale-110 transition-transform duration-300" />
+                  </div>
+                </div>
+                
+                {/* Action Buttons - Always Visible */}
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => { e.stopPropagation(); onEdit(philosophy); }}
+                    className="h-7 w-7 p-0 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all duration-200"
+                    title="Edit"
+                  >
+                    <Edit3 className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => { e.stopPropagation(); onDuplicate(philosophy); }}
+                    className="h-7 w-7 p-0 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all duration-200"
+                    title="Duplicate"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => { e.stopPropagation(); handleDeleteClick(philosophy); }}
+                    className="h-7 w-7 p-0 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
+                    title="Delete"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
-            </div>
-
-            <CardContent className="p-4 space-y-3">
-              {/* Title */}
-              <div>
-                <h3 className="font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors line-clamp-1 text-base">
-                  {philosophy.name}
-                </h3>
-              </div>
-
-              {/* Pills: Type/System/Status */}
-              <div className="flex flex-wrap gap-1.5">
+              <CardTitle className="text-lg font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors duration-300 line-clamp-1">
+                {philosophy.name}
+              </CardTitle>
+              <div className="flex items-center gap-2 flex-wrap mt-2">
                 {philosophy.attributes?.type && (
-                  <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border bg-purple-50 text-purple-700 border-purple-200 group-hover:border-indigo-300 transition-all duration-300">
                     {philosophy.attributes.type}
-                  </Badge>
-                )}
-                {philosophy.attributes?.system && (
-                  <Badge variant="outline" className="text-xs bg-indigo-50 text-indigo-700 border-indigo-200">
-                    {philosophy.attributes.system}
-                  </Badge>
-                )}
-                {philosophy.attributes?.status && (
-                  <Badge variant="outline" className={`text-xs ${getStatusColor(philosophy.attributes.status)}`}>
-                    {philosophy.attributes.status.charAt(0).toUpperCase() + philosophy.attributes.status.slice(1)}
-                  </Badge>
-                )}
-              </div>
-
-              {/* Description */}
-              {philosophy.description && (
-                <p className="text-sm text-gray-600 line-clamp-2">
-                  {philosophy.description}
-                </p>
-              )}
-
-              {/* Quick Facts */}
-              <div className="flex items-center gap-2 text-xs text-gray-500 border-t pt-2">
-                {philosophy.attributes?.founder && (
-                  <span className="truncate" title={`Founder: ${philosophy.attributes.founder}`}>
-                    👤 {philosophy.attributes.founder}
                   </span>
                 )}
-                {philosophy.attributes?.origin_place && (
-                  <>
-                    {philosophy.attributes?.founder && <span>·</span>}
-                    <span className="truncate" title={`Origin: ${philosophy.attributes.origin_place}`}>
-                      📍 {philosophy.attributes.origin_place}
-                    </span>
-                  </>
+                {philosophy.attributes?.system && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border bg-indigo-50 text-indigo-700 border-indigo-200 group-hover:border-indigo-300 transition-all duration-300">
+                    {philosophy.attributes.system}
+                  </span>
                 )}
+                {philosophy.attributes?.status && (
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(philosophy.attributes.status)} group-hover:border-indigo-300 transition-all duration-300`}>
+                    {philosophy.attributes.status.charAt(0).toUpperCase() + philosophy.attributes.status.slice(1)}
+                  </span>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3 relative z-10">
+              {philosophy.description && (
+                <p className="text-sm text-gray-600 line-clamp-2 group-hover:text-gray-700 transition-colors duration-300">{philosophy.description}</p>
+              )}
+              
+              {/* Quick Facts */}
+              <div className="flex items-center gap-2 text-xs text-gray-500 pt-2 border-t border-gray-100">
                 {philosophy.attributes?.adherents && (
-                  <>
-                    {(philosophy.attributes?.founder || philosophy.attributes?.origin_place) && <span>·</span>}
-                    <span title={`Adherents: ${philosophy.attributes.adherents.toLocaleString()}`}>
-                      👥 {philosophy.attributes.adherents >= 1000000 
-                        ? `${(philosophy.attributes.adherents / 1000000).toFixed(1)}M` 
-                        : philosophy.attributes.adherents >= 1000 
-                        ? `${(philosophy.attributes.adherents / 1000).toFixed(1)}K`
-                        : philosophy.attributes.adherents}
-                    </span>
-                  </>
+                  <span className="flex items-center gap-1.5 group-hover:text-indigo-600 transition-colors duration-300">
+                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 group-hover:bg-indigo-500 group-hover:shadow-sm group-hover:shadow-indigo-300 transition-all duration-300"></span>
+                    <span className="font-medium">{philosophy.attributes.adherents >= 1000000 
+                      ? `${(philosophy.attributes.adherents / 1000000).toFixed(1)}M` 
+                      : philosophy.attributes.adherents >= 1000 
+                      ? `${(philosophy.attributes.adherents / 1000).toFixed(1)}K`
+                      : philosophy.attributes.adherents.toLocaleString()}</span>
+                  </span>
+                )}
+                {philosophy.attributes?.adherents && philosophy.attributes?.origin_place && (
+                  <span>•</span>
+                )}
+                {philosophy.attributes?.origin_place && (
+                  <span className="group-hover:text-indigo-600 transition-colors duration-300">{philosophy.attributes.origin_place}</span>
                 )}
               </div>
 
               {/* Tags */}
               {philosophy.tags && philosophy.tags.length > 0 && (
                 <div className="flex flex-wrap gap-1">
-                  {philosophy.tags.slice(0, 3).map((tag: string, idx: number) => (
-                    <Badge key={idx} variant="secondary" className="text-xs bg-gray-100 text-gray-600">
+                  {philosophy.tags.slice(0, 2).map((tag: string, idx: number) => (
+                    <span key={idx} className="inline-flex items-center px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 text-xs group-hover:bg-indigo-100 transition-all duration-300">
                       {tag}
-                    </Badge>
+                    </span>
                   ))}
-                  {philosophy.tags.length > 3 && (
-                    <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-600">
-                      +{philosophy.tags.length - 3}
-                    </Badge>
+                  {philosophy.tags.length > 2 && (
+                    <span className="text-xs text-gray-500">+{philosophy.tags.length - 2}</span>
                   )}
                 </div>
               )}
 
               {/* Footer */}
-              <div className="text-xs text-gray-400 border-t pt-2">
-                Updated · {relativeTime(philosophy.updated_at)}
+              <div className="text-xs text-gray-400 pt-2 border-t border-gray-100 group-hover:text-gray-500 transition-colors duration-300">
+                Updated • {relativeTime(philosophy.updated_at)}
               </div>
             </CardContent>
+            
+            {/* Animated Bottom Border on Hover */}
+            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500 ease-out"></div>
           </Card>
         ))}
       </div>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent className="bg-background">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Philosophy</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete <strong>{philosophyToDelete?.name}</strong>? This action cannot be undone.
+        <AlertDialogContent className="bg-white border-0 shadow-2xl max-w-md">
+          <AlertDialogHeader className="space-y-4">
+            <div className="mx-auto w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+              <svg className="w-6 h-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <AlertDialogTitle className="text-2xl font-bold text-center text-gray-900">
+              Delete Philosophy?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-center text-gray-600">
+              You are about to permanently delete <span className="font-semibold text-gray-900">&quot;{philosophyToDelete?.name}&quot;</span> from the database.
             </AlertDialogDescription>
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <p className="text-sm font-semibold text-red-800 flex items-center justify-center gap-2">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+                This action cannot be undone
+              </p>
+            </div>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={confirmDelete}
-              className="bg-red-600 hover:bg-red-700 text-white"
+          <AlertDialogFooter className="gap-3 sm:gap-3">
+            <AlertDialogCancel 
+              disabled={deleting}
+              className="flex-1 bg-white hover:bg-gray-50 border-gray-300 text-gray-700 font-medium"
             >
-              Delete
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              disabled={deleting}
+              className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium shadow-lg shadow-red-600/30 transition-all duration-200 hover:shadow-xl hover:shadow-red-600/40 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {deleting ? (
+                <span className="flex items-center gap-2">
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  Deleting...
+                </span>
+              ) : (
+                'Delete Permanently'
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -680,21 +681,24 @@ interface PhilosophiesTableProps {
   philosophies: any[]
   onEdit: (philosophy: any) => void
   onDuplicate: (philosophy: any) => void
-  onDelete: (id: string) => void
+  onDelete: (id: string) => Promise<void>
 }
 
 function PhilosophiesTable({ philosophies, onEdit, onDuplicate, onDelete }: PhilosophiesTableProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [philosophyToDelete, setPhilosophyToDelete] = useState<any>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const handleDeleteClick = (philosophy: any) => {
     setPhilosophyToDelete(philosophy)
     setDeleteDialogOpen(true)
   }
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (philosophyToDelete) {
-      onDelete(philosophyToDelete.id)
+      setDeleting(true)
+      await onDelete(philosophyToDelete.id)
+      setDeleting(false)
       setDeleteDialogOpen(false)
       setPhilosophyToDelete(null)
     }
@@ -702,125 +706,107 @@ function PhilosophiesTable({ philosophies, onEdit, onDuplicate, onDelete }: Phil
 
   return (
     <>
-      <div className="border rounded-lg overflow-hidden bg-white">
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow className="bg-gray-50">
-              <TableHead className="font-semibold">Name</TableHead>
-              <TableHead className="font-semibold">System</TableHead>
-              <TableHead className="font-semibold">Type</TableHead>
-              <TableHead className="font-semibold">Status</TableHead>
-              <TableHead className="font-semibold">Adherents</TableHead>
-              <TableHead className="font-semibold">Updated</TableHead>
-              <TableHead className="font-semibold w-[80px]">Actions</TableHead>
+              <TableHead className="font-semibold text-gray-900">Name</TableHead>
+              <TableHead className="font-semibold text-gray-900">System</TableHead>
+              <TableHead className="font-semibold text-gray-900">Type</TableHead>
+              <TableHead className="font-semibold text-gray-900">Status</TableHead>
+              <TableHead className="font-semibold text-gray-900">Adherents</TableHead>
+              <TableHead className="font-semibold text-gray-900">Updated</TableHead>
+              <TableHead className="font-semibold text-gray-900 w-[100px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {philosophies.map(philosophy => (
               <TableRow 
                 key={philosophy.id} 
-                className="group hover:bg-indigo-50/50 cursor-pointer transition-colors"
                 onClick={() => onEdit(philosophy)}
+                className="group relative hover:bg-indigo-50/50 transition-all duration-300 cursor-pointer border-b border-gray-100 hover:border-indigo-200 after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-gradient-to-r after:from-indigo-500 after:via-purple-500 after:to-indigo-500 after:transform after:scale-x-0 hover:after:scale-x-100 after:transition-transform after:duration-500 after:ease-out"
               >
-                <TableCell className="font-medium">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center flex-shrink-0">
-                      {philosophy.attributes?.images?.[0] ? (
-                        <img 
-                          src={philosophy.attributes.images[0]} 
-                          alt={philosophy.name}
-                          className="w-full h-full object-cover rounded-lg"
-                        />
-                      ) : (
-                        <Brain className="w-4 h-4 text-white" />
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors truncate">
-                        {philosophy.name}
+                <TableCell>
+                  <div className="flex items-center gap-3">
+                    {/* Enhanced Icon with Glow Effect */}
+                    <div className="relative flex-shrink-0">
+                      <div className="absolute inset-0 bg-gradient-to-br from-indigo-400 to-purple-400 rounded-lg opacity-0 group-hover:opacity-20 blur-md transition-opacity duration-300"></div>
+                      <div className="relative w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center shadow-sm group-hover:shadow-md group-hover:scale-110 transition-all duration-300">
+                        <Brain className="w-4 h-4 text-white group-hover:scale-110 transition-transform duration-300" />
                       </div>
-                      {philosophy.description && (
-                        <div className="text-xs text-gray-500 truncate">
-                          {philosophy.description}
-                        </div>
+                    </div>
+                    <div>
+                      <div className="font-semibold text-gray-900 group-hover:text-indigo-700 transition-colors duration-300">{philosophy.name}</div>
+                      {philosophy.attributes?.origin_place && (
+                        <div className="text-xs text-gray-500 group-hover:text-indigo-600 transition-colors duration-300">{philosophy.attributes.origin_place}</div>
                       )}
                     </div>
                   </div>
                 </TableCell>
                 <TableCell>
                   {philosophy.attributes?.system && (
-                    <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200">
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border bg-indigo-50 text-indigo-700 border-indigo-200 group-hover:border-indigo-300 transition-all duration-300">
                       {philosophy.attributes.system}
-                    </Badge>
+                    </span>
                   )}
                 </TableCell>
                 <TableCell>
                   {philosophy.attributes?.type && (
-                    <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border bg-purple-50 text-purple-700 border-purple-200 group-hover:border-indigo-300 transition-all duration-300">
                       {philosophy.attributes.type}
-                    </Badge>
+                    </span>
                   )}
                 </TableCell>
                 <TableCell>
                   {philosophy.attributes?.status && (
-                    <Badge variant="outline" className={getStatusColor(philosophy.attributes.status)}>
+                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(philosophy.attributes.status)} group-hover:border-indigo-300 transition-all duration-300`}>
                       {philosophy.attributes.status.charAt(0).toUpperCase() + philosophy.attributes.status.slice(1)}
-                    </Badge>
+                    </span>
                   )}
                 </TableCell>
-                <TableCell className="text-gray-600">
-                  {philosophy.attributes?.adherents 
-                    ? philosophy.attributes.adherents.toLocaleString()
-                    : '—'}
-                </TableCell>
-                <TableCell className="text-gray-500 text-sm">
-                  {relativeTime(philosophy.updated_at)}
+                <TableCell>
+                  {philosophy.attributes?.adherents ? (
+                    <span className="flex items-center gap-1.5 text-sm text-gray-700 group-hover:text-indigo-600 transition-colors duration-300">
+                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 group-hover:bg-indigo-500 group-hover:shadow-sm group-hover:shadow-indigo-300 transition-all duration-300"></span>
+                      <span className="font-medium">{philosophy.attributes.adherents.toLocaleString()}</span>
+                    </span>
+                  ) : (
+                    <span className="text-sm text-gray-400">—</span>
+                  )}
                 </TableCell>
                 <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <MoreVertical className="w-4 h-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent className="bg-white border border-gray-200 shadow-lg" align="end">
-                      <DropdownMenuItem 
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onEdit(philosophy)
-                        }}
-                        className="cursor-pointer"
-                      >
-                        <Edit3 className="w-4 h-4 mr-2" />
-                        Edit
-                      </DropdownMenuItem>
-                      <DropdownMenuItem 
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onDuplicate(philosophy)
-                        }}
-                        className="cursor-pointer"
-                      >
-                        <Copy className="w-4 h-4 mr-2" />
-                        Duplicate
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem 
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleDeleteClick(philosophy)
-                        }}
-                        className="cursor-pointer text-red-600 focus:text-red-600"
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <span className="text-sm text-gray-600 group-hover:text-indigo-600 transition-colors duration-300">{relativeTime(philosophy.updated_at)}</span>
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => { e.stopPropagation(); onEdit(philosophy); }}
+                      className="h-8 w-8 p-0 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all duration-200"
+                      title="Edit"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => { e.stopPropagation(); onDuplicate(philosophy); }}
+                      className="h-8 w-8 p-0 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all duration-200"
+                      title="Duplicate"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => { e.stopPropagation(); handleDeleteClick(philosophy); }}
+                      className="h-8 w-8 p-0 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
+                      title="Delete"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -830,20 +816,51 @@ function PhilosophiesTable({ philosophies, onEdit, onDuplicate, onDelete }: Phil
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent className="bg-background">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Philosophy</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete <strong>{philosophyToDelete?.name}</strong>? This action cannot be undone.
+        <AlertDialogContent className="bg-white border-0 shadow-2xl max-w-md">
+          <AlertDialogHeader className="space-y-4">
+            <div className="mx-auto w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+              <svg className="w-6 h-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <AlertDialogTitle className="text-2xl font-bold text-center text-gray-900">
+              Delete Philosophy?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-center text-gray-600">
+              You are about to permanently delete <span className="font-semibold text-gray-900">&quot;{philosophyToDelete?.name}&quot;</span> from the database.
             </AlertDialogDescription>
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <p className="text-sm font-semibold text-red-800 flex items-center justify-center gap-2">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+                This action cannot be undone
+              </p>
+            </div>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={confirmDelete}
-              className="bg-red-600 hover:bg-red-700 text-white"
+          <AlertDialogFooter className="gap-3 sm:gap-3">
+            <AlertDialogCancel 
+              disabled={deleting}
+              className="flex-1 bg-white hover:bg-gray-50 border-gray-300 text-gray-700 font-medium"
             >
-              Delete
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              disabled={deleting}
+              className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium shadow-lg shadow-red-600/30 transition-all duration-200 hover:shadow-xl hover:shadow-red-600/40 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {deleting ? (
+                <span className="flex items-center gap-2">
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  Deleting...
+                </span>
+              ) : (
+                'Delete Permanently'
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -866,14 +883,43 @@ interface PhilosophyWorkspaceProps {
   saving: boolean
   projectId: string
   philosophyId?: string | null
+  toast: { addToast: (toast: { type: 'success' | 'error' | 'warning' | 'info', title: string, message?: string, duration?: number }) => void, removeToast: (id: string) => void }
 }
 
-function PhilosophyWorkspace({ mode, form, onFormChange, onSave, onCancel, onDuplicate, onDelete, saving, projectId, philosophyId }: PhilosophyWorkspaceProps) {
+function PhilosophyWorkspace({ mode, form, onFormChange, onSave, onCancel, onDuplicate, onDelete, saving, projectId, philosophyId, toast }: PhilosophyWorkspaceProps) {
   const [tagInput, setTagInput] = useState('')
   const [activeTab, setActiveTab] = useState('overview')
   const [isAutosaving, setIsAutosaving] = useState(false)
+  const [worldElements, setWorldElements] = useState<any[]>([])
+  const [loadingElements, setLoadingElements] = useState(false)
+  const [relationshipSearch, setRelationshipSearch] = useState('')
+  const [editingRelationship, setEditingRelationship] = useState<{ id: string, relationship: string } | null>(null)
   const autosaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const supabase = createSupabaseClient()
+
+  // Load world elements for relationships
+  useEffect(() => {
+    const loadWorldElements = async () => {
+      setLoadingElements(true)
+      try {
+        const { data, error } = await supabase
+          .from('world_elements')
+          .select('id, name, category, description')
+          .eq('project_id', projectId)
+          .or('attributes->>__deleted.is.null,attributes->>__deleted.eq.false')
+          .order('name')
+        
+        if (error) throw error
+        setWorldElements(data || [])
+      } catch (error) {
+        console.error('Failed to load world elements:', error)
+      } finally {
+        setLoadingElements(false)
+      }
+    }
+
+    loadWorldElements()
+  }, [projectId, supabase])
 
   const updateForm = (updates: Partial<PhilosophyForm>) => {
     onFormChange({ ...form, ...updates })
@@ -941,15 +987,18 @@ function PhilosophyWorkspace({ mode, form, onFormChange, onSave, onCancel, onDup
 
         if (error) {
           console.error('Autosave error:', error)
-          // Could show toast here if available
+          toast.addToast({ type: 'error', title: 'Failed to save changes' })
+        } else {
+          toast.addToast({ type: 'success', title: 'Saved', duration: 2000 })
         }
       } catch (error) {
         console.error('Autosave failed:', error)
+        toast.addToast({ type: 'error', title: 'Failed to save changes' })
       } finally {
         setIsAutosaving(false)
       }
     }, 600)
-  }, [philosophyId, supabase])
+  }, [philosophyId, supabase, toast])
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -1398,82 +1447,198 @@ function PhilosophyWorkspace({ mode, form, onFormChange, onSave, onCancel, onDup
 
           {/* Tab: Overview */}
           <TabsContent value="overview" className="space-y-6">
-            <div className="bg-white rounded-xl border border-gray-100 p-6 space-y-4">
-              <div>
-                <Label>Description</Label>
-                <Textarea
-                  value={form.description || ''}
-                  onChange={(e) => updateForm({ description: e.target.value })}
-                  rows={4}
-                  className="bg-background mt-1.5"
-                  placeholder="Comprehensive overview..."
-                />
+            {/* Description & Overview */}
+            <div className="bg-white rounded-xl border border-gray-100 p-6">
+              <div className="mb-4">
+                <Label className="text-base font-semibold">Description</Label>
+                <p className="text-xs text-gray-500 mt-1">Provide a comprehensive overview of this philosophy</p>
+              </div>
+              <Textarea
+                value={form.description || ''}
+                onChange={(e) => updateForm({ description: e.target.value })}
+                rows={5}
+                className="bg-background"
+                placeholder="Describe the philosophy's main ideas, purpose, and significance...\n\nExample: Stoicism teaches the development of self-control and fortitude as a means of overcoming destructive emotions."
+              />
+              <div className="text-xs text-gray-400 mt-2">
+                {(form.description || '').length} characters
+              </div>
+            </div>
+
+            {/* Classification */}
+            <div className="bg-white rounded-xl border border-gray-100 p-6">
+              <div className="mb-4">
+                <Label className="text-base font-semibold">Classification</Label>
+                <p className="text-xs text-gray-500 mt-1">Categorize and classify this philosophical system</p>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>System</Label>
+                  <Label className="text-sm">System <span className="text-red-500">*</span></Label>
                   <Select value={form.system || ''} onValueChange={(v) => updateForm({ system: v })}>
-                    <SelectTrigger className="bg-background mt-1.5">
+                    <SelectTrigger className="bg-white mt-1.5 border-gray-200">
                       <SelectValue placeholder="Select system..." />
                     </SelectTrigger>
-                    <SelectContent className="bg-background">
-                      <SelectItem value="Western">Western</SelectItem>
-                      <SelectItem value="Eastern">Eastern</SelectItem>
-                      <SelectItem value="Indigenous">Indigenous</SelectItem>
-                      <SelectItem value="Syncretic">Syncretic</SelectItem>
-                      <SelectItem value="Modern">Modern</SelectItem>
-                      <SelectItem value="Ancient">Ancient</SelectItem>
+                    <SelectContent className="bg-white">
+                      <SelectItem value="Western">🏛️ Western</SelectItem>
+                      <SelectItem value="Eastern">🏯 Eastern</SelectItem>
+                      <SelectItem value="Indigenous">🌍 Indigenous</SelectItem>
+                      <SelectItem value="Syncretic">🔄 Syncretic</SelectItem>
+                      <SelectItem value="Modern">🔬 Modern</SelectItem>
+                      <SelectItem value="Ancient">📜 Ancient</SelectItem>
+                      <SelectItem value="Medieval">⚔️ Medieval</SelectItem>
+                      <SelectItem value="Contemporary">💡 Contemporary</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div>
-                  <Label>Type</Label>
+                  <Label className="text-sm">Type</Label>
                   <Select value={form.type || ''} onValueChange={(v) => updateForm({ type: v })}>
-                    <SelectTrigger className="bg-background mt-1.5">
+                    <SelectTrigger className="bg-white mt-1.5 border-gray-200">
                       <SelectValue placeholder="Select type..." />
                     </SelectTrigger>
-                    <SelectContent className="bg-background">
-                      <SelectItem value="Religious">Religious</SelectItem>
-                      <SelectItem value="Secular">Secular</SelectItem>
-                      <SelectItem value="Spiritual">Spiritual</SelectItem>
-                      <SelectItem value="Political">Political</SelectItem>
-                      <SelectItem value="Ethical">Ethical</SelectItem>
-                      <SelectItem value="Metaphysical">Metaphysical</SelectItem>
+                    <SelectContent className="bg-white">
+                      <SelectItem value="Religious">✨ Religious</SelectItem>
+                      <SelectItem value="Secular">📚 Secular</SelectItem>
+                      <SelectItem value="Spiritual">🧘 Spiritual</SelectItem>
+                      <SelectItem value="Political">⚖️ Political</SelectItem>
+                      <SelectItem value="Ethical">💚 Ethical</SelectItem>
+                      <SelectItem value="Metaphysical">🌌 Metaphysical</SelectItem>
+                      <SelectItem value="Epistemological">🔍 Epistemological</SelectItem>
+                      <SelectItem value="Existential">🤔 Existential</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div>
-                  <Label>Field</Label>
+                  <Label className="text-sm">Field</Label>
                   <Select value={form.field || ''} onValueChange={(v) => updateForm({ field: v })}>
-                    <SelectTrigger className="bg-background mt-1.5">
+                    <SelectTrigger className="bg-white mt-1.5 border-gray-200">
                       <SelectValue placeholder="Select field..." />
                     </SelectTrigger>
-                    <SelectContent className="bg-background">
+                    <SelectContent className="bg-white">
                       <SelectItem value="Ethics">Ethics</SelectItem>
                       <SelectItem value="Metaphysics">Metaphysics</SelectItem>
                       <SelectItem value="Epistemology">Epistemology</SelectItem>
                       <SelectItem value="Logic">Logic</SelectItem>
                       <SelectItem value="Aesthetics">Aesthetics</SelectItem>
-                      <SelectItem value="Political">Political</SelectItem>
-                      <SelectItem value="Natural">Natural</SelectItem>
-                      <SelectItem value="Existential">Existential</SelectItem>
+                      <SelectItem value="Political">Political Philosophy</SelectItem>
+                      <SelectItem value="Natural">Natural Philosophy</SelectItem>
+                      <SelectItem value="Moral">Moral Philosophy</SelectItem>
+                      <SelectItem value="Existential">Existentialism</SelectItem>
+                      <SelectItem value="Phenomenology">Phenomenology</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div>
-                  <Label>Status</Label>
+                  <Label className="text-sm">Status</Label>
                   <Select value={form.status} onValueChange={(v: any) => updateForm({ status: v })}>
-                    <SelectTrigger className="bg-background mt-1.5">
+                    <SelectTrigger className="bg-white mt-1.5 border-gray-200">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="bg-background">
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="historic">Historic</SelectItem>
-                      <SelectItem value="revival">Revival</SelectItem>
+                    <SelectContent className="bg-white">
+                      <SelectItem value="active">✅ Active (Currently Practiced)</SelectItem>
+                      <SelectItem value="historic">📚 Historic (No Longer Practiced)</SelectItem>
+                      <SelectItem value="revival">🔄 Revival (Being Revived)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
+            </div>
+
+            {/* Origins */}
+            <div className="bg-white rounded-xl border border-gray-100 p-6">
+              <div className="mb-4">
+                <Label className="text-base font-semibold">Origins & Founder</Label>
+                <p className="text-xs text-gray-500 mt-1">Historical context and founding information</p>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm">Founder / Key Figure</Label>
+                  <Input
+                    value={form.founder || ''}
+                    onChange={(e) => updateForm({ founder: e.target.value })}
+                    className="bg-white mt-1.5 border-gray-200"
+                    placeholder="e.g., Socrates, Confucius, Buddha..."
+                  />
+                </div>
+                <div>
+                  <Label className="text-sm">Place of Origin</Label>
+                  <Input
+                    value={form.origin_place || ''}
+                    onChange={(e) => updateForm({ origin_place: e.target.value })}
+                    className="bg-white mt-1.5 border-gray-200"
+                    placeholder="e.g., Athens, India, China..."
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Demographics & Reach */}
+            <div className="bg-white rounded-xl border border-gray-100 p-6">
+              <div className="mb-4">
+                <Label className="text-base font-semibold">Demographics & Reach</Label>
+                <p className="text-xs text-gray-500 mt-1">Geographical spread and follower base</p>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <Label className="text-sm">Commonality / Prevalence</Label>
+                    <Badge variant="secondary">{form.commonality || 50}%</Badge>
+                  </div>
+                  <Slider
+                    value={[form.commonality || 50]}
+                    onValueChange={(v) => updateForm({ commonality: v[0] })}
+                    max={100}
+                    step={5}
+                    className="w-full"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>Rare</span>
+                    <span>Uncommon</span>
+                    <span>Common</span>
+                    <span>Widespread</span>
+                    <span>Universal</span>
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-sm">Geographic Area</Label>
+                  <Input
+                    value={form.geographic_area || ''}
+                    onChange={(e) => updateForm({ geographic_area: e.target.value })}
+                    className="bg-white mt-1.5 border-gray-200"
+                    placeholder="e.g., Mediterranean, East Asia, Global..."
+                  />
+                </div>
+                <div>
+                  <Label className="text-sm">Estimated Adherents</Label>
+                  <Input
+                    type="number"
+                    value={form.adherents || ''}
+                    onChange={(e) => updateForm({ adherents: parseInt(e.target.value) || undefined })}
+                    className="bg-white mt-1.5 border-gray-200"
+                    placeholder="Approximate number of followers"
+                  />
+                  {form.adherents && form.adherents > 0 && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      {form.adherents.toLocaleString()} adherents
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Propagation */}
+            <div className="bg-white rounded-xl border border-gray-100 p-6">
+              <div className="mb-3">
+                <Label className="text-base font-semibold">Propagation & Spread</Label>
+                <p className="text-xs text-gray-500 mt-1">How this philosophy spreads and is transmitted</p>
+              </div>
+              <Textarea
+                value={form.propagation || ''}
+                onChange={(e) => updateForm({ propagation: e.target.value })}
+                rows={3}
+                className="bg-white border-gray-200"
+                placeholder="Describe how this philosophy is taught, shared, and propagated... (e.g., oral tradition, written texts, monasteries, universities, community gatherings)"
+              />
             </div>
           </TabsContent>
 
@@ -2198,30 +2363,49 @@ function PhilosophyWorkspace({ mode, form, onFormChange, onSave, onCancel, onDup
           <TabsContent value="ethics" className="space-y-6">
             {/* Ethical Framework */}
             <div className="bg-white rounded-xl border border-gray-100 p-6">
-              <Label className="text-base font-semibold">Ethical Framework</Label>
-              <p className="text-xs text-gray-500 mt-1 mb-3">Core ethical principles and moral philosophy</p>
+              <div className="mb-3">
+                <Label className="text-base font-semibold">Ethical Framework</Label>
+                <p className="text-xs text-gray-500 mt-1">Core ethical principles and moral philosophy</p>
+              </div>
               <Textarea
                 value={form.ethics || ''}
                 onChange={(e) => updateForm({ ethics: e.target.value })}
                 rows={5}
-                className="bg-background"
-                placeholder="Describe the ethical principles, moral reasoning, and decision-making framework..."
+                className="bg-white border-gray-200"
+                placeholder="Describe the ethical principles, moral reasoning, and decision-making framework...\n\nExample: Right and wrong are determined by consequences, with actions judged by their outcomes rather than intentions."
+              />
+            </div>
+
+            {/* Morality */}
+            <div className="bg-white rounded-xl border border-gray-100 p-6">
+              <div className="mb-3">
+                <Label className="text-base font-semibold">Moral Philosophy</Label>
+                <p className="text-xs text-gray-500 mt-1">The nature and foundation of morality</p>
+              </div>
+              <Textarea
+                value={form.morality || ''}
+                onChange={(e) => updateForm({ morality: e.target.value })}
+                rows={4}
+                className="bg-white border-gray-200"
+                placeholder="What is the basis of morality in this philosophy? Is it absolute or relative? Divine command, reason, emotion, or social contract?\n\nExample: Morality is grounded in reason and natural law, accessible to all rational beings."
               />
             </div>
 
             {/* Virtues */}
             <div className="bg-white rounded-xl border border-gray-100 p-6">
-              <Label className="text-base font-semibold">Virtues</Label>
-              <p className="text-xs text-gray-500 mt-1 mb-3">Encouraged qualities and positive attributes</p>
+              <div className="mb-3">
+                <Label className="text-base font-semibold">Virtues</Label>
+                <p className="text-xs text-gray-500 mt-1">Encouraged qualities and positive attributes</p>
+              </div>
               <div className="flex flex-wrap gap-2 mb-4">
-                {['Compassion', 'Courage', 'Wisdom', 'Justice', 'Temperance', 'Humility', 'Honesty', 'Generosity', 'Patience', 'Fortitude', 'Prudence', 'Loyalty', 'Diligence', 'Charity', 'Kindness', 'Gratitude'].map(virtue => (
+                {['Compassion', 'Courage', 'Wisdom', 'Justice', 'Temperance', 'Humility', 'Honesty', 'Generosity', 'Patience', 'Fortitude', 'Prudence', 'Loyalty', 'Diligence', 'Charity', 'Kindness', 'Gratitude', 'Self-Control', 'Discipline', 'Faith', 'Hope', 'Love', 'Mindfulness', 'Detachment', 'Resilience'].map(virtue => (
                   <Badge
                     key={virtue}
                     variant={form.virtues?.includes(virtue) ? 'default' : 'outline'}
-                    className={`cursor-pointer transition-colors ${
+                    className={`cursor-pointer transition-all ${
                       form.virtues?.includes(virtue) 
-                        ? 'bg-green-100 text-green-800 hover:bg-green-200 border-green-300' 
-                        : 'hover:bg-gray-100'
+                        ? 'bg-green-500 text-white hover:bg-green-600 shadow-sm' 
+                        : 'hover:bg-green-50 hover:border-green-300'
                     }`}
                     onClick={() => {
                       const current = form.virtues || []
@@ -2236,25 +2420,28 @@ function PhilosophyWorkspace({ mode, form, onFormChange, onSave, onCancel, onDup
                 ))}
               </div>
               {form.virtues && form.virtues.length > 0 && (
-                <div className="text-xs text-gray-600">
-                  Selected: {form.virtues.join(', ')}
+                <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                  <div className="text-xs font-medium text-green-900 mb-1">Selected Virtues ({form.virtues.length}):</div>
+                  <div className="text-sm text-green-800">{form.virtues.join(' • ')}</div>
                 </div>
               )}
             </div>
 
             {/* Vices */}
             <div className="bg-white rounded-xl border border-gray-100 p-6">
-              <Label className="text-base font-semibold">Vices</Label>
-              <p className="text-xs text-gray-500 mt-1 mb-3">Discouraged qualities and negative attributes</p>
+              <div className="mb-3">
+                <Label className="text-base font-semibold">Vices</Label>
+                <p className="text-xs text-gray-500 mt-1">Discouraged qualities and negative attributes to avoid</p>
+              </div>
               <div className="flex flex-wrap gap-2 mb-4">
-                {['Greed', 'Pride', 'Envy', 'Wrath', 'Sloth', 'Gluttony', 'Lust', 'Deception', 'Cruelty', 'Cowardice', 'Arrogance', 'Selfishness', 'Vanity', 'Ignorance', 'Indifference', 'Betrayal'].map(vice => (
+                {['Greed', 'Pride', 'Envy', 'Wrath', 'Sloth', 'Gluttony', 'Lust', 'Deception', 'Cruelty', 'Cowardice', 'Arrogance', 'Selfishness', 'Vanity', 'Ignorance', 'Indifference', 'Betrayal', 'Hatred', 'Prejudice', 'Impatience', 'Recklessness', 'Wastefulness', 'Dishonesty'].map(vice => (
                   <Badge
                     key={vice}
                     variant={form.vices?.includes(vice) ? 'default' : 'outline'}
-                    className={`cursor-pointer transition-colors ${
+                    className={`cursor-pointer transition-all ${
                       form.vices?.includes(vice) 
-                        ? 'bg-red-100 text-red-800 hover:bg-red-200 border-red-300' 
-                        : 'hover:bg-gray-100'
+                        ? 'bg-red-500 text-white hover:bg-red-600 shadow-sm' 
+                        : 'hover:bg-red-50 hover:border-red-300'
                     }`}
                     onClick={() => {
                       const current = form.vices || []
@@ -2269,106 +2456,160 @@ function PhilosophyWorkspace({ mode, form, onFormChange, onSave, onCancel, onDup
                 ))}
               </div>
               {form.vices && form.vices.length > 0 && (
-                <div className="text-xs text-gray-600">
-                  Selected: {form.vices.join(', ')}
+                <div className="p-3 bg-red-50 rounded-lg border border-red-200">
+                  <div className="text-xs font-medium text-red-900 mb-1">Selected Vices ({form.vices.length}):</div>
+                  <div className="text-sm text-red-800">{form.vices.join(' • ')}</div>
                 </div>
               )}
             </div>
 
-            {/* Morality */}
+            {/* Precepts & Rules */}
             <div className="bg-white rounded-xl border border-gray-100 p-6">
-              <Label className="text-base font-semibold">Morality & Conduct</Label>
-              <p className="text-xs text-gray-500 mt-1 mb-3">Moral teachings, guidelines, and expected behavior</p>
+              <div className="mb-3">
+                <Label className="text-base font-semibold">Precepts & Rules</Label>
+                <p className="text-xs text-gray-500 mt-1">Specific commandments, rules, or guidelines to follow</p>
+              </div>
               <Textarea
-                value={form.morality || ''}
-                onChange={(e) => updateForm({ morality: e.target.value })}
-                rows={5}
-                className="bg-background"
-                placeholder="Describe moral teachings, codes of conduct, and behavioral expectations..."
+                value={form.precepts || ''}
+                onChange={(e) => updateForm({ precepts: e.target.value })}
+                rows={6}
+                className="bg-white border-gray-200"
+                placeholder="List key precepts, commandments, or rules...&#10;&#10;Example:&#10;• Do not harm living beings&#10;• Speak truthfully&#10;• Practice compassion toward all&#10;• Cultivate wisdom through study and reflection&#10;• Maintain equanimity in all circumstances"
               />
             </div>
           </TabsContent>
 
           {/* Tab: Meaning & Outlook */}
           <TabsContent value="meaning" className="space-y-6">
+            {/* Role of People */}
+            <div className="bg-white rounded-xl border border-gray-100 p-6">
+              <div className="mb-3">
+                <Label className="text-base font-semibold">Role of People</Label>
+                <p className="text-xs text-gray-500 mt-1">Humanity's place and purpose in the cosmos</p>
+              </div>
+              <Textarea
+                value={form.role_of_people || ''}
+                onChange={(e) => updateForm({ role_of_people: e.target.value })}
+                rows={4}
+                className="bg-white border-gray-200"
+                placeholder="What is humanity's role? Are humans masters, stewards, observers, or something else?&#10;&#10;Example: Humans are rational beings with the capacity to understand and align with the natural order."
+              />
+            </div>
+
             {/* Purpose of Life */}
             <div className="bg-white rounded-xl border border-gray-100 p-6">
-              <Label className="text-base font-semibold">Purpose of Life</Label>
-              <p className="text-xs text-gray-500 mt-1 mb-3">What this philosophy defines as life's primary purpose</p>
+              <div className="mb-3">
+                <Label className="text-base font-semibold">Purpose of Life</Label>
+                <p className="text-xs text-gray-500 mt-1">The fundamental purpose or goal of human existence</p>
+              </div>
               <Textarea
                 value={form.purpose_of_life || ''}
                 onChange={(e) => updateForm({ purpose_of_life: e.target.value })}
-                rows={3}
-                className="bg-background"
-                placeholder="The fundamental purpose or goal of human existence according to this philosophy..."
+                rows={4}
+                className="bg-white border-gray-200"
+                placeholder="What should humans strive for? Enlightenment, happiness, virtue, knowledge, service?&#10;&#10;Example: To live in accordance with reason and nature, achieving inner peace and freedom from destructive passions."
               />
             </div>
 
             {/* Meaning of Life */}
             <div className="bg-white rounded-xl border border-gray-100 p-6">
-              <Label className="text-base font-semibold">Meaning of Life</Label>
-              <p className="text-xs text-gray-500 mt-1 mb-3">What gives life meaning and significance</p>
+              <div className="mb-3">
+                <Label className="text-base font-semibold">Meaning of Life</Label>
+                <p className="text-xs text-gray-500 mt-1">What gives life meaning, value, and significance</p>
+              </div>
               <Textarea
                 value={form.meaning_of_life || ''}
                 onChange={(e) => updateForm({ meaning_of_life: e.target.value })}
                 rows={5}
-                className="bg-background"
-                placeholder="Sources of meaning, what makes life worth living, and how significance is derived..."
+                className="bg-white border-gray-200"
+                placeholder="Where does meaning come from? Relationships, achievements, spiritual growth, service to others?&#10;&#10;Example: Life's meaning emerges from living virtuously, cultivating wisdom, and contributing to the greater good."
               />
             </div>
 
             {/* Philosophical Outlook */}
             <div className="bg-white rounded-xl border border-gray-100 p-6">
-              <Label className="text-base font-semibold">Philosophical Outlook</Label>
-              <p className="text-xs text-gray-500 mt-1 mb-3">Worldview, perspective on reality, and existential stance</p>
+              <div className="mb-3">
+                <Label className="text-base font-semibold">Philosophical Outlook</Label>
+                <p className="text-xs text-gray-500 mt-1">Overall worldview and stance on existence, reality, and the human condition</p>
+              </div>
               <Textarea
                 value={form.outlook || ''}
                 onChange={(e) => updateForm({ outlook: e.target.value })}
                 rows={5}
-                className="bg-background"
-                placeholder="Overall worldview, stance on existence, reality, knowledge, and the human condition..."
+                className="bg-white border-gray-200"
+                placeholder="Optimistic or pessimistic? Materialist or idealist? Determinist or free will? Theistic or atheistic?&#10;&#10;Example: A rational, naturalistic worldview emphasizing human agency within a deterministic universe governed by natural law."
               />
             </div>
           </TabsContent>
 
           {/* Tab: History */}
           <TabsContent value="history" className="space-y-6">
-            {/* Founder & Origin */}
+            {/* Historical Development */}
             <div className="bg-white rounded-xl border border-gray-100 p-6">
-              <Label className="text-base font-semibold mb-4 block">Origins</Label>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-xs text-gray-500">Founder</Label>
-                  <Input
-                    value={form.founder || ''}
-                    onChange={(e) => updateForm({ founder: e.target.value })}
-                    className="bg-background mt-1.5"
-                    placeholder="e.g., Zeno of Citium, Confucius..."
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs text-gray-500">Origin Place</Label>
-                  <Input
-                    value={form.origin_place || ''}
-                    onChange={(e) => updateForm({ origin_place: e.target.value })}
-                    className="bg-background mt-1.5"
-                    placeholder="e.g., Ancient Athens, Warring States China..."
-                  />
-                </div>
+              <div className="mb-3">
+                <Label className="text-base font-semibold">Historical Development</Label>
+                <p className="text-xs text-gray-500 mt-1">Chronicle the evolution, key periods, and historical trajectory</p>
               </div>
-            </div>
-
-            {/* Historical Development - Long Form */}
-            <div className="bg-white rounded-xl border border-gray-100 p-6">
-              <Label className="text-base font-semibold">Historical Development</Label>
-              <p className="text-xs text-gray-500 mt-1 mb-3">Chronicle the evolution, key periods, and historical trajectory of this philosophy</p>
               <Textarea
                 value={form.history || ''}
                 onChange={(e) => updateForm({ history: e.target.value })}
                 rows={12}
-                className="bg-background font-mono text-sm leading-relaxed"
-                placeholder="Describe the historical origins, key developmental periods, influential figures, major events, geographical spread, schisms or branches, periods of decline or revival, and how the philosophy evolved over time...\n\nConsider including:\n• Founding era and context\n• Major historical periods\n• Key figures and their contributions\n• Geographic expansion\n• Doctrinal evolution\n• Interactions with other philosophies\n• Modern interpretations"
+                className="bg-white border-gray-200 font-mono text-sm leading-relaxed"
+                placeholder="Describe the historical origins, key periods, and evolution...&#10;&#10;Example Structure:&#10;&#10;FOUNDING ERA (Date)&#10;• Context and circumstances&#10;• Key founding figures&#10;• Original formulation&#10;&#10;EARLY DEVELOPMENT (Date Range)&#10;• Major schools or branches&#10;• Influential thinkers&#10;• Geographic spread&#10;&#10;CLASSICAL PERIOD (Date Range)&#10;• Peak influence&#10;• Major works produced&#10;• Integration with culture&#10;&#10;MODERN EVOLUTION (Date Range)&#10;• Contemporary interpretations&#10;• Revival movements&#10;• Current status"
               />
+              <div className="text-xs text-gray-400 mt-2">
+                {(form.history || '').length} characters • Use clear section headers for different historical periods
+              </div>
+            </div>
+
+            {/* Similar Philosophies */}
+            <div className="bg-white rounded-xl border border-gray-100 p-6">
+              <div className="mb-3">
+                <Label className="text-base font-semibold">Related & Similar Philosophies</Label>
+                <p className="text-xs text-gray-500 mt-1">Other philosophies with similar ideas, influences, or reactions</p>
+              </div>
+              <div className="mb-3">
+                <Input
+                  placeholder="Add a related philosophy (press Enter)..."
+                  className="bg-white border-gray-200"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && e.currentTarget.value.trim()) {
+                      const value = e.currentTarget.value.trim()
+                      if (!form.similar_philosophies?.includes(value)) {
+                        updateForm({ 
+                          similar_philosophies: [...(form.similar_philosophies || []), value] 
+                        })
+                      }
+                      e.currentTarget.value = ''
+                    }
+                  }}
+                />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {form.similar_philosophies?.map((phil, index) => (
+                  <Badge
+                    key={index}
+                    variant="secondary"
+                    className="pl-3 pr-1 py-1.5 flex items-center gap-2 bg-indigo-50 text-indigo-700 border-indigo-200"
+                  >
+                    <span>{phil}</span>
+                    <button
+                      onClick={() => {
+                        const updated = form.similar_philosophies?.filter((_, i) => i !== index)
+                        updateForm({ similar_philosophies: updated })
+                      }}
+                      className="hover:bg-indigo-200 rounded p-0.5 transition-colors"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+              {(!form.similar_philosophies || form.similar_philosophies.length === 0) && (
+                <div className="text-center py-6 text-gray-400 text-sm border-2 border-dashed border-gray-200 rounded-lg">
+                  No related philosophies added yet
+                </div>
+              )}
             </div>
           </TabsContent>
 
@@ -2376,36 +2617,43 @@ function PhilosophyWorkspace({ mode, form, onFormChange, onSave, onCancel, onDup
           <TabsContent value="impact" className="space-y-6">
             {/* Societal Impact - Long Form */}
             <div className="bg-white rounded-xl border border-gray-100 p-6">
-              <Label className="text-base font-semibold">Societal Impact</Label>
-              <p className="text-xs text-gray-500 mt-1 mb-3">Describe how this philosophy has influenced and shaped society</p>
+              <div className="mb-3">
+                <Label className="text-base font-semibold">Societal Impact & Influence</Label>
+                <p className="text-xs text-gray-500 mt-1">Describe how this philosophy has shaped society, culture, and institutions</p>
+              </div>
               <Textarea
                 value={form.impact_on_society || ''}
                 onChange={(e) => updateForm({ impact_on_society: e.target.value })}
                 rows={8}
-                className="bg-background"
-                placeholder="Describe the philosophy's influence on society, culture, institutions, and daily life...\n\nConsider:\n• Cultural influence\n• Institutional adoption\n• Popular understanding\n• Contemporary relevance\n• Social movements inspired by this philosophy"
+                className="bg-white border-gray-200 font-mono text-sm leading-relaxed"
+                placeholder="Describe the philosophy's broader impact...&#10;&#10;Example:&#10;• Social movements or reforms inspired&#10;• Cultural shifts or transformations&#10;• Legal or institutional changes&#10;• Intellectual discourse shaped&#10;• Popular culture representation&#10;• Resistance or opposition faced"
               />
+              <div className="text-xs text-gray-400 mt-2">
+                {(form.impact_on_society || '').length} characters
+              </div>
             </div>
 
             {/* Impact Metrics */}
             <div className="bg-white rounded-xl border border-gray-100 p-6">
-              <Label className="text-base font-semibold mb-4 block">Impact Metrics</Label>
-              <p className="text-xs text-gray-500 mb-4">Rate the philosophy's influence across different domains (0-10 scale)</p>
+              <div className="mb-4">
+                <Label className="text-base font-semibold">Domain Influence</Label>
+                <p className="text-xs text-gray-500 mt-1">Rate the philosophy's influence across different societal domains (0 = None, 10 = Transformative)</p>
+              </div>
               
               <div className="space-y-6">
                 {/* Education Impact */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <Label className="text-sm font-medium">Education & Academia</Label>
-                    <div className="flex gap-2">
+                    <Label className="text-sm font-medium">📚 Education & Academia</Label>
+                    <div className="flex gap-1.5">
                       {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(value => (
                         <Badge
                           key={value}
                           variant={(form.impact_metrics?.education ?? 0) === value ? 'default' : 'outline'}
-                          className={`cursor-pointer w-8 h-8 flex items-center justify-center transition-colors ${
+                          className={`cursor-pointer w-7 h-7 flex items-center justify-center transition-colors text-xs font-semibold ${
                             (form.impact_metrics?.education ?? 0) === value
-                              ? 'bg-blue-100 text-blue-800 hover:bg-blue-200 border-blue-300'
-                              : 'hover:bg-gray-100'
+                              ? 'bg-blue-500 text-white hover:bg-blue-600 border-blue-500'
+                              : 'hover:bg-gray-100 border-gray-200'
                           }`}
                           onClick={() => {
                             updateForm({ 
@@ -2421,22 +2669,22 @@ function PhilosophyWorkspace({ mode, form, onFormChange, onSave, onCancel, onDup
                       ))}
                     </div>
                   </div>
-                  <p className="text-xs text-gray-500">Influence on educational systems, curriculum, and academic discourse</p>
+                  <p className="text-xs text-gray-500">Influence on educational systems, curriculum, academic discourse, and scholarly traditions</p>
                 </div>
 
                 {/* Politics Impact */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <Label className="text-sm font-medium">Politics & Governance</Label>
-                    <div className="flex gap-2">
+                    <Label className="text-sm font-medium">⚖️ Politics & Governance</Label>
+                    <div className="flex gap-1.5">
                       {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(value => (
                         <Badge
                           key={value}
                           variant={(form.impact_metrics?.politics ?? 0) === value ? 'default' : 'outline'}
-                          className={`cursor-pointer w-8 h-8 flex items-center justify-center transition-colors ${
+                          className={`cursor-pointer w-7 h-7 flex items-center justify-center transition-colors text-xs font-semibold ${
                             (form.impact_metrics?.politics ?? 0) === value
-                              ? 'bg-purple-100 text-purple-800 hover:bg-purple-200 border-purple-300'
-                              : 'hover:bg-gray-100'
+                              ? 'bg-purple-500 text-white hover:bg-purple-600 border-purple-500'
+                              : 'hover:bg-gray-100 border-gray-200'
                           }`}
                           onClick={() => {
                             updateForm({ 
@@ -2452,22 +2700,22 @@ function PhilosophyWorkspace({ mode, form, onFormChange, onSave, onCancel, onDup
                       ))}
                     </div>
                   </div>
-                  <p className="text-xs text-gray-500">Influence on political systems, policy, and governance structures</p>
+                  <p className="text-xs text-gray-500">Influence on political systems, policy-making, governance structures, and civic movements</p>
                 </div>
 
                 {/* Art Impact */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <Label className="text-sm font-medium">Art & Culture</Label>
-                    <div className="flex gap-2">
+                    <Label className="text-sm font-medium">🎨 Art & Culture</Label>
+                    <div className="flex gap-1.5">
                       {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(value => (
                         <Badge
                           key={value}
                           variant={(form.impact_metrics?.art ?? 0) === value ? 'default' : 'outline'}
-                          className={`cursor-pointer w-8 h-8 flex items-center justify-center transition-colors ${
+                          className={`cursor-pointer w-7 h-7 flex items-center justify-center transition-colors text-xs font-semibold ${
                             (form.impact_metrics?.art ?? 0) === value
-                              ? 'bg-amber-100 text-amber-800 hover:bg-amber-200 border-amber-300'
-                              : 'hover:bg-gray-100'
+                              ? 'bg-amber-500 text-white hover:bg-amber-600 border-amber-500'
+                              : 'hover:bg-gray-100 border-gray-200'
                           }`}
                           onClick={() => {
                             updateForm({ 
@@ -2483,7 +2731,100 @@ function PhilosophyWorkspace({ mode, form, onFormChange, onSave, onCancel, onDup
                       ))}
                     </div>
                   </div>
-                  <p className="text-xs text-gray-500">Influence on artistic movements, literature, and cultural expression</p>
+                  <p className="text-xs text-gray-500">Influence on artistic movements, literature, music, visual arts, and cultural expression</p>
+                </div>
+
+                {/* Science Impact */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <Label className="text-sm font-medium">🔬 Science & Technology</Label>
+                    <div className="flex gap-1.5">
+                      {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(value => (
+                        <Badge
+                          key={value}
+                          variant={(form.impact_metrics?.science ?? 0) === value ? 'default' : 'outline'}
+                          className={`cursor-pointer w-7 h-7 flex items-center justify-center transition-colors text-xs font-semibold ${
+                            (form.impact_metrics?.science ?? 0) === value
+                              ? 'bg-green-500 text-white hover:bg-green-600 border-green-500'
+                              : 'hover:bg-gray-100 border-gray-200'
+                          }`}
+                          onClick={() => {
+                            updateForm({ 
+                              impact_metrics: { 
+                                ...(form.impact_metrics || {}), 
+                                science: value 
+                              } 
+                            })
+                          }}
+                        >
+                          {value}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500">Influence on scientific methods, technological development, and approach to knowledge</p>
+                </div>
+
+                {/* Social Structure Impact */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <Label className="text-sm font-medium">👥 Social Structure</Label>
+                    <div className="flex gap-1.5">
+                      {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(value => (
+                        <Badge
+                          key={value}
+                          variant={(form.impact_metrics?.social ?? 0) === value ? 'default' : 'outline'}
+                          className={`cursor-pointer w-7 h-7 flex items-center justify-center transition-colors text-xs font-semibold ${
+                            (form.impact_metrics?.social ?? 0) === value
+                              ? 'bg-rose-500 text-white hover:bg-rose-600 border-rose-500'
+                              : 'hover:bg-gray-100 border-gray-200'
+                          }`}
+                          onClick={() => {
+                            updateForm({ 
+                              impact_metrics: { 
+                                ...(form.impact_metrics || {}), 
+                                social: value 
+                              } 
+                            })
+                          }}
+                        >
+                          {value}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500">Influence on family structures, social hierarchies, community organization, and interpersonal relations</p>
+                </div>
+
+                {/* Economics Impact */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <Label className="text-sm font-medium">💰 Economics & Commerce</Label>
+                    <div className="flex gap-1.5">
+                      {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(value => (
+                        <Badge
+                          key={value}
+                          variant={(form.impact_metrics?.economics ?? 0) === value ? 'default' : 'outline'}
+                          className={`cursor-pointer w-7 h-7 flex items-center justify-center transition-colors text-xs font-semibold ${
+                            (form.impact_metrics?.economics ?? 0) === value
+                              ? 'bg-emerald-500 text-white hover:bg-emerald-600 border-emerald-500'
+                              : 'hover:bg-gray-100 border-gray-200'
+                          }`}
+                          onClick={() => {
+                            updateForm({ 
+                              impact_metrics: { 
+                                ...(form.impact_metrics || {}), 
+                                economics: value 
+                              } 
+                            })
+                          }}
+                        >
+                          {value}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500">Influence on economic systems, trade practices, attitudes toward wealth, and commercial ethics</p>
                 </div>
               </div>
             </div>
@@ -2535,7 +2876,7 @@ function PhilosophyWorkspace({ mode, form, onFormChange, onSave, onCancel, onDup
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <Label className="text-base font-semibold">Linked Elements</Label>
-                  <p className="text-xs text-gray-500 mt-1">Connect to related characters, locations, factions, and other elements</p>
+                  <p className="text-xs text-gray-500 mt-1">Connect to related characters, locations, cultures, and other world elements</p>
                 </div>
                 <Popover>
                   <PopoverTrigger asChild>
@@ -2544,140 +2885,57 @@ function PhilosophyWorkspace({ mode, form, onFormChange, onSave, onCancel, onDup
                       Add Link
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="bg-background w-80 p-0" align="end">
-                    <Command className="bg-background">
-                      <CommandInput placeholder="Search elements..." className="h-9" />
-                      <CommandList className="bg-background">
-                        <CommandEmpty>No elements found.</CommandEmpty>
-                        <CommandGroup heading="Characters">
-                          {/* Placeholder - would fetch from world_elements where type='character' */}
-                          <CommandItem
-                            onSelect={() => {
-                              const newLink = {
-                                type: 'character' as const,
-                                id: 'char-1',
-                                name: 'Example Character'
-                              }
-                              if (!form.links?.some(l => l.id === newLink.id)) {
-                                updateForm({ links: [...(form.links || []), newLink] })
-                              }
-                            }}
-                          >
-                            Example Character
-                          </CommandItem>
-                        </CommandGroup>
-                        <CommandGroup heading="Locations">
-                          <CommandItem
-                            onSelect={() => {
-                              const newLink = {
-                                type: 'location' as const,
-                                id: 'loc-1',
-                                name: 'Example Location'
-                              }
-                              if (!form.links?.some(l => l.id === newLink.id)) {
-                                updateForm({ links: [...(form.links || []), newLink] })
-                              }
-                            }}
-                          >
-                            Example Location
-                          </CommandItem>
-                        </CommandGroup>
-                        <CommandGroup heading="Factions">
-                          <CommandItem
-                            onSelect={() => {
-                              const newLink = {
-                                type: 'faction' as const,
-                                id: 'fac-1',
-                                name: 'Example Faction'
-                              }
-                              if (!form.links?.some(l => l.id === newLink.id)) {
-                                updateForm({ links: [...(form.links || []), newLink] })
-                              }
-                            }}
-                          >
-                            Example Faction
-                          </CommandItem>
-                        </CommandGroup>
-                        <CommandGroup heading="Items">
-                          <CommandItem
-                            onSelect={() => {
-                              const newLink = {
-                                type: 'item' as const,
-                                id: 'item-1',
-                                name: 'Example Item'
-                              }
-                              if (!form.links?.some(l => l.id === newLink.id)) {
-                                updateForm({ links: [...(form.links || []), newLink] })
-                              }
-                            }}
-                          >
-                            Example Item
-                          </CommandItem>
-                        </CommandGroup>
-                        <CommandGroup heading="Systems">
-                          <CommandItem
-                            onSelect={() => {
-                              const newLink = {
-                                type: 'system' as const,
-                                id: 'sys-1',
-                                name: 'Example System'
-                              }
-                              if (!form.links?.some(l => l.id === newLink.id)) {
-                                updateForm({ links: [...(form.links || []), newLink] })
-                              }
-                            }}
-                          >
-                            Example System
-                          </CommandItem>
-                        </CommandGroup>
-                        <CommandGroup heading="Languages">
-                          <CommandItem
-                            onSelect={() => {
-                              const newLink = {
-                                type: 'language' as const,
-                                id: 'lang-1',
-                                name: 'Example Language'
-                              }
-                              if (!form.links?.some(l => l.id === newLink.id)) {
-                                updateForm({ links: [...(form.links || []), newLink] })
-                              }
-                            }}
-                          >
-                            Example Language
-                          </CommandItem>
-                        </CommandGroup>
-                        <CommandGroup heading="Religions">
-                          <CommandItem
-                            onSelect={() => {
-                              const newLink = {
-                                type: 'religion' as const,
-                                id: 'rel-1',
-                                name: 'Example Religion'
-                              }
-                              if (!form.links?.some(l => l.id === newLink.id)) {
-                                updateForm({ links: [...(form.links || []), newLink] })
-                              }
-                            }}
-                          >
-                            Example Religion
-                          </CommandItem>
-                        </CommandGroup>
-                        <CommandGroup heading="Philosophies">
-                          <CommandItem
-                            onSelect={() => {
-                              const newLink = {
-                                type: 'philosophy' as const,
-                                id: 'phil-1',
-                                name: 'Example Philosophy'
-                              }
-                              if (!form.links?.some(l => l.id === newLink.id)) {
-                                updateForm({ links: [...(form.links || []), newLink] })
-                              }
-                            }}
-                          >
-                            Example Philosophy
-                          </CommandItem>
-                        </CommandGroup>
+                  <PopoverContent className="bg-white w-96 p-0" align="end">
+                    <Command className="bg-white">
+                      <CommandInput 
+                        placeholder="Search elements..." 
+                        className="h-9"
+                        value={relationshipSearch}
+                        onValueChange={setRelationshipSearch}
+                      />
+                      <CommandList className="bg-white max-h-80">
+                        <CommandEmpty>
+                          {loadingElements ? 'Loading...' : 'No elements found.'}
+                        </CommandEmpty>
+                        
+                        {/* Group elements by category */}
+                        {['characters', 'locations', 'factions', 'cultures', 'species', 'religions', 'languages', 'systems', 'items', 'philosophies'].map(category => {
+                          const categoryElements = worldElements.filter(el => 
+                            el.category === category && 
+                            el.id !== philosophyId && // Don't link to self
+                            !form.links?.some(l => l.id === el.id) // Don't show already linked
+                          )
+                          
+                          if (categoryElements.length === 0) return null
+                          
+                          return (
+                            <CommandGroup key={category} heading={category.charAt(0).toUpperCase() + category.slice(1)}>
+                              {categoryElements.map(element => (
+                                <CommandItem
+                                  key={element.id}
+                                  onSelect={() => {
+                                    const newLink = {
+                                      type: category.slice(0, -1) as any, // Remove 's' from category
+                                      id: element.id,
+                                      name: element.name,
+                                      relationship: '' // Will be edited after adding
+                                    }
+                                    updateForm({ links: [...(form.links || []), newLink] })
+                                    setEditingRelationship({ id: element.id, relationship: '' })
+                                  }}
+                                  className="cursor-pointer"
+                                >
+                                  <div className="flex-1">
+                                    <div className="font-medium">{element.name}</div>
+                                    {element.description && (
+                                      <div className="text-xs text-gray-500 line-clamp-1">{element.description}</div>
+                                    )}
+                                  </div>
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          )
+                        })}
                       </CommandList>
                     </Command>
                   </PopoverContent>
@@ -2685,51 +2943,140 @@ function PhilosophyWorkspace({ mode, form, onFormChange, onSave, onCancel, onDup
               </div>
 
               {/* Linked Elements Display */}
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {(!form.links || form.links.length === 0) && (
-                  <div className="text-center py-8 text-gray-400 text-sm">
-                    No linked elements yet. Add connections to other world elements.
+                  <div className="text-center py-12 text-gray-400 text-sm border-2 border-dashed border-gray-200 rounded-lg">
+                    <div className="text-gray-300 mb-2">
+                      <svg className="w-12 h-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                      </svg>
+                    </div>
+                    <p className="font-medium text-gray-500">No linked elements yet</p>
+                    <p className="text-xs mt-1">Add connections to other world elements to build relationships</p>
                   </div>
                 )}
                 
                 {/* Group by type */}
-                {['character', 'location', 'faction', 'item', 'system', 'language', 'religion', 'philosophy'].map(linkType => {
+                {['character', 'location', 'faction', 'culture', 'species', 'item', 'system', 'language', 'religion', 'philosophy'].map(linkType => {
                   const linksOfType = form.links?.filter(l => l.type === linkType) || []
                   if (linksOfType.length === 0) return null
                   
-                  const typeColors: Record<string, { bg: string, text: string, border: string }> = {
-                    character: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
-                    location: { bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200' },
-                    faction: { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' },
-                    item: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
-                    system: { bg: 'bg-cyan-50', text: 'text-cyan-700', border: 'border-cyan-200' },
-                    language: { bg: 'bg-pink-50', text: 'text-pink-700', border: 'border-pink-200' },
-                    religion: { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200' },
-                    philosophy: { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200' }
+                  const typeConfig: Record<string, { bg: string, text: string, border: string, icon: string }> = {
+                    character: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', icon: '👤' },
+                    location: { bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200', icon: '📍' },
+                    faction: { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200', icon: '⚔️' },
+                    culture: { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200', icon: '🏛️' },
+                    species: { bg: 'bg-teal-50', text: 'text-teal-700', border: 'border-teal-200', icon: '🧬' },
+                    item: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', icon: '📦' },
+                    system: { bg: 'bg-cyan-50', text: 'text-cyan-700', border: 'border-cyan-200', icon: '⚙️' },
+                    language: { bg: 'bg-pink-50', text: 'text-pink-700', border: 'border-pink-200', icon: '💬' },
+                    religion: { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200', icon: '✨' },
+                    philosophy: { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200', icon: '🧠' }
                   }
-                  const colors = typeColors[linkType]
+                  const config = typeConfig[linkType]
                   
                   return (
-                    <div key={linkType} className="space-y-2">
-                      <Label className="text-xs text-gray-500 uppercase tracking-wide">{linkType}s</Label>
-                      <div className="flex flex-wrap gap-2">
+                    <div key={linkType} className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">{config.icon}</span>
+                        <Label className="text-sm font-semibold text-gray-700 capitalize">{linkType}s</Label>
+                        <Badge variant="secondary" className="text-xs">{linksOfType.length}</Badge>
+                      </div>
+                      <div className="space-y-2">
                         {linksOfType.map((link) => (
-                          <Badge
+                          <div
                             key={link.id}
-                            variant="outline"
-                            className={`${colors.bg} ${colors.text} ${colors.border} pl-3 pr-1 py-1 flex items-center gap-2`}
+                            className={`${config.bg} ${config.border} border rounded-lg p-3 flex items-start gap-3 group hover:shadow-sm transition-shadow`}
                           >
-                            <span>{link.name}</span>
-                            <button
-                              onClick={() => {
-                                const updated = form.links?.filter(l => l.id !== link.id)
-                                updateForm({ links: updated })
-                              }}
-                              className="hover:bg-black/10 rounded p-0.5 transition-colors"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                          </Badge>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className={`font-medium ${config.text}`}>{link.name}</span>
+                              </div>
+                              
+                              {/* Relationship description */}
+                              {editingRelationship?.id === link.id ? (
+                                <div className="mt-2">
+                                  <Input
+                                    placeholder="Describe the relationship..."
+                                    value={editingRelationship.relationship}
+                                    onChange={(e) => setEditingRelationship({ ...editingRelationship, relationship: e.target.value })}
+                                    className="text-sm h-8"
+                                    autoFocus
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        const updated = form.links?.map(l => 
+                                          l.id === link.id ? { ...l, relationship: editingRelationship.relationship } : l
+                                        )
+                                        updateForm({ links: updated })
+                                        setEditingRelationship(null)
+                                      } else if (e.key === 'Escape') {
+                                        setEditingRelationship(null)
+                                      }
+                                    }}
+                                  />
+                                  <div className="flex gap-2 mt-2">
+                                    <Button
+                                      size="sm"
+                                      onClick={() => {
+                                        const updated = form.links?.map(l => 
+                                          l.id === link.id ? { ...l, relationship: editingRelationship.relationship } : l
+                                        )
+                                        updateForm({ links: updated })
+                                        setEditingRelationship(null)
+                                      }}
+                                      className="h-7 text-xs"
+                                    >
+                                      Save
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => setEditingRelationship(null)}
+                                      className="h-7 text-xs"
+                                    >
+                                      Cancel
+                                    </Button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div 
+                                  className="text-sm text-gray-600 cursor-pointer hover:text-gray-900 transition-colors"
+                                  onClick={() => setEditingRelationship({ id: link.id, relationship: link.relationship || '' })}
+                                >
+                                  {link.relationship || (
+                                    <span className="text-gray-400 italic">Click to describe relationship...</span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setEditingRelationship({ id: link.id, relationship: link.relationship || '' })}
+                                className="h-7 w-7 p-0"
+                                title="Edit relationship"
+                              >
+                                <Edit3 className="w-3 h-3" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  const updated = form.links?.filter(l => l.id !== link.id)
+                                  updateForm({ links: updated })
+                                  if (editingRelationship?.id === link.id) {
+                                    setEditingRelationship(null)
+                                  }
+                                }}
+                                className="h-7 w-7 p-0 hover:bg-red-50 hover:text-red-600"
+                                title="Remove link"
+                              >
+                                <X className="w-3 h-3" />
+                              </Button>
+                            </div>
+                          </div>
                         ))}
                       </div>
                     </div>
@@ -2760,19 +3107,20 @@ function PhilosophyWorkspace({ mode, form, onFormChange, onSave, onCancel, onDup
                         const files = (e.target as HTMLInputElement).files
                         if (!files || files.length === 0) return
                         
+                        toast.addToast({ type: 'info', title: 'Uploading images...', duration: 2000 })
                         const uploadedUrls: string[] = []
                         
                         for (const file of Array.from(files)) {
                           // Validate file size (5MB limit)
                           if (file.size > 5 * 1024 * 1024) {
-                            alert(`${file.name} is too large. Maximum size is 5MB.`)
+                            toast.addToast({ type: 'error', title: `${file.name} is too large (max 5MB)` })
                             continue
                           }
 
                           // Validate file type
                           const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
                           if (!allowedTypes.includes(file.type)) {
-                            alert(`${file.name} is not a supported image type.`)
+                            toast.addToast({ type: 'error', title: `${file.name} is not a supported image type` })
                             continue
                           }
 
@@ -2800,13 +3148,14 @@ function PhilosophyWorkspace({ mode, form, onFormChange, onSave, onCancel, onDup
                             uploadedUrls.push(urlData.publicUrl)
                           } catch (error) {
                             console.error('Error uploading image:', error)
-                            alert(`Failed to upload ${file.name}`)
+                            toast.addToast({ type: 'error', title: `Failed to upload ${file.name}` })
                           }
                         }
 
                         // Update form with new image URLs
                         if (uploadedUrls.length > 0) {
                           updateForm({ images: [...(form.images || []), ...uploadedUrls] })
+                          toast.addToast({ type: 'success', title: `${uploadedUrls.length} image(s) uploaded successfully` })
                         }
                       }
                       input.click()
@@ -2960,7 +3309,10 @@ function PhilosophyWorkspace({ mode, form, onFormChange, onSave, onCancel, onDup
 
                                   if (error) {
                                     console.error('Error deleting from storage:', error)
+                                    toast.addToast({ type: 'error', title: 'Failed to delete from storage' })
                                     // Continue anyway to remove from UI
+                                  } else {
+                                    toast.addToast({ type: 'success', title: 'Image deleted', duration: 2000 })
                                   }
                                 }
 
@@ -2969,7 +3321,7 @@ function PhilosophyWorkspace({ mode, form, onFormChange, onSave, onCancel, onDup
                                 updateForm({ images: updated })
                               } catch (error) {
                                 console.error('Error deleting image:', error)
-                                alert('Failed to delete image')
+                                toast.addToast({ type: 'error', title: 'Failed to delete image' })
                               }
                             }}
                           >
@@ -3016,6 +3368,7 @@ export default function PhilosophiesPanel({ projectId, selectedElement, onPhilos
   const searchInputRef = React.useRef<HTMLInputElement>(null)
 
   const supabase = createSupabaseClient()
+  const toast = useToast()
 
   const philosophySchools = ['ethics', 'metaphysics', 'epistemology', 'logic', 'aesthetics', 'political', 'natural', 'moral', 'existential', 'mystical']
 
@@ -3239,6 +3592,8 @@ export default function PhilosophiesPanel({ projectId, selectedElement, onPhilos
       
       window.dispatchEvent(new CustomEvent('philosophyCreated', { detail: { philosophy: result, projectId } }))
       
+      toast.addToast({ type: 'success', title: mode === 'create' ? 'Philosophy created' : 'Philosophy updated', duration: 2000 })
+      
       // On create success, switch to edit mode with the new ID
       if (mode === 'create') {
         setSelectedId(result.id)
@@ -3250,6 +3605,7 @@ export default function PhilosophiesPanel({ projectId, selectedElement, onPhilos
       onPhilosophiesChange?.()
     } catch (error) {
       console.error('Error:', error)
+      toast.addToast({ type: 'error', title: 'Failed to save philosophy' })
     } finally {
       setSaving(false)
     }
@@ -3262,6 +3618,7 @@ export default function PhilosophiesPanel({ projectId, selectedElement, onPhilos
         const { error } = await supabase.from('world_elements').delete().eq('id', philosophyId)
         if (error) throw error
         setPhilosophies(prev => prev.filter(p => p.id !== philosophyId))
+        toast.addToast({ type: 'success', title: 'Philosophy permanently deleted', duration: 2000 })
       } else {
         // Soft delete - mark as deleted in attributes
         const philosophy = philosophies.find(p => p.id === philosophyId)
@@ -3280,6 +3637,7 @@ export default function PhilosophiesPanel({ projectId, selectedElement, onPhilos
         
         if (error) throw error
         setPhilosophies(prev => prev.filter(p => p.id !== philosophyId))
+        toast.addToast({ type: 'success', title: 'Philosophy deleted', duration: 2000 })
       }
       
       setMode('list')
@@ -3287,6 +3645,7 @@ export default function PhilosophiesPanel({ projectId, selectedElement, onPhilos
       onPhilosophiesChange?.()
     } catch (error) {
       console.error('Error deleting philosophy:', error)
+      toast.addToast({ type: 'error', title: 'Failed to delete philosophy' })
     }
   }
 
@@ -3387,6 +3746,7 @@ export default function PhilosophiesPanel({ projectId, selectedElement, onPhilos
     })
     setSelectedId(null)
     setMode('create')
+    toast.addToast({ type: 'success', title: 'Philosophy duplicated', duration: 2000 })
   }
 
   if (loading) return (
@@ -3413,6 +3773,7 @@ export default function PhilosophiesPanel({ projectId, selectedElement, onPhilos
         saving={saving}
         projectId={projectId}
         philosophyId={selectedId}
+        toast={toast}
       />
     )
   }
@@ -3484,9 +3845,8 @@ export default function PhilosophiesPanel({ projectId, selectedElement, onPhilos
             philosophies={filteredAndSortedPhilosophies}
             onEdit={handleEdit}
             onDuplicate={handleDuplicate}
-            onDelete={(id) => {
-              const phil = philosophies.find(p => p.id === id)
-              if (phil) confirmDelete(id, phil.name)
+            onDelete={async (id) => {
+              await deletePhilosophy(id, true)
             }}
           />
         ) : (
@@ -3494,9 +3854,8 @@ export default function PhilosophiesPanel({ projectId, selectedElement, onPhilos
             philosophies={filteredAndSortedPhilosophies}
             onEdit={handleEdit}
             onDuplicate={handleDuplicate}
-            onDelete={(id) => {
-              const phil = philosophies.find(p => p.id === id)
-              if (phil) confirmDelete(id, phil.name)
+            onDelete={async (id) => {
+              await deletePhilosophy(id, true)
             }}
           />
         )}
