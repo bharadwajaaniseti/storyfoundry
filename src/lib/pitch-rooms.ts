@@ -143,7 +143,7 @@ export async function getMyHostedRooms() {
       host:profiles!pitch_rooms_host_id_fkey(id, display_name, avatar_url, first_name, last_name)
     `)
     .eq('host_id', user.id)
-    .eq('status', 'upcoming')
+    .in('status', ['upcoming', 'live']) // Only show active rooms in "My Hosted Rooms"
     .order('scheduled_date', { ascending: true })
 
   if (error) {
@@ -159,6 +159,43 @@ export async function getMyHostedRooms() {
         ...room,
         participant_count: count,
         user_is_participant: true
+      }
+    })
+  )
+
+  return roomsWithCounts as PitchRoom[]
+}
+
+/**
+ * Fetch completed and cancelled pitch rooms
+ */
+export async function getPastPitchRooms() {
+  const supabase = createSupabaseClient()
+  
+  const { data, error } = await supabase
+    .from('pitch_rooms')
+    .select(`
+      *,
+      host:profiles!pitch_rooms_host_id_fkey(id, display_name, avatar_url, first_name, last_name)
+    `)
+    .in('status', ['completed', 'cancelled'])
+    .order('scheduled_date', { ascending: false })
+    .limit(20) // Show last 20 past rooms
+
+  if (error) {
+    console.error('Error fetching past rooms:', error)
+    return []
+  }
+
+  // Get participant counts for each room
+  const roomsWithCounts = await Promise.all(
+    (data || []).map(async (room) => {
+      const count = await getRoomParticipantCount(room.id)
+      const isParticipant = await isUserParticipant(room.id)
+      return {
+        ...room,
+        participant_count: count,
+        user_is_participant: isParticipant
       }
     })
   )

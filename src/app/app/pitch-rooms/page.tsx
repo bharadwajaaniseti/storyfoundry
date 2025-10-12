@@ -23,6 +23,7 @@ import {
 import { 
   getUpcomingPitchRooms,
   getMyHostedRooms,
+  getPastPitchRooms,
   getPitchRoomStats,
   joinPitchRoom,
   leavePitchRoom,
@@ -42,6 +43,7 @@ export default function PitchRoomsPage() {
   const { addToast } = useToast()
   const [upcomingRooms, setUpcomingRooms] = useState<PitchRoom[]>([])
   const [hostedRooms, setHostedRooms] = useState<PitchRoom[]>([])
+  const [pastRooms, setPastRooms] = useState<PitchRoom[]>([])
   const [stats, setStats] = useState({
     activeRooms: 0,
     totalParticipants: 0,
@@ -114,9 +116,10 @@ export default function PitchRoomsPage() {
   const loadData = async () => {
     setIsLoading(true)
     try {
-      const [upcoming, hosted, statistics] = await Promise.all([
+      const [upcoming, hosted, past, statistics] = await Promise.all([
         getUpcomingPitchRooms(),
         getMyHostedRooms(),
+        getPastPitchRooms(),
         getPitchRoomStats()
       ])
       
@@ -136,6 +139,7 @@ export default function PitchRoomsPage() {
       
       setUpcomingRooms(filteredUpcoming)
       setHostedRooms(hosted)
+      setPastRooms(past)
       setStats(statistics)
     } catch (error) {
       console.error('Error loading pitch rooms:', error)
@@ -556,6 +560,76 @@ export default function PitchRoomsPage() {
                             </div>
                           )}
                         </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Past & Completed Rooms */}
+            <div>
+              <h2 className="text-xl font-semibold text-gray-800 mb-6">Past & Completed Rooms</h2>
+              
+              {isLoading ? (
+                <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+                  <div className="w-8 h-8 border-2 border-gray-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                  <p className="text-gray-600">Loading past rooms...</p>
+                </div>
+              ) : pastRooms.length === 0 ? (
+                <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+                  <Calendar className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-800 mb-2">No past rooms</h3>
+                  <p className="text-gray-600">Completed and cancelled rooms will appear here</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {pastRooms.map((room) => (
+                    <div key={room.id} className="bg-white rounded-xl border border-gray-200 p-6 opacity-75 hover:opacity-100 transition-opacity">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <h3 className="text-lg font-semibold text-gray-800">{room.title}</h3>
+                            {room.status === 'completed' ? (
+                              <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full">
+                                ✓ Completed
+                              </span>
+                            ) : room.status === 'cancelled' ? (
+                              <span className="px-3 py-1 bg-gray-100 text-gray-700 text-xs font-medium rounded-full">
+                                ✕ Cancelled
+                              </span>
+                            ) : null}
+                          </div>
+                          <p className="text-sm text-gray-600 mb-3">{room.description}</p>
+                          <div className="flex items-center space-x-4 text-sm text-gray-500">
+                            <div className="flex items-center space-x-1">
+                              <Calendar className="w-4 h-4" />
+                              <span>{formatDate(room.scheduled_date)}</span>
+                            </div>
+                            <div className="flex items-center space-x-1">
+                              <Clock className="w-4 h-4" />
+                              <span>{room.scheduled_time}</span>
+                            </div>
+                            <div className="flex items-center space-x-1">
+                              <Users className="w-4 h-4" />
+                              <span>{room.participant_count || 0} participants</span>
+                            </div>
+                            {room.host && (
+                              <div className="flex items-center space-x-1">
+                                <span className="text-xs">Hosted by</span>
+                                <span className="text-xs font-medium">{room.host.display_name || room.host.first_name}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <button
+                          onClick={() => router.push(`/app/pitch-rooms/${room.id}`)}
+                          className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors flex items-center space-x-2"
+                        >
+                          <Eye className="w-4 h-4" />
+                          <span>View Details</span>
+                        </button>
                       </div>
                     </div>
                   ))}
