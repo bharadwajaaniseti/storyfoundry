@@ -510,85 +510,116 @@ export default function LibraryPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto px-6 py-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-800 flex items-center space-x-3">
-              <BookMarked className="w-8 h-8 text-purple-600" />
-              <span>My Library</span>
-            </h1>
-            <p className="text-gray-600 mt-2">Your reading journey at a glance</p>
+      {/* Header */}
+      <div className="bg-white border-b border-gray-200 mb-8">
+        <div className="container mx-auto px-6 py-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-800">My Library</h1>
+              <p className="text-gray-600 mt-2">Your reading journey at a glance</p>
+            </div>
+            
+            <Button asChild className="btn-primary">
+              <Link href="/app/search">
+                <Search className="w-4 h-4 mr-2" />
+                Discover Stories
+              </Link>
+            </Button>
           </div>
-          
-          <Button asChild className="bg-purple-600 hover:bg-purple-700">
-            <Link href="/app/search">
-              <Search className="w-4 h-4 mr-2" />
-              Discover Stories
-            </Link>
-          </Button>
         </div>
+      </div>
+
+      <div className="container mx-auto px-6 py-8">
 
         {/* Main Tabs */}
         <Tabs value={activeMainTab} onValueChange={(value) => setActiveMainTab(value as 'library' | 'analytics')} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 lg:w-auto lg:grid-cols-2">
-            <TabsTrigger value="library" className="flex items-center space-x-2">
-              <BookMarked className="w-4 h-4" />
-              <span>My Library</span>
-            </TabsTrigger>
-            <TabsTrigger value="analytics" className="flex items-center space-x-2">
-              <BarChart3 className="w-4 h-4" />
-              <span>Reading Analytics</span>
-            </TabsTrigger>
-          </TabsList>
+          {/* Tabs Navigation */}
+          <div className="bg-white rounded-xl border border-gray-200 mb-6">
+            <div className="border-b border-gray-200 px-6 pt-6">
+              <TabsList className="grid w-full grid-cols-2 lg:w-auto lg:grid-cols-2">
+                <TabsTrigger value="library" className="flex items-center space-x-2">
+                  <BookMarked className="w-4 h-4" />
+                  <span>My Library</span>
+                </TabsTrigger>
+                <TabsTrigger value="analytics" className="flex items-center space-x-2">
+                  <BarChart3 className="w-4 h-4" />
+                  <span>Reading Analytics</span>
+                </TabsTrigger>
+              </TabsList>
+            </div>
+          </div>
 
           {/* Library Tab Content */}
           <TabsContent value="library" className="space-y-6">
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Currently Reading</CardTitle>
-                  <BookOpen className="h-4 w-4 text-blue-600" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{stats.currentlyReading}</div>
-                  <p className="text-xs text-muted-foreground">Active projects</p>
-                </CardContent>
-              </Card>
+              <div className="bg-gradient-to-br from-blue-50 to-white rounded-xl border border-gray-200 p-6 hover:shadow-xl hover:scale-105 transition-all duration-300">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-medium text-gray-700">Currently Reading</h3>
+                  <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-200">
+                    <BookOpen className="h-6 w-6 text-white" />
+                  </div>
+                </div>
+                <div className="text-3xl font-bold text-gray-800 mb-1">{stats.currentlyReading}</div>
+                <p className="text-xs text-gray-500">Active projects</p>
+                <div className="mt-4 pt-3 border-t border-gray-100">
+                  <div className="flex items-center text-xs text-blue-600">
+                    <TrendingUp className="w-3 h-3 mr-1" />
+                    <span>Keep reading!</span>
+                  </div>
+                </div>
+              </div>
 
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Completed</CardTitle>
-                  <CheckCircle className="h-4 w-4 text-green-600" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{stats.totalRead}</div>
-                  <p className="text-xs text-muted-foreground">Stories finished</p>
-                </CardContent>
-              </Card>
+              <div className="bg-gradient-to-br from-green-50 to-white rounded-xl border border-gray-200 p-6 hover:shadow-xl hover:scale-105 transition-all duration-300">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-medium text-gray-700">Completed</h3>
+                  <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg shadow-green-200">
+                    <CheckCircle className="h-6 w-6 text-white" />
+                  </div>
+                </div>
+                <div className="text-3xl font-bold text-gray-800 mb-1">{stats.totalRead}</div>
+                <p className="text-xs text-gray-500">Stories finished</p>
+                <div className="mt-4 pt-3 border-t border-gray-100">
+                  <div className="flex items-center text-xs text-green-600">
+                    <Star className="w-3 h-3 mr-1 fill-current" />
+                    <span>Great progress!</span>
+                  </div>
+                </div>
+              </div>
 
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Bookmarked</CardTitle>
-                  <Bookmark className="h-4 w-4 text-purple-600" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{stats.bookmarked}</div>
-                  <p className="text-xs text-muted-foreground">Saved for later</p>
-                </CardContent>
-              </Card>
+              <div className="bg-gradient-to-br from-purple-50 to-white rounded-xl border border-gray-200 p-6 hover:shadow-xl hover:scale-105 transition-all duration-300">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-medium text-gray-700">Bookmarked</h3>
+                  <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-purple-200">
+                    <Bookmark className="h-6 w-6 text-white" />
+                  </div>
+                </div>
+                <div className="text-3xl font-bold text-gray-800 mb-1">{stats.bookmarked}</div>
+                <p className="text-xs text-gray-500">Saved for later</p>
+                <div className="mt-4 pt-3 border-t border-gray-100">
+                  <div className="flex items-center text-xs text-purple-600">
+                    <Heart className="w-3 h-3 mr-1" />
+                    <span>Ready to read</span>
+                  </div>
+                </div>
+              </div>
 
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Reading Time</CardTitle>
-                  <Clock className="h-4 w-4 text-orange-600" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{formatReadingTime(stats.totalReadingTime)}</div>
-                  <p className="text-xs text-muted-foreground">Total time spent</p>
-                </CardContent>
-              </Card>
+              <div className="bg-gradient-to-br from-orange-50 to-white rounded-xl border border-gray-200 p-6 hover:shadow-xl hover:scale-105 transition-all duration-300">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-medium text-gray-700">Reading Time</h3>
+                  <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center shadow-lg shadow-orange-200">
+                    <Clock className="h-6 w-6 text-white" />
+                  </div>
+                </div>
+                <div className="text-3xl font-bold text-gray-800 mb-1">{formatReadingTime(stats.totalReadingTime)}</div>
+                <p className="text-xs text-gray-500">Total time spent</p>
+                <div className="mt-4 pt-3 border-t border-gray-100">
+                  <div className="flex items-center text-xs text-orange-600">
+                    <BarChart3 className="w-3 h-3 mr-1" />
+                    <span>Time invested</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </TabsContent>
 
@@ -596,136 +627,217 @@ export default function LibraryPage() {
           <TabsContent value="analytics" className="space-y-6">
             {/* Reading Statistics Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Reading Streak</CardTitle>
-                  <TrendingUp className="h-4 w-4 text-green-600" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-green-600">7 days</div>
-                  <p className="text-xs text-muted-foreground">Current streak</p>
-                </CardContent>
-              </Card>
+              <div className="bg-gradient-to-br from-green-50 to-white rounded-xl border border-gray-200 p-6 hover:shadow-xl hover:scale-105 transition-all duration-300 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-20 h-20 bg-green-100 rounded-full -mr-10 -mt-10 opacity-50"></div>
+                <div className="relative">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-medium text-gray-700">Reading Streak</h3>
+                    <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg shadow-green-200">
+                      <TrendingUp className="h-6 w-6 text-white" />
+                    </div>
+                  </div>
+                  <div className="text-3xl font-bold text-green-600 mb-1">7 days</div>
+                  <p className="text-xs text-gray-500 mb-3">Current streak</p>
+                  <div className="flex items-center space-x-1">
+                    {[...Array(7)].map((_, i) => (
+                      <div key={i} className="w-6 h-6 bg-green-500 rounded-md flex items-center justify-center">
+                        <CheckCircle className="w-4 h-4 text-white" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
 
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Average Progress</CardTitle>
-                  <BarChart3 className="h-4 w-4 text-blue-600" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-blue-600">
+              <div className="bg-gradient-to-br from-blue-50 to-white rounded-xl border border-gray-200 p-6 hover:shadow-xl hover:scale-105 transition-all duration-300 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-20 h-20 bg-blue-100 rounded-full -mr-10 -mt-10 opacity-50"></div>
+                <div className="relative">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-medium text-gray-700">Average Progress</h3>
+                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-200">
+                      <BarChart3 className="h-6 w-6 text-white" />
+                    </div>
+                  </div>
+                  <div className="text-3xl font-bold text-blue-600 mb-1">
                     {currentlyReading.length > 0 
                       ? Math.round(currentlyReading.reduce((acc, item) => acc + (item.progress_percentage || 0), 0) / currentlyReading.length)
                       : 0}%
                   </div>
-                  <p className="text-xs text-muted-foreground">Across all stories</p>
-                </CardContent>
-              </Card>
+                  <p className="text-xs text-gray-500 mb-3">Across all stories</p>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div 
+                      className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full transition-all duration-500"
+                      style={{ width: `${currentlyReading.length > 0 
+                        ? Math.round(currentlyReading.reduce((acc, item) => acc + (item.progress_percentage || 0), 0) / currentlyReading.length)
+                        : 0}%` }}
+                    ></div>
+                  </div>
+                </div>
+              </div>
 
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Genres Read</CardTitle>
-                  <BookMarked className="h-4 w-4 text-purple-600" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-purple-600">
+              <div className="bg-gradient-to-br from-purple-50 to-white rounded-xl border border-gray-200 p-6 hover:shadow-xl hover:scale-105 transition-all duration-300 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-20 h-20 bg-purple-100 rounded-full -mr-10 -mt-10 opacity-50"></div>
+                <div className="relative">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-medium text-gray-700">Genres Explored</h3>
+                    <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-purple-200">
+                      <BookMarked className="h-6 w-6 text-white" />
+                    </div>
+                  </div>
+                  <div className="text-3xl font-bold text-purple-600 mb-1">
                     {[...new Set([...readProjects, ...currentlyReading].map(item => item.projects?.genre).filter(Boolean))].length}
                   </div>
-                  <p className="text-xs text-muted-foreground">Different genres</p>
-                </CardContent>
-              </Card>
+                  <p className="text-xs text-gray-500 mb-3">Different genres</p>
+                  <div className="flex flex-wrap gap-1">
+                    {[...new Set([...readProjects, ...currentlyReading].map(item => item.projects?.genre).filter(Boolean))].slice(0, 3).map((genre, i) => (
+                      <span key={i} className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
+                        {genre}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
 
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Words Read</CardTitle>
-                  <Eye className="h-4 w-4 text-orange-600" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-orange-600">
+              <div className="bg-gradient-to-br from-orange-50 to-white rounded-xl border border-gray-200 p-6 hover:shadow-xl hover:scale-105 transition-all duration-300 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-20 h-20 bg-orange-100 rounded-full -mr-10 -mt-10 opacity-50"></div>
+                <div className="relative">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-medium text-gray-700">Words Read</h3>
+                    <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center shadow-lg shadow-orange-200">
+                      <Eye className="h-6 w-6 text-white" />
+                    </div>
+                  </div>
+                  <div className="text-3xl font-bold text-orange-600 mb-1">
                     {Math.round([...readProjects, ...currentlyReading].reduce((acc, item) => {
                       const wordCount = item.projects?.word_count || 0
                       const progress = (item.progress_percentage || 0) / 100
                       return acc + (wordCount * progress)
                     }, 0) / 1000)}K
                   </div>
-                  <p className="text-xs text-muted-foreground">Total words</p>
-                </CardContent>
-              </Card>
+                  <p className="text-xs text-gray-500 mb-3">Total words</p>
+                  <div className="text-xs text-orange-600 font-medium">
+                    ≈ {Math.round([...readProjects, ...currentlyReading].reduce((acc, item) => {
+                      const wordCount = item.projects?.word_count || 0
+                      const progress = (item.progress_percentage || 0) / 100
+                      return acc + (wordCount * progress)
+                    }, 0) / 250)} pages read
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Reading Insights Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Genre Breakdown */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <BookMarked className="w-5 h-5 text-purple-500" />
-                    <span>Genre Breakdown</span>
-                  </CardTitle>
-                  <CardDescription>Your reading preferences</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {(() => {
-                      const genreCounts = [...readProjects, ...currentlyReading].reduce((acc, item) => {
-                        const genre = item.projects?.genre || 'Unknown'
-                        acc[genre] = (acc[genre] || 0) + 1
-                        return acc
-                      }, {} as Record<string, number>)
-                      
-                      const totalBooks = Object.values(genreCounts).reduce((a, b) => a + b, 0)
-                      
-                      return Object.entries(genreCounts)
-                        .sort(([,a], [,b]) => b - a)
-                        .slice(0, 5)
-                        .map(([genre, count]) => (
-                          <div key={genre} className="flex items-center justify-between">
-                            <div className="flex items-center space-x-2">
-                              <Badge variant="outline">{genre}</Badge>
-                              <span className="text-sm text-gray-600">{count} stories</span>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <div className="w-20 bg-gray-200 rounded-full h-2">
-                                <div 
-                                  className="bg-purple-600 h-2 rounded-full" 
-                                  style={{ width: `${totalBooks > 0 ? (count / totalBooks) * 100 : 0}%` }}
-                                ></div>
+              <div className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-xl transition-all duration-300">
+                <div className="mb-6">
+                  <div className="flex items-center space-x-3 mb-2">
+                    <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-purple-200">
+                      <BookMarked className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-800">Genre Breakdown</h3>
+                      <p className="text-xs text-gray-500">Your reading diversity</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  {(() => {
+                    const genreCounts = [...readProjects, ...currentlyReading].reduce((acc, item) => {
+                      const genre = item.projects?.genre || 'Unknown'
+                      acc[genre] = (acc[genre] || 0) + 1
+                      return acc
+                    }, {} as Record<string, number>)
+                    
+                    const totalBooks = Object.values(genreCounts).reduce((a, b) => a + b, 0)
+                    const colors = ['bg-purple-500', 'bg-blue-500', 'bg-green-500', 'bg-orange-500', 'bg-pink-500']
+                    
+                    return Object.entries(genreCounts)
+                      .sort(([,a], [,b]) => b - a)
+                      .slice(0, 5)
+                      .map(([genre, count], index) => {
+                        const percentage = totalBooks > 0 ? (count / totalBooks) * 100 : 0
+                        return (
+                          <div key={genre} className="group">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center space-x-3">
+                                <div className={`w-3 h-3 ${colors[index]} rounded-full shadow-md`}></div>
+                                <span className="text-sm font-medium text-gray-700">{genre}</span>
+                                <Badge variant="outline" className="text-xs">{count}</Badge>
                               </div>
-                              <span className="text-xs text-gray-500 w-8 text-right">
-                                {totalBooks > 0 ? Math.round((count / totalBooks) * 100) : 0}%
+                              <span className="text-sm font-bold text-gray-800">
+                                {Math.round(percentage)}%
                               </span>
                             </div>
+                            <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                              <div 
+                                className={`${colors[index]} h-2.5 rounded-full transition-all duration-700 ease-out group-hover:opacity-80`}
+                                style={{ width: `${percentage}%` }}
+                              ></div>
+                            </div>
                           </div>
-                        ))
-                    })()}
-                  </div>
-                </CardContent>
-              </Card>
+                        )
+                      })
+                  })()}
+                  {[...readProjects, ...currentlyReading].length === 0 && (
+                    <div className="text-center py-8 text-gray-400">
+                      <BookMarked className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                      <p className="text-sm">Start reading to see your genre preferences</p>
+                    </div>
+                  )}
+                </div>
+              </div>
 
               {/* Reading Habits */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <Clock className="w-5 h-5 text-blue-500" />
-                    <span>Reading Habits</span>
-                  </CardTitle>
-                  <CardDescription>Your reading patterns</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Avg. Reading Session</span>
-                      <span className="text-sm font-medium">{formatReadingTime(Math.round(stats.totalReadingTime / Math.max(stats.currentlyReading + stats.totalRead, 1)))}</span>
+              <div className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-xl transition-all duration-300">
+                <div className="mb-6">
+                  <div className="flex items-center space-x-3 mb-2">
+                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-200">
+                      <Clock className="w-6 h-6 text-white" />
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Completion Rate</span>
-                      <span className="text-sm font-medium">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-800">Reading Habits</h3>
+                      <p className="text-xs text-gray-500">Your reading patterns</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-5">
+                  <div className="bg-gradient-to-r from-blue-50 to-transparent p-4 rounded-lg border border-blue-100">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-gray-700 flex items-center">
+                        <Clock className="w-4 h-4 mr-2 text-blue-500" />
+                        Avg. Reading Session
+                      </span>
+                      <span className="text-lg font-bold text-blue-600">
+                        {formatReadingTime(Math.round(stats.totalReadingTime / Math.max(stats.currentlyReading + stats.totalRead, 1)))}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-gradient-to-r from-green-50 to-transparent p-4 rounded-lg border border-green-100">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-gray-700 flex items-center">
+                        <CheckCircle className="w-4 h-4 mr-2 text-green-500" />
+                        Completion Rate
+                      </span>
+                      <span className="text-lg font-bold text-green-600">
                         {Math.round((stats.totalRead / Math.max(stats.totalRead + stats.currentlyReading, 1)) * 100)}%
                       </span>
                     </div>
+                    <div className="w-full bg-gray-100 rounded-full h-2 mt-2">
+                      <div 
+                        className="bg-gradient-to-r from-green-500 to-green-600 h-2 rounded-full transition-all duration-500"
+                        style={{ width: `${Math.round((stats.totalRead / Math.max(stats.totalRead + stats.currentlyReading, 1)) * 100)}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-gradient-to-r from-purple-50 to-transparent p-4 rounded-lg border border-purple-100">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Favorite Format</span>
-                      <span className="text-sm font-medium">
+                      <span className="text-sm font-medium text-gray-700 flex items-center">
+                        <BookOpen className="w-4 h-4 mr-2 text-purple-500" />
+                        Favorite Format
+                      </span>
+                      <span className="text-sm font-bold text-purple-600">
                         {(() => {
                           const formatCounts = [...readProjects, ...currentlyReading].reduce((acc, item) => {
                             const format = item.projects?.format || 'Unknown'
@@ -738,9 +850,15 @@ export default function LibraryPage() {
                         })()}
                       </span>
                     </div>
+                  </div>
+                  
+                  <div className="bg-gradient-to-r from-orange-50 to-transparent p-4 rounded-lg border border-orange-100">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Books This Month</span>
-                      <span className="text-sm font-medium">
+                      <span className="text-sm font-medium text-gray-700 flex items-center">
+                        <Calendar className="w-4 h-4 mr-2 text-orange-500" />
+                        Books This Month
+                      </span>
+                      <span className="text-lg font-bold text-orange-600">
                         {[...readProjects, ...currentlyReading].filter(item => {
                           const updatedDate = new Date(item.updated_at)
                           const now = new Date()
@@ -749,52 +867,99 @@ export default function LibraryPage() {
                       </span>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             </div>
 
             {/* Recent Activity */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Calendar className="w-5 h-5 text-green-500" />
-                  <span>Recent Reading Activity</span>
-                </CardTitle>
-                <CardDescription>Your latest reading progress</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {[...readProjects, ...currentlyReading]
-                    .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
-                    .slice(0, 5)
-                    .map((item) => (
-                      <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div className="flex items-center space-x-3">
-                          <div className={`w-2 h-2 rounded-full ${
-                            item.progress_percentage >= 100 ? 'bg-green-500' : 'bg-blue-500'
-                          }`}></div>
-                          <div>
-                            <p className="font-medium text-sm">{item.projects?.title}</p>
-                            <p className="text-xs text-gray-500">
-                              {item.progress_percentage >= 100 ? 'Completed' : `${Math.round(item.progress_percentage || 0)}% progress`}
+            <div className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-xl transition-all duration-300">
+              <div className="mb-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg shadow-green-200">
+                      <Calendar className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-800">Recent Reading Activity</h3>
+                      <p className="text-xs text-gray-500">Your latest progress updates</p>
+                    </div>
+                  </div>
+                  <Badge className="bg-green-100 text-green-700 border-green-200">
+                    Last 7 days
+                  </Badge>
+                </div>
+              </div>
+              <div className="space-y-3">
+                {[...readProjects, ...currentlyReading]
+                  .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+                  .slice(0, 5)
+                  .map((item, index) => (
+                    <div key={item.id} className="group hover:bg-gradient-to-r hover:from-gray-50 hover:to-transparent p-4 rounded-lg border border-transparent hover:border-gray-200 transition-all duration-200">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-4 flex-1">
+                          <div className="relative">
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                              item.progress_percentage >= 100 
+                                ? 'bg-gradient-to-br from-green-500 to-green-600 shadow-lg shadow-green-200' 
+                                : 'bg-gradient-to-br from-blue-500 to-blue-600 shadow-lg shadow-blue-200'
+                            }`}>
+                              {item.progress_percentage >= 100 ? (
+                                <CheckCircle className="w-5 h-5 text-white" />
+                              ) : (
+                                <BookOpen className="w-5 h-5 text-white" />
+                              )}
+                            </div>
+                            <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-white rounded-full flex items-center justify-center border-2 border-gray-100">
+                              <span className="text-xs font-bold text-gray-600">#{index + 1}</span>
+                            </div>
+                          </div>
+                          <div className="flex-1">
+                            <p className="font-semibold text-sm text-gray-800 group-hover:text-blue-600 transition-colors">
+                              {item.projects?.title}
                             </p>
+                            <div className="flex items-center space-x-3 mt-1">
+                              <span className={`text-xs font-medium ${
+                                item.progress_percentage >= 100 ? 'text-green-600' : 'text-blue-600'
+                              }`}>
+                                {item.progress_percentage >= 100 ? '✓ Completed' : `${Math.round(item.progress_percentage || 0)}% progress`}
+                              </span>
+                              <span className="text-xs text-gray-400">•</span>
+                              <span className="text-xs text-gray-500">
+                                {new Date(item.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              </span>
+                            </div>
                           </div>
                         </div>
-                        <div className="text-xs text-gray-400">
-                          {new Date(item.updated_at).toLocaleDateString()}
+                        <div className="ml-4">
+                          {item.progress_percentage < 100 && (
+                            <div className="w-16">
+                              <div className="w-full bg-gray-100 rounded-full h-1.5 mb-1">
+                                <div 
+                                  className="bg-gradient-to-r from-blue-500 to-blue-600 h-1.5 rounded-full transition-all duration-500"
+                                  style={{ width: `${item.progress_percentage || 0}%` }}
+                                ></div>
+                              </div>
+                              <span className="text-xs text-gray-400 text-center block">
+                                {Math.round(item.progress_percentage || 0)}%
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </div>
-                    ))}
-                  
-                  {[...readProjects, ...currentlyReading].length === 0 && (
-                    <div className="text-center py-6 text-gray-500">
-                      <BookOpen className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                      <p className="text-sm">No reading activity yet</p>
                     </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+                  ))}
+                
+                {[...readProjects, ...currentlyReading].length === 0 && (
+                  <div className="text-center py-12 text-gray-400">
+                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <BookOpen className="w-8 h-8 opacity-50" />
+                    </div>
+                    <p className="text-sm font-medium mb-1">No reading activity yet</p>
+                    <p className="text-xs">Start reading stories to track your progress</p>
+                  </div>
+                )}
+              </div>
+            </div>
           </TabsContent>
         </Tabs>
 
@@ -802,11 +967,10 @@ export default function LibraryPage() {
         {activeMainTab === 'library' && (
           <>
             {/* Filters and Search */}
-            <Card className="mb-6">
-              <CardHeader className="py-4">
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-3 lg:space-y-0">
-              {/* Tab Navigation */}
-              <div className="flex items-center space-x-3">
+            <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-3 lg:space-y-0">
+                {/* Tab Navigation */}
+                <div className="flex items-center space-x-3">
                 <div className="flex space-x-1 bg-gray-100 rounded-lg p-1">
                   <button
                     onClick={() => handleTabChange('reading')}
@@ -911,53 +1075,50 @@ export default function LibraryPage() {
                 </select>
               </div>
             </div>
-          </CardHeader>
-        </Card>
+            </div>
 
-        {/* Bulk Selection Controls */}
-        {isManagingProgress && (
-          <Card className="mb-4 bg-gradient-to-r from-purple-50 to-indigo-50 border-purple-200">
-            <CardContent className="py-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="bg-white px-2 py-1 rounded-full border border-purple-300">
-                    <span className="text-sm font-medium text-purple-700">
-                      {selectedProjects.size > 0 
-                        ? `${selectedProjects.size} selected`
-                        : 'Select projects'
-                      }
-                    </span>
+            {/* Bulk Selection Controls */}
+            {isManagingProgress && (
+              <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-xl p-6 mb-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="bg-white px-2 py-1 rounded-full border border-purple-300">
+                      <span className="text-sm font-medium text-purple-700">
+                        {selectedProjects.size > 0 
+                          ? `${selectedProjects.size} selected`
+                          : 'Select projects'
+                        }
+                      </span>
+                    </div>
+                    
+                    {filteredProjects.length > 0 && (
+                      <>
+                        <button
+                          onClick={handleSelectAll}
+                          className="px-2 py-1 text-sm bg-purple-100 text-purple-700 hover:bg-purple-200 rounded-full transition-colors font-medium"
+                        >
+                          {selectedProjects.size === filteredProjects.length ? '☑️ Deselect All' : '📋 Select All'}
+                        </button>
+                        <button
+                          onClick={handleClearSelection}
+                          className="px-2 py-1 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-full transition-colors"
+                        >
+                          Clear
+                        </button>
+                      </>
+                    )}
                   </div>
                   
-                  {filteredProjects.length > 0 && (
-                    <>
-                      <button
-                        onClick={handleSelectAll}
-                        className="px-2 py-1 text-sm bg-purple-100 text-purple-700 hover:bg-purple-200 rounded-full transition-colors font-medium"
-                      >
-                        {selectedProjects.size === filteredProjects.length ? '☑️ Deselect All' : '📋 Select All'}
-                      </button>
-                      <button
-                        onClick={handleClearSelection}
-                        className="px-2 py-1 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-full transition-colors"
-                      >
-                        Clear
-                      </button>
-                    </>
-                  )}
+                  <button
+                    onClick={handleClearSelectedProgress}
+                    disabled={selectedProjects.size === 0}
+                    className="px-3 py-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-md font-medium text-sm"
+                  >
+                    🗑️ Clear Selected
+                  </button>
                 </div>
-                
-                <button
-                  onClick={handleClearSelectedProgress}
-                  disabled={selectedProjects.size === 0}
-                  className="px-3 py-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-md font-medium text-sm"
-                >
-                  🗑️ Clear Selected
-                </button>
               </div>
-            </CardContent>
-          </Card>
-        )}
+            )}
 
         {/* Projects Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
