@@ -826,13 +826,7 @@ export default function SearchPage() {
               <h2 className="text-2xl font-bold text-gray-800 mb-2">Discover Writers & Readers</h2>
               <p className="text-gray-600">Connect with talented creators and fellow story enthusiasts</p>
               
-              {/* Debug info - remove this later */}
-              {process.env.NODE_ENV === 'development' && (
-                <div className="mt-4 p-2 bg-yellow-100 rounded text-sm">
-                  <p>Debug: Current user: {currentUser?.id}</p>
-                  <p>Debug: Following {followingUserIds.length} users: {JSON.stringify(followingUserIds)}</p>
-                </div>
-              )}
+              
             </div>
 
             <ProfileDiscovery 
