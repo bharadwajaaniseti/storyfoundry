@@ -525,13 +525,7 @@ export default function ReaderDashboard({ user, userProfile }: ReaderDashboardPr
             </div>
             
             <div className="flex items-center space-x-3">
-              <Link
-                href="/app/library"
-                className="btn-outline flex items-center space-x-2"
-              >
-                <BookMarked className="w-4 h-4" />
-                <span>My Library</span>
-              </Link>
+              
               <Link
                 href="/app/search"
                 className="btn-primary flex items-center space-x-2"

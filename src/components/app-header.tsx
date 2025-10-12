@@ -144,15 +144,15 @@ export default function AppHeader({ user }: AppHeaderProps) {
             </a>
             
             {/* Navigation Links */}
-            <nav className="hidden md:flex items-center space-x-6">
+            {/* <nav className="hidden md:flex items-center space-x-6">
               <a 
                 href="/novels" 
                 className="flex items-center space-x-1 text-gray-600 hover:text-gray-900 transition-colors"
               >
                 <BookOpen className="w-4 h-4" />
-                <span>Browse Novels</span>
+                <span>aBrowse Novels</span>
               </a>
-            </nav>
+            </nav> */}
           </div>
 
           {/* Right side */}
