@@ -21,7 +21,8 @@ import {
   MapPin,
   Clock,
   Sparkles,
-  TrendingUp
+  TrendingUp,
+  CheckCircle
 } from 'lucide-react'
 import Link from 'next/link'
 import { User } from '@supabase/supabase-js'
@@ -404,136 +405,160 @@ export default function ReaderFollowingPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 flex items-center">
-              <Users className={`w-8 h-8 ${colorClasses.iconColor} mr-3`} />
-              Following
-            </h1>
-            <p className="text-gray-600 mt-2">Writers and creators you follow for inspiration</p>
+      {/* Header */}
+      <div className="bg-white border-b border-gray-200 mb-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-800">Following</h1>
+              <p className="text-gray-600 mt-2">Writers and creators you follow for inspiration</p>
+            </div>
+            
+            <Button asChild className={`${colorClasses.primaryButton}`}>
+              <Link href="/app/search">
+                <UserPlus className="w-4 h-4 mr-2" />
+                Discover Writers
+              </Link>
+            </Button>
           </div>
-          
-          <Button asChild className={`${colorClasses.primaryButton}`}>
-            <Link href="/app/search">
-              <UserPlus className="w-4 h-4 mr-2" />
-              Discover Writers
-            </Link>
-          </Button>
         </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card className={`border-l-4 ${colorClasses.cardBorder}`}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Following</CardTitle>
-              <Users className={`h-4 w-4 ${colorClasses.iconColor}`} />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.totalFollowing}</div>
-              <p className="text-xs text-muted-foreground">People you follow</p>
-            </CardContent>
-          </Card>
+          <div className="bg-gradient-to-br from-purple-50 to-white rounded-xl border border-gray-200 p-6 hover:shadow-xl hover:scale-105 transition-all duration-300">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-medium text-gray-700">Total Following</h3>
+              <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-purple-200">
+                <Users className="h-6 w-6 text-white" />
+              </div>
+            </div>
+            <div className="text-3xl font-bold text-gray-800 mb-1">{stats.totalFollowing}</div>
+            <p className="text-xs text-gray-500">People you follow</p>
+            <div className="mt-4 pt-3 border-t border-gray-100">
+              <div className="flex items-center text-xs text-purple-600">
+                <TrendingUp className="w-3 h-3 mr-1" />
+                <span>Your network</span>
+              </div>
+            </div>
+          </div>
 
-          <Card className={`border-l-4 ${colorClasses.cardBorder}`}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Writers</CardTitle>
-              <BookOpen className={`h-4 w-4 ${colorClasses.iconColor}`} />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.writers}</div>
-              <p className="text-xs text-muted-foreground">Creative writers</p>
-            </CardContent>
-          </Card>
+          <div className="bg-gradient-to-br from-blue-50 to-white rounded-xl border border-gray-200 p-6 hover:shadow-xl hover:scale-105 transition-all duration-300">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-medium text-gray-700">Writers</h3>
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-200">
+                <BookOpen className="h-6 w-6 text-white" />
+              </div>
+            </div>
+            <div className="text-3xl font-bold text-gray-800 mb-1">{stats.writers}</div>
+            <p className="text-xs text-gray-500">Creative writers</p>
+            <div className="mt-4 pt-3 border-t border-gray-100">
+              <div className="flex items-center text-xs text-blue-600">
+                <Star className="w-3 h-3 mr-1 fill-current" />
+                <span>Creators</span>
+              </div>
+            </div>
+          </div>
 
-          <Card className={`border-l-4 ${colorClasses.cardBorder}`}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Verified</CardTitle>
-              <Star className={`h-4 w-4 ${colorClasses.iconColor}`} />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.verified}</div>
-              <p className="text-xs text-muted-foreground">Pro members</p>
-            </CardContent>
-          </Card>
+          <div className="bg-gradient-to-br from-orange-50 to-white rounded-xl border border-gray-200 p-6 hover:shadow-xl hover:scale-105 transition-all duration-300">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-medium text-gray-700">Verified</h3>
+              <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center shadow-lg shadow-orange-200">
+                <Star className="h-6 w-6 text-white" />
+              </div>
+            </div>
+            <div className="text-3xl font-bold text-gray-800 mb-1">{stats.verified}</div>
+            <p className="text-xs text-gray-500">Pro members</p>
+            <div className="mt-4 pt-3 border-t border-gray-100">
+              <div className="flex items-center text-xs text-orange-600">
+                <CheckCircle className="w-3 h-3 mr-1" />
+                <span>Premium</span>
+              </div>
+            </div>
+          </div>
 
-          <Card className={`border-l-4 ${colorClasses.cardBorder}`}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">New This Month</CardTitle>
-              <Calendar className={`h-4 w-4 ${colorClasses.iconColor}`} />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.newThisMonth}</div>
-              <p className="text-xs text-muted-foreground">Recent follows</p>
-            </CardContent>
-          </Card>
+          <div className="bg-gradient-to-br from-green-50 to-white rounded-xl border border-gray-200 p-6 hover:shadow-xl hover:scale-105 transition-all duration-300">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-medium text-gray-700">New This Month</h3>
+              <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg shadow-green-200">
+                <Calendar className="h-6 w-6 text-white" />
+              </div>
+            </div>
+            <div className="text-3xl font-bold text-gray-800 mb-1">{stats.newThisMonth}</div>
+            <p className="text-xs text-gray-500">Recent follows</p>
+            <div className="mt-4 pt-3 border-t border-gray-100">
+              <div className="flex items-center text-xs text-green-600">
+                <TrendingUp className="w-3 h-3 mr-1" />
+                <span>This month</span>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Filters and Search */}
-        <Card className="mb-6">
-          <CardHeader>
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
-              {/* Filter Tabs */}
-              <div className="flex space-x-1 bg-gray-100 rounded-lg p-1">
-                <button
-                  onClick={() => setFilter('all')}
-                  className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                    filter === 'all'
-                      ? `bg-white ${colorClasses.primaryText} shadow-sm`
-                      : 'text-gray-600 hover:text-gray-800'
-                  }`}
-                >
-                  All ({stats.totalFollowing})
-                </button>
-                <button
-                  onClick={() => setFilter('writers')}
-                  className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                    filter === 'writers'
-                      ? `bg-white ${colorClasses.primaryText} shadow-sm`
-                      : 'text-gray-600 hover:text-gray-800'
-                  }`}
-                >
-                  Writers ({stats.writers})
-                </button>
-                <button
-                  onClick={() => setFilter('verified')}
-                  className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                    filter === 'verified'
-                      ? `bg-white ${colorClasses.primaryText} shadow-sm`
-                      : 'text-gray-600 hover:text-gray-800'
-                  }`}
-                >
-                  Verified ({stats.verified})
-                </button>
-              </div>
-
-              {/* Search and Sort */}
-              <div className="flex items-center space-x-3">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <input
-                    type="text"
-                    placeholder="Search writers..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className={`pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 ${colorClasses.focusRing} w-64`}
-                  />
-                </div>
-                
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as any)}
-                  className={`px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 ${colorClasses.focusRing}`}
-                >
-                  <option value="recent">Recently Followed</option>
-                  <option value="name">Name (A-Z)</option>
-                  <option value="popular">Most Popular</option>
-                </select>
-              </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
+            {/* Filter Tabs */}
+            <div className="flex space-x-1 bg-gray-100 rounded-lg p-1">
+              <button
+                onClick={() => setFilter('all')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  filter === 'all'
+                    ? `bg-white ${colorClasses.primaryText} shadow-sm`
+                    : 'text-gray-600 hover:text-gray-800'
+                }`}
+              >
+                All ({stats.totalFollowing})
+              </button>
+              <button
+                onClick={() => setFilter('writers')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  filter === 'writers'
+                    ? `bg-white ${colorClasses.primaryText} shadow-sm`
+                    : 'text-gray-600 hover:text-gray-800'
+                }`}
+              >
+                Writers ({stats.writers})
+              </button>
+              <button
+                onClick={() => setFilter('verified')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  filter === 'verified'
+                    ? `bg-white ${colorClasses.primaryText} shadow-sm`
+                    : 'text-gray-600 hover:text-gray-800'
+                }`}
+              >
+                Verified ({stats.verified})
+              </button>
             </div>
-          </CardHeader>
-        </Card>
+
+            {/* Search and Sort */}
+            <div className="flex items-center space-x-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <input
+                  type="text"
+                  placeholder="Search writers..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className={`pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 ${colorClasses.focusRing} w-64`}
+                />
+              </div>
+              
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                className={`px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 ${colorClasses.focusRing}`}
+              >
+                <option value="recent">Recently Followed</option>
+                <option value="name">Name (A-Z)</option>
+                <option value="popular">Most Popular</option>
+              </select>
+            </div>
+          </div>
+        </div>
 
         {/* Following Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
