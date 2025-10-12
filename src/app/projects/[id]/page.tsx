@@ -28,16 +28,10 @@ import {
   BarChart3,
   Settings,
   ExternalLink,
-  Bell,
   Plus,
-  Menu,
-  X,
-  LogOut,
-  User as UserIcon,
   Pen
 } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/auth'
-import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import UserAvatar from '@/components/user-avatar'
@@ -55,226 +49,7 @@ import {
   isProjectBookmarked
 } from '@/lib/bookmarks'
 import ProjectCollaborationButton from '@/components/project-collaboration-button'
-
-// Navigation component from marketing layout
-function Navigation({ currentUser, isLoadingUser }: { currentUser: any; isLoadingUser: boolean }) {
-  const [isOpen, setIsOpen] = useState(false)
-  const [isScrolled, setIsScrolled] = useState(false)
-  const [notifications, setNotifications] = useState(3) // Mock notification count
-  const [userProfile, setUserProfile] = useState<any>(null)
-
-  useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 50)
-    }
-    window.addEventListener('scroll', handleScroll)
-    return () => window.removeEventListener('scroll', handleScroll)
-  }, [])
-
-  useEffect(() => {
-    const fetchUserProfile = async () => {
-      if (!currentUser?.id) return
-
-      const supabase = createSupabaseClient()
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('id, role, display_name')
-        .eq('id', currentUser.id)
-        .single()
-
-      if (profile) {
-        setUserProfile(profile)
-      }
-    }
-
-    if (currentUser) {
-      fetchUserProfile()
-    }
-  }, [currentUser?.id])
-
-  const handleSignOut = async () => {
-    try {
-      const supabase = createSupabaseClient()
-      await supabase.auth.signOut()
-      window.location.href = '/'
-    } catch (error) {
-      console.error('Error signing out:', error)
-    }
-  }
-
-  const getRoleBadgeColor = (role: string) => {
-    const normalizedRole = role?.toLowerCase()
-    switch (normalizedRole) {
-      case 'writer':
-        return 'bg-orange-100 text-orange-800 border border-orange-200'
-      case 'reader':
-        return 'bg-purple-100 text-purple-800 border border-purple-200'
-      default:
-        return 'bg-gray-100 text-gray-800 border border-gray-200'
-    }
-  }
-
-  return (
-    <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-      isScrolled 
-        ? 'bg-white/95 backdrop-blur-md border-b border-gray-200/50 shadow-sm' 
-        : 'bg-white border-b border-gray-200'
-    }`}>
-      <div className="container mx-auto px-6">
-        <div className="flex items-center justify-between h-16">
-          {/* Logo */}
-          <Link href={!isLoadingUser && currentUser ? "/app/dashboard" : "/"} className="flex items-center space-x-3 group">
-            <div className="w-8 h-8 bg-gradient-to-r from-orange-500 to-red-500 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">SF</span>
-            </div>
-            <span className="text-xl font-bold text-gray-800 group-hover:text-orange-500 transition-colors">
-              StoryFoundry
-            </span>
-          </Link>
-
-          {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center space-x-6">
-            {currentUser ? (
-              <>
-                <Link href="/app/dashboard" className="text-gray-600 hover:text-gray-800 font-medium transition-colors">
-                  Dashboard
-                </Link>
-                <Link href="/app/projects" className="text-gray-600 hover:text-gray-800 font-medium transition-colors">
-                  Projects
-                </Link>
-                <Link href="/app/search" className="text-gray-600 hover:text-gray-800 font-medium transition-colors">
-                  Search
-                </Link>
-                
-                {/* Right side actions */}
-                <div className="flex items-center space-x-4 ml-4 pl-4 border-l border-gray-200">
-                  {/* Notifications */}
-                  <Button variant="ghost" size="sm" className="relative text-gray-600 hover:text-gray-800">
-                    <Bell className="w-5 h-5" />
-                    {notifications > 0 && (
-                      <span className="absolute -top-1 -right-1 w-5 h-5 bg-orange-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
-                        {notifications}
-                      </span>
-                    )}
-                  </Button>
-
-                  {/* User Menu */}
-                  <div className="group relative">
-                    <div className="flex items-center space-x-3 hover:bg-gray-50 rounded-lg px-2 py-1 transition-colors cursor-pointer">
-                      <div className="text-right">
-                        <div className="text-sm font-medium text-gray-900">{userProfile?.display_name || currentUser.email}</div>
-                        {userProfile && (
-                          <div className="flex justify-end mt-1">
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getRoleBadgeColor(userProfile.role)}`}>
-                              {userProfile.role.toUpperCase()}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                      <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-red-600 rounded-full flex items-center justify-center">
-                        <UserIcon className="w-4 h-4 text-white" />
-                      </div>
-                    </div>
-                    
-                    {/* Dropdown Menu - Shows on hover */}
-                    <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-                      <div className="py-1">
-                        <button className="flex items-center w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                          <Settings className="w-4 h-4 mr-3 text-gray-500" />
-                          Settings
-                        </button>
-                        <div className="border-t border-gray-100 my-1"></div>
-                        <button 
-                          onClick={handleSignOut}
-                          className="flex items-center w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
-                        >
-                          <LogOut className="w-4 h-4 mr-3" />
-                          Sign Out
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <>
-                <Link href="/features" className="text-gray-600 hover:text-gray-800 font-medium transition-colors">
-                  Features
-                </Link>
-                <Link href="/pricing" className="text-gray-600 hover:text-gray-800 font-medium transition-colors">
-                  Pricing
-                </Link>
-                <Link href="/signin" className="text-gray-600 hover:text-gray-800 font-medium transition-colors">
-                  Sign In
-                </Link>
-                <Link href="/get-started" className="btn-primary">
-                  Get Started
-                </Link>
-              </>
-            )}
-          </div>
-
-          {/* Mobile menu button */}
-          <button
-            onClick={() => setIsOpen(!isOpen)}
-            className="md:hidden p-2 rounded-lg bg-gray-100 text-gray-600 hover:text-gray-800 hover:bg-gray-200 transition-colors"
-          >
-            {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-          </button>
-        </div>
-
-        {/* Mobile Navigation */}
-        {isOpen && (
-          <div className="md:hidden">
-            <div className="bg-white/95 backdrop-blur-md rounded-xl border border-gray-200 p-6 mt-4 shadow-lg">
-              <div className="space-y-4">
-                {currentUser ? (
-                  <>
-                    <Link href="/app/dashboard" onClick={() => setIsOpen(false)} className="block text-gray-600 hover:text-gray-800 font-medium transition-colors">
-                      Dashboard
-                    </Link>
-                    <Link href="/app/projects" onClick={() => setIsOpen(false)} className="block text-gray-600 hover:text-gray-800 font-medium transition-colors">
-                      Projects
-                    </Link>
-                    <Link href="/app/search" onClick={() => setIsOpen(false)} className="block text-gray-600 hover:text-gray-800 font-medium transition-colors">
-                      Search
-                    </Link>
-                    <hr className="border-gray-200" />
-                    <button
-                      onClick={() => {
-                        handleSignOut()
-                        setIsOpen(false)
-                      }}
-                      className="block w-full text-left text-gray-600 hover:text-gray-800 font-medium transition-colors"
-                    >
-                      Sign Out
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <Link href="/features" onClick={() => setIsOpen(false)} className="block text-gray-600 hover:text-gray-800 font-medium transition-colors">
-                      Features
-                    </Link>
-                    <Link href="/pricing" onClick={() => setIsOpen(false)} className="block text-gray-600 hover:text-gray-800 font-medium transition-colors">
-                      Pricing
-                    </Link>
-                    <hr className="border-gray-200" />
-                    <Link href="/signin" onClick={() => setIsOpen(false)} className="block text-gray-600 hover:text-gray-800 font-medium transition-colors">
-                      Sign In
-                    </Link>
-                    <Link href="/get-started" onClick={() => setIsOpen(false)} className="btn-primary w-full justify-center">
-                      Get Started
-                    </Link>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    </nav>
-  )
-}
+import AppHeader from '@/components/app-header'
 
 interface Project {
   id: string
@@ -1061,19 +836,14 @@ export default function PublicProjectPage() {
       }
     }
     
-    // Second priority: Check URL parameters for specific navigation
-    const fromParam = searchParams.get('from')
-    if (fromParam === 'library') {
-      router.push('/app/library')
-    } else if (fromParam === 'search') {
-      router.push('/app/search')
+    // Use browser's native back navigation to go to previous page
+    // This will dynamically take user back to wherever they came from
+    // (library, search, dashboard, profile, etc.)
+    if (window.history.length > 1) {
+      router.back()
     } else {
-      // Default fallback - check if there's browser history to go back to
-      if (window.history.length > 1) {
-        router.back()
-      } else {
-        router.push('/app/search')
-      }
+      // Only use fallback if there's no history (e.g., direct link)
+      router.push('/app/search')
     }
   }
 
@@ -1148,7 +918,7 @@ export default function PublicProjectPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Navigation Header */}
-      <Navigation currentUser={currentUser} isLoadingUser={isLoadingUser} />
+      <AppHeader user={currentUser} />
       
       {/* Project Header */}
       <header className="bg-white border-b border-gray-200 sticky top-16 z-40 mt-16">
