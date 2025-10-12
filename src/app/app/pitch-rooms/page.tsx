@@ -37,6 +37,7 @@ import {
 import { useToast } from '@/components/ui/toast'
 import HostPitchRoomModal from '@/components/host-pitch-room-modal'
 import ConfirmDialog from '@/components/confirm-dialog'
+import { createSupabaseClient } from '@/lib/auth'
 
 export default function PitchRoomsPage() {
   const router = useRouter()
@@ -95,26 +96,57 @@ export default function PitchRoomsPage() {
       // Silently ignore if auto-update function not installed yet
     })
     
-    // Auto-update status every 1 minute
-    const updateInterval = setInterval(() => {
-      updatePitchRoomStatusAuto().then(() => {
-        loadData() // Reload data after auto-update
-      }).catch(() => {})
-    }, 60000) // 1 minute
+    // Set up Supabase real-time subscription for pitch rooms
+    const supabase = createSupabaseClient()
+    const channel = supabase
+      .channel('pitch-rooms-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
+          schema: 'public',
+          table: 'pitch_rooms'
+        },
+        (payload: any) => {
+          console.log('Pitch room changed:', payload)
+          // Reload data silently (no loading spinner)
+          loadData(true)
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'pitch_room_participants'
+        },
+        (payload: any) => {
+          console.log('Participant changed:', payload)
+          // Reload data silently (no loading spinner)
+          loadData(true)
+        }
+      )
+      .subscribe()
     
-    // Refresh data every 30 seconds to catch status changes
-    const refreshInterval = setInterval(() => {
-      loadData()
-    }, 30000) // 30 seconds
+    // Still run auto-update periodically, but less frequently
+    // This ensures status updates happen even if no DB changes trigger
+    const updateInterval = setInterval(() => {
+      updatePitchRoomStatusAuto().catch(() => {})
+    }, 120000) // 2 minutes (reduced from 1 minute)
     
     return () => {
+      // Cleanup subscriptions
+      supabase.removeChannel(channel)
       clearInterval(updateInterval)
-      clearInterval(refreshInterval)
     }
   }, [])
 
-  const loadData = async () => {
-    setIsLoading(true)
+  const loadData = async (silent = false) => {
+    // Only show loading spinner on initial load, not on background refreshes
+    if (!silent) {
+      setIsLoading(true)
+    }
+    
     try {
       const [upcoming, hosted, past, statistics] = await Promise.all([
         getUpcomingPitchRooms(),
@@ -143,13 +175,17 @@ export default function PitchRoomsPage() {
       setStats(statistics)
     } catch (error) {
       console.error('Error loading pitch rooms:', error)
-      addToast({
-        type: 'error',
-        title: 'Error loading pitch rooms',
-        message: 'Please try again later'
-      })
+      if (!silent) {
+        addToast({
+          type: 'error',
+          title: 'Error loading pitch rooms',
+          message: 'Please try again later'
+        })
+      }
     } finally {
-      setIsLoading(false)
+      if (!silent) {
+        setIsLoading(false)
+      }
     }
   }
 
@@ -162,7 +198,8 @@ export default function PitchRoomsPage() {
         title: 'Joined room!',
         message: 'You have successfully joined the pitch room'
       })
-      await loadData() // Reload to update participant counts
+      // Real-time subscription will update automatically, but force a silent reload for immediate feedback
+      await loadData(true)
     } catch (error: any) {
       console.error('Error joining room:', error)
       addToast({
@@ -184,7 +221,8 @@ export default function PitchRoomsPage() {
         title: 'Left room',
         message: 'You have left the pitch room'
       })
-      await loadData()
+      // Real-time subscription will update automatically, but force a silent reload for immediate feedback
+      await loadData(true)
     } catch (error: any) {
       console.error('Error leaving room:', error)
       addToast({
