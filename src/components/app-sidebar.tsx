@@ -37,7 +37,6 @@ const writerNavigation = [
   { name: 'Collaboration', href: '/app/collab', icon: Users },
   { name: 'My Library', href: '/app/writer/library', icon: BookMarked },
   { name: 'Following', href: '/app/writer/following', icon: UserPlus },
-  { name: 'Favourites', href: '/app/writer/favourites', icon: Heart },
   { name: 'Pitch Rooms', href: '/app/pitch-rooms', icon: Calendar },
   { name: 'Messages', href: '/app/messages', icon: MessageSquare },
 ]

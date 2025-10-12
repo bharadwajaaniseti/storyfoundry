@@ -58,11 +58,6 @@ const WRITER_NAVIGATION_ITEMS = [
     icon: UserPlus
   },
   {
-    name: 'Favourites',
-    href: '/app/writer/favourites',
-    icon: Heart
-  },
-  {
     name: 'Messages',
     href: '/app/messages',
     icon: MessageSquare
