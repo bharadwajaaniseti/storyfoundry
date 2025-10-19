@@ -38,8 +38,6 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
-  Maximize2,
-  Minimize2,
   Rocket,
   Layout,
   Printer
@@ -100,6 +98,7 @@ interface ScreenplayEditorProps {
   }
   onAddElementCallback?: (callback: (type: string) => void) => void
   onStatsUpdate?: (stats: any) => void
+  onPreviewModeChange?: (callback: (isPreview: boolean) => void) => void
   hideSidebar?: boolean
 }
 
@@ -138,6 +137,7 @@ export default function ScreenplayEditor({
   permissions = { canEdit: true, canComment: true, canApprove: true },
   onAddElementCallback,
   onStatsUpdate,
+  onPreviewModeChange,
   hideSidebar = false
 }: ScreenplayEditorProps) {
   const router = useRouter()
@@ -153,12 +153,12 @@ export default function ScreenplayEditor({
   const [sceneCards, setSceneCards] = useState<SceneCard[]>([])
   const [viewMode, setViewMode] = useState<'write' | 'cards' | 'outline'>('write')
   const [sidebarWidth, setSidebarWidth] = useState(320)
-  const [isFullscreen, setIsFullscreen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedSceneCard, setSelectedSceneCard] = useState<string | null>(null)
   const [showFormatting, setShowFormatting] = useState(!hideSidebar)
   const [highlightedElementId, setHighlightedElementId] = useState<string | null>(null)
   const [focusedElementIndex, setFocusedElementIndex] = useState<number | null>(null)
+  const [isPreviewMode, setIsPreviewMode] = useState(false)
   const editorRef = useRef<HTMLTextAreaElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const elementRefs = useRef<{ [key: string]: HTMLDivElement | null }>({})
@@ -611,6 +611,16 @@ export default function ScreenplayEditor({
     // Only run once when component mounts
   }, [onAddElementCallback])
 
+  // Expose preview mode toggle to parent component
+  useEffect(() => {
+    if (onPreviewModeChange) {
+      const togglePreview = (isPreview: boolean) => {
+        setIsPreviewMode(isPreview)
+      }
+      onPreviewModeChange(togglePreview)
+    }
+  }, [onPreviewModeChange])
+
   // Send stats updates to parent component
   useEffect(() => {
     if (onStatsUpdate) {
@@ -760,7 +770,7 @@ export default function ScreenplayEditor({
   }
 
   return (
-    <div className={`min-h-screen bg-gray-50 ${isFullscreen ? 'fixed inset-0 z-50' : ''}`} ref={containerRef}>
+    <div className="min-h-screen bg-gray-50" ref={containerRef}>
       {/* Enhanced Header */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-20 shadow-sm">
         <div className="px-6 py-3">
@@ -856,17 +866,6 @@ export default function ScreenplayEditor({
                 Export
               </Button>
               
-              <div className="h-6 w-px bg-gray-300" />
-              
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsFullscreen(!isFullscreen)}
-                className="text-gray-600"
-              >
-                {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-              </Button>
-              
               <Button variant="outline" size="sm" className="border-gray-300">
                 <Share2 className="w-4 h-4 mr-2" />
                 Share
@@ -909,8 +908,8 @@ export default function ScreenplayEditor({
       {/* Main Content */}
       <main className="px-6 py-6">
         <div className="grid grid-cols-12 gap-6">
-          {/* Enhanced Sidebar - Screenplay Tools */}
-          {showFormatting && (
+          {/* Enhanced Sidebar - Screenplay Tools - Hidden in Preview Mode */}
+          {showFormatting && !isPreviewMode && (
             <div className="col-span-3 space-y-4">
               {/* Screenplay Elements */}
               <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
@@ -1121,7 +1120,7 @@ export default function ScreenplayEditor({
           )}
 
           {/* Editor Area */}
-          <div className={showFormatting ? 'col-span-9' : 'col-span-12'}>
+          <div className={(showFormatting && !isPreviewMode) ? 'col-span-9' : 'col-span-12'}>
             <Tabs value={activeTab} className="space-y-6">
               <TabsContent value="write" className="space-y-0">
                 <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
@@ -1138,8 +1137,8 @@ export default function ScreenplayEditor({
                               : ''
                           }`}
                         >
-                          {/* Element Action Buttons (appear on hover) */}
-                          {permissions.canEdit && (
+                          {/* Element Action Buttons (appear on hover) - Only in Edit Mode */}
+                          {permissions.canEdit && !isPreviewMode && (
                             <div className="absolute -left-16 top-0 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
                               <button
                                 onClick={() => duplicateElement(element.id)}
@@ -1158,33 +1157,43 @@ export default function ScreenplayEditor({
                             </div>
                           )}
                           
-                          {/* Element Type Badge (appears on hover) */}
-                          <div className="absolute -top-5 left-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Badge variant="secondary" className="text-xs px-2 py-0.5">
-                              {element.type?.replace('_', ' ') || 'unknown'}
-                            </Badge>
-                          </div>
+                          {/* Element Type Badge (appears on hover) - Only in Edit Mode */}
+                          {!isPreviewMode && (
+                            <div className="absolute -top-5 left-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Badge variant="secondary" className="text-xs px-2 py-0.5">
+                                {element.type?.replace('_', ' ') || 'unknown'}
+                              </Badge>
+                            </div>
+                          )}
                           
-                          <textarea
-                            value={element.content}
-                            onChange={(e) => {
-                              updateElement(index, e.target.value)
-                              // Auto-resize textarea
-                              e.target.style.height = 'auto'
-                              e.target.style.height = e.target.scrollHeight + 'px'
-                            }}
-                            onFocus={() => setFocusedElementIndex(index)}
-                            onBlur={() => setFocusedElementIndex(null)}
-                            onKeyDown={(e) => handleKeyDown(e, index, element.type)}
-                            placeholder={`${element.type?.replace('_', ' ')?.toUpperCase() || 'TEXT'}...`}
-                            className={`w-full bg-transparent border-none focus:outline-none focus:ring-0 resize-none overflow-hidden group-hover:bg-gray-50/50 transition-colors rounded px-2 -mx-2 ${getElementStyle(element.type)}`}
-                            style={{ minHeight: '24px' }}
-                            disabled={!permissions.canEdit}
-                          />
+                          {/* Preview Mode - Static Text */}
+                          {isPreviewMode ? (
+                            <div className={`${getElementStyle(element.type)} whitespace-pre-wrap`}>
+                              {element.content || ' '}
+                            </div>
+                          ) : (
+                            /* Edit Mode - Textarea */
+                            <textarea
+                              value={element.content}
+                              onChange={(e) => {
+                                updateElement(index, e.target.value)
+                                // Auto-resize textarea
+                                e.target.style.height = 'auto'
+                                e.target.style.height = e.target.scrollHeight + 'px'
+                              }}
+                              onFocus={() => setFocusedElementIndex(index)}
+                              onBlur={() => setFocusedElementIndex(null)}
+                              onKeyDown={(e) => handleKeyDown(e, index, element.type)}
+                              placeholder={`${element.type?.replace('_', ' ')?.toUpperCase() || 'TEXT'}...`}
+                              className={`w-full bg-transparent border-none focus:outline-none focus:ring-0 resize-none overflow-hidden group-hover:bg-gray-50/50 transition-colors rounded px-2 -mx-2 ${getElementStyle(element.type)}`}
+                              style={{ minHeight: '24px' }}
+                              disabled={!permissions.canEdit}
+                            />
+                          )}
                         </div>
                       ))}
                       
-                      {permissions.canEdit && (
+                      {permissions.canEdit && !isPreviewMode && (
                         <div className="pt-8 flex items-center justify-center">
                           <button
                             onClick={() => addElement('action')}

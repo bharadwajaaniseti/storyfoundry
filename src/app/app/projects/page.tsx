@@ -302,8 +302,8 @@ export default function ProjectsPage() {
                   router.push(`/novels/${project.id}`)
                 } else if (project.format === 'screenplay' || project.format === 'Screenplay') {
                   console.log('SCREENPLAY CLICKED:', project.title)
-                  console.log('Navigating to:', `/screenplays/${project.id}`)
-                  router.push(`/screenplays/${project.id}`)
+                  console.log('Navigating to:', `/screenplays/${project.id}/read`)
+                  router.push(`/screenplays/${project.id}/read`)
                 } else {
                   router.push(`/app/projects/${project.id}`)
                 }

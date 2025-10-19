@@ -95,13 +95,19 @@ export default function ProjectPage() {
   const project = realtimeProject
 
   // If this is a novel project, redirect legacy /app/projects/:id to canonical /novels/:id
+  // If this is a screenplay project, redirect to /screenplays/:id/read
   useEffect(() => {
     try {
-      if (project && typeof project.format === 'string' && project.format.toLowerCase() === 'novel') {
-        router.replace(`/novels/${projectId}`)
+      if (project && typeof project.format === 'string') {
+        const format = project.format.toLowerCase()
+        if (format === 'novel') {
+          router.replace(`/novels/${projectId}`)
+        } else if (format === 'screenplay') {
+          router.replace(`/screenplays/${projectId}/read`)
+        }
       }
     } catch (e) {
-      console.warn('Redirect to canonical novel route failed', e)
+      console.warn('Redirect to canonical route failed', e)
     }
   }, [project, projectId, router])
 

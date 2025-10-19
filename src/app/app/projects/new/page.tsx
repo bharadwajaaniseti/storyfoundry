@@ -154,7 +154,7 @@ export default function NewProjectPage() {
       if (result.success && result.project) {
         // Redirect based on project format
         if (formData.format === 'screenplay') {
-          router.push(`/screenplays/${result.project.id}`)
+          router.push(`/screenplays/${result.project.id}/edit`)
         } else if (formData.format === 'novel') {
           router.push(`/novels/${result.project.id}`)
         } else {
