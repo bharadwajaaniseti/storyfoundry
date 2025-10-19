@@ -555,7 +555,13 @@ export default function SearchPage() {
                     return (
                       <Link 
                         key={project.id} 
-                        href={project.format === 'novel' ? `/novels/${project.id}/read` : `/projects/${project.id}?from=search`}
+                        href={
+                          project.format === 'novel' 
+                            ? `/novels/${project.id}/read` 
+                            : project.format === 'screenplay' 
+                            ? `/screenplays/${project.id}` 
+                            : `/projects/${project.id}?from=search`
+                        }
                       >
                       <div className={`group bg-white rounded-xl border border-gray-200 p-6 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2 hover:scale-[1.02] cursor-pointer ${
                         userRole === 'writer' 
@@ -719,7 +725,13 @@ export default function SearchPage() {
                   return (
                     <Link 
                       key={project.id} 
-                      href={project.format === 'novel' ? `/novels/${project.id}/read` : `/projects/${project.id}?from=search`}
+                      href={
+                        project.format === 'novel' 
+                          ? `/novels/${project.id}/read` 
+                          : project.format === 'screenplay' 
+                          ? `/screenplays/${project.id}` 
+                          : `/projects/${project.id}?from=search`
+                      }
                     >
                     <div className={`group bg-white rounded-xl border border-gray-200 p-6 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2 hover:scale-[1.02] cursor-pointer ${
                       userRole === 'writer' 

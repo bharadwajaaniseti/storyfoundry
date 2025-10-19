@@ -152,7 +152,14 @@ export default function NewProjectPage() {
       }
 
       if (result.success && result.project) {
-        router.push(`/app/projects/${result.project.id}`)
+        // Redirect based on project format
+        if (formData.format === 'screenplay') {
+          router.push(`/screenplays/${result.project.id}`)
+        } else if (formData.format === 'novel') {
+          router.push(`/novels/${result.project.id}`)
+        } else {
+          router.push(`/app/projects/${result.project.id}`)
+        }
       } else {
         throw new Error('Invalid response from server')
       }
