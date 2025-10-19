@@ -7,31 +7,31 @@ import { ArrowRight, Target, Users, Lightbulb, Award, Globe, Zap, Heart, Clock, 
 // Team member data
 const teamMembers = [
   {
-    name: 'Sarah Chen',
+    name: 'Bharadwaja Anisetti',
     role: 'Co-Founder & CEO',
-    bio: 'Former Netflix executive with 10+ years in content development. Led acquisition of $2B+ worth of original content.',
-    avatar: 'SC',
+    bio: 'Its not important to know about me. rather spend your time thinking about your story.',
+    avatar: 'BA',
     color: 'from-blue-500 to-purple-500'
   },
   {
-    name: 'Marcus Rodriguez',
+    name: 'Krishna Anisetti',
     role: 'Co-Founder & CTO',
-    bio: 'Ex-Google AI researcher specializing in natural language processing. PhD in Computer Science from Stanford.',
-    avatar: 'MR',
+    bio: 'Its not important to know about me. rather spend your time thinking about your story.',
+    avatar: 'KA',
     color: 'from-purple-500 to-pink-500'
   },
   {
-    name: 'Emma Thompson',
+    name: 'Balram Anisetti',
     role: 'Head of Product',
-    bio: 'Former Apple product designer. Led design teams for consumer-facing applications used by millions.',
-    avatar: 'ET',
+    bio: 'Its not important to know about me. rather spend your time thinking about your story.',
+    avatar: 'BA',
     color: 'from-pink-500 to-red-500'
   },
   {
-    name: 'David Kim',
+    name: 'Robinhood Steeve',
     role: 'Head of AI Research',
     bio: 'Former OpenAI researcher focused on creative AI applications. Published 20+ papers on language models.',
-    avatar: 'DK',
+    avatar: 'RS',
     color: 'from-green-500 to-blue-500'
   }
 ]
@@ -63,40 +63,22 @@ const values = [
 // Timeline data
 const timeline = [
   {
-    year: '2023',
+    year: '2025',
     quarter: 'Q1',
     title: 'The Spark',
-    description: 'Founded by Sarah and Marcus after witnessing countless talented writers struggle with industry barriers.'
+    description: 'Founded by Bharadwaja and Krishna after witnessing countless talented writers struggle with industry barriers.'
   },
   {
-    year: '2023',
+    year: '2025',
     quarter: 'Q2',
     title: 'First Investment',
-    description: 'Raised $2M seed round from Andreessen Horowitz and leading entertainment industry executives.'
+    description: 'Raised Nothing as of now, but we will be working on it.'
   },
   {
-    year: '2023',
+    year: 'Today',
     quarter: 'Q3',
     title: 'Beta Launch',
-    description: 'Launched private beta with 100 select screenwriters and producers. Average user engagement: 4.2 hours/day.'
-  },
-  {
-    year: '2024',
-    quarter: 'Q1',
-    title: 'Public Launch',
-    description: 'Opened platform to all creators. Reached 10,000+ users in first month with 98% satisfaction rate.'
-  },
-  {
-    year: '2024',
-    quarter: 'Q2',
-    title: 'AI Breakthrough',
-    description: 'Launched proprietary StoryAI model, trained on 50,000+ successful scripts and treatments.'
-  },
-  {
-    year: '2024',
-    quarter: 'Q4',
-    title: 'Today',
-    description: 'Serving 50,000+ creators worldwide. $2.4M+ in creator revenue generated through our platform.'
+    description: 'Launched private beta with few select friends and writers. Average user engagement: 1.2 hours/day.'
   }
 ]
 
@@ -105,7 +87,7 @@ const StatsCounter = () => {
   const [stats, setStats] = useState({ creators: 0, stories: 0, revenue: 0, countries: 0 })
   
   useEffect(() => {
-    const targets = { creators: 50000, stories: 125000, revenue: 2.4, countries: 85 }
+    const targets = { creators: 60000, stories: 125000, revenue: 2.4, countries: 85 }
     const duration = 2500
     const steps = 60
     const stepTime = duration / steps
@@ -173,7 +155,7 @@ const ValueCard = ({ value, index }: any) => (
       </div>
       <div>
         <h3 className="text-lg font-semibold mb-2">{value.title}</h3>
-        <p className="text-gray-400">{value.description}</p>
+        <p className="text-gray-600">{value.description}</p>
       </div>
     </div>
   </div>
@@ -222,7 +204,7 @@ export default function AboutPage() {
                 Empowering the Next Generation of <span className="text-gradient">Storytellers</span>
               </h1>
               
-              <p className="text-xl text-gray-300 mb-12 max-w-3xl mx-auto leading-relaxed">
+              <p className="text-xl text-gradient mb-12 max-w-3xl mx-auto leading-relaxed">
                 We believe every great story deserves to be told. StoryFoundry combines cutting-edge AI with industry expertise 
                 to democratize storytelling and help creators turn their visions into reality.
               </p>
@@ -241,27 +223,27 @@ export default function AboutPage() {
               <h2 className="text-4xl font-bold mb-6">
                 Our <span className="text-gradient">Vision</span>
               </h2>
-              <p className="text-xl text-gray-400 mb-8 leading-relaxed">
-                A world where every storyteller—regardless of background, connections, or resources—has the tools 
+              <p className="text-xl text-gray-800 mb-8 leading-relaxed">
+                A world where every storyteller-regardless of background, connections, or resources-has the tools 
                 and opportunity to bring their stories to life and reach global audiences.
               </p>
               
-              <div className="space-y-4">
+              <div className="space-y-4 ">
                 <div className="flex items-center space-x-3">
                   <CheckCircle className="w-5 h-5 text-green-400" />
-                  <span className="text-gray-300">Democratize access to professional storytelling tools</span>
+                  <span className="text-gray-500">Democratize access to professional storytelling tools</span>
                 </div>
                 <div className="flex items-center space-x-3">
                   <CheckCircle className="w-5 h-5 text-green-400" />
-                  <span className="text-gray-300">Protect intellectual property with blockchain technology</span>
+                  <span className="text-gray-500">Protect intellectual property with blockchain technology</span>
                 </div>
                 <div className="flex items-center space-x-3">
                   <CheckCircle className="w-5 h-5 text-green-400" />
-                  <span className="text-gray-300">Connect creators with industry professionals</span>
+                  <span className="text-gray-500">Connect creators with industry professionals</span>
                 </div>
                 <div className="flex items-center space-x-3">
                   <CheckCircle className="w-5 h-5 text-green-400" />
-                  <span className="text-gray-300">Enable global distribution and monetization</span>
+                  <span className="text-gray-500">Enable global distribution and monetization</span>
                 </div>
               </div>
             </div>
@@ -277,7 +259,7 @@ export default function AboutPage() {
                     <p className="text-gray-400">Breaking down industry barriers</p>
                   </div>
                 </div>
-                <p className="text-gray-300 leading-relaxed">
+                <p className="text-gradient leading-relaxed">
                   The entertainment industry has historically been gatekept by a small number of studios and agencies. 
                   Talented creators often struggle to get their work seen, properly protected, or fairly compensated. 
                   We're changing that with technology.
@@ -300,7 +282,7 @@ export default function AboutPage() {
             </p>
           </div>
           
-          <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+          <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto ">
             {values.map((value, index) => (
               <ValueCard key={value.title} value={value} index={index} />
             ))}
@@ -362,7 +344,7 @@ export default function AboutPage() {
             <h2 className="text-4xl font-bold mb-6">
               Backed by <span className="text-gradient">Industry Leaders</span>
             </h2>
-            <p className="text-xl text-gray-400 max-w-2xl mx-auto">
+            <p className="text-xl text-gray-500 max-w-2xl mx-auto">
               Supported by top-tier investors who believe in democratizing storytelling.
             </p>
           </div>
@@ -370,26 +352,26 @@ export default function AboutPage() {
           <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
             <div className="card-modern text-center">
               <div className="w-16 h-16 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center text-white text-2xl font-bold mx-auto mb-4">
-                a16z
+                CS
               </div>
-              <h3 className="text-lg font-semibold mb-2">Andreessen Horowitz</h3>
-              <p className="text-gray-400">Leading venture capital firm investing in the future of media and entertainment.</p>
+              <h3 className="text-lg font-semibold mb-2">Coming Soon</h3>
+              <p className="text-gray-400">Description Coming soon</p>
             </div>
             
             <div className="card-modern text-center">
               <div className="w-16 h-16 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center text-white text-2xl font-bold mx-auto mb-4">
-                CAA
+                CS
               </div>
-              <h3 className="text-lg font-semibold mb-2">CAA Ventures</h3>
-              <p className="text-gray-400">Strategic investment arm of Creative Artists Agency, connecting us to Hollywood.</p>
+              <h3 className="text-lg font-semibold mb-2">Coming soon</h3>
+              <p className="text-gray-400">Description Coming soon</p>
             </div>
             
             <div className="card-modern text-center">
               <div className="w-16 h-16 rounded-full bg-gradient-to-r from-pink-500 to-red-500 flex items-center justify-center text-white text-2xl font-bold mx-auto mb-4">
-                WME
+                CS
               </div>
-              <h3 className="text-lg font-semibold mb-2">WME Ventures</h3>
-              <p className="text-gray-400">Investment fund from William Morris Endeavor, supporting creator economy innovations.</p>
+              <h3 className="text-lg font-semibold mb-2">Coming soon</h3>
+              <p className="text-gray-400">Description Coming soon</p>
             </div>
           </div>
         </div>

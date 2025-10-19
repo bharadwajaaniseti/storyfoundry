@@ -1,3 +1,5 @@
+//used this file for features, Pricing, About, SignIn and SignUp pages.
+
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -18,7 +20,7 @@ const footerLinks = {
     { name: 'Features', href: '/features' },
     { name: 'Pricing', href: '/pricing' },
     { name: 'Security', href: '/security' },
-    { name: 'API', href: '/docs/api' },
+    { name: 'SAPI', href: '/docs/api' },
   ],
   company: [
     { name: 'About', href: '/about' },
