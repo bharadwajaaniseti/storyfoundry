@@ -281,7 +281,7 @@ function Footer() {
         {/* Bottom bar */}
         <div className="border-t border-gray-200 pt-8 flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
           <p className="text-gray-600 text-sm">
-            © 2024 StoryFoundry. All rights reserved.
+            © 2025 StoryFoundry. All rights reserved.
           </p>
           
           <div className="flex items-center space-x-6 text-sm text-gray-600">
