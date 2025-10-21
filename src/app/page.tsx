@@ -385,7 +385,7 @@ function Footer() {
             </div>
             <div className="flex items-center space-x-1">
               <Zap className="w-4 h-4" />
-              <span>Made with ⚡ in San Francisco</span>
+              <span>Made in UK</span>
             </div>
           </div>
         </div>

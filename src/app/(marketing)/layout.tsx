@@ -20,7 +20,7 @@ const footerLinks = {
     { name: 'Features', href: '/features' },
     { name: 'Pricing', href: '/pricing' },
     { name: 'Security', href: '/security' },
-    { name: 'SAPI', href: '/docs/api' },
+    { name: 'APIs', href: '/docs/api' },
   ],
   company: [
     { name: 'About', href: '/about' },
@@ -291,7 +291,7 @@ function Footer() {
             </div>
             <div className="flex items-center space-x-1">
               <Zap className="w-4 h-4" />
-              <span>Made with ⚡ in San Francisco</span>
+              <span>Made in UK</span>
             </div>
           </div>
         </div>
