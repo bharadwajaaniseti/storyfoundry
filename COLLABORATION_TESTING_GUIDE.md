@@ -45,7 +45,7 @@ Account 4: Translator (translator1@test.com)
 **Test Steps:**
 1. Login as invited user
 2. Check notifications bell
-3. Navigate to /app/collab
+3. Navigate to /app/collaborations
 4. Find pending invitation
 5. Click "Accept"
 

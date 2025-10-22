@@ -34,7 +34,7 @@ const writerNavigation = [
   { name: 'Dashboard', href: '/app/dashboard', icon: Home },
   { name: 'Projects', href: '/app/projects', icon: FolderOpen },
   { name: 'Discover', href: '/app/search', icon: Compass },
-  { name: 'Collaboration', href: '/app/collab', icon: Users },
+  { name: 'Collaboration', href: '/app/collaborations', icon: Users },
   { name: 'My Library', href: '/app/writer/library', icon: BookMarked },
   { name: 'Following', href: '/app/writer/following', icon: UserPlus },
   { name: 'Pitch Rooms', href: '/app/pitch-rooms', icon: Calendar },

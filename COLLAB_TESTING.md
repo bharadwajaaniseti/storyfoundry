@@ -45,7 +45,7 @@ Account 4: Translator (translator1@test.com)
 **Test Steps:**
 1. Login as invited user
 2. Check notifications bell
-3. Navigate to /app/collab
+3. Navigate to /app/collaborations
 4. Find pending invitation
 5. Click "Accept"
 
@@ -479,7 +479,7 @@ curl -X POST http://localhost:3000/api/collaborations/messages \
 2. **Accept invitations:**
    - Login as `editor@test.com`
    - Check notification bell (should have invitation)
-   - Go to `/app/collab` page
+   - Go to `/app/collaborations` page
    - Accept the invitation
    - Verify you can access the project
 

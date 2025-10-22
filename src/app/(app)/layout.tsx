@@ -48,7 +48,7 @@ const NAVIGATION_ITEMS = [
   },
   {
     name: 'Collaborations',
-    href: '/app/collab',
+    href: '/app/collaborations',
     icon: Users
   }
 ]
